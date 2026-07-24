@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="public/assets/img/site-img/icon.png" alt="AniVault logo" width="88" />
+<img src="public/assets/img/site-img/anivault-banner-logo.png" alt="AniVault logo" width="88" />
 
 # AniVault
 
