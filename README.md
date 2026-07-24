@@ -1,8 +1,6 @@
 <div align="center">
 
-<img src="public/assets/img/site-img/anivault-banner-logo.png" alt="AniVault logo" width="88" />
-
-# AniVault
+<img src="public/assets/img/site-img/banner-logo.png" alt="AniVault" width="420" />
 
 **Track your anime, discover new series, and connect with the community.**
 
