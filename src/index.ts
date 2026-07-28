@@ -37,6 +37,7 @@ import { scraperRoutes } from './routes/api-scraper';
 import { legalRoutes } from './routes/legal';
 import { watchNowRoutes } from './routes/watch-now';
 import { legacyRedirectRoutes } from './routes/legacy-redirects';
+import { apiChatRoutes } from './routes/api-chat';
 
 // Env bindings + secrets (set secrets via `wrangler secret put NAME`, see wrangler.toml)
 export interface Env {
@@ -103,5 +104,6 @@ app.route('/', scraperRoutes);
 app.route('/', legalRoutes);
 app.route('/', watchNowRoutes);
 app.route('/', legacyRedirectRoutes);
+app.route('/', apiChatRoutes);
 
 export default app;
