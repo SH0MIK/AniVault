@@ -2540,22 +2540,38 @@ textarea.form-control { resize: vertical; min-height: 100px; }
 .chat-msg:hover { background: var(--bg-hover); }
 
 .chat-msg-avatar {
-  width: 34px;
-  height: 34px;
+  position: relative;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: var(--bg-surface);
   border: 1px solid var(--border);
   flex-shrink: 0;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   font-weight: 700;
   color: var(--text-secondary);
   margin-top: 1px;
 }
-.chat-msg-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.chat-msg-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
+.chat-avatar-role-badge {
+  position: absolute;
+  bottom: -4px;
+  right: -6px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 20px;
+  font-size: 0.44rem;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  padding: 1.5px 4px;
+  border: 2px solid var(--bg-card);
+  line-height: 1.2;
+  white-space: nowrap;
+}
 
 .chat-msg-body { min-width: 0; flex: 1; }
 .chat-msg-meta {
@@ -2568,7 +2584,6 @@ textarea.form-control { resize: vertical; min-height: 100px; }
 }
 .chat-msg-name { color: var(--text-primary); font-weight: 600; font-size: 0.85rem; }
 .chat-msg-name.role-admin, .chat-msg-name.role-owner { color: var(--accent); }
-.chat-role-badge { padding: 1px 7px; font-size: 0.6rem; }
 .chat-msg-time { color: var(--text-muted); font-size: 0.68rem; }
 
 .chat-text {
