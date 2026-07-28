@@ -7,6 +7,8 @@ import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
 import { Chat, ChatMessageRow } from '../lib/chat';
+import { Badge, BadgeRow } from '../lib/badges';
+import { OWNER_USER_ID } from '../lib/auth';
 import { h, timeAgo } from '../lib/helpers';
 
 export const apiChatRoutes = new Hono<{ Bindings: Env }>();
@@ -19,10 +21,10 @@ async function buildCtx(c: any) {
   return { db, session, lifetime, auth };
 }
 
-function serialize(row: ChatMessageRow, currentUserId: number, isAdmin: boolean) {
-  const roleBadge =
-    row.role === 'owner' ? { label: 'OWNER', cls: 'badge-dropped' } :
-    row.role === 'admin' ? { label: 'Admin', cls: 'badge-dropped' } :
+function serialize(row: ChatMessageRow, currentUserId: number, isAdmin: boolean, badges: BadgeRow[]) {
+  const avatarBadge =
+    (row.user_id === OWNER_USER_ID || row.role === 'owner') ? 'OWNER' :
+    row.role === 'admin' ? 'ADMIN' :
     null;
   return {
     id: row.id,
@@ -30,13 +32,20 @@ function serialize(row: ChatMessageRow, currentUserId: number, isAdmin: boolean)
     username: h(row.username),
     avatar_url: row.avatar_url ?? null,
     role: row.role,
-    role_badge: roleBadge,
+    avatar_badge: avatarBadge, // same OWNER/ADMIN pill shown on the profile page avatar
+    badges_html: Badge.renderList(badges), // the user's actual earned badges, same as the profile page
     message: h(row.message), // escaped server-side — client renders as-is
     time: timeAgo(row.created_at),
     ts: Math.floor(new Date(row.created_at.replace(' ', 'T') + 'Z').getTime() / 1000),
     mine: row.user_id === currentUserId,
     can_delete: row.user_id === currentUserId || isAdmin,
   };
+}
+
+/** Batch-fetches badges for every distinct sender in one query, then serializes. */
+async function serializeAll(db: Db, rows: ChatMessageRow[], currentUserId: number, isAdmin: boolean) {
+  const badgeMap = await Badge.getForUsers(db, rows.map((r) => r.user_id));
+  return rows.map((r) => serialize(r, currentUserId, isAdmin, badgeMap[r.user_id] ?? []));
 }
 
 // Reading (get/poll/count) is open to guests; only sending/reading-receipts/
@@ -64,7 +73,7 @@ apiChatRoutes.on(['GET', 'POST'], '/api/chat', async (c) => {
       const rows = await Chat.getRecent(db, 50, beforeId);
       result = {
         success: true,
-        messages: rows.map((r) => serialize(r, userId, isAdmin)),
+        messages: await serializeAll(db, rows, userId, isAdmin),
         latest_id: await Chat.latestId(db),
       };
       break;
@@ -76,7 +85,7 @@ apiChatRoutes.on(['GET', 'POST'], '/api/chat', async (c) => {
       const rows = await Chat.getAfter(db, afterId);
       result = {
         success: true,
-        messages: rows.map((r) => serialize(r, userId, isAdmin)),
+        messages: await serializeAll(db, rows, userId, isAdmin),
         latest_id: rows.length ? rows[rows.length - 1].id : afterId,
       };
       break;
@@ -95,7 +104,8 @@ apiChatRoutes.on(['GET', 'POST'], '/api/chat', async (c) => {
         break;
       }
       await Chat.markRead(db, userId, sent.row!.id);
-      result = { success: true, message: serialize(sent.row!, userId, isAdmin) };
+      const myBadges = await Badge.getForUser(db, userId);
+      result = { success: true, message: serialize(sent.row!, userId, isAdmin, myBadges) };
       break;
     }
 
