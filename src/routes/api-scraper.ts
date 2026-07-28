@@ -17,8 +17,8 @@ import { h } from '../lib/helpers';
 
 export const scraperRoutes = new Hono<{ Bindings: Env }>();
 
-const SENSHI_BASE = 'https://ap1249-production-304e.up.railway.app/api';
-const ANIKOTO_MIRURO_BASE = 'https://ap1249-production-304e.up.railway.app/';
+const SENSHI_BASE = 'https://anivault-api.up.railway.app/api';
+const ANIKOTO_MIRURO_BASE = 'https://anivault-api.up.railway.app/';
 
 async function fetchJson(url: string, timeoutMs = 12000): Promise<{ ok: boolean; code: number; data: any }> {
   try {
