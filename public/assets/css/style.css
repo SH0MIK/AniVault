@@ -2443,7 +2443,7 @@ textarea.form-control { resize: vertical; min-height: 100px; }
   position: absolute;
   right: 0;
   bottom: 0;
-  width: 350px;
+  width: 310px;
   max-width: calc(100vw - 32px);
   height: min(65vh, 500px);
   max-height: calc(100vh - 100px);
@@ -2541,8 +2541,8 @@ textarea.form-control { resize: vertical; min-height: 100px; }
 
 .chat-msg-avatar {
   position: relative;
-  width: 38px;
-  height: 38px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   background: var(--bg-surface);
   border: 1px solid var(--border);
@@ -2559,17 +2559,18 @@ textarea.form-control { resize: vertical; min-height: 100px; }
 .chat-msg-avatar img { width: 100%; height: 100%; object-fit: cover; border-radius: 50%; }
 .chat-avatar-role-badge {
   position: absolute;
-  bottom: -4px;
-  right: -6px;
+  bottom: -5px;
+  left: 50%;
+  transform: translateX(-50%);
   background: var(--accent);
   color: #fff;
   border-radius: 20px;
-  font-size: 0.44rem;
+  font-size: 0.36rem;
   font-weight: 800;
-  letter-spacing: 0.3px;
-  padding: 1.5px 4px;
-  border: 2px solid var(--bg-card);
-  line-height: 1.2;
+  letter-spacing: 0.2px;
+  padding: 1px 3.5px;
+  border: 1.5px solid var(--bg-card);
+  line-height: 1.3;
   white-space: nowrap;
 }
 
@@ -2665,7 +2666,7 @@ textarea.form-control { resize: vertical; min-height: 100px; }
   .chat-widget { right: 12px; bottom: 12px; }
   .chat-fab { width: 48px; height: 48px; }
   .chat-panel {
-    width: calc(100vw - 24px);
+    width: min(80vw, 290px);
     height: min(58vh, 440px);
   }
   .chat-guest-bar { flex-direction: column; align-items: stretch; text-align: center; }
