@@ -187,6 +187,32 @@ ${ICON_SPRITE}
 ${bannerBlock}
 <div id="toast-container"></div>
 
+<div class="chat-widget" id="chat-widget">
+  <button class="chat-fab" id="chat-fab" aria-label="Open community chat" title="Community Chat">
+    ${icon('message', 'icon-medium')}
+    <span class="chat-fab-badge" id="chat-fab-badge" style="display:none;">0</span>
+  </button>
+  <div class="chat-panel" id="chat-panel">
+    <div class="chat-panel-header">
+      <h4>${icon('message', 'icon-small')} Community Chat</h4>
+      <button class="chat-minimize" id="chat-minimize" aria-label="Minimize chat" title="Minimize">${icon('chevron-left', 'icon-small')}</button>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <button class="chat-load-more" id="chat-load-more" style="display:none;">Load older messages</button>
+      <div class="chat-empty" id="chat-empty">${icon('message', 'icon-large')}Loading chat…</div>
+    </div>
+    ${cu ? `
+    <form class="chat-input-row" id="chat-form">
+      <textarea id="chat-input" class="chat-input" placeholder="Message everyone…" maxlength="500" rows="1"></textarea>
+      <button type="submit" class="chat-send-btn" id="chat-send-btn" aria-label="Send">${icon('arrow-right', 'icon-small')}</button>
+    </form>` : `
+    <div class="chat-guest-bar" id="chat-guest-bar">
+      <span>${icon('lock', 'icon-small')} Log in to join the conversation</span>
+      <button type="button" class="btn btn-primary btn-sm" onclick="requireLogin('login')">${icon('login', 'icon-small')} Login</button>
+    </div>`}
+  </div>
+</div>
+
 <nav class="navbar">
   <button class="nav-hamburger" id="nav-hamburger" aria-label="Menu" aria-expanded="false"><span></span><span></span><span></span></button>
   <a href="${o.siteUrl}/" class="nav-logo">Ani<span>Vault</span></a>
