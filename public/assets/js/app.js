@@ -951,18 +951,23 @@ async function markChatRead() {
 
 function buildChatMessageEl(m) {
   const wrap = document.createElement('div');
-  wrap.className = 'chat-msg' + (m.mine ? ' mine' : '');
+  wrap.className = 'chat-msg';
   wrap.id = 'chat-msg-' + m.id;
   const initial = m.username ? m.username.charAt(0).toUpperCase() : '?';
+  const badge = m.role_badge
+    ? `<span class="badge ${m.role_badge.cls} chat-role-badge">${m.role_badge.label}</span>`
+    : '';
+  const profileUrl = (window.__siteUrl || '') + '/u/' + encodeURIComponent(m.username);
   wrap.innerHTML = `
-    <div class="chat-msg-avatar">${m.avatar_url ? `<img src="${m.avatar_url}" alt="">` : `<span>${initial}</span>`}</div>
+    <a class="chat-msg-avatar" href="${profileUrl}">${m.avatar_url ? `<img src="${m.avatar_url}" alt="">` : `<span>${initial}</span>`}</a>
     <div class="chat-msg-body">
       <div class="chat-msg-meta">
-        <span class="chat-msg-name role-${m.role}">${m.username}</span>
+        <a class="chat-msg-name role-${m.role}" href="${profileUrl}">${m.username}</a>
+        ${badge}
         <span class="chat-msg-time">${m.time}</span>
         ${m.can_delete ? `<button type="button" class="chat-msg-delete" title="Delete" onclick="deleteChatMessage(${m.id})">✕</button>` : ''}
       </div>
-      <div class="chat-bubble">${m.message}</div>
+      <div class="chat-text">${m.message}</div>
     </div>`;
   return wrap;
 }
