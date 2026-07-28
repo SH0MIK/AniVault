@@ -20,12 +20,17 @@ async function buildCtx(c: any) {
 }
 
 function serialize(row: ChatMessageRow, currentUserId: number, isAdmin: boolean) {
+  const roleBadge =
+    row.role === 'owner' ? { label: 'OWNER', cls: 'badge-dropped' } :
+    row.role === 'admin' ? { label: 'Admin', cls: 'badge-dropped' } :
+    null;
   return {
     id: row.id,
     user_id: row.user_id,
     username: h(row.username),
     avatar_url: row.avatar_url ?? null,
     role: row.role,
+    role_badge: roleBadge,
     message: h(row.message), // escaped server-side — client renders as-is
     time: timeAgo(row.created_at),
     ts: Math.floor(new Date(row.created_at.replace(' ', 'T') + 'Z').getTime() / 1000),
