@@ -813,9 +813,213 @@ async function likeReview(btn, reviewId) {
   btn.disabled = false;
 }
 
-// init notifications on load
+// ── Community Chat widget ────────────────────────────────
+// Visible to everyone; guests can read but the input row only exists in the
+// DOM when logged in (server-rendered), so guests never get a live socket.
+let __chatLatestId    = 0;
+let __chatOldestId    = null;
+let __chatLoadedOnce  = false;
+let __chatPolling     = null;
+
+function initChat() {
+  const widget = document.getElementById('chat-widget');
+  const fab    = document.getElementById('chat-fab');
+  if (!widget || !fab) return;
+
+  const stored = sessionStorage.getItem('av_chat_open');
+  if (stored === '0') { widget.classList.remove('open'); } else { openChat(); }
+
+  fab.addEventListener('click', openChat);
+  document.getElementById('chat-minimize')?.addEventListener('click', closeChat);
+
+  const form  = document.getElementById('chat-form');
+  const input = document.getElementById('chat-input');
+  if (form && input) {
+    form.addEventListener('submit', e => { e.preventDefault(); sendChatMessage(); });
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
+    });
+    input.addEventListener('input', () => {
+      input.style.height = 'auto';
+      input.style.height = Math.min(input.scrollHeight, 90) + 'px';
+    });
+  }
+
+  document.getElementById('chat-load-more')?.addEventListener('click', loadOlderChatMessages);
+
+  loadChatMessages();
+  __chatPolling = setInterval(chatPollTick, 4000);
+}
+
+function openChat() {
+  const widget = document.getElementById('chat-widget');
+  if (!widget) return;
+  widget.classList.add('open');
+  sessionStorage.setItem('av_chat_open', '1');
+  scrollChatToBottom();
+  hideChatBadge();
+  if (window.__loggedIn && __chatLoadedOnce) markChatRead();
+}
+
+function closeChat() {
+  const widget = document.getElementById('chat-widget');
+  if (!widget) return;
+  widget.classList.remove('open');
+  sessionStorage.setItem('av_chat_open', '0');
+}
+
+async function loadChatMessages() {
+  const list  = document.getElementById('chat-messages');
+  const empty = document.getElementById('chat-empty');
+  if (!list) return;
+  try {
+    const res  = await fetch('/api/chat?action=get');
+    const data = await res.json();
+    if (!data.success) return;
+    __chatLoadedOnce = true;
+    if (!data.messages.length) {
+      if (empty) empty.innerHTML = 'No messages yet — say hi! 👋';
+    } else {
+      empty?.remove();
+      data.messages.forEach(m => appendChatMessage(m));
+      __chatOldestId = data.messages[0].id;
+      const loadMoreBtn = document.getElementById('chat-load-more');
+      if (loadMoreBtn) loadMoreBtn.style.display = data.messages.length >= 50 ? 'block' : 'none';
+    }
+    __chatLatestId = data.latest_id || __chatLatestId;
+    scrollChatToBottom();
+    if (window.__loggedIn && document.getElementById('chat-widget')?.classList.contains('open')) markChatRead();
+  } catch (e) {}
+}
+
+async function loadOlderChatMessages() {
+  if (__chatOldestId == null) return;
+  const list = document.getElementById('chat-messages');
+  const btn  = document.getElementById('chat-load-more');
+  if (!list) return;
+  const prevHeight = list.scrollHeight;
+  try {
+    const res  = await fetch('/api/chat?action=get&before_id=' + __chatOldestId);
+    const data = await res.json();
+    if (!data.success || !data.messages.length) { if (btn) btn.style.display = 'none'; return; }
+    const frag = document.createDocumentFragment();
+    data.messages.forEach(m => frag.appendChild(buildChatMessageEl(m)));
+    list.insertBefore(frag, btn.nextSibling);
+    __chatOldestId = data.messages[0].id;
+    list.scrollTop = list.scrollHeight - prevHeight;
+    if (data.messages.length < 50 && btn) btn.style.display = 'none';
+  } catch (e) {}
+}
+
+async function chatPollTick() {
+  const widget = document.getElementById('chat-widget');
+  const isOpen = widget?.classList.contains('open');
+  if (isOpen && __chatLoadedOnce) {
+    try {
+      const res  = await fetch('/api/chat?action=poll&after_id=' + __chatLatestId);
+      const data = await res.json();
+      if (data.success && data.messages.length) {
+        data.messages.forEach(m => appendChatMessage(m));
+        __chatLatestId = data.latest_id;
+        scrollChatToBottom();
+        if (window.__loggedIn) markChatRead();
+      }
+    } catch (e) {}
+  } else if (window.__loggedIn) {
+    try {
+      const res  = await fetch('/api/chat?action=count');
+      const data = await res.json();
+      if (data.success) updateChatBadge(data.unread);
+    } catch (e) {}
+  }
+}
+
+function updateChatBadge(count) {
+  const badge = document.getElementById('chat-fab-badge');
+  if (!badge) return;
+  if (count > 0) { badge.textContent = count > 99 ? '99+' : count; badge.style.display = 'flex'; }
+  else badge.style.display = 'none';
+}
+function hideChatBadge() { updateChatBadge(0); }
+
+async function markChatRead() {
+  const fd = new FormData();
+  fd.append('action', 'read');
+  try { await fetch('/api/chat', { method: 'POST', body: fd }); } catch (e) {}
+  hideChatBadge();
+}
+
+function buildChatMessageEl(m) {
+  const wrap = document.createElement('div');
+  wrap.className = 'chat-msg' + (m.mine ? ' mine' : '');
+  wrap.id = 'chat-msg-' + m.id;
+  const initial = m.username ? m.username.charAt(0).toUpperCase() : '?';
+  wrap.innerHTML = `
+    <div class="chat-msg-avatar">${m.avatar_url ? `<img src="${m.avatar_url}" alt="">` : `<span>${initial}</span>`}</div>
+    <div class="chat-msg-body">
+      <div class="chat-msg-meta">
+        <span class="chat-msg-name role-${m.role}">${m.username}</span>
+        <span class="chat-msg-time">${m.time}</span>
+        ${m.can_delete ? `<button type="button" class="chat-msg-delete" title="Delete" onclick="deleteChatMessage(${m.id})">✕</button>` : ''}
+      </div>
+      <div class="chat-bubble">${m.message}</div>
+    </div>`;
+  return wrap;
+}
+
+function appendChatMessage(m) {
+  const list = document.getElementById('chat-messages');
+  if (!list || document.getElementById('chat-msg-' + m.id)) return;
+  list.appendChild(buildChatMessageEl(m));
+}
+
+function scrollChatToBottom() {
+  const list = document.getElementById('chat-messages');
+  if (list) list.scrollTop = list.scrollHeight;
+}
+
+async function sendChatMessage() {
+  if (!window.__loggedIn) { requireLogin('login'); return; }
+  const input = document.getElementById('chat-input');
+  const btn   = document.getElementById('chat-send-btn');
+  const text  = (input?.value || '').trim();
+  if (!text) return;
+  btn.disabled = true;
+  const fd = new FormData();
+  fd.append('action', 'send');
+  fd.append('message', text);
+  try {
+    const res  = await fetch('/api/chat', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      input.value = '';
+      input.style.height = 'auto';
+      appendChatMessage(data.message);
+      __chatLatestId = Math.max(__chatLatestId, data.message.id);
+      scrollChatToBottom();
+    } else {
+      showToast(data.message || 'Could not send message', 'error');
+    }
+  } catch (e) { showToast('Error sending message', 'error'); }
+  btn.disabled = false;
+}
+
+async function deleteChatMessage(id) {
+  if (!confirm('Delete this message?')) return;
+  const fd = new FormData();
+  fd.append('action', 'delete');
+  fd.append('id', id);
+  try {
+    const res  = await fetch('/api/chat', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) document.getElementById('chat-msg-' + id)?.remove();
+  } catch (e) {}
+}
+
+// init notifications + chat on load
 document.addEventListener('DOMContentLoaded', () => {
   if (window.__loggedIn) initNotifications();
+  initChat();
 });
 
 // ── Mobile Menu (Hamburger) ─────────────────────────────────
