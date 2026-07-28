@@ -954,16 +954,18 @@ function buildChatMessageEl(m) {
   wrap.className = 'chat-msg';
   wrap.id = 'chat-msg-' + m.id;
   const initial = m.username ? m.username.charAt(0).toUpperCase() : '?';
-  const badge = m.role_badge
-    ? `<span class="badge ${m.role_badge.cls} chat-role-badge">${m.role_badge.label}</span>`
-    : '';
   const profileUrl = (window.__siteUrl || '') + '/u/' + encodeURIComponent(m.username);
+  const avatarPill = m.avatar_badge ? `<span class="chat-avatar-role-badge">${m.avatar_badge}</span>` : '';
   wrap.innerHTML = `
-    <a class="chat-msg-avatar" href="${profileUrl}">${m.avatar_url ? `<img src="${m.avatar_url}" alt="">` : `<span>${initial}</span>`}</a>
+    <a class="chat-msg-avatar" href="${profileUrl}" title="${m.username}">
+      ${m.avatar_url ? `<img src="${m.avatar_url}" alt="">` : `<span>${initial}</span>`}
+      ${avatarPill}
+    </a>
     <div class="chat-msg-body">
       <div class="chat-msg-meta">
-        <a class="chat-msg-name role-${m.role}" href="${profileUrl}">${m.username}</a>
-        ${badge}
+        <span class="username-with-badges">
+          <a class="chat-msg-name role-${m.role}" href="${profileUrl}">${m.username}</a>${m.badges_html || ''}
+        </span>
         <span class="chat-msg-time">${m.time}</span>
         ${m.can_delete ? `<button type="button" class="chat-msg-delete" title="Delete" onclick="deleteChatMessage(${m.id})">✕</button>` : ''}
       </div>
