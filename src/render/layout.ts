@@ -237,6 +237,7 @@ ${bannerBlock}
 <script>
 window.__loggedIn = ${cu ? 'true' : 'false'};
 window.__siteUrl  = '${o.siteUrl}';
+window.__currentPage = '${o.currentPage}';
 </script>
 
 <div class="mobile-menu" id="mobile-menu">
