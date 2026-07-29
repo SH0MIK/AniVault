@@ -144,6 +144,59 @@ document.addEventListener('keydown', function(e) {
 
 
 
+// ══════════════════════════════════════════════════════════════
+//  SILENT ACCOUNT CREATION
+//  Some actions (watchlist, favorite, watching an episode) shouldn't be
+//  blocked by the login wall. If the visitor isn't logged in yet, this
+//  quietly creates a real account for them via /api/auto_auth.php instead
+//  of popping the auth modal. requireLogin() above (used by the actual
+//  Login/Sign Up buttons) is completely untouched by this.
+// ══════════════════════════════════════════════════════════════
+
+/** Ensures the visitor has a session, creating one silently if needed.
+ *  Returns true once logged in (either already, or just now), false only
+ *  if account creation itself failed (e.g. a network/server error). */
+async function ensureAccount() {
+  if (window.__loggedIn) return true;
+  try {
+    const res  = await fetch((window.__siteUrl || '') + '/api/auto_auth.php', { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      window.__loggedIn = true;
+      if (data.username && data.password) showAutoAccountToast(data);
+      return true;
+    }
+  } catch (e) { /* fall through to the error toast below */ }
+  showToast('Could not set up your account, please try again.', 'error');
+  return false;
+}
+
+/** One-time on-screen credentials for a just-auto-created account. The same
+ *  details also land in the notifications bell (see Auth.autoRegister on the
+ *  server) so the user can find them again later if they miss this. */
+function showAutoAccountToast(info) {
+  if (!info || !info.username) return;
+  const c = document.getElementById('toast-container') || (() => {
+    const d = document.createElement('div');
+    d.id = 'toast-container';
+    document.body.appendChild(d);
+    return d;
+  })();
+  const t = document.createElement('div');
+  t.className = 'toast success toast-account';
+  t.innerHTML = `We saved you a free account 🎉<br>` +
+    `<strong>${info.username}</strong> / <strong>${info.password || ''}</strong><br>` +
+    `<a href="${window.__siteUrl || ''}/profile" style="text-decoration:underline;color:inherit;">Tap to set your own password →</a>`;
+  c.appendChild(t);
+  setTimeout(() => t.remove(), 15000);
+}
+
+// If the current page (e.g. the watch page) just auto-created an account for
+// this visitor server-side, show the same one-time toast here.
+document.addEventListener('DOMContentLoaded', () => {
+  if (window.__autoAccountInfo) showAutoAccountToast(window.__autoAccountInfo);
+});
+
 // ── Toast notification ──────────────────────────────────
 function showToast(msg, type = 'success') {
   const c = document.getElementById('toast-container') || (() => {
@@ -241,10 +294,8 @@ document.addEventListener('click', e => {
 
 // ── Add to list ─────────────────────────────────────────
 async function addToList(animeId, title, image, totalEpisodes) {
-  if (!window.__loggedIn) {
-    requireLogin();
-    return;
-  }
+  const ok = await ensureAccount();
+  if (!ok) return;
   const base = window.__siteUrl || '';
 
   // Set hidden fields
@@ -417,7 +468,8 @@ async function deleteFromList() {
 
 // ── Favorite toggle ─────────────────────────────────────
 async function toggleFavorite(btn, animeId, title, image) {
-  if (!window.__loggedIn) { requireLogin(); return; }
+  const ok = await ensureAccount();
+  if (!ok) return;
   try {
     const fd = new FormData();
     fd.append('action', 'favorite');
@@ -426,6 +478,7 @@ async function toggleFavorite(btn, animeId, title, image) {
     fd.append('anime_image', image);
     const res  = await fetch((window.__siteUrl || '') + '/api/list.php', { method: 'POST', body: fd });
     const data = await res.json();
+    if (data.auto_account) showAutoAccountToast(data.auto_account);
     if (data.success) {
       btn.textContent = data.favorited ? '♥ Favorited' : '♡ Favorite';
       btn.style.color = data.favorited ? '#e8453c' : '';
@@ -493,6 +546,7 @@ document.addEventListener('DOMContentLoaded', () => {
       try {
         const res  = await fetch((window.__siteUrl || '') + '/api/list.php', { method: 'POST', body: fd });
         const data = await res.json();
+        if (data.auto_account) showAutoAccountToast(data.auto_account);
         showToast(data.message, data.success ? 'success' : 'error');
         if (data.success) {
           closeModal('add-to-list-modal');
