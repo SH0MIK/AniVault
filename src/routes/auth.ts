@@ -6,7 +6,7 @@
 import { Hono } from 'hono';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
-import { Auth, OWNER_USER_ID } from '../lib/auth';
+import { Auth, OWNER_USER_ID, AUTO_SESSION_LIFETIME_SECONDS } from '../lib/auth';
 import type { Env } from '../index';
 
 export const authRoutes = new Hono<{ Bindings: Env }>();
@@ -49,6 +49,25 @@ authRoutes.post('/api/auth_ajax.php', async (c) => {
   }
 
   await session.save(c, lifetime);
+  return c.json(result);
+});
+
+// ── api/auto_auth.php — silently creates a real account (no popup, no
+//    email) for a signed-out visitor the moment they do something that
+//    needs one: add to watchlist, favorite, or open the watch page. The
+//    login/signup modal from the nav's Login/Sign Up buttons is untouched —
+//    this is a separate, invisible path used only by those specific actions.
+authRoutes.post('/api/auto_auth.php', async (c) => {
+  const { auth, session } = await buildAuth(c);
+  const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
+
+  if (auth.check()) {
+    await session.save(c, lifetime);
+    return c.json({ success: true, alreadyLoggedIn: true });
+  }
+
+  const result = await auth.autoRegister();
+  await session.save(c, result.success ? AUTO_SESSION_LIFETIME_SECONDS : lifetime);
   return c.json(result);
 });
 

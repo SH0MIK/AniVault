@@ -11,7 +11,7 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
-import { Auth } from '../lib/auth';
+import { Auth, AUTO_SESSION_LIFETIME_SECONDS } from '../lib/auth';
 import { MalAPI, NormalisedAnime } from '../lib/mal-api';
 import { Notification } from '../lib/notification';
 import { h, getAnimeTitle } from '../lib/helpers';
@@ -121,6 +121,18 @@ watchRoutes.get('/watch', async (c) => {
   const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   if (!animeId || !epNum) return c.redirect(siteUrl + '/');
+
+  // No more login wall on the watch page: a signed-out visitor gets a real
+  // account (random username/password) created transparently right here, so
+  // the player just plays. renderSignInGate() below is kept only as a
+  // fallback for the rare case autoRegister() itself fails (e.g. a DB hiccup).
+  let justAutoCreated: { username: string; password: string } | null = null;
+  if (!auth.check()) {
+    const reg = await auth.autoRegister();
+    if (reg.success && reg.username && reg.password) {
+      justAutoCreated = { username: reg.username, password: reg.password };
+    }
+  }
 
   const result = await mal.getAnime(animeId);
   const anime = result.data;
@@ -290,7 +302,14 @@ watchRoutes.get('/watch', async (c) => {
   html += playerScript(animeId, epNum, siteUrl);
   html += `</div>`;
 
-  await session.save(c, lifetime);
+  if (justAutoCreated) {
+    // One-time toast (handled in app.js) so the visitor sees their generated
+    // credentials immediately; the same details also live in their
+    // notifications bell (see Auth.autoRegister) in case they miss this.
+    html += `<script>window.__autoAccountInfo=${JSON.stringify(justAutoCreated)};</script>`;
+  }
+
+  await session.save(c, session.data.auto_created ? AUTO_SESSION_LIFETIME_SECONDS : lifetime);
   return c.html(html);
 });
 

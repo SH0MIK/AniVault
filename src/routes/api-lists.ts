@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
-import { Auth } from '../lib/auth';
+import { Auth, AUTO_SESSION_LIFETIME_SECONDS } from '../lib/auth';
 import { MalAPI } from '../lib/mal-api';
 import { AnimeTracker } from '../lib/tracker';
 import { Notification } from '../lib/notification';
@@ -24,13 +24,29 @@ apiListRoutes.on(['GET', 'POST'], '/api/list.php', async (c) => {
   const { db, session, lifetime, auth } = await buildCtx(c);
   const mal = new MalAPI(c.env, c.env.API_CACHE, db);
 
-  if (!auth.check()) {
-    await session.save(c, lifetime);
-    return c.json({ success: false, message: 'Not logged in' }, 401);
-  }
-  const userId = session.user_id!;
   const body = c.req.method === 'POST' ? await c.req.parseBody() : {};
   const action = (body.action as string) ?? c.req.query('action') ?? '';
+
+  // 'add' and 'favorite' are allowed to silently create an account for a
+  // signed-out visitor (mirrors the client's ensureAccount() call in app.js
+  // — this is just the server-side backstop in case that call didn't fire).
+  // 'remove'/'get' stay gated: there's nothing to remove/fetch for someone
+  // who's never had an account.
+  let autoAccount: { username: string; password: string } | undefined;
+  if (!auth.check()) {
+    if (action === 'add' || action === 'favorite') {
+      const reg = await auth.autoRegister();
+      if (!reg.success) {
+        await session.save(c, lifetime);
+        return c.json({ success: false, message: reg.message ?? 'Could not create an account.' }, 500);
+      }
+      autoAccount = { username: reg.username!, password: reg.password! };
+    } else {
+      await session.save(c, lifetime);
+      return c.json({ success: false, message: 'Not logged in' }, 401);
+    }
+  }
+  const userId = session.user_id!;
 
   let result: any;
   switch (action) {
@@ -59,7 +75,8 @@ apiListRoutes.on(['GET', 'POST'], '/api/list.php', async (c) => {
       await session.save(c, lifetime);
       return c.json({ success: false, message: 'Unknown action' }, 400);
   }
-  await session.save(c, lifetime);
+  if (autoAccount) result = { ...result, auto_account: autoAccount };
+  await session.save(c, autoAccount ? AUTO_SESSION_LIFETIME_SECONDS : lifetime);
   return c.json(result);
 });
 
