@@ -5,13 +5,16 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
-import { Auth } from '../lib/auth';
+import { Auth, OWNER_USER_ID } from '../lib/auth';
 import { Chat, ChatMessageRow } from '../lib/chat';
 import { Badge, BadgeRow } from '../lib/badges';
-import { OWNER_USER_ID } from '../lib/auth';
+import { Notification } from '../lib/notification';
 import { h, timeAgo } from '../lib/helpers';
 
 export const apiChatRoutes = new Hono<{ Bindings: Env }>();
+
+// Fixed whitelist — keeps reactions to a known, moderation-friendly set instead of arbitrary text.
+export const CHAT_REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
 async function buildCtx(c: any) {
   const db = new Db(c.env.DB);
@@ -21,7 +24,13 @@ async function buildCtx(c: any) {
   return { db, session, lifetime, auth };
 }
 
-function serialize(row: ChatMessageRow, currentUserId: number, isAdmin: boolean, badges: BadgeRow[]) {
+type Extras = {
+  badges: BadgeRow[];
+  reactions: { emoji: string; count: number; mine: boolean }[];
+  watching: { anime_id: number; title: string; image: string } | null;
+};
+
+function serialize(row: ChatMessageRow, currentUserId: number, isAdmin: boolean, extras: Extras) {
   const avatarBadge =
     (row.user_id === OWNER_USER_ID || row.role === 'owner') ? 'OWNER' :
     row.role === 'admin' ? 'ADMIN' :
@@ -33,24 +42,39 @@ function serialize(row: ChatMessageRow, currentUserId: number, isAdmin: boolean,
     avatar_url: row.avatar_url ?? null,
     role: row.role,
     avatar_badge: avatarBadge, // same OWNER/ADMIN pill shown on the profile page avatar
-    badges_html: Badge.renderList(badges), // the user's actual earned badges, same as the profile page
+    badges_html: Badge.renderList(extras.badges), // the user's actual earned badges, same as the profile page
+    watching: extras.watching ? { anime_id: extras.watching.anime_id, title: h(extras.watching.title), image: extras.watching.image } : null,
     message: h(row.message), // escaped server-side — client renders as-is
     time: timeAgo(row.created_at),
     ts: Math.floor(new Date(row.created_at.replace(' ', 'T') + 'Z').getTime() / 1000),
     mine: row.user_id === currentUserId,
     can_delete: row.user_id === currentUserId || isAdmin,
+    reactions: extras.reactions,
+    reaction_emojis: CHAT_REACTION_EMOJIS,
   };
 }
 
-/** Batch-fetches badges for every distinct sender in one query, then serializes. */
+/** Batch-fetches badges/reactions/watching-status for every message in one pass, then serializes. */
 async function serializeAll(db: Db, rows: ChatMessageRow[], currentUserId: number, isAdmin: boolean) {
-  const badgeMap = await Badge.getForUsers(db, rows.map((r) => r.user_id));
-  return rows.map((r) => serialize(r, currentUserId, isAdmin, badgeMap[r.user_id] ?? []));
+  const userIds = rows.map((r) => r.user_id);
+  const messageIds = rows.map((r) => r.id);
+  const [badgeMap, reactionMap, watchingMap] = await Promise.all([
+    Badge.getForUsers(db, userIds),
+    Chat.getReactionsForMessages(db, messageIds, currentUserId),
+    Chat.getWatchingMap(db, userIds),
+  ]);
+  return rows.map((r) =>
+    serialize(r, currentUserId, isAdmin, {
+      badges: badgeMap[r.user_id] ?? [],
+      reactions: reactionMap[r.id] ?? [],
+      watching: watchingMap[r.user_id] ?? null,
+    })
+  );
 }
 
-// Reading (get/poll/count) is open to guests; only sending/reading-receipts/
-// deleting require a logged-in session.
-const WRITE_ACTIONS = new Set(['send', 'read', 'delete']);
+// Reading (get/poll/count/presence) is open to guests; anything that writes
+// on a user's behalf requires a logged-in session.
+const WRITE_ACTIONS = new Set(['send', 'read', 'delete', 'react', 'typing']);
 
 apiChatRoutes.on(['GET', 'POST'], '/api/chat', async (c) => {
   const { db, session, lifetime, auth } = await buildCtx(c);
@@ -104,8 +128,23 @@ apiChatRoutes.on(['GET', 'POST'], '/api/chat', async (c) => {
         break;
       }
       await Chat.markRead(db, userId, sent.row!.id);
-      const myBadges = await Badge.getForUser(db, userId);
-      result = { success: true, message: serialize(sent.row!, userId, isAdmin, myBadges) };
+      await Chat.ping(db, userId, false); // sending implicitly stops "typing"
+
+      // @mentions — notify anyone named in the message (excluding the sender).
+      const mentioned = await Chat.findMentionedUsers(db, text, userId);
+      const preview = text.length > 60 ? text.slice(0, 57) + '...' : text;
+      for (const u of mentioned) {
+        await Notification.create(db, u.id, userId, 'chat_mention', sent.row!.id, preview);
+      }
+
+      const [myBadges, myWatching] = await Promise.all([
+        Badge.getForUser(db, userId),
+        Chat.getWatchingMap(db, [userId]),
+      ]);
+      result = {
+        success: true,
+        message: serialize(sent.row!, userId, isAdmin, { badges: myBadges, reactions: [], watching: myWatching[userId] ?? null }),
+      };
       break;
     }
 
@@ -120,6 +159,36 @@ apiChatRoutes.on(['GET', 'POST'], '/api/chat', async (c) => {
       const id = parseInt(getParam('id') || '0', 10) || 0;
       const ok = id ? await Chat.deleteMessage(db, id, userId, isAdmin) : false;
       result = { success: ok };
+      break;
+    }
+
+    case 'react': {
+      const messageId = parseInt(getParam('message_id') || '0', 10) || 0;
+      const emoji = (getParam('emoji') || '').toString();
+      if (!messageId || !CHAT_REACTION_EMOJIS.includes(emoji)) {
+        result = { success: false, message: 'Invalid reaction.' };
+        break;
+      }
+      await Chat.toggleReaction(db, messageId, userId, emoji);
+      const reactionMap = await Chat.getReactionsForMessages(db, [messageId], userId);
+      result = { success: true, reactions: reactionMap[messageId] ?? [] };
+      break;
+    }
+
+    // Typing ping — client calls this (debounced) while the input has text.
+    case 'typing': {
+      await Chat.ping(db, userId, true);
+      result = { success: true };
+      break;
+    }
+
+    // Online count + who's typing. Open to guests (they just never appear in either).
+    case 'presence': {
+      const [online, typing] = await Promise.all([
+        Chat.onlineCount(db),
+        auth.check() ? Chat.typingUsernames(db, userId) : Chat.typingUsernames(db, 0),
+      ]);
+      result = { success: true, online, typing };
       break;
     }
 
