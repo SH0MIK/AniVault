@@ -184,9 +184,17 @@ function showAutoAccountToast(info) {
   })();
   const t = document.createElement('div');
   t.className = 'toast success toast-account';
-  t.innerHTML = `We saved you a free account 🎉<br>` +
-    `<strong>${info.username}</strong> / <strong>${info.password || ''}</strong><br>` +
-    `<a href="${window.__siteUrl || ''}/profile" style="text-decoration:underline;color:inherit;">Tap to set your own password →</a>`;
+  // .toast is display:flex in style.css, which is fine for a single line but
+  // badly mangles multi-line content (<br> ends up creating separate
+  // side-by-side flex items instead of stacked lines). Override to a plain
+  // block/column layout just for this toast instead of fighting that.
+  t.style.display = 'block';
+  t.style.alignItems = 'unset';
+  t.style.lineHeight = '1.5';
+  t.innerHTML =
+    `<div>We saved you a free account 🎉</div>` +
+    `<div style="margin-top:4px;"><strong>${info.username}</strong> <span style="opacity:.6">/</span> <strong>${info.password || ''}</strong></div>` +
+    `<div style="margin-top:4px;"><a href="${window.__siteUrl || ''}/profile" style="text-decoration:underline;color:inherit;">Tap to set your own password →</a></div>`;
   c.appendChild(t);
   setTimeout(() => t.remove(), 15000);
 }
