@@ -194,13 +194,14 @@ ${bannerBlock}
   </button>
   <div class="chat-panel" id="chat-panel">
     <div class="chat-panel-header">
-      <h4>${icon('message', 'icon-small')} Community Chat</h4>
+      <h4>${icon('message', 'icon-small')} Community Chat <span class="chat-online-count" id="chat-online-count" style="display:none;"><span class="chat-online-dot"></span><span id="chat-online-num">0</span></span></h4>
       <button class="chat-minimize" id="chat-minimize" aria-label="Close chat" title="Close">${icon('x', 'icon-small')}</button>
     </div>
     <div class="chat-messages" id="chat-messages">
       <button class="chat-load-more" id="chat-load-more" style="display:none;">Load older messages</button>
       <div class="chat-empty" id="chat-empty">${icon('message', 'icon-large')}Loading chat…</div>
     </div>
+    <div class="chat-typing-row" id="chat-typing-row" style="display:none;"></div>
     ${cu ? `
     <form class="chat-input-row" id="chat-form">
       <textarea id="chat-input" class="chat-input" placeholder="Message everyone…" maxlength="500" rows="1"></textarea>
