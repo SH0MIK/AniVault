@@ -1075,7 +1075,7 @@ function buildChatMessageEl(m, grouped) {
     const avatarPill = m.avatar_badge ? `<span class="chat-avatar-role-badge">${m.avatar_badge}</span>` : '';
     wrap.innerHTML = `
       <a class="chat-msg-avatar" href="${profileUrl}" title="${m.username}">
-        ${m.avatar_url ? `<img src="${m.avatar_url}" alt="">` : `<span>${initial}</span>`}
+        ${m.avatar_url ? `<img src="${m.avatar_url}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${initial}'}))">` : `<span>${initial}</span>`}
         ${avatarPill}
       </a>
       <div class="chat-msg-body">
@@ -1182,7 +1182,7 @@ function renderMentionSuggestions() {
   if (!__mentionMatches.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
   box.innerHTML = __mentionMatches.map((u, i) => {
     const initial = u.username.charAt(0).toUpperCase();
-    const avatar = u.avatar_url ? `<img src="${u.avatar_url}" alt="">` : `<span class="chat-mention-item-fallback">${initial}</span>`;
+    const avatar = u.avatar_url ? `<img src="${u.avatar_url}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'chat-mention-item-fallback',textContent:'${initial}'}))">` : `<span class="chat-mention-item-fallback">${initial}</span>`;
     return `<div class="chat-mention-item${i === __mentionIndex ? ' active' : ''}" onmousedown="event.preventDefault(); pickMentionSuggestion(${i})">${avatar}<span>${u.username}</span></div>`;
   }).join('');
   box.style.display = 'block';
@@ -1809,7 +1809,7 @@ async function epedSave() {
 
   function buildUserAvatar(u) {
     if (u.avatar_url) {
-      return `<img class="search-sugg-img" src="${u.avatar_url}" alt="" loading="lazy" style="border-radius:50%;">`;
+      return `<img class="search-sugg-img" src="${u.avatar_url}" alt="" loading="lazy" style="border-radius:50%;" onerror="this.replaceWith(Object.assign(document.createElement('div'),{className:'search-sugg-img search-sugg-initial',textContent:'${u.initial}'}))">`;
     }
     return `<div class="search-sugg-img search-sugg-initial">${u.initial}</div>`;
   }
