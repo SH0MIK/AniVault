@@ -100,4 +100,109 @@ export const Chat = {
       : await db.query('DELETE FROM chat_messages WHERE id = ? AND user_id = ?', [id, userId]);
     return (res.meta.changes ?? 0) > 0;
   },
+
+  // ── Reactions ──────────────────────────────────────────────────────────
+
+  /** Toggles a single (message, user, emoji) reaction on/off. Returns the new state. */
+  async toggleReaction(db: Db, messageId: number, userId: number, emoji: string): Promise<boolean> {
+    const existing = await db.fetchOne(
+      'SELECT id FROM chat_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?',
+      [messageId, userId, emoji]
+    );
+    if (existing) {
+      await db.query('DELETE FROM chat_reactions WHERE message_id = ? AND user_id = ? AND emoji = ?', [messageId, userId, emoji]);
+      return false;
+    }
+    await db.query('INSERT INTO chat_reactions (message_id, user_id, emoji) VALUES (?, ?, ?)', [messageId, userId, emoji]);
+    return true;
+  },
+
+  /** Batch-fetches reaction summaries (emoji, count, whether the current user reacted) for a set of messages. */
+  async getReactionsForMessages(db: Db, messageIds: number[], currentUserId: number): Promise<Record<number, { emoji: string; count: number; mine: boolean }[]>> {
+    const ids = Array.from(new Set(messageIds.filter((n) => n > 0)));
+    if (ids.length === 0) return {};
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = await db.fetchAll<{ message_id: number; emoji: string; user_id: number }>(
+      `SELECT message_id, emoji, user_id FROM chat_reactions WHERE message_id IN (${placeholders})`,
+      ids
+    );
+    const out: Record<number, { emoji: string; count: number; mine: boolean }[]> = {};
+    for (const r of rows) {
+      if (!out[r.message_id]) out[r.message_id] = [];
+      let entry = out[r.message_id].find((e) => e.emoji === r.emoji);
+      if (!entry) {
+        entry = { emoji: r.emoji, count: 0, mine: false };
+        out[r.message_id].push(entry);
+      }
+      entry.count++;
+      if (r.user_id === currentUserId) entry.mine = true;
+    }
+    return out;
+  },
+
+  // ── Presence / typing ────────────────────────────────────────────────
+
+  async ping(db: Db, userId: number, typing: boolean): Promise<void> {
+    await db.query(
+      `INSERT INTO chat_presence (user_id, last_seen, typing_until) VALUES (?, datetime('now'), ${typing ? "datetime('now', '+5 seconds')" : 'NULL'})
+       ON CONFLICT(user_id) DO UPDATE SET last_seen = datetime('now'), typing_until = ${typing ? "datetime('now', '+5 seconds')" : 'NULL'}`,
+      [userId]
+    );
+  },
+
+  /** Logged-in users active in the last 60 seconds. */
+  async onlineCount(db: Db): Promise<number> {
+    return db.count(`SELECT COUNT(*) as cnt FROM chat_presence WHERE last_seen > datetime('now', '-60 seconds')`, []);
+  },
+
+  /** Usernames currently typing (excluding the caller), up to 3. */
+  async typingUsernames(db: Db, excludeUserId: number): Promise<string[]> {
+    const rows = await db.fetchAll<{ username: string }>(
+      `SELECT u.username FROM chat_presence p JOIN users u ON u.id = p.user_id
+       WHERE p.typing_until > datetime('now') AND p.user_id != ? LIMIT 3`,
+      [excludeUserId]
+    );
+    return rows.map((r) => r.username);
+  },
+
+  // ── @mentions ─────────────────────────────────────────────────────────
+
+  /** Looks up users named via @username in a message (case-insensitive), excluding the sender. */
+  async findMentionedUsers(db: Db, message: string, excludeUserId: number): Promise<{ id: number; username: string }[]> {
+    const handles = Array.from(new Set((message.match(/@([a-zA-Z0-9_]{2,32})/g) ?? []).map((m) => m.slice(1).toLowerCase())));
+    if (handles.length === 0) return [];
+    const placeholders = handles.map(() => '?').join(',');
+    const rows = await db.fetchAll<{ id: number; username: string }>(
+      `SELECT id, username FROM users WHERE lower(username) IN (${placeholders}) AND id != ?`,
+      [...handles, excludeUserId]
+    );
+    return rows;
+  },
+
+  // ── "Currently watching" flair ──────────────────────────────────────
+
+  /** Each user's most recently-updated "watching" list entry, if any — shown as a flair next to their name in chat. */
+  async getWatchingMap(db: Db, userIds: number[]): Promise<Record<number, { anime_id: number; title: string; image: string } | null>> {
+    const ids = Array.from(new Set(userIds.filter((n) => n > 0)));
+    if (ids.length === 0) return {};
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = await db.fetchAll<{ user_id: number; anime_id: number; anime_title: string; anime_image: string; updated_at: string }>(
+      `SELECT user_id, anime_id, anime_title, anime_image, updated_at FROM anime_list
+       WHERE user_id IN (${placeholders}) AND status = 'watching'`,
+      ids
+    );
+    const out: Record<number, { anime_id: number; title: string; image: string } | null> = {};
+    for (const r of rows) {
+      const current = out[r.user_id];
+      if (!current || (r.updated_at ?? '') > ((current as any).__updated_at ?? '')) {
+        out[r.user_id] = { anime_id: r.anime_id, title: r.anime_title, image: r.anime_image, __updated_at: r.updated_at } as any;
+      }
+    }
+    for (const uid of ids) {
+      if (out[uid]) delete (out[uid] as any).__updated_at;
+      else out[uid] = null;
+    }
+    return out;
+  },
 };
+

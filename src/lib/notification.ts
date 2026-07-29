@@ -21,6 +21,7 @@ export const NOTIFICATION_TYPES: Record<string, { icon: string; color: string; l
   like_review: { icon: '♥', color: 'accent', label: 'liked your review' },
   anime_update: { icon: '📋', color: 'teal', label: 'updated their list' },
   announcement: { icon: '📢', color: 'gold', label: 'new announcement' },
+  chat_mention: { icon: '💬', color: 'accent', label: 'mentioned you in chat' },
 };
 
 export const Notification = {
@@ -92,6 +93,7 @@ export const Notification = {
       case 'follow': return `<strong>${actor}</strong> started following you`;
       case 'like_review': return `<strong>${actor}</strong> liked your review` + (meta ? ` on <em>${meta}</em>` : '');
       case 'anime_update': return `<strong>${actor}</strong> updated their list` + (meta ? `: <em>${meta}</em>` : '');
+      case 'chat_mention': return `<strong>${actor}</strong> mentioned you in chat` + (meta ? `: <em>"${meta}"</em>` : '');
       case 'announcement': return `📢 New announcement<br><strong>${meta || 'Check it out'}</strong>`;
       default: return `<strong>${actor}</strong> did something`;
     }
@@ -102,6 +104,7 @@ export const Notification = {
       case 'follow': return `${siteUrl}/u/${encodeURIComponent(n.actor_name ?? '')}`;
       case 'like_review': return n.entity_id ? `${siteUrl}/anime?id=${n.entity_id}` : `${siteUrl}/feed`;
       case 'announcement': return `${siteUrl}/announcements`;
+      case 'chat_mention': return `${siteUrl}/?openChat=1`;
       default: return `${siteUrl}/feed`;
     }
   },
