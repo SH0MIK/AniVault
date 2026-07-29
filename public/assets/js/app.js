@@ -820,7 +820,29 @@ let __chatLatestId    = 0;
 let __chatOldestId    = null;
 let __chatLoadedOnce  = false;
 let __chatPolling     = null;
+let __chatLastTypingPing = 0;
 const CHAT_GROUP_WINDOW = 600; // seconds — consecutive messages from the same sender within this window are grouped, Discord-style
+const CHAT_REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+
+// Runs on already HTML-escaped text (entities intact), so this only ever
+// wraps/reorders existing safe text — never introduces raw markup from user input.
+function formatChatText(escaped) {
+  // Links — the site's own /anime?id=N links become a small chip, everything else a plain link.
+  escaped = escaped.replace(/(https?:\/\/[^\s<]+)/g, (full) => {
+    const animeMatch = full.match(/\/anime\?id=(\d+)/);
+    if (animeMatch) return `<a class="chat-anime-chip" href="${full}" target="_blank" rel="noopener">🎬 View Anime #${animeMatch[1]}</a>`;
+    return `<a href="${full}" target="_blank" rel="noopener nofollow">${full}</a>`;
+  });
+  // Spoiler: ||text||
+  escaped = escaped.replace(/\|\|([^|]+)\|\|/g, '<span class="chat-spoiler" onclick="this.classList.toggle(\'revealed\')">$1</span>');
+  // Bold: **text**
+  escaped = escaped.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  // Italic: *text*
+  escaped = escaped.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  // @mentions
+  escaped = escaped.replace(/@([a-zA-Z0-9_]{2,32})/g, '<span class="chat-mention">@$1</span>');
+  return escaped;
+}
 
 function initChat() {
   const widget = document.getElementById('chat-widget');
@@ -828,7 +850,8 @@ function initChat() {
   if (!widget || !fab) return;
 
   const stored = sessionStorage.getItem('av_chat_open');
-  if (stored === '0') { widget.classList.remove('open'); } else { openChat(); }
+  const forceOpen = new URLSearchParams(location.search).get('openChat') === '1';
+  if (stored === '0' && !forceOpen) { widget.classList.remove('open'); } else { openChat(); }
 
   fab.addEventListener('click', openChat);
   document.getElementById('chat-minimize')?.addEventListener('click', closeChat);
@@ -843,6 +866,13 @@ function initChat() {
     input.addEventListener('input', () => {
       input.style.height = 'auto';
       input.style.height = Math.min(input.scrollHeight, 90) + 'px';
+      const now = Date.now();
+      if (input.value.trim() && now - __chatLastTypingPing > 3000) {
+        __chatLastTypingPing = now;
+        const fd = new FormData();
+        fd.append('action', 'typing');
+        fetch('/api/chat', { method: 'POST', body: fd }).catch(() => {});
+      }
     });
   }
 
@@ -865,6 +895,7 @@ function openChat() {
   sessionStorage.setItem('av_chat_open', '1');
   scrollChatToBottom();
   hideChatBadge();
+  updateChatPresence();
   if (window.__loggedIn && __chatLoadedOnce) markChatRead();
 }
 
@@ -940,6 +971,7 @@ async function chatPollTick() {
         if (window.__loggedIn) markChatRead();
       }
     } catch (e) {}
+    updateChatPresence();
   } else if (window.__loggedIn) {
     try {
       const res  = await fetch('/api/chat?action=count');
@@ -947,6 +979,30 @@ async function chatPollTick() {
       if (data.success) updateChatBadge(data.unread);
     } catch (e) {}
   }
+}
+
+async function updateChatPresence() {
+  try {
+    const res  = await fetch('/api/chat?action=presence');
+    const data = await res.json();
+    if (!data.success) return;
+    const countEl = document.getElementById('chat-online-count');
+    const numEl   = document.getElementById('chat-online-num');
+    if (countEl && numEl) { numEl.textContent = data.online; countEl.style.display = 'inline-flex'; }
+    const typingRow = document.getElementById('chat-typing-row');
+    if (typingRow) {
+      if (!data.typing || !data.typing.length) {
+        typingRow.style.display = 'none';
+      } else {
+        const names = data.typing;
+        const text = names.length === 1 ? `${names[0]} is typing…`
+          : names.length === 2 ? `${names[0]} and ${names[1]} are typing…`
+          : `${names.slice(0, 2).join(', ')} and others are typing…`;
+        typingRow.textContent = text;
+        typingRow.style.display = 'block';
+      }
+    }
+  } catch (e) {}
 }
 
 function updateChatBadge(count) {
@@ -988,15 +1044,26 @@ function buildChatMessageEl(m, grouped) {
   const deleteBtn = m.can_delete
     ? `<button type="button" class="chat-msg-delete" title="Delete" onclick="deleteChatMessage(${m.id})">✕</button>`
     : '';
+  const reactTrigger = window.__loggedIn
+    ? `<button type="button" class="chat-react-trigger" title="React" onclick="toggleReactPicker(${m.id})">😀</button>
+       <div class="chat-react-picker" id="chat-react-picker-${m.id}">
+         ${CHAT_REACTION_EMOJIS.map(e => `<button type="button" onclick="sendReaction(${m.id}, '${e}')">${e}</button>`).join('')}
+       </div>`
+    : '';
+  const reactionsHtml = renderReactionPills(m.id, m.reactions);
+  const bodyHtml = `<div class="chat-text">${formatChatText(m.message)}</div>${reactionsHtml}`;
 
   if (grouped) {
     wrap.innerHTML = `
       <div class="chat-msg-gutter"><span class="chat-msg-hover-time">${m.time}</span></div>
-      <div class="chat-msg-body"><div class="chat-text">${m.message}</div></div>
-      ${deleteBtn}`;
+      <div class="chat-msg-body">${bodyHtml}</div>
+      ${deleteBtn}${reactTrigger}`;
   } else {
     const initial = m.username ? m.username.charAt(0).toUpperCase() : '?';
     const avatarPill = m.avatar_badge ? `<span class="chat-avatar-role-badge">${m.avatar_badge}</span>` : '';
+    const watchingFlair = m.watching
+      ? `<a class="chat-watching-flair" href="${window.__siteUrl || ''}/anime?id=${m.watching.anime_id}" title="Watching ${m.watching.title}">📺 ${m.watching.title}</a>`
+      : '';
     wrap.innerHTML = `
       <a class="chat-msg-avatar" href="${profileUrl}" title="${m.username}">
         ${m.avatar_url ? `<img src="${m.avatar_url}" alt="">` : `<span>${initial}</span>`}
@@ -1007,14 +1074,58 @@ function buildChatMessageEl(m, grouped) {
           <span class="username-with-badges">
             <a class="chat-msg-name role-${m.role}" href="${profileUrl}">${m.username}</a>${m.badges_html || ''}
           </span>
+          ${watchingFlair}
           <span class="chat-msg-time">${m.time}</span>
         </div>
-        <div class="chat-text">${m.message}</div>
+        ${bodyHtml}
       </div>
-      ${deleteBtn}`;
+      ${deleteBtn}${reactTrigger}`;
   }
   return wrap;
 }
+
+function renderReactionPills(messageId, reactions) {
+  if (!reactions || !reactions.length) return '';
+  const pills = reactions.map(r =>
+    `<span class="chat-reaction-pill${r.mine ? ' mine' : ''}" onclick="${window.__loggedIn ? `sendReaction(${messageId}, '${r.emoji}')` : `requireLogin('login')`}">${r.emoji} ${r.count}</span>`
+  ).join('');
+  return `<div class="chat-reactions" id="chat-reactions-${messageId}">${pills}</div>`;
+}
+
+function toggleReactPicker(messageId) {
+  document.querySelectorAll('.chat-react-picker.open').forEach(el => {
+    if (el.id !== 'chat-react-picker-' + messageId) el.classList.remove('open');
+  });
+  document.getElementById('chat-react-picker-' + messageId)?.classList.toggle('open');
+}
+
+async function sendReaction(messageId, emoji) {
+  document.getElementById('chat-react-picker-' + messageId)?.classList.remove('open');
+  const fd = new FormData();
+  fd.append('action', 'react');
+  fd.append('message_id', messageId);
+  fd.append('emoji', emoji);
+  try {
+    const res  = await fetch('/api/chat', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      const holder = document.getElementById('chat-reactions-' + messageId);
+      const newHtml = renderReactionPills(messageId, data.reactions);
+      if (holder) {
+        if (newHtml) holder.outerHTML = newHtml;
+        else holder.remove();
+      } else if (newHtml) {
+        document.getElementById('chat-msg-' + messageId)?.querySelector('.chat-text')?.insertAdjacentHTML('afterend', newHtml);
+      }
+    }
+  } catch (e) {}
+}
+
+// Close any open reaction picker when clicking elsewhere
+document.addEventListener('click', e => {
+  if (e.target.closest('.chat-react-trigger') || e.target.closest('.chat-react-picker')) return;
+  document.querySelectorAll('.chat-react-picker.open').forEach(el => el.classList.remove('open'));
+});
 
 function appendChatMessage(m) {
   const list = document.getElementById('chat-messages');
