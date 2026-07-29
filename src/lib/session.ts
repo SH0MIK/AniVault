@@ -15,6 +15,7 @@ export interface SessionData {
   oauth_redirect?: string;
   post_setup_redirect?: string;
   username_setup?: boolean;
+  auto_created?: boolean;
   csrf_token?: string;
   impersonate_owner?: { user_id: number; username: string; role: string } | null;
   flash?: { type: string; message: string } | null;

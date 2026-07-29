@@ -11,6 +11,13 @@ import { DiscordNotifier, DiscordEnv } from './discord';
 
 export const OWNER_USER_ID = 2;
 
+// How long a *silently auto-created* account's session should stick around.
+// Regular logins still use SESSION_LIFETIME_SECONDS (default 24h) — this is
+// deliberately much longer (1 year) so a visitor who never sees a password
+// prompt doesn't get logged out and orphaned from the account/watchlist we
+// made for them.
+export const AUTO_SESSION_LIFETIME_SECONDS = 60 * 60 * 24 * 365;
+
 export interface AuthEnv extends DiscordEnv {
   SITE_URL: string;
   AVATARS: R2Bucket;
@@ -124,6 +131,66 @@ export class Auth {
   }
 
   // ----------------------------------------------------------
+  // Silent/auto registration — creates a real, fully-functional account with
+  // a generated username + password and logs the visitor straight in, with
+  // no popup and no email required. Used for actions that shouldn't be
+  // blocked by a login wall (watching an episode, adding to a list,
+  // favoriting) — see the /api/auto_auth.php route and its callers.
+  // Mirrors register()'s side effects (uid, logging, Discord relay,
+  // auto-follow of the owner account) so an auto-created account behaves
+  // identically to a manually registered one from that point on.
+  // ----------------------------------------------------------
+  async autoRegister(): Promise<AuthResult & { username?: string; password?: string }> {
+    const base = 'Guest_' + Array.from({ length: 6 }, () => UID_CHARS[Math.floor(Math.random() * UID_CHARS.length)]).join('');
+    const username = await this.generateUsername(base);
+    const password = this.generateRandomPassword();
+    const hash = await bcrypt.hash(password, 12);
+
+    // A blank '' would satisfy the NOT NULL constraint, but if `email` also
+    // has a unique index we don't know about (not visible in a plain
+    // CREATE TABLE dump), every 2nd guest account would fail to insert.
+    // Deriving the placeholder from the (already unique) username sidesteps
+    // that regardless of whether such an index exists.
+    const placeholderEmail = `${username.toLowerCase()}@guest.invalid`;
+
+    const id = await this.db.insert(
+      'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
+      [username, placeholderEmail, hash]
+    );
+    await this.assignUid(id);
+    const user = await this.db.fetchOne<UserRow>('SELECT * FROM users WHERE id = ?', [id]);
+    if (!user) return { success: false, message: 'Could not create an account.' };
+
+    this.setSession(user);
+    this.session.data.auto_created = true;
+    await Logger.log(this.db, id, 'register', 'Auto-created account (no login wall)', this.ip);
+    await DiscordNotifier.newUser(this.env, this.db, user, 'auto');
+
+    if (id !== OWNER_USER_ID) {
+      await this.db.query('INSERT OR IGNORE INTO follows (follower_id, following_id) VALUES (?, ?)', [id, OWNER_USER_ID]);
+      await this.db.insert('INSERT INTO notifications (user_id, actor_id, type) VALUES (?, ?, ?)', [OWNER_USER_ID, id, 'follow']);
+    }
+
+    // Self-notification carrying the generated credentials, so the user can
+    // find them again later in the bell dropdown even after the one-time
+    // on-screen toast is gone. This goes straight through db.insert (not
+    // Notification.create) because that helper skips self-notifications.
+    await this.db.insert(
+      'INSERT INTO notifications (user_id, actor_id, type, entity_meta) VALUES (?, ?, ?, ?)',
+      [id, id, 'auto_account', JSON.stringify({ username, password })]
+    );
+
+    return { success: true, username, password };
+  }
+
+  private generateRandomPassword(length = 12): string {
+    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+    const bytes = new Uint8Array(length);
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, (b) => chars[b % chars.length]).join('');
+  }
+
+  // ----------------------------------------------------------
   // Google OAuth
   // ----------------------------------------------------------
   getGoogleAuthUrl(): string {
@@ -182,7 +249,7 @@ export class Auth {
       const username = await this.generateUsername(name ?? 'user');
       const id = await this.db.insert(
         'INSERT INTO users (username, email, google_id, avatar_url, password_hash) VALUES (?, ?, ?, ?, ?)',
-        [username, email, googleId, avatar, '']
+        [username, email ?? `${username.toLowerCase()}@google.invalid`, googleId, avatar, '']
       );
       await this.assignUid(id);
       user = await this.db.fetchOne<UserRow>('SELECT * FROM users WHERE id = ?', [id]);
@@ -275,7 +342,7 @@ export class Auth {
       const uname = await this.generateUsername(username ?? 'user');
       const id = await this.db.insert(
         'INSERT INTO users (username, email, discord_id, avatar_url, password_hash) VALUES (?, ?, ?, ?, ?)',
-        [uname, email, discordId, avatar, '']
+        [uname, email ?? `${uname.toLowerCase()}@discord.invalid`, discordId, avatar, '']
       );
       await this.assignUid(id);
       user = await this.db.fetchOne<UserRow>('SELECT * FROM users WHERE id = ?', [id]);

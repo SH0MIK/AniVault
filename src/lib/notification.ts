@@ -22,6 +22,7 @@ export const NOTIFICATION_TYPES: Record<string, { icon: string; color: string; l
   anime_update: { icon: '📋', color: 'teal', label: 'updated their list' },
   announcement: { icon: '📢', color: 'gold', label: 'new announcement' },
   chat_mention: { icon: '💬', color: 'accent', label: 'mentioned you in chat' },
+  auto_account: { icon: '🔑', color: 'gold', label: 'account created for you' },
 };
 
 export const Notification = {
@@ -95,6 +96,12 @@ export const Notification = {
       case 'anime_update': return `<strong>${actor}</strong> updated their list` + (meta ? `: <em>${meta}</em>` : '');
       case 'chat_mention': return `<strong>${actor}</strong> mentioned you in chat` + (meta ? `: <em>"${meta}"</em>` : '');
       case 'announcement': return `📢 New announcement<br><strong>${meta || 'Check it out'}</strong>`;
+      case 'auto_account': {
+        let creds: { username?: string; password?: string } = {};
+        try { creds = JSON.parse(n.entity_meta ?? '{}'); } catch { /* malformed -- show generic text */ }
+        if (!creds.username) return `We made you a free account — tap to secure it`;
+        return `We made you a free account: <strong>${h(creds.username)}</strong> / <strong>${h(creds.password ?? '')}</strong><br><span style="opacity:.75">Tap to set your own username, password, or connect Google/Discord</span>`;
+      }
       default: return `<strong>${actor}</strong> did something`;
     }
   },
@@ -105,6 +112,7 @@ export const Notification = {
       case 'like_review': return n.entity_id ? `${siteUrl}/anime?id=${n.entity_id}` : `${siteUrl}/feed`;
       case 'announcement': return `${siteUrl}/announcements`;
       case 'chat_mention': return `${siteUrl}/?openChat=1`;
+      case 'auto_account': return `${siteUrl}/profile`;
       default: return `${siteUrl}/feed`;
     }
   },
