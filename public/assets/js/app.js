@@ -917,7 +917,20 @@ function initChat() {
 
   const stored = sessionStorage.getItem('av_chat_open');
   const forceOpen = new URLSearchParams(location.search).get('openChat') === '1';
-  if (stored === '0' && !forceOpen) { widget.classList.remove('open'); } else { openChat(); }
+  const isIndex = window.__currentPage === 'index';
+
+  if (forceOpen || stored === '1') {
+    // Explicit request or user had it open already this session — respect it on any page.
+    openChat();
+  } else if (stored === '0') {
+    // User manually closed it — never auto-reopen, even on index.
+    widget.classList.remove('open');
+  } else if (isIndex) {
+    // First visit this session, no preference set yet — only auto-open on the index page.
+    openChat();
+  } else {
+    widget.classList.remove('open');
+  }
 
   fab.addEventListener('click', openChat);
   document.getElementById('chat-minimize')?.addEventListener('click', closeChat);
