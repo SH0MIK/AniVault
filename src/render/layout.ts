@@ -203,6 +203,7 @@ ${bannerBlock}
     </div>
     <div class="chat-typing-row" id="chat-typing-row" style="display:none;"></div>
     ${cu ? `
+    <div class="chat-mention-suggest" id="chat-mention-suggest" style="display:none;"></div>
     <form class="chat-input-row" id="chat-form">
       <textarea id="chat-input" class="chat-input" placeholder="Message everyone…" maxlength="500" rows="1"></textarea>
       <button type="submit" class="chat-send-btn" id="chat-send-btn" aria-label="Send">${icon('arrow-right', 'icon-small')}</button>
