@@ -141,7 +141,10 @@ export class Auth {
   // identically to a manually registered one from that point on.
   // ----------------------------------------------------------
   async autoRegister(): Promise<AuthResult & { username?: string; password?: string }> {
-    const base = 'Guest_' + Array.from({ length: 6 }, () => UID_CHARS[Math.floor(Math.random() * UID_CHARS.length)]).join('');
+    // "Guest4821" reads much friendlier than a cryptic random-char suffix
+    // (e.g. "Guest_vtnxaf"). generateUsername() below still de-dupes with a
+    // "_2" suffix on the rare collision.
+    const base = 'Guest' + (1000 + Math.floor(Math.random() * 9000));
     const username = await this.generateUsername(base);
     const password = this.generateRandomPassword();
     const hash = await bcrypt.hash(password, 12);
