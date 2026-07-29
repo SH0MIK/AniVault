@@ -13,6 +13,7 @@ export const OWNER_USER_ID = 2;
 
 export interface AuthEnv extends DiscordEnv {
   SITE_URL: string;
+  AVATARS: R2Bucket;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
   GOOGLE_REDIRECT_URI?: string;
@@ -197,6 +198,16 @@ export class Auth {
 
     if (!user || !user.is_active) return { success: false, message: 'Account is disabled.' };
 
+    // Skip if avatar_url is already ours (e.g. a manual upload) or there's
+    // nothing new from Google to mirror.
+    if (avatar && this.isExternalAvatar(user.avatar_url)) {
+      const mirrored = await this.mirrorAvatar(avatar, user.id);
+      if (mirrored) {
+        await this.db.query('UPDATE users SET avatar_url = ? WHERE id = ?', [mirrored, user.id]);
+        user.avatar_url = mirrored;
+      }
+    }
+
     this.setSession(user);
     await this.db.query("UPDATE users SET last_login = datetime('now') WHERE id = ?", [user.id]);
     await Logger.log(this.db, user.id, 'login', 'Logged in via Google', this.ip);
@@ -279,6 +290,16 @@ export class Auth {
     }
 
     if (!user || !user.is_active) return { success: false, message: 'Account is disabled.' };
+
+    // Skip if avatar_url is already ours (e.g. a manual upload) or there's
+    // nothing new from Discord to mirror.
+    if (avatar && this.isExternalAvatar(user.avatar_url)) {
+      const mirrored = await this.mirrorAvatar(avatar, user.id);
+      if (mirrored) {
+        await this.db.query('UPDATE users SET avatar_url = ? WHERE id = ?', [mirrored, user.id]);
+        user.avatar_url = mirrored;
+      }
+    }
 
     this.setSession(user);
     await this.db.query("UPDATE users SET last_login = datetime('now') WHERE id = ?", [user.id]);
@@ -425,6 +446,39 @@ export class Auth {
     } catch {
       return {};
     }
+  }
+
+  // Google/Discord profile picture URLs are not permanent -- Google's
+  // OAuth `picture` claim in particular can 404 after a while, and Discord's
+  // link breaks if the user changes their Discord avatar later. Rather than
+  // store the provider's URL directly, download it once and re-host it in
+  // our own AVATARS bucket (same storage the manual upload flow uses), so
+  // it keeps working regardless of what happens on the provider's side.
+  // Returns null (never throws) so a mirroring failure never blocks login.
+  private async mirrorAvatar(sourceUrl: string, userId: number): Promise<string | null> {
+    try {
+      const res = await fetch(sourceUrl);
+      if (!res.ok) return null;
+      const contentType = res.headers.get('content-type') ?? 'image/jpeg';
+      const ext = contentType.includes('png') ? 'png'
+        : contentType.includes('gif') ? 'gif'
+        : contentType.includes('webp') ? 'webp'
+        : 'jpg';
+      const buf = await res.arrayBuffer();
+      if (buf.byteLength < 100 || buf.byteLength > 8 * 1024 * 1024) return null;
+
+      const filename = `avatar_${userId}_${Date.now()}.${ext}`;
+      await this.env.AVATARS.put(`avatars/${filename}`, buf, { httpMetadata: { contentType } });
+      return `${this.env.SITE_URL}/assets/img/avatars/${filename}`;
+    } catch {
+      return null; // never block login over a flaky avatar fetch
+    }
+  }
+
+  // True if avatar_url points somewhere other than our own /assets/img/avatars/
+  // path -- i.e. it's still a raw, unmirrored Google/Discord link.
+  private isExternalAvatar(url: string | null): url is string {
+    return !!url && !url.includes('/assets/img/avatars/');
   }
 }
 
