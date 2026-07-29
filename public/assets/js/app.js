@@ -820,6 +820,7 @@ let __chatLatestId    = 0;
 let __chatOldestId    = null;
 let __chatLoadedOnce  = false;
 let __chatPolling     = null;
+const CHAT_GROUP_WINDOW = 600; // seconds — consecutive messages from the same sender within this window are grouped, Discord-style
 
 function initChat() {
   const widget = document.getElementById('chat-widget');
@@ -881,7 +882,11 @@ async function loadChatMessages() {
       if (empty) empty.innerHTML = 'No messages yet — say hi! 👋';
     } else {
       empty?.remove();
-      data.messages.forEach(m => appendChatMessage(m));
+      let prevMsg = null;
+      data.messages.forEach(m => {
+        list.appendChild(buildChatMessageEl(m, isGroupedContinuation(prevMsg, m)));
+        prevMsg = m;
+      });
       __chatOldestId = data.messages[0].id;
       const loadMoreBtn = document.getElementById('chat-load-more');
       if (loadMoreBtn) loadMoreBtn.style.display = data.messages.length >= 50 ? 'block' : 'none';
@@ -903,7 +908,11 @@ async function loadOlderChatMessages() {
     const data = await res.json();
     if (!data.success || !data.messages.length) { if (btn) btn.style.display = 'none'; return; }
     const frag = document.createDocumentFragment();
-    data.messages.forEach(m => frag.appendChild(buildChatMessageEl(m)));
+    let prevMsg = null;
+    data.messages.forEach(m => {
+      frag.appendChild(buildChatMessageEl(m, isGroupedContinuation(prevMsg, m)));
+      prevMsg = m;
+    });
     list.insertBefore(frag, btn.nextSibling);
     __chatOldestId = data.messages[0].id;
     list.scrollTop = list.scrollHeight - prevHeight;
@@ -949,35 +958,64 @@ async function markChatRead() {
   hideChatBadge();
 }
 
-function buildChatMessageEl(m) {
+function isGroupedContinuation(prevMsg, m) {
+  if (!prevMsg) return false;
+  return prevMsg.user_id === m.user_id && (m.ts - prevMsg.ts) >= 0 && (m.ts - prevMsg.ts) <= CHAT_GROUP_WINDOW;
+}
+
+function lastChatMessageEl() {
+  const list = document.getElementById('chat-messages');
+  if (!list) return null;
+  for (let i = list.children.length - 1; i >= 0; i--) {
+    if (list.children[i].classList.contains('chat-msg')) return list.children[i];
+  }
+  return null;
+}
+
+function buildChatMessageEl(m, grouped) {
   const wrap = document.createElement('div');
-  wrap.className = 'chat-msg';
+  wrap.className = 'chat-msg' + (grouped ? ' chat-msg-grouped' : '');
   wrap.id = 'chat-msg-' + m.id;
-  const initial = m.username ? m.username.charAt(0).toUpperCase() : '?';
+  wrap.setAttribute('data-user-id', m.user_id);
+  wrap.setAttribute('data-ts', m.ts);
   const profileUrl = (window.__siteUrl || '') + '/u/' + encodeURIComponent(m.username);
-  const avatarPill = m.avatar_badge ? `<span class="chat-avatar-role-badge">${m.avatar_badge}</span>` : '';
-  wrap.innerHTML = `
-    <a class="chat-msg-avatar" href="${profileUrl}" title="${m.username}">
-      ${m.avatar_url ? `<img src="${m.avatar_url}" alt="">` : `<span>${initial}</span>`}
-      ${avatarPill}
-    </a>
-    <div class="chat-msg-body">
-      <div class="chat-msg-meta">
-        <span class="username-with-badges">
-          <a class="chat-msg-name role-${m.role}" href="${profileUrl}">${m.username}</a>${m.badges_html || ''}
-        </span>
-        <span class="chat-msg-time">${m.time}</span>
-        ${m.can_delete ? `<button type="button" class="chat-msg-delete" title="Delete" onclick="deleteChatMessage(${m.id})">✕</button>` : ''}
+  const deleteBtn = m.can_delete
+    ? `<button type="button" class="chat-msg-delete" title="Delete" onclick="deleteChatMessage(${m.id})">✕</button>`
+    : '';
+
+  if (grouped) {
+    wrap.innerHTML = `
+      <div class="chat-msg-gutter"><span class="chat-msg-hover-time">${m.time}</span></div>
+      <div class="chat-msg-body"><div class="chat-text">${m.message}</div></div>
+      ${deleteBtn}`;
+  } else {
+    const initial = m.username ? m.username.charAt(0).toUpperCase() : '?';
+    const avatarPill = m.avatar_badge ? `<span class="chat-avatar-role-badge">${m.avatar_badge}</span>` : '';
+    wrap.innerHTML = `
+      <a class="chat-msg-avatar" href="${profileUrl}" title="${m.username}">
+        ${m.avatar_url ? `<img src="${m.avatar_url}" alt="">` : `<span>${initial}</span>`}
+        ${avatarPill}
+      </a>
+      <div class="chat-msg-body">
+        <div class="chat-msg-meta">
+          <span class="username-with-badges">
+            <a class="chat-msg-name role-${m.role}" href="${profileUrl}">${m.username}</a>${m.badges_html || ''}
+          </span>
+          <span class="chat-msg-time">${m.time}</span>
+        </div>
+        <div class="chat-text">${m.message}</div>
       </div>
-      <div class="chat-text">${m.message}</div>
-    </div>`;
+      ${deleteBtn}`;
+  }
   return wrap;
 }
 
 function appendChatMessage(m) {
   const list = document.getElementById('chat-messages');
   if (!list || document.getElementById('chat-msg-' + m.id)) return;
-  list.appendChild(buildChatMessageEl(m));
+  const prevEl = lastChatMessageEl();
+  const prevMsg = prevEl ? { user_id: parseInt(prevEl.getAttribute('data-user-id'), 10), ts: parseInt(prevEl.getAttribute('data-ts'), 10) } : null;
+  list.appendChild(buildChatMessageEl(m, isGroupedContinuation(prevMsg, m)));
 }
 
 function scrollChatToBottom() {
