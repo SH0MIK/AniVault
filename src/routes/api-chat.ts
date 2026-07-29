@@ -27,7 +27,6 @@ async function buildCtx(c: any) {
 type Extras = {
   badges: BadgeRow[];
   reactions: { emoji: string; count: number; mine: boolean }[];
-  watching: { anime_id: number; title: string; image: string } | null;
 };
 
 function serialize(row: ChatMessageRow, currentUserId: number, isAdmin: boolean, extras: Extras) {
@@ -43,7 +42,6 @@ function serialize(row: ChatMessageRow, currentUserId: number, isAdmin: boolean,
     role: row.role,
     avatar_badge: avatarBadge, // same OWNER/ADMIN pill shown on the profile page avatar
     badges_html: Badge.renderList(extras.badges), // the user's actual earned badges, same as the profile page
-    watching: extras.watching ? { anime_id: extras.watching.anime_id, title: h(extras.watching.title), image: extras.watching.image } : null,
     message: h(row.message), // escaped server-side — client renders as-is
     time: timeAgo(row.created_at),
     ts: Math.floor(new Date(row.created_at.replace(' ', 'T') + 'Z').getTime() / 1000),
@@ -54,26 +52,24 @@ function serialize(row: ChatMessageRow, currentUserId: number, isAdmin: boolean,
   };
 }
 
-/** Batch-fetches badges/reactions/watching-status for every message in one pass, then serializes. */
+/** Batch-fetches badges/reactions for every message in one pass, then serializes. */
 async function serializeAll(db: Db, rows: ChatMessageRow[], currentUserId: number, isAdmin: boolean) {
   const userIds = rows.map((r) => r.user_id);
   const messageIds = rows.map((r) => r.id);
-  const [badgeMap, reactionMap, watchingMap] = await Promise.all([
+  const [badgeMap, reactionMap] = await Promise.all([
     Badge.getForUsers(db, userIds),
     Chat.getReactionsForMessages(db, messageIds, currentUserId),
-    Chat.getWatchingMap(db, userIds),
   ]);
   return rows.map((r) =>
     serialize(r, currentUserId, isAdmin, {
       badges: badgeMap[r.user_id] ?? [],
       reactions: reactionMap[r.id] ?? [],
-      watching: watchingMap[r.user_id] ?? null,
     })
   );
 }
 
-// Reading (get/poll/count/presence) is open to guests; anything that writes
-// on a user's behalf requires a logged-in session.
+// Reading (get/poll/count/presence/mention_search) is open to guests;
+// anything that writes on a user's behalf requires a logged-in session.
 const WRITE_ACTIONS = new Set(['send', 'read', 'delete', 'react', 'typing']);
 
 apiChatRoutes.on(['GET', 'POST'], '/api/chat', async (c) => {
@@ -137,14 +133,8 @@ apiChatRoutes.on(['GET', 'POST'], '/api/chat', async (c) => {
         await Notification.create(db, u.id, userId, 'chat_mention', sent.row!.id, preview);
       }
 
-      const [myBadges, myWatching] = await Promise.all([
-        Badge.getForUser(db, userId),
-        Chat.getWatchingMap(db, [userId]),
-      ]);
-      result = {
-        success: true,
-        message: serialize(sent.row!, userId, isAdmin, { badges: myBadges, reactions: [], watching: myWatching[userId] ?? null }),
-      };
+      const myBadges = await Badge.getForUser(db, userId);
+      result = { success: true, message: serialize(sent.row!, userId, isAdmin, { badges: myBadges, reactions: [] }) };
       break;
     }
 
@@ -189,6 +179,13 @@ apiChatRoutes.on(['GET', 'POST'], '/api/chat', async (c) => {
         auth.check() ? Chat.typingUsernames(db, userId) : Chat.typingUsernames(db, 0),
       ]);
       result = { success: true, online, typing };
+      break;
+    }
+
+    // @mention autocomplete — up to 6 usernames starting with the given prefix.
+    case 'mention_search': {
+      const q = (getParam('q') || '').toString().trim();
+      result = { success: true, users: q ? await Chat.searchUsernames(db, q) : [] };
       break;
     }
 
