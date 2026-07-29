@@ -179,30 +179,19 @@ export const Chat = {
     return rows;
   },
 
-  // ── "Currently watching" flair ──────────────────────────────────────
+  // ── "@" mention search (autocomplete) ────────────────────────────────
 
-  /** Each user's most recently-updated "watching" list entry, if any — shown as a flair next to their name in chat. */
-  async getWatchingMap(db: Db, userIds: number[]): Promise<Record<number, { anime_id: number; title: string; image: string } | null>> {
-    const ids = Array.from(new Set(userIds.filter((n) => n > 0)));
-    if (ids.length === 0) return {};
-    const placeholders = ids.map(() => '?').join(',');
-    const rows = await db.fetchAll<{ user_id: number; anime_id: number; anime_title: string; anime_image: string; updated_at: string }>(
-      `SELECT user_id, anime_id, anime_title, anime_image, updated_at FROM anime_list
-       WHERE user_id IN (${placeholders}) AND status = 'watching'`,
-      ids
+  /** Up to 6 usernames starting with the given prefix (case-insensitive), for the @mention dropdown. */
+  async searchUsernames(db: Db, prefix: string): Promise<{ id: number; username: string; avatar_url: string | null }[]> {
+    const clean = prefix.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 32);
+    if (!clean) return [];
+    const escaped = clean.replace(/[\\%_]/g, '\\$&');
+    return db.fetchAll<{ id: number; username: string; avatar_url: string | null }>(
+      `SELECT id, username, avatar_url FROM users WHERE username LIKE ? ESCAPE '\\' ORDER BY username ASC LIMIT 6`,
+      [escaped + '%']
     );
-    const out: Record<number, { anime_id: number; title: string; image: string } | null> = {};
-    for (const r of rows) {
-      const current = out[r.user_id];
-      if (!current || (r.updated_at ?? '') > ((current as any).__updated_at ?? '')) {
-        out[r.user_id] = { anime_id: r.anime_id, title: r.anime_title, image: r.anime_image, __updated_at: r.updated_at } as any;
-      }
-    }
-    for (const uid of ids) {
-      if (out[uid]) delete (out[uid] as any).__updated_at;
-      else out[uid] = null;
-    }
-    return out;
   },
 };
+
+
 
