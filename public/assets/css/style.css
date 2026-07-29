@@ -2499,7 +2499,6 @@ textarea.form-control { resize: vertical; min-height: 100px; }
   padding: 12px 12px 4px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
 }
 
 .chat-load-more {
@@ -2511,7 +2510,7 @@ textarea.form-control { resize: vertical; min-height: 100px; }
   padding: 5px 12px;
   border-radius: 20px;
   cursor: pointer;
-  margin-bottom: 4px;
+  margin-bottom: 10px;
   transition: var(--trans);
 }
 .chat-load-more:hover { color: var(--text-primary); border-color: var(--accent); }
@@ -2529,15 +2528,21 @@ textarea.form-control { resize: vertical; min-height: 100px; }
 }
 
 .chat-msg {
+  position: relative;
   display: flex;
   gap: 10px;
   max-width: 100%;
   padding: 3px 6px;
-  margin: 0 -6px;
+  margin: 10px -6px 0;
   border-radius: 6px;
   transition: background 0.1s;
 }
 .chat-msg:hover { background: var(--bg-hover); }
+
+/* A grouped message is a continuation from the same sender sent shortly
+   after their last one — Discord-style: no repeated avatar/name, just the
+   text, tucked in tight under the previous line. */
+.chat-msg.chat-msg-grouped { margin-top: 1px; }
 
 .chat-msg-avatar {
   position: relative;
@@ -2574,6 +2579,23 @@ textarea.form-control { resize: vertical; min-height: 100px; }
   white-space: nowrap;
 }
 
+/* Placeholder column for grouped messages — same width as the avatar so the
+   text lines up underneath it; reveals a small timestamp on row hover. */
+.chat-msg-gutter {
+  width: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.chat-msg-hover-time {
+  font-size: 0.6rem;
+  color: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.chat-msg:hover .chat-msg-hover-time { opacity: 1; }
+
 .chat-msg-body { min-width: 0; flex: 1; }
 .chat-msg-meta {
   display: flex;
@@ -2596,18 +2618,25 @@ textarea.form-control { resize: vertical; min-height: 100px; }
 }
 
 .chat-msg-delete {
-  background: none;
-  border: none;
+  position: absolute;
+  top: -6px;
+  right: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
   color: var(--text-muted);
   cursor: pointer;
-  font-size: 0.68rem;
-  padding: 2px 4px;
+  font-size: 0.66rem;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   opacity: 0;
   transition: var(--trans);
-  margin-left: auto;
 }
 .chat-msg:hover .chat-msg-delete { opacity: 1; }
-.chat-msg-delete:hover { color: var(--accent); }
+.chat-msg-delete:hover { color: var(--accent); border-color: var(--accent); }
 
 .chat-input-row {
   display: flex;
