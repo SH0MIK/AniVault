@@ -848,6 +848,12 @@ function initChat() {
 
   document.getElementById('chat-load-more')?.addEventListener('click', loadOlderChatMessages);
 
+  document.addEventListener('click', e => {
+    if (!widget.classList.contains('open')) return;
+    if (widget.contains(e.target)) return;
+    closeChat();
+  });
+
   loadChatMessages();
   __chatPolling = setInterval(chatPollTick, 4000);
 }
