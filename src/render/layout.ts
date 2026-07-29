@@ -195,7 +195,7 @@ ${bannerBlock}
   <div class="chat-panel" id="chat-panel">
     <div class="chat-panel-header">
       <h4>${icon('message', 'icon-small')} Community Chat</h4>
-      <button class="chat-minimize" id="chat-minimize" aria-label="Minimize chat" title="Minimize">${icon('chevron-left', 'icon-small')}</button>
+      <button class="chat-minimize" id="chat-minimize" aria-label="Close chat" title="Close">${icon('x', 'icon-small')}</button>
     </div>
     <div class="chat-messages" id="chat-messages">
       <button class="chat-load-more" id="chat-load-more" style="display:none;">Load older messages</button>
