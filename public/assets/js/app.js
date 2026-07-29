@@ -821,6 +821,10 @@ let __chatOldestId    = null;
 let __chatLoadedOnce  = false;
 let __chatPolling     = null;
 let __chatLastTypingPing = 0;
+let __mentionMatches = [];
+let __mentionIndex   = -1;
+let __mentionStart   = -1; // index of the "@" the current suggestions are for
+let __mentionDebounce = null;
 const CHAT_GROUP_WINDOW = 600; // seconds — consecutive messages from the same sender within this window are grouped, Discord-style
 const CHAT_REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
@@ -861,6 +865,12 @@ function initChat() {
   if (form && input) {
     form.addEventListener('submit', e => { e.preventDefault(); sendChatMessage(); });
     input.addEventListener('keydown', e => {
+      if (__mentionMatches.length && ['ArrowDown', 'ArrowUp', 'Enter', 'Tab', 'Escape'].includes(e.key)) {
+        if (e.key === 'ArrowDown') { e.preventDefault(); __mentionIndex = (__mentionIndex + 1) % __mentionMatches.length; renderMentionSuggestions(); return; }
+        if (e.key === 'ArrowUp') { e.preventDefault(); __mentionIndex = (__mentionIndex - 1 + __mentionMatches.length) % __mentionMatches.length; renderMentionSuggestions(); return; }
+        if (e.key === 'Escape') { e.preventDefault(); closeMentionSuggestions(); return; }
+        if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMentionSuggestion(__mentionIndex >= 0 ? __mentionIndex : 0); return; }
+      }
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
     });
     input.addEventListener('input', () => {
@@ -873,7 +883,9 @@ function initChat() {
         fd.append('action', 'typing');
         fetch('/api/chat', { method: 'POST', body: fd }).catch(() => {});
       }
+      updateMentionSuggestions();
     });
+    input.addEventListener('blur', () => setTimeout(closeMentionSuggestions, 150)); // delay so a suggestion click still registers
   }
 
   document.getElementById('chat-load-more')?.addEventListener('click', loadOlderChatMessages);
@@ -1061,9 +1073,6 @@ function buildChatMessageEl(m, grouped) {
   } else {
     const initial = m.username ? m.username.charAt(0).toUpperCase() : '?';
     const avatarPill = m.avatar_badge ? `<span class="chat-avatar-role-badge">${m.avatar_badge}</span>` : '';
-    const watchingFlair = m.watching
-      ? `<a class="chat-watching-flair" href="${window.__siteUrl || ''}/anime?id=${m.watching.anime_id}" title="Watching ${m.watching.title}">📺 ${m.watching.title}</a>`
-      : '';
     wrap.innerHTML = `
       <a class="chat-msg-avatar" href="${profileUrl}" title="${m.username}">
         ${m.avatar_url ? `<img src="${m.avatar_url}" alt="">` : `<span>${initial}</span>`}
@@ -1074,7 +1083,6 @@ function buildChatMessageEl(m, grouped) {
           <span class="username-with-badges">
             <a class="chat-msg-name role-${m.role}" href="${profileUrl}">${m.username}</a>${m.badges_html || ''}
           </span>
-          ${watchingFlair}
           <span class="chat-msg-time">${m.time}</span>
         </div>
         ${bodyHtml}
@@ -1138,6 +1146,69 @@ function appendChatMessage(m) {
 function scrollChatToBottom() {
   const list = document.getElementById('chat-messages');
   if (list) list.scrollTop = list.scrollHeight;
+}
+
+// ── @mention autocomplete ─────────────────────────────────
+
+/** Finds the @token the cursor is currently inside (if any) and fetches matching usernames. */
+function updateMentionSuggestions() {
+  const input = document.getElementById('chat-input');
+  if (!input) return;
+  const pos = input.selectionStart;
+  const text = input.value.slice(0, pos);
+  const match = text.match(/(?:^|\s)@([a-zA-Z0-9_]{0,32})$/);
+  if (!match) { closeMentionSuggestions(); return; }
+  const query = match[1];
+  __mentionStart = pos - query.length - 1;
+
+  clearTimeout(__mentionDebounce);
+  if (!query) { __mentionMatches = []; renderMentionSuggestions(); return; }
+  __mentionDebounce = setTimeout(async () => {
+    try {
+      const res  = await fetch('/api/chat?action=mention_search&q=' + encodeURIComponent(query));
+      const data = await res.json();
+      if (data.success) {
+        __mentionMatches = data.users;
+        __mentionIndex = __mentionMatches.length ? 0 : -1;
+        renderMentionSuggestions();
+      }
+    } catch (e) {}
+  }, 150);
+}
+
+function renderMentionSuggestions() {
+  const box = document.getElementById('chat-mention-suggest');
+  if (!box) return;
+  if (!__mentionMatches.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  box.innerHTML = __mentionMatches.map((u, i) => {
+    const initial = u.username.charAt(0).toUpperCase();
+    const avatar = u.avatar_url ? `<img src="${u.avatar_url}" alt="">` : `<span class="chat-mention-item-fallback">${initial}</span>`;
+    return `<div class="chat-mention-item${i === __mentionIndex ? ' active' : ''}" onmousedown="event.preventDefault(); pickMentionSuggestion(${i})">${avatar}<span>${u.username}</span></div>`;
+  }).join('');
+  box.style.display = 'block';
+}
+
+function closeMentionSuggestions() {
+  __mentionMatches = [];
+  __mentionIndex = -1;
+  __mentionStart = -1;
+  const box = document.getElementById('chat-mention-suggest');
+  if (box) { box.style.display = 'none'; box.innerHTML = ''; }
+}
+
+function pickMentionSuggestion(i) {
+  const input = document.getElementById('chat-input');
+  const user = __mentionMatches[i];
+  if (!input || !user || __mentionStart < 0) { closeMentionSuggestions(); return; }
+  const before = input.value.slice(0, __mentionStart);
+  const cursor = input.selectionStart;
+  const after  = input.value.slice(cursor);
+  const inserted = `@${user.username} `;
+  input.value = before + inserted + after;
+  const newPos = (before + inserted).length;
+  input.focus();
+  input.setSelectionRange(newPos, newPos);
+  closeMentionSuggestions();
 }
 
 async function sendChatMessage() {
