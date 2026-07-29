@@ -2491,7 +2491,7 @@ textarea.form-control { resize: vertical; min-height: 100px; }
   transition: var(--trans);
 }
 .chat-minimize:hover { background: var(--bg-hover); color: var(--text-primary); }
-.chat-minimize .icon { transform: rotate(-90deg); width: 16px; height: 16px; }
+.chat-minimize .icon { width: 16px; height: 16px; }
 
 .chat-messages {
   flex: 1;
