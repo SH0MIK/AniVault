@@ -2763,24 +2763,37 @@ textarea.form-control { resize: vertical; min-height: 100px; }
 }
 .chat-anime-chip:hover { border-color: var(--accent); }
 
-/* ── Chat: "currently watching" flair beside the name ─────── */
-.chat-watching-flair {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 0.66rem;
-  color: var(--text-muted);
+/* ── Chat: @mention autocomplete ──────────────────────────── */
+.chat-mention-suggest {
+  border-top: 1px solid var(--border);
   background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 1px 7px;
-  text-decoration: none;
-  max-width: 130px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  max-height: 160px;
+  overflow-y: auto;
+  flex-shrink: 0;
 }
-.chat-watching-flair:hover { color: var(--accent); border-color: var(--accent); }
+.chat-mention-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+.chat-mention-item:hover, .chat-mention-item.active { background: var(--bg-hover); color: var(--text-primary); }
+.chat-mention-item img, .chat-mention-item .chat-mention-item-fallback {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--bg-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
 
 /* ── Chat: reactions ───────────────────────────────────────── */
 .chat-reactions {
