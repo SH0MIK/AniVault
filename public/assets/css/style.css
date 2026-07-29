@@ -2700,3 +2700,153 @@ textarea.form-control { resize: vertical; min-height: 100px; }
   }
   .chat-guest-bar { flex-direction: column; align-items: stretch; text-align: center; }
 }
+
+/* ── Chat: online count, typing indicator ─────────────────── */
+.chat-online-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-left: 4px;
+  vertical-align: middle;
+}
+.chat-online-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #3ba55d;
+  display: inline-block;
+}
+
+.chat-typing-row {
+  padding: 3px 14px;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-style: italic;
+  flex-shrink: 0;
+}
+
+/* ── Chat: markdown-lite + @mentions + anime link chips ───── */
+.chat-text strong { font-weight: 700; color: var(--text-primary); }
+.chat-text em { font-style: italic; }
+.chat-spoiler {
+  background: var(--bg-hover);
+  color: transparent;
+  border-radius: 3px;
+  cursor: pointer;
+  transition: color 0.1s;
+  padding: 0 2px;
+}
+.chat-spoiler.revealed { color: inherit; background: transparent; }
+.chat-mention {
+  background: rgba(232,69,60,0.18);
+  color: var(--accent);
+  border-radius: 4px;
+  padding: 0 4px;
+  font-weight: 600;
+}
+.chat-anime-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  border-radius: 14px;
+  padding: 2px 10px 2px 8px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-decoration: none;
+  vertical-align: middle;
+}
+.chat-anime-chip:hover { border-color: var(--accent); }
+
+/* ── Chat: "currently watching" flair beside the name ─────── */
+.chat-watching-flair {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 0.66rem;
+  color: var(--text-muted);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 7px;
+  text-decoration: none;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-watching-flair:hover { color: var(--accent); border-color: var(--accent); }
+
+/* ── Chat: reactions ───────────────────────────────────────── */
+.chat-reactions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+}
+.chat-reaction-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1px 7px;
+  font-size: 0.74rem;
+  cursor: pointer;
+  color: var(--text-secondary);
+  transition: var(--trans);
+}
+.chat-reaction-pill:hover { border-color: var(--accent); }
+.chat-reaction-pill.mine { background: rgba(232,69,60,0.15); border-color: var(--accent); color: var(--accent); }
+
+.chat-react-trigger {
+  position: absolute;
+  top: -6px;
+  right: 28px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: var(--trans);
+}
+.chat-msg:hover .chat-react-trigger { opacity: 1; }
+.chat-react-trigger:hover { color: var(--accent); border-color: var(--accent); }
+
+.chat-react-picker {
+  position: absolute;
+  top: -38px;
+  right: 4px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 4px 6px;
+  display: none;
+  gap: 3px;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.5);
+  z-index: 5;
+}
+.chat-react-picker.open { display: flex; }
+.chat-react-picker button {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 8px;
+  line-height: 1;
+}
+.chat-react-picker button:hover { background: var(--bg-hover); }
