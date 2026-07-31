@@ -46,13 +46,13 @@ discoverRoutes.get('/seasonal', async (c) => {
   <div class="flex-between mb-3">
     <h1>🌸 Seasonal Anime</h1>
     <div class="flex gap-1">
-      <a href="seasonal.php?season=now" class="btn ${season !== 'upcoming' ? 'btn-primary' : 'btn-ghost'} btn-sm">Airing Now</a>
-      <a href="seasonal.php?season=upcoming" class="btn ${season === 'upcoming' ? 'btn-primary' : 'btn-ghost'} btn-sm">Upcoming</a>
+      <a href="/seasonal?season=now" class="btn ${season !== 'upcoming' ? 'btn-primary' : 'btn-ghost'} btn-sm">Airing Now</a>
+      <a href="/seasonal?season=upcoming" class="btn ${season === 'upcoming' ? 'btn-primary' : 'btn-ghost'} btn-sm">Upcoming</a>
     </div>
   </div>
   ${items.length === 0 ? `<p class="text-muted text-center">API may be rate-limited. Please wait a moment and refresh.</p>` : `
   <div class="anime-grid">${items.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null)).join('')}</div>
-  ${totalPages > 1 ? `<div class="pagination">${Array.from({ length: totalPages }, (_, i) => i + 1).map((i) => `<a href="seasonal.php?season=${season}&page=${i}" class="${i === page ? 'current' : ''}">${i}</a>`).join('')}</div>` : ''}`}
+  ${totalPages > 1 ? `<div class="pagination">${Array.from({ length: totalPages }, (_, i) => i + 1).map((i) => `<a href="/seasonal?season=${season}&page=${i}" class="${i === page ? 'current' : ''}">${i}</a>`).join('')}</div>` : ''}`}
 </div>`;
 
   html += renderFooter({ siteUrl, currentUser: layoutUser });
@@ -92,7 +92,7 @@ discoverRoutes.get('/top', async (c) => {
   <div class="flex-between mb-3" style="flex-wrap:wrap;gap:1rem;">
     <h1>🏆 Top Anime</h1>
     <div class="flex gap-1 flex-wrap">
-      ${Object.entries(TOP_FILTERS).map(([k, v]) => `<a href="top.php?filter=${k}" class="btn ${filter === k ? 'btn-primary' : 'btn-ghost'} btn-sm">${v}</a>`).join('')}
+      ${Object.entries(TOP_FILTERS).map(([k, v]) => `<a href="/top?filter=${k}" class="btn ${filter === k ? 'btn-primary' : 'btn-ghost'} btn-sm">${v}</a>`).join('')}
     </div>
   </div>
 
@@ -121,7 +121,7 @@ function renderTopRow(a: NormalisedAnime, i: number, page: number, siteUrl: stri
   const safeImg = h(a.images?.jpg?.image_url ?? '');
   const animeId = a.mal_id;
   return `
-<tr onclick="window.location.href='anime.php?id=${animeId}'" style="cursor:pointer;">
+<tr onclick="window.location.href='/anime?id=${animeId}'" style="cursor:pointer;">
   <td><strong style="color:var(--gold); font-family:var(--font-display);">#${(page - 1) * 25 + i + 1}</strong></td>
   <td><div class="flex" style="gap:12px; align-items:center;"><img src="${safeImg}" alt="" style="width:36px; height:50px; object-fit:cover; border-radius:4px;"><span style="font-weight:500;">${safeTitle}</span></div></td>
   <td>${h(a.type || '—')}</td>
@@ -141,19 +141,19 @@ export function renderTopPagination(filter: string, page: number, totalPages: nu
   const start = Math.max(1, page - range);
   const end = Math.min(totalPages, page + range);
   let out = '<div class="pagination">';
-  if (page > 1) out += `<a href="top.php?filter=${filter}&page=${page - 1}">‹ Prev</a>`;
+  if (page > 1) out += `<a href="/top?filter=${filter}&page=${page - 1}">‹ Prev</a>`;
   if (start > 1) {
-    out += `<a href="top.php?filter=${filter}&page=1">1</a>`;
+    out += `<a href="/top?filter=${filter}&page=1">1</a>`;
     if (start > 2) out += `<span class="pager-gap">...</span>`;
   }
   for (let i = start; i <= end; i++) {
-    out += `<a href="top.php?filter=${filter}&page=${i}" class="${i === page ? 'current' : ''}">${i}</a>`;
+    out += `<a href="/top?filter=${filter}&page=${i}" class="${i === page ? 'current' : ''}">${i}</a>`;
   }
   if (end < totalPages) {
     if (end < totalPages - 1) out += `<span class="pager-gap">...</span>`;
-    out += `<a href="top.php?filter=${filter}&page=${totalPages}">${totalPages}</a>`;
+    out += `<a href="/top?filter=${filter}&page=${totalPages}">${totalPages}</a>`;
   }
-  if (page < totalPages) out += `<a href="top.php?filter=${filter}&page=${page + 1}">Next ›</a>`;
+  if (page < totalPages) out += `<a href="/top?filter=${filter}&page=${page + 1}">Next ›</a>`;
   out += '</div>';
   return out;
 }
@@ -367,7 +367,7 @@ function renderScheduleRow(a: NormalisedAnime, day: string, userStatus: string |
   const currentEp = startDate ? currentEpisode(startDate, bday, eps) : null;
 
   return `
-<div class="schedule-row" onclick="window.location.href='anime.php?id=${aid}'">
+<div class="schedule-row" onclick="window.location.href='/anime?id=${aid}'">
   ${img ? `<img src="${h(img)}" alt="" class="schedule-thumb" loading="lazy">` : `<div class="schedule-thumb-placeholder"></div>`}
   <div class="schedule-time">
     <span class="local-time" data-jst="${h(jstIso)}">${h(timeDisplay)}</span>
