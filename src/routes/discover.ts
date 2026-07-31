@@ -212,7 +212,7 @@ discoverRoutes.get('/schedule', async (c) => {
   </div>
 
   <div class="day-tabs">
-    ${DAYS.map((d) => `<a href="schedule.php?day=${d}" class="day-tab ${d === day ? 'active' : ''} ${d === today ? 'today-tab' : ''}">${cap(d)}${d === today ? '<span class="today-dot"></span>' : ''}</a>`).join('')}
+    ${DAYS.map((d) => `<a href="/schedule?day=${d}" class="day-tab ${d === day ? 'active' : ''} ${d === today ? 'today-tab' : ''}">${cap(d)}${d === today ? '<span class="today-dot"></span>' : ''}</a>`).join('')}
   </div>
 
   ${items.length === 0 ? `
