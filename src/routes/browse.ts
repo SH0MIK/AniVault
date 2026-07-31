@@ -98,7 +98,7 @@ browseRoutes.get('/browse', async (c) => {
           <div id="genre-inputs"></div>
           <div style="padding:1rem;">
             <button type="submit" class="btn btn-primary btn-block">Apply Filters</button>
-            ${(q || type || status || genres.length > 0) ? `<a href="browse.php" class="btn btn-ghost btn-block mt-1">Clear Filters</a>` : ''}
+            ${(q || type || status || genres.length > 0) ? `<a href="/browse" class="btn btn-ghost btn-block mt-1">Clear Filters</a>` : ''}
           </div>
         </form>
 
@@ -211,7 +211,7 @@ export function renderPagination(q: string, type: string, status: string, genres
   if (q) qs.set('q', q);
   if (type) qs.set('type', type);
   if (status) qs.set('status', status);
-  let base = `browse.php?${qs.toString()}`;
+  let base = `/browse?${qs.toString()}`;
   for (const g of genres) base += `&genres[]=${g}`;
   const baseUrl = base + '&page=';
 

@@ -100,7 +100,7 @@ listRoutes.on(['GET', 'POST'], '/mylist', async (c) => {
 
   <div class="grid-4 mb-3" style="gap:12px;">
     ${statItems.map(([s, ic, label, color]) => `
-    <a href="mylist.php?status=${s}" style="text-decoration:none;">
+    <a href="/mylist?status=${s}" style="text-decoration:none;">
       <div class="stat-card" style="${status === s ? `border-color:var(--${color})` : ''}">
         ${icon(ic, 'stat-icon')}
         <div class="stat-value" style="color:var(--${color})">${(stats as any)[s]}</div>
@@ -116,7 +116,7 @@ listRoutes.on(['GET', 'POST'], '/mylist', async (c) => {
   </div>
 
   <div style="display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:1.5rem;flex-wrap:wrap;">
-    ${tabs.map(([k, v]) => `<a href="mylist.php?status=${k}" class="tab-btn ${status === k ? 'active' : ''}" style="text-decoration:none;">${v}</a>`).join('')}
+    ${tabs.map(([k, v]) => `<a href="/mylist?status=${k}" class="tab-btn ${status === k ? 'active' : ''}" style="text-decoration:none;">${v}</a>`).join('')}
   </div>
 
   ${data.items.length === 0 ? `
@@ -162,7 +162,7 @@ listRoutes.on(['GET', 'POST'], '/mylist', async (c) => {
     </table></div></div>
   </div>
 
-  ${data.pages > 1 ? `<div class="pagination">${Array.from({ length: data.pages }, (_, i) => i + 1).map((i) => `<a href="mylist.php?status=${status}&page=${i}" class="${i === page ? 'current' : ''}">${i}</a>`).join('')}</div>` : ''}`}
+  ${data.pages > 1 ? `<div class="pagination">${Array.from({ length: data.pages }, (_, i) => i + 1).map((i) => `<a href="/mylist?status=${status}&page=${i}" class="${i === page ? 'current' : ''}">${i}</a>`).join('')}</div>` : ''}`}
 </div>
 
 <div class="modal-overlay" id="delete-confirm-modal">
@@ -264,7 +264,7 @@ listRoutes.get('/favorites', async (c) => {
   <div class="flex-center" style="padding:4rem;flex-direction:column;gap:1rem;">
     <span style="font-size:3rem;">♡</span>
     <p class="text-muted">No favorites yet. Browse anime and click the heart!</p>
-    <a href="browse.php" class="btn btn-primary">Browse Anime</a>
+    <a href="/browse" class="btn btn-primary">Browse Anime</a>
   </div>` : `
   <div class="anime-grid">
     ${favs.map((fav) => renderAnimeCard({
@@ -561,7 +561,7 @@ listRoutes.get('/notifications', async (c) => {
     </div>`;
     }).join('')}
   </div>
-  ${pages > 1 ? `<div class="pagination">${Array.from({ length: pages }, (_, i) => i + 1).map((i) => `<a href="notifications.php?page=${i}" class="${i === page ? 'current' : ''}">${i}</a>`).join('')}</div>` : ''}`}
+  ${pages > 1 ? `<div class="pagination">${Array.from({ length: pages }, (_, i) => i + 1).map((i) => `<a href="/notifications?page=${i}" class="${i === page ? 'current' : ''}">${i}</a>`).join('')}</div>` : ''}`}
 </div>
 
 <script>

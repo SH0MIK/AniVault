@@ -120,7 +120,7 @@ importExportRoutes.get('/importexport', async (c) => {
   <h1 class="mb-1">📦 Import / Export</h1>
   <p class="text-muted mb-3">Transfer your anime list to/from MyAnimeList and other sites.</p>
 
-  ${imported ? `<div class="alert alert-success mb-2">✅ Import completed successfully! <a href="mylist.php">View your updated list →</a></div>` : ''}
+  ${imported ? `<div class="alert alert-success mb-2">✅ Import completed successfully! <a href="/mylist">View your updated list →</a></div>` : ''}
 
   <div class="grid-2" style="gap:1.5rem;margin-bottom:1.5rem;">
     <div class="card card-body">
@@ -132,11 +132,11 @@ importExportRoutes.get('/importexport', async (c) => {
             <div><div style="font-weight:600;color:var(--text-primary);">📄 MAL XML Format</div><div class="text-muted" style="font-size:0.82rem;">Compatible with MyAnimeList import</div></div>
             <span class="badge badge-completed">Recommended</span>
           </div>
-          <a href="importexport.php?export=xml" class="btn btn-primary btn-sm">⬇ Download XML</a>
+          <a href="/importexport?export=xml" class="btn btn-primary btn-sm">⬇ Download XML</a>
         </div>
         <div style="background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:1rem;">
           <div class="mb-1"><div style="font-weight:600;color:var(--text-primary);">🗂 AniVault JSON Format</div><div class="text-muted" style="font-size:0.82rem;">Full data backup with images &amp; reviews</div></div>
-          <a href="importexport.php?export=json" class="btn btn-ghost btn-sm">⬇ Download JSON</a>
+          <a href="/importexport?export=json" class="btn btn-ghost btn-sm">⬇ Download JSON</a>
         </div>
       </div>
       <details style="margin-top:1rem;">
@@ -280,7 +280,7 @@ document.getElementById('import-form')?.addEventListener('submit', async functio
     if (result.success) {
       updateProgress(100, '✅ Import complete!', \`Imported \${result.imported} entries. \${result.skipped} skipped, \${result.errors} errors.\`);
       showToast(\`Import complete! \${result.imported} entries added.\`, 'success');
-      setTimeout(() => { window.location.href = 'importexport.php?imported=1'; }, 2000);
+      setTimeout(() => { window.location.href = '/importexport?imported=1'; }, 2000);
     } else {
       updateProgress(0, '❌ Import failed', result.message || 'Unknown error occurred');
       showToast(result.message || 'Import failed', 'error');
