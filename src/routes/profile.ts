@@ -20,6 +20,50 @@ import { getBannerData } from '../lib/settings';
 
 export const profileRoutes = new Hono<{ Bindings: Env }>();
 
+async function buildAuth(c: any): Promise<{ auth: Auth; session: Session; db: Db; lifetime: number }> {
+  const db = new Db(c.env.DB);
+  const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
+  const session = await Session.load(c, db, lifetime);
+  const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
+  return { auth, session, db, lifetime };
+}
+
+// ── api/check_username.php — live availability check for the edit-username
+//    popup, called on a debounce while the person types.
+profileRoutes.get('/api/check_username.php', async (c) => {
+  const { auth, session, lifetime } = await buildAuth(c);
+  await session.save(c, lifetime);
+  if (!auth.check()) return c.json({ available: false, message: 'Not logged in' }, 401);
+
+  const username = (c.req.query('username') ?? '').trim();
+  const result = await auth.checkUsernameAvailable(username, session.user_id!);
+  return c.json(result);
+});
+
+// ── api/update_username.php ───────────────────────────────────────────────
+profileRoutes.post('/api/update_username.php', async (c) => {
+  const { auth, session, lifetime } = await buildAuth(c);
+  await session.save(c, lifetime);
+  if (!auth.check()) return c.json({ success: false, message: 'Not logged in' }, 401);
+
+  const body = await c.req.parseBody();
+  const username = ((body.username as string) ?? '').trim();
+  const result = await auth.updateProfile(session.user_id!, { username });
+  return c.json(result);
+});
+
+// ── api/update_email.php — no OTP/verification step, saves directly ──────
+profileRoutes.post('/api/update_email.php', async (c) => {
+  const { auth, session, lifetime } = await buildAuth(c);
+  await session.save(c, lifetime);
+  if (!auth.check()) return c.json({ success: false, message: 'Not logged in' }, 401);
+
+  const body = await c.req.parseBody();
+  const email = ((body.email as string) ?? '').trim();
+  const result = await auth.updateProfile(session.user_id!, { email });
+  return c.json(result);
+});
+
 profileRoutes.on(['GET', 'POST'], '/profile', async (c) => {
   const db = new Db(c.env.DB);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
@@ -99,8 +143,6 @@ async function renderProfilePage(c: any, db: Db, session: Session, lifetime: num
   const __banner = await getBannerData(db);
   let html = renderHeader({ ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: 'My Profile', currentPage: 'profile', currentUser: layoutUser, unreadCount, requestUrl: c.req.url });  html += `<style>${PROFILE_CSS}</style>`;
 
-  html += renderCropperModal();
-
   const quickStats: [string, string | number, string, string][] = [
     ['Total', stats.total, 'text-primary', 'list'],
     ['Watching', stats.watching, 'blue', 'watching'],
@@ -110,6 +152,15 @@ async function renderProfilePage(c: any, db: Db, session: Session, lifetime: num
 
   const isOwner = user.role === 'owner' || auth.isOwnerUserId(user.id);
   const memberSince = user.created_at ? new Date(user.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'short', year: 'numeric', timeZone: 'UTC' }) : '';
+  // Auto-created accounts get a synthetic "<username>@guest.invalid"-style
+  // placeholder so the NOT NULL email column doesn't break — that's an
+  // implementation detail, not something the user actually set, so treat it
+  // (and a genuinely blank email) the same: show "+ Add email" instead.
+  const isPlaceholderEmail = !user.email || /@(guest|discord|google)\.invalid$/i.test(user.email);
+
+  html += renderCropperModal();
+  html += renderUsernameModal();
+  html += renderEmailModal(isPlaceholderEmail);
 
   html += `
 <div class="container section">
@@ -129,8 +180,15 @@ async function renderProfilePage(c: any, db: Db, session: Session, lifetime: num
           </div>
           <input type="file" id="avatar-file-input" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none" onchange="handleAvatarFile(this)">
           <div id="avatar-status" style="font-size:0.78rem;min-height:16px;color:var(--text-muted);"></div>
-          <h2 class="username-with-badges" style="font-size:1.2rem;margin-top:8px;justify-content:center;">${h(user.username)}${Badge.renderList(userBadges)}</h2>
-          <p class="text-muted" style="font-size:0.85rem;">${h(user.email)}</p>
+          <h2 class="username-with-badges" style="font-size:1.2rem;margin-top:8px;justify-content:center;gap:6px;">
+            <span id="profile-username-display">${h(user.username)}</span>${Badge.renderList(userBadges)}
+            <button type="button" onclick="openUsernameModal()" title="Edit username" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:2px;display:inline-flex;">${icon('edit', 'icon-small')}</button>
+          </h2>
+          <p class="text-muted" id="profile-email-display" style="font-size:0.85rem;">
+            ${isPlaceholderEmail
+              ? `<a href="javascript:void(0)" onclick="openEmailModal()" style="color:var(--accent);text-decoration:underline;">${icon('plus', 'icon-small')} Add email</a>`
+              : `${h(user.email)} <button type="button" onclick="openEmailModal()" title="Edit email" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:0;vertical-align:middle;">${icon('edit', 'icon-small')}</button>`}
+          </p>
           ${isOwner ? `<span class="badge" style="background:rgba(232,69,60,0.2);color:var(--accent);margin-top:6px;">${icon('shield', 'icon-small')} OWNER</span>`
             : user.role === 'admin' ? `<span class="badge" style="background:rgba(232,69,60,0.2);color:var(--accent);margin-top:6px;">${icon('shield', 'icon-small')} Admin</span>` : ''}
           <p class="text-muted" style="font-size:0.8rem;margin-top:6px;">Member since ${memberSince}</p>
@@ -237,6 +295,52 @@ async function renderProfilePage(c: any, db: Db, session: Session, lifetime: num
   html += renderFooter({ siteUrl, currentUser: layoutUser });
   await session.save(c, lifetime);
   return c.html(html);
+}
+
+function renderUsernameModal(): string {
+  return `
+<div class="modal-overlay" id="edit-username-modal">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div><h3>${icon('edit', 'icon-medium')} Edit Username</h3></div>
+      <button class="modal-close" onclick="closeModal('edit-username-modal')">${icon('x', 'icon-medium')}</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input type="text" id="username-input" class="form-control" maxlength="30" oninput="checkUsernameAvailability(this.value)">
+        <div id="username-check-msg" style="font-size:0.8rem;margin-top:6px;min-height:16px;"></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('edit-username-modal')">${icon('x', 'icon-small')} Cancel</button>
+        <button type="button" class="btn btn-primary" id="save-username-btn" onclick="saveUsername()">${icon('check', 'icon-small')} Save</button>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+function renderEmailModal(isPlaceholderEmail: boolean): string {
+  return `
+<div class="modal-overlay" id="edit-email-modal">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div><h3>${icon('edit', 'icon-medium')} ${isPlaceholderEmail ? 'Add Email' : 'Edit Email'}</h3></div>
+      <button class="modal-close" onclick="closeModal('edit-email-modal')">${icon('x', 'icon-medium')}</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Email address</label>
+        <input type="email" id="email-input" class="form-control" placeholder="you@example.com">
+        <div id="email-check-msg" style="font-size:0.8rem;margin-top:6px;min-height:16px;"></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;">
+        <button type="button" class="btn btn-ghost" onclick="closeModal('edit-email-modal')">${icon('x', 'icon-small')} Cancel</button>
+        <button type="button" class="btn btn-primary" id="save-email-btn" onclick="saveEmail()">${icon('check', 'icon-small')} Save</button>
+      </div>
+    </div>
+  </div>
+</div>`;
 }
 
 function renderCropperModal(): string {
