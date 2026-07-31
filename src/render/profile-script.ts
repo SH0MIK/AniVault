@@ -423,4 +423,100 @@ function updateAvatarImages(avatarUrl) {
     img.src = newSrc; img.style.display='block';
   });
 }
+
+// ── Edit username popup ─────────────────────────────────
+function openUsernameModal() {
+  const input = document.getElementById('username-input');
+  const current = document.getElementById('profile-username-display').textContent.trim();
+  input.value = current;
+  const msg = document.getElementById('username-check-msg');
+  msg.textContent = '';
+  openModal('edit-username-modal');
+  setTimeout(() => { input.focus(); input.select(); }, 50);
+}
+
+let usernameCheckTimer = null;
+async function checkUsernameAvailability(value) {
+  const msg = document.getElementById('username-check-msg');
+  clearTimeout(usernameCheckTimer);
+  const v = value.trim();
+  if (!v) { msg.textContent = ''; return; }
+  if (v.length < 3 || v.length > 30) { msg.textContent = 'Must be 3–30 characters.'; msg.style.color = 'var(--accent)'; return; }
+  if (!/^[a-zA-Z0-9_]+$/.test(v)) { msg.textContent = 'Only letters, numbers, and underscores.'; msg.style.color = 'var(--accent)'; return; }
+  msg.textContent = 'Checking…';
+  msg.style.color = 'var(--text-muted)';
+  usernameCheckTimer = setTimeout(async () => {
+    try {
+      const res  = await fetch((window.__siteUrl || '') + '/api/check_username.php?username=' + encodeURIComponent(v));
+      const data = await res.json();
+      if (data.available) { msg.textContent = '✓ Available'; msg.style.color = 'var(--teal)'; }
+      else { msg.textContent = data.message || 'Not available'; msg.style.color = 'var(--accent)'; }
+    } catch (e) { msg.textContent = ''; }
+  }, 350);
+}
+
+async function saveUsername() {
+  const input = document.getElementById('username-input');
+  const v = input.value.trim();
+  const btn = document.getElementById('save-username-btn');
+  btn.disabled = true;
+  try {
+    const fd = new FormData();
+    fd.append('username', v);
+    const res  = await fetch((window.__siteUrl || '') + '/api/update_username.php', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Username updated!', 'success');
+      closeModal('edit-username-modal');
+      setTimeout(() => window.location.reload(), 500);
+    } else {
+      const msg = document.getElementById('username-check-msg');
+      msg.textContent = data.message || 'Could not update username.';
+      msg.style.color = 'var(--accent)';
+      showToast(data.message || 'Could not update username.', 'error');
+    }
+  } catch (e) { showToast('Request failed.', 'error'); }
+  btn.disabled = false;
+}
+
+// ── Add/edit email popup (no OTP — saves immediately) ───
+function openEmailModal() {
+  const input = document.getElementById('email-input');
+  const displayLink = document.querySelector('#profile-email-display a');
+  input.value = displayLink ? '' : document.getElementById('profile-email-display').textContent.trim();
+  document.getElementById('email-check-msg').textContent = '';
+  openModal('edit-email-modal');
+  setTimeout(() => input.focus(), 50);
+}
+
+async function saveEmail() {
+  const input = document.getElementById('email-input');
+  const v = input.value.trim();
+  const msg = document.getElementById('email-check-msg');
+  if (!v || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(v)) {
+    msg.textContent = 'Enter a valid email address.';
+    msg.style.color = 'var(--accent)';
+    return;
+  }
+  const btn = document.getElementById('save-email-btn');
+  btn.disabled = true;
+  try {
+    const fd = new FormData();
+    fd.append('email', v);
+    const res  = await fetch((window.__siteUrl || '') + '/api/update_email.php', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Email saved!', 'success');
+      closeModal('edit-email-modal');
+      setTimeout(() => window.location.reload(), 500);
+    } else {
+      msg.textContent = data.message || 'Could not save email.';
+      msg.style.color = 'var(--accent)';
+    }
+  } catch (e) {
+    msg.textContent = 'Request failed.';
+    msg.style.color = 'var(--accent)';
+  }
+  btn.disabled = false;
+}
 `;
