@@ -52,6 +52,22 @@ interface UserRow extends Row {
 
 const UID_CHARS = 'abcdefghjkmnpqrstuvwxyz23456789'; // no ambiguous chars, matches PHP version
 
+// Used to build friendly auto-generated usernames like "SwiftRonin82" instead
+// of an obvious "Guest4821" placeholder. Anime-flavored on purpose.
+const USERNAME_ADJECTIVES = [
+  'Swift', 'Silent', 'Crimson', 'Shadow', 'Mystic', 'Cosmic', 'Golden', 'Frost',
+  'Iron', 'Lunar', 'Solar', 'Storm', 'Neon', 'Rogue', 'Feral', 'Azure',
+  'Wild', 'Brave', 'Clever', 'Jolly', 'Rusty', 'Vivid', 'Ember', 'Quiet',
+  'Blazing', 'Electric', 'Velvet', 'Crystal', 'Obsidian', 'Nimble',
+];
+const USERNAME_NOUNS = [
+  'Ronin', 'Kitsune', 'Ninja', 'Samurai', 'Shinobi', 'Sensei', 'Otaku',
+  'Wolf', 'Falcon', 'Phoenix', 'Dragon', 'Panther', 'Raven', 'Tiger',
+  'Comet', 'Nomad', 'Wanderer', 'Rider', 'Blade', 'Ghost', 'Hunter',
+  'Voyager', 'Pilot', 'Reaper', 'Sentinel', 'Drifter', 'Otter', 'Yokai',
+  'Titan', 'Specter',
+];
+
 export class Auth {
   constructor(private db: Db, private session: Session, private env: AuthEnv, private ip: string) {}
 
@@ -141,10 +157,13 @@ export class Auth {
   // identically to a manually registered one from that point on.
   // ----------------------------------------------------------
   async autoRegister(): Promise<AuthResult & { username?: string; password?: string }> {
-    // "Guest4821" reads much friendlier than a cryptic random-char suffix
-    // (e.g. "Guest_vtnxaf"). generateUsername() below still de-dupes with a
-    // "_2" suffix on the rare collision.
-    const base = 'Guest' + (1000 + Math.floor(Math.random() * 9000));
+    // e.g. "SwiftRonin82" — reads like a real handle instead of an obvious
+    // "Guest4821" placeholder. generateUsername() below still de-dupes with
+    // a "_2" suffix on the rare collision.
+    const adj = USERNAME_ADJECTIVES[Math.floor(Math.random() * USERNAME_ADJECTIVES.length)];
+    const noun = USERNAME_NOUNS[Math.floor(Math.random() * USERNAME_NOUNS.length)];
+    const num = 10 + Math.floor(Math.random() * 90);
+    const base = `${adj}${noun}${num}`;
     const username = await this.generateUsername(base);
     const password = this.generateRandomPassword();
     const hash = await bcrypt.hash(password, 12);
@@ -443,9 +462,29 @@ export class Auth {
     return this.db.fetchOne<UserRow>('SELECT * FROM users WHERE id = ?', [this.session.user_id]);
   }
 
-  async updateProfile(userId: number, data: { bio?: string; avatar_url?: string; new_password?: string }): Promise<AuthResult> {
+  async updateProfile(
+    userId: number,
+    data: { bio?: string; avatar_url?: string; new_password?: string; username?: string; email?: string }
+  ): Promise<AuthResult & { username?: string; email?: string }> {
     const fields: string[] = [];
     const params: unknown[] = [];
+
+    if (data.username !== undefined) {
+      const check = await this.checkUsernameAvailable(data.username, userId);
+      if (!check.available) return { success: false, message: check.message ?? 'That username is not available.' };
+      fields.push('username = ?');
+      params.push(data.username.trim());
+    }
+
+    if (data.email !== undefined) {
+      const email = data.email.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { success: false, message: 'Invalid email address.' };
+      const exists = await this.db.fetchOne('SELECT id FROM users WHERE email = ? AND id != ?', [email, userId]);
+      if (exists) return { success: false, message: 'That email is already in use.' };
+      fields.push('email = ?');
+      params.push(email);
+    }
+
     if (data.bio !== undefined) {
       fields.push('bio = ?');
       params.push(data.bio.substring(0, 500));
@@ -462,7 +501,21 @@ export class Auth {
     if (fields.length === 0) return { success: false, message: 'Nothing to update.' };
     params.push(userId);
     await this.db.query(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, params);
-    return { success: true };
+    return { success: true, username: data.username?.trim(), email: data.email?.trim() };
+  }
+
+  // ----------------------------------------------------------
+  // Live-check for the edit-username popup — same rules register()
+  // enforces, minus the password/email fields since this only checks one.
+  // ----------------------------------------------------------
+  async checkUsernameAvailable(username: string, excludeUserId?: number): Promise<{ available: boolean; message?: string }> {
+    username = username.trim();
+    if (username.length < 3 || username.length > 30) return { available: false, message: 'Must be 3–30 characters.' };
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) return { available: false, message: 'Only letters, numbers and underscores.' };
+    const exists = excludeUserId
+      ? await this.db.fetchOne('SELECT id FROM users WHERE username = ? AND id != ?', [username, excludeUserId])
+      : await this.db.fetchOne('SELECT id FROM users WHERE username = ?', [username]);
+    return exists ? { available: false, message: 'That username is already taken.' } : { available: true };
   }
 
   // ----------------------------------------------------------
