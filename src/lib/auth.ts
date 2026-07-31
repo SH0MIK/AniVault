@@ -119,7 +119,7 @@ export class Auth {
       return { success: false, message: 'Password must be at least 6 characters.' };
 
     const exists = await this.db.fetchOne(
-      'SELECT id FROM users WHERE username = ? OR email = ?',
+      'SELECT id FROM users WHERE LOWER(username) = LOWER(?) OR email = ?',
       [username, email]
     );
     if (exists) return { success: false, message: 'Username or email already taken.' };
@@ -513,8 +513,8 @@ export class Auth {
     if (username.length < 3 || username.length > 30) return { available: false, message: 'Must be 3–30 characters.' };
     if (!/^[a-zA-Z0-9_]+$/.test(username)) return { available: false, message: 'Only letters, numbers and underscores.' };
     const exists = excludeUserId
-      ? await this.db.fetchOne('SELECT id FROM users WHERE username = ? AND id != ?', [username, excludeUserId])
-      : await this.db.fetchOne('SELECT id FROM users WHERE username = ?', [username]);
+      ? await this.db.fetchOne('SELECT id FROM users WHERE LOWER(username) = LOWER(?) AND id != ?', [username, excludeUserId])
+      : await this.db.fetchOne('SELECT id FROM users WHERE LOWER(username) = LOWER(?)', [username]);
     return exists ? { available: false, message: 'That username is already taken.' } : { available: true };
   }
 
@@ -526,7 +526,7 @@ export class Auth {
 
     let username = clean;
     let i = 2;
-    while (await this.db.fetchOne('SELECT id FROM users WHERE username = ?', [username])) {
+    while (await this.db.fetchOne('SELECT id FROM users WHERE LOWER(username) = LOWER(?)', [username])) {
       const suffix = `_${i++}`;
       username = clean.substring(0, 30 - suffix.length) + suffix;
     }
