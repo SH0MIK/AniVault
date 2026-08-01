@@ -4,8 +4,8 @@
 // so they're built together here too. CSS and the bulk of the client JS
 // (server-probing/switching logic, the wall-clock progress tracker, and the
 // entire Senshi HLS player engine) are carried over verbatim -- see
-// render/watch-css.ts, watch-script1.ts, watch-script2.ts, player-pro-css.ts,
-// and player-pro-script.ts. This route computes the same server-side data the
+// render/watch-css.ts, watch-script1.ts, watch-script2.ts, player-css.ts,
+// and player-script.ts. This route computes the same server-side data the
 // PHP version did and assembles it all together.
 import { Hono } from 'hono';
 import type { Env } from '../index';
@@ -19,9 +19,9 @@ import { renderHeader, renderFooter, CurrentUser } from '../render/layout';
 import { WATCH_CSS } from '../render/watch-css';
 import { watchScript1 } from '../render/watch-script1';
 import { watchScript2 } from '../render/watch-script2';
-import { PLAYER_PRO_CSS } from '../render/player-pro-css';
-import { playerProScript } from '../render/player-pro-script';
-import { playerProBody } from '../render/player-pro-body';
+import { PLAYER_CSS } from '../render/player-css';
+import { playerScript } from '../render/player-script';
+import { playerBody } from '../render/player-body';
 import { getBannerData } from '../lib/settings';
 import { findEpisodeThumbnails, episodeThumbCacheKey } from '../lib/episode-thumb';
 import { AnimeTracker } from '../lib/tracker';
@@ -291,15 +291,15 @@ watchRoutes.get('/watch', async (c) => {
 
   html += `<div id="senshi-player-holder" style="display:none;width:0;height:0;overflow:hidden;">`;
   html += `<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Exo+2:wght@400;500;600&display=swap" rel="stylesheet">`;
-  html += PLAYER_PRO_CSS;
-  html += playerProBody({
+  html += `<style id="sp-skin">${PLAYER_CSS}</style>`;
+  html += playerBody({
     title, epNum, currentEpTitle: currentEpInfo?.title ?? null, prevEpNum: pPrevEp, nextEpNum: pNextEp,
     watchBase, epNums, curEp: epNum, totalEpsN: totalEps, episodesWatched,
   });
   html += `<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>`;
-  // Same double-wrap issue as watchScript1/2 above — playerProScript() already
+  // Same double-wrap issue as watchScript1/2 above — playerScript() already
   // returns its own <script> tags.
-  html += playerProScript(animeId, epNum, siteUrl);
+  html += playerScript(animeId, epNum, siteUrl);
   html += `</div>`;
 
   if (justAutoCreated) {
