@@ -163,16 +163,77 @@ ${ogBlock}
 </style>
 <script>
 (function(){
+  function getLoader(){ return document.getElementById('av-page-loader'); }
+
   function dismissLoader(){
-    var l=document.getElementById('av-page-loader');
-    if(!l||l._done)return;
+    var l=getLoader();
+    if(!l)return;
     l._done=true;
     l.classList.add('av-loader-hidden');
-    setTimeout(function(){ l.remove(); },500);
+    clearTimeout(l._safety);
   }
+
+  // Kept separate from dismissLoader so a click can re-show it even after
+  // this page's own load already hid it. The node is never removed from
+  // the DOM (unlike the old version) specifically so it stays available
+  // to be re-shown here.
+  function showLoader(){
+    var l=getLoader();
+    if(!l)return;
+    l._done=false;
+    l.classList.remove('av-loader-hidden');
+    // Safety net: if the click/submit gets cancelled somewhere (validation
+    // error, confirm() decline, etc.) and no real navigation happens,
+    // don't leave the user stuck staring at the loader forever.
+    clearTimeout(l._safety);
+    l._safety=setTimeout(dismissLoader,8000);
+  }
+
   if(document.readyState==='loading'){ document.addEventListener('DOMContentLoaded',dismissLoader); } else { dismissLoader(); }
   setTimeout(dismissLoader,3000);
   window.__dismissLoader=dismissLoader;
+  window.__showLoader=showLoader;
+
+  function isRealNav(a){
+    if(!a) return false;
+    if(a.target && a.target!=='' && a.target!=='_self') return false;
+    if(a.hasAttribute('download')) return false;
+    if(a.dataset && a.dataset.noLoader!==undefined) return false;
+    var href=a.getAttribute('href');
+    if(!href || href.charAt(0)==='#') return false;
+    if(/^(javascript:|mailto:|tel:)/i.test(href)) return false;
+    try{
+      var url=new URL(href, window.location.href);
+      if(url.origin!==window.location.origin) return false;
+      // Same path+query, only the #hash differs => in-page jump, not a real load.
+      if(url.pathname===window.location.pathname && url.search===window.location.search && url.hash) return false;
+    }catch(_e){ return false; }
+    return true;
+  }
+
+  // Capture phase so this runs before any handler's stopPropagation() can
+  // hide the click from us (e.g. the dropdown-menu click-outside guard).
+  // The actual "did something cancel this?" check happens a tick later,
+  // once every bubble-phase handler (including AJAX forms/links that call
+  // preventDefault) has had a chance to run.
+  document.addEventListener('click', function(e){
+    if(e.button!==0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    var a = e.target && e.target.closest && e.target.closest('a[href]');
+    if(!isRealNav(a)) return;
+    setTimeout(function(){ if(!e.defaultPrevented) showLoader(); }, 0);
+  }, true);
+
+  document.addEventListener('submit', function(e){
+    var f=e.target;
+    if(!(f instanceof HTMLFormElement)) return;
+    if(f.target && f.target!=='' && f.target!=='_self') return;
+    if(f.dataset && f.dataset.noLoader!==undefined) return;
+    setTimeout(function(){ if(!e.defaultPrevented) showLoader(); }, 0);
+  }, true);
+
+  // Back/forward restored straight from bfcache without a real reload —
+  // make sure a loader left visible before navigating away doesn't linger.
+  window.addEventListener('pageshow', function(e){ if(e.persisted) dismissLoader(); });
 })();
 </script>
 </head>
