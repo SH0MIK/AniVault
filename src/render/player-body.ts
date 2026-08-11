@@ -51,13 +51,16 @@ export function playerBody(p: PlayerBodyParams): string {
 
   <div id="sp-video-area">
 
-    <!-- Video element: native controls give play/pause/seek/volume/fullscreen,
-         and — once <track> subtitle elements are added below — the browser's
-         own CC/subtitle selector, same as subtitle-test-player.html -->
-    <video id="sp-video" controls playsinline preload="metadata" crossorigin="anonymous"></video>
+    <!-- Video element: custom control bar below drives play/pause/seek/
+         volume/fullscreen. <track> subtitle elements still render natively
+         (that part is unaffected by removing the controls attribute). -->
+    <video id="sp-video" playsinline preload="metadata" crossorigin="anonymous"></video>
 
     <!-- Spinner -->
     <div id="sp-spinner"><div class="sp-spin"></div></div>
+
+    <!-- Pause flash icon -->
+    <div id="sp-pause-icon"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5h2v14H8zm6 0h2v14h-2z"/></svg></div>
 
     <!-- Error -->
     <div id="sp-error">
@@ -65,6 +68,69 @@ export function playerBody(p: PlayerBodyParams): string {
       <div class="sp-err-title">Stream Unavailable</div>
       <p class="sp-err-msg" id="sp-err-msg">Could not load the stream.</p>
       <button class="sp-err-retry" onclick="SenshiPlayer.retry()">Try Again</button>
+    </div>
+
+    <!-- Custom control bar -->
+    <div id="sp-ctrl-bar">
+      <div class="sp-progress-wrap" id="sp-progress-wrap">
+        <div class="sp-buf-fill" id="sp-buf-fill"></div>
+        <div class="sp-play-fill" id="sp-play-fill"></div>
+        <input class="sp-seek" id="sp-seek" type="range" min="0" max="100" step="0.01" value="0">
+        <div class="sp-seek-tip" id="sp-seek-tip">0:00</div>
+      </div>
+      <div class="sp-ctrl-row">
+        <div class="sp-ctrl-left">
+          <button class="sp-cbtn" id="sp-back10" title="Back 10s">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6s-2.69 6-6 6-6-2.69-6-6H4c0 4.42 3.58 8 8 8s8-3.58 8-8-3.58-8-8-8z"/></svg>
+            <span>10</span>
+          </button>
+          <button class="sp-cbtn" id="sp-play" title="Play/Pause">
+            <svg class="sp-icon-play" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5l11 7-11 7z"/></svg>
+            <svg class="sp-icon-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+          </button>
+          <button class="sp-cbtn" id="sp-fwd10" title="Forward 10s">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1l5 5-5 5V7c-3.31 0-6 2.69-6 6s2.69 6 6 6 6-2.69 6-6h2c0 4.42-3.58 8-8 8s-8-3.58-8-8 3.58-8 8-8z"/></svg>
+            <span>10</span>
+          </button>
+          <button class="sp-cbtn" id="sp-mute" title="Mute">
+            <svg class="sp-icon-vol" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 5L6 9H2v6h4l5 4V5z"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+            <svg class="sp-icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M11 5L6 9H2v6h4l5 4V5z"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          </button>
+          <input class="sp-vol" id="sp-vol" type="range" min="0" max="1" step="0.01" value="1">
+          <span class="sp-time" id="sp-time">0:00 / 0:00</span>
+        </div>
+        <div class="sp-ctrl-right">
+          <div class="sp-settings-wrap">
+            <button class="sp-cbtn" id="sp-settings-btn" title="Settings">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+            </button>
+            <div class="sp-settings-pop" id="sp-settings-pop">
+              <div id="sp-sett-main">
+                <div class="sp-sett-item" id="sp-sett-qual-btn">
+                  <span>Quality</span>
+                  <span class="sp-sett-cur" id="sp-sett-cur-qual">Auto</span>
+                </div>
+                <div class="sp-sett-item" id="sp-sett-spd-btn">
+                  <span>Speed</span>
+                  <span class="sp-sett-cur" id="sp-sett-cur-spd">1x</span>
+                </div>
+              </div>
+              <div id="sp-sett-qual" style="display:none">
+                <div class="sp-sett-back" id="sp-sett-qual-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg><span>Quality</span></div>
+                <div class="sp-sett-opts" id="sp-pop-qual-opts"></div>
+              </div>
+              <div id="sp-sett-spd" style="display:none">
+                <div class="sp-sett-back" id="sp-sett-spd-back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M15 18l-6-6 6-6"/></svg><span>Speed</span></div>
+                <div class="sp-sett-opts" id="sp-pop-spd-opts"></div>
+              </div>
+            </div>
+          </div>
+          <button class="sp-cbtn" id="sp-fs" title="Fullscreen">
+            <svg class="sp-icon-fs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+            <svg class="sp-icon-exit-fs" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+          </button>
+        </div>
+      </div>
     </div>
 
   </div><!-- /#sp-video-area -->

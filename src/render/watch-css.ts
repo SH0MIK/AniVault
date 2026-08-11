@@ -27,7 +27,7 @@ export const WATCH_CSS = `/* ═════════════════
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(232,69,60,0.04) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 60% at 50% 0%, rgba(124,58,237,0.04) 0%, transparent 70%),
     linear-gradient(180deg, rgba(10,11,14,0.1) 0%, rgba(10,11,14,0.75) 45%, #0a0b0e 85%);
 }
 
@@ -49,7 +49,7 @@ export const WATCH_CSS = `/* ═════════════════
   letter-spacing: .01em;
 }
 .wp-crumb a { color: var(--text-muted); text-decoration: none; transition: color .15s; }
-.wp-crumb a:hover { color: rgba(232,69,60,.9); }
+.wp-crumb a:hover { color: rgba(124,58,237,.9); }
 .wp-crumb .sep { opacity: .3; font-size: .65rem; }
 .wp-crumb .now { color: var(--text-secondary); }
 
@@ -94,7 +94,7 @@ export const WATCH_CSS = `/* ═════════════════
 
 .wp-player-accent-line {
   height: 2px;
-  background: linear-gradient(90deg, transparent 0%, var(--accent) 30%, rgba(232,69,60,.4) 70%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, var(--accent) 30%, rgba(124,58,237,.4) 70%, transparent 100%);
   border-radius: 0 0 2px 2px;
   opacity: .6;
 }
@@ -115,8 +115,8 @@ export const WATCH_CSS = `/* ═════════════════
   border-radius: 50%;
   border: 2.5px solid transparent;
   border-top-color: var(--accent);
-  border-bottom-color: rgba(232,69,60,.2);
-  box-shadow: 0 0 14px rgba(232,69,60,.35);
+  border-bottom-color: rgba(124,58,237,.2);
+  box-shadow: 0 0 14px rgba(124,58,237,.35);
   animation: wpfsSpin .75s linear infinite;
 }
 @keyframes wpfsSpin { to { transform: rotate(360deg); } }
@@ -150,7 +150,7 @@ export const WATCH_CSS = `/* ═════════════════
 .server-skel::after {
   content: '';
   position: absolute; inset: 0;
-  background: linear-gradient(90deg, transparent, rgba(232,69,60,.14), transparent);
+  background: linear-gradient(90deg, transparent, rgba(124,58,237,.14), transparent);
   animation: serverSkelShimmer 1.5s ease-in-out infinite;
 }
 @keyframes serverSkelShimmer { 0% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
@@ -207,19 +207,19 @@ export const WATCH_CSS = `/* ═════════════════
   flex-wrap: wrap;
 }
 .wpc-q {
-  padding: .2rem .7rem;
-  border-radius: 20px;
+  padding: .3rem .85rem;
+  border-radius: 999px;
   border: 1px solid rgba(255,255,255,.1);
-  background: rgba(255,255,255,.03);
-  color: var(--text-muted);
+  background: #0f0f0f;
+  color: var(--text-secondary);
   font-size: .72rem;
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
-  transition: all .15s;
+  transition: all .2s cubic-bezier(.4,0,.2,1);
   font-family: var(--font-body);
 }
-.wpc-q:hover { background: rgba(255,255,255,.09); color: var(--text-primary); }
-.wpc-q.on { background: rgba(232,69,60,.15); border-color: rgba(232,69,60,.5); color: var(--accent); }
+.wpc-q:hover { border-color: rgba(124,58,237,.5); color: #c4b5fd; background: rgba(124,58,237,.08); }
+.wpc-q.on { background: rgba(124,58,237,.18); border-color: #7c3aed; color: #c4b5fd; box-shadow: 0 0 0 1px rgba(124,58,237,.3); }
 
 .server-panel {
   background: rgba(12,14,20,0.93);
@@ -263,39 +263,41 @@ export const WATCH_CSS = `/* ═════════════════
   letter-spacing: .02em;
 }
 
-/* Server Panel — SUB/DUB tabs */
+/* Server Panel — SUB/DUB tabs (Anivexa-style pill segmented toggle) */
 .server-panel-body {
   padding: 0;
   display: flex;
   flex-direction: column;
 }
 .server-tabs {
-  display: flex;
-  border-bottom: 1px solid rgba(255,255,255,.06);
+  display: inline-flex;
+  align-self: flex-start;
+  background: rgba(255,255,255,.05);
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 999px;
+  padding: 3px;
+  margin: .7rem .85rem 0;
 }
 .server-tab {
-  flex: 1;
-  padding: .45rem .6rem;
-  font-size: .65rem;
-  font-weight: 800;
+  padding: .35rem .95rem;
+  font-size: .68rem;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: .1em;
+  letter-spacing: .08em;
   cursor: pointer;
   border: none;
+  border-radius: 999px;
   background: transparent;
   color: var(--text-muted);
-  opacity: .45;
-  transition: all .18s;
+  transition: all .2s cubic-bezier(.4,0,.2,1);
   font-family: var(--font-body);
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
 }
 .server-tab.active {
-  opacity: 1;
-  border-bottom-color: currentColor;
+  background: #7c3aed;
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(124,58,237,.4);
 }
-.server-tab[data-tab="sub"]        { color: #e8453c; }
-.server-tab[data-tab="dub"]        { color: #60a5fa; }
+.server-tab[data-tab="dub"].active { background: #2563eb; box-shadow: 0 2px 10px rgba(37,99,235,.4); }
 .server-tab-panel {
   display: none;
   padding: .7rem .85rem;
@@ -308,12 +310,12 @@ export const WATCH_CSS = `/* ═════════════════
   position: relative;
   display: inline-flex;
   align-items: center;
-  gap: .3rem;
-  padding: .3rem .8rem .3rem .55rem;
-  border-radius: 9px;
+  gap: .35rem;
+  padding: .35rem .85rem .35rem .6rem;
+  border-radius: 999px;
   border: 1px solid rgba(255,255,255,0.08);
-  background: rgba(255,255,255,0.04);
-  color: var(--text-muted);
+  background: #0f0f0f;
+  color: var(--text-secondary);
   font-size: .75rem;
   font-weight: 600;
   cursor: pointer;
@@ -376,7 +378,7 @@ export const WATCH_CSS = `/* ═════════════════
 }
 .wp-info-banner {
   height: 3px;
-  background: linear-gradient(90deg, var(--accent) 0%, rgba(232,69,60,.2) 60%, transparent 100%);
+  background: linear-gradient(90deg, var(--accent) 0%, rgba(124,58,237,.2) 60%, transparent 100%);
 }
 .wp-info-head { padding: 1rem .6rem .75rem; }
 .wp-ep-chip {
@@ -385,8 +387,8 @@ export const WATCH_CSS = `/* ═════════════════
   gap: .3rem;
   padding: .15rem .7rem;
   border-radius: 20px;
-  background: rgba(232,69,60,.1);
-  border: 1px solid rgba(232,69,60,.2);
+  background: rgba(124,58,237,.1);
+  border: 1px solid rgba(124,58,237,.2);
   color: var(--accent);
   font-size: .67rem;
   font-weight: 800;
@@ -463,8 +465,8 @@ export const WATCH_CSS = `/* ═════════════════
 }
 .wp-act-btn svg { width:13px; height:13px; fill:currentColor; }
 .wp-act-btn.primary {
-  background: rgba(232,69,60,.12);
-  border-color: rgba(232,69,60,.25);
+  background: rgba(124,58,237,.12);
+  border-color: rgba(124,58,237,.25);
   color: var(--accent);
 }
 .wp-act-btn.primary:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
@@ -487,7 +489,7 @@ export const WATCH_CSS = `/* ═════════════════
 }
 .wp-prog-fill {
   height:100%;
-  background: linear-gradient(90deg, var(--accent), rgba(232,69,60,.7));
+  background: linear-gradient(90deg, var(--accent), rgba(124,58,237,.7));
   border-radius:4px;
   width:0%;
   transition: width .6s ease;
@@ -500,7 +502,7 @@ export const WATCH_CSS = `/* ═════════════════
   width:8px; height:8px;
   border-radius:50%;
   background:#fff;
-  box-shadow: 0 0 6px rgba(232,69,60,.8);
+  box-shadow: 0 0 6px rgba(124,58,237,.8);
   opacity:0;
   transition:opacity .3s;
 }
@@ -516,16 +518,15 @@ export const WATCH_CSS = `/* ═════════════════
   display: flex;
   align-items: center;
   gap: .55rem;
-  padding: .65rem 1.1rem;
-  border-radius: 11px;
-  border: 1px solid rgba(255,255,255,0.07);
-  background: rgba(22,26,34,0.8);
+  padding: .65rem 1.2rem;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: #0f0f0f;
   color: var(--text-secondary);
   text-decoration: none;
   font-size: .82rem;
-  font-weight: 600;
+  font-weight: 700;
   transition: all .22s cubic-bezier(.16,1,.3,1);
-  backdrop-filter: blur(6px);
   min-width: 0;
   position: relative;
   overflow: hidden;
@@ -538,7 +539,7 @@ export const WATCH_CSS = `/* ═════════════════
   opacity: 0;
   transition: opacity .2s;
 }
-.wp-nav-btn:hover { border-color:rgba(232,69,60,.25); color:var(--text-primary); transform:translateY(-2px); }
+.wp-nav-btn:hover { border-color:rgba(124,58,237,.25); color:var(--text-primary); transform:translateY(-2px); }
 .wp-nav-btn:hover::before { opacity: .05; }
 .wp-nav-btn.next { justify-content:flex-end; text-align:right; }
 .wp-nav-btn svg { width:15px; height:15px; fill:currentColor; flex-shrink:0; position:relative; }
@@ -621,7 +622,7 @@ export const WATCH_CSS = `/* ═════════════════
   font-size:.67rem; font-weight:600; color:var(--text-muted);
   transition:all .15s;
 }
-.wp-genre:hover { border-color:rgba(232,69,60,.3); color:var(--accent); }
+.wp-genre:hover { border-color:rgba(124,58,237,.3); color:var(--accent); }
 
 .wp-ep-card {
   background: rgba(22,26,34,0.85);
@@ -672,7 +673,7 @@ export const WATCH_CSS = `/* ═════════════════
 }
 .wp-ep-search::placeholder { color:var(--text-muted); }
 .wp-ep-search:focus {
-  border-color:rgba(232,69,60,.35);
+  border-color:rgba(124,58,237,.35);
   background:rgba(255,255,255,.07);
 }
 .wp-ep-list {
@@ -699,7 +700,7 @@ export const WATCH_CSS = `/* ═════════════════
 .ep-item.playable { cursor:pointer; }
 .ep-item.playable:hover { background:rgba(255,255,255,.04); }
 .ep-item.active {
-  background:rgba(232,69,60,.07);
+  background:rgba(124,58,237,.07);
   border-left:2px solid var(--accent);
   padding-left:calc(.6rem - 2px);
 }
@@ -707,7 +708,7 @@ export const WATCH_CSS = `/* ═════════════════
   content:'';
   position:absolute;
   inset:0;
-  background:linear-gradient(90deg, rgba(232,69,60,.06), transparent);
+  background:linear-gradient(90deg, rgba(124,58,237,.06), transparent);
   pointer-events:none;
 }
 .ep-item.watched:not(.active) {
@@ -760,7 +761,7 @@ export const WATCH_CSS = `/* ═════════════════
   opacity:0;
   transition:opacity .15s;
 }
-.ep-item.active .ep-play-ov { opacity:1; background:rgba(232,69,60,.35); }
+.ep-item.active .ep-play-ov { opacity:1; background:rgba(124,58,237,.35); }
 .ep-item.playable:hover .ep-play-ov { opacity:1; }
 .ep-play-ov svg { width:13px; height:13px; fill:#fff; }
 .ep-num-fallback { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:.65rem; font-weight:700; color:var(--text-muted); }
@@ -823,7 +824,7 @@ export const WATCH_CSS = `/* ═════════════════
   content:'';
   position:absolute;
   inset:0;
-  background:radial-gradient(ellipse 80% 80% at 50% 100%, rgba(232,69,60,.15), transparent);
+  background:radial-gradient(ellipse 80% 80% at 50% 100%, rgba(124,58,237,.15), transparent);
   opacity:0;
   transition:opacity .2s;
 }
@@ -892,8 +893,8 @@ export const WATCH_CSS = `/* ═════════════════
 .wp-gate-ring {
   width:76px; height:76px;
   border-radius:50%;
-  background:rgba(232,69,60,.12);
-  border:1.5px solid rgba(232,69,60,.35);
+  background:rgba(124,58,237,.12);
+  border:1.5px solid rgba(124,58,237,.35);
   display:flex; align-items:center; justify-content:center;
   cursor:pointer;
   transition:all .2s;
@@ -901,13 +902,13 @@ export const WATCH_CSS = `/* ═════════════════
   animation:ringPulse 2.8s ease-in-out infinite;
 }
 @keyframes ringPulse {
-  0%,100%{box-shadow:0 0 0 0 rgba(232,69,60,.35);}
-  50%{box-shadow:0 0 0 20px rgba(232,69,60,0);}
+  0%,100%{box-shadow:0 0 0 0 rgba(124,58,237,.35);}
+  50%{box-shadow:0 0 0 20px rgba(124,58,237,0);}
 }
 .wp-gate-ring:hover {
   background:var(--accent); border-color:var(--accent);
   animation:none; transform:scale(1.1);
-  box-shadow:0 0 28px rgba(232,69,60,.5);
+  box-shadow:0 0 28px rgba(124,58,237,.5);
 }
 .wp-gate-ring svg { width:30px; height:30px; fill:#fff; margin-left:4px; }
 .wp-gate-title { font-size:1.05rem; font-weight:800; color:#fff; letter-spacing:-.01em; }
@@ -920,7 +921,7 @@ export const WATCH_CSS = `/* ═════════════════
   font-weight:700; font-size:.87rem;
   cursor:pointer; font-family:var(--font-body);
   transition:opacity .15s, transform .15s;
-  box-shadow:0 4px 14px rgba(232,69,60,.35);
+  box-shadow:0 4px 14px rgba(124,58,237,.35);
 }
 .wp-gate-cta:hover { opacity:.88; transform:translateY(-1px); }
 .wp-gate-ghost {

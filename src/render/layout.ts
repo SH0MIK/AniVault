@@ -143,6 +143,7 @@ ${og.type === 'video.episode' ? `
 <meta name="description" content="${h(og?.description ?? o.pageDescription ?? 'Watch all anime subbed & dubbed Ad-free on Anivault!')}">
 <meta name="application-name" content="AniVault">
 <link rel="stylesheet" href="${o.siteUrl}/assets/css/style.css">
+<link rel="stylesheet" href="${o.siteUrl}/assets/css/anivexa-theme.css?v=2">
 <link rel="icon" type="image/png" href="${o.siteUrl}/assets/img/site-img/icon.png">
 <link rel="canonical" href="${h(og?.url ?? o.requestUrl)}">
 <script type="application/ld+json">

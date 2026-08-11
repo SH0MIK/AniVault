@@ -245,11 +245,55 @@ export function continueWatchingScript(siteUrl: string): string {
         body: JSON.stringify({action:'clear'})
       });
       if ((await res.json()).success) {
-        var sec = btn.closest('.section');
+        var sec = btn.closest('.content-section');
         if (sec) { sec.style.transition='opacity .25s'; sec.style.opacity='0'; setTimeout(function(){ sec.remove(); },260); }
       }
     } catch(e){ btn.disabled=false; }
   }
   </script>
   `;
+}
+
+// Auto-rotating hero carousel: dots + prev/next buttons, pauses on hover.
+export function heroSliderScript(slideCount: number): string {
+  if (slideCount <= 1) return '';
+  return `<script>
+  (function(){
+    var idx = 0, total = ${slideCount}, timer = null;
+    var slides = document.querySelectorAll('#hero-slides .hero-slide');
+    var dots = document.querySelectorAll('#hero-dots .hero-dot');
+    function show(n) {
+      idx = (n + total) % total;
+      slides.forEach(function(s, i){ s.classList.toggle('active', i === idx); });
+      dots.forEach(function(d, i){ d.classList.toggle('active', i === idx); });
+    }
+    function next() { show(idx + 1); }
+    function prev() { show(idx - 1); }
+    function restart() { clearInterval(timer); timer = setInterval(next, 7000); }
+    document.getElementById('hero-next').addEventListener('click', function(){ next(); restart(); });
+    document.getElementById('hero-prev').addEventListener('click', function(){ prev(); restart(); });
+    dots.forEach(function(d){ d.addEventListener('click', function(){ show(parseInt(d.dataset.idx, 10)); restart(); }); });
+    var hero = document.getElementById('hero');
+    hero.addEventListener('mouseenter', function(){ clearInterval(timer); });
+    hero.addEventListener('mouseleave', restart);
+    restart();
+  })();
+  </script>`;
+}
+
+// Prev/next arrows for the genre bar and every horizontally-scrolling
+// anime row (Continue Watching, Watch Now, Trending, etc).
+export function rowNavScript(): string {
+  return `<script>
+  (function(){
+    document.querySelectorAll('[data-target][data-dir]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var row = document.getElementById(btn.dataset.target);
+        if (!row) return;
+        var amount = Math.max(row.clientWidth * 0.85, 240);
+        row.scrollBy({ left: btn.dataset.dir === 'prev' ? -amount : amount, behavior: 'smooth' });
+      });
+    });
+  })();
+  </script>`;
 }

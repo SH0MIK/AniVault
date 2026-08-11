@@ -519,4 +519,91 @@ async function saveEmail() {
   }
   btn.disabled = false;
 }
+
+// ── Banner upload/remove (edit page — mirrors the public profile's
+//    handleBannerFile, but targets this page's #profile-banner-el) ─────
+async function handleProfileBannerFile(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('banner-status');
+  const bannerEl = document.getElementById('profile-banner-el');
+  if (statusEl) statusEl.textContent = 'Uploading…';
+  const fd = new FormData();
+  fd.append('banner', file);
+  try {
+    const res = await fetch((window.__siteUrl || '') + '/api/upload_banner.php', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message, 'success');
+      setTimeout(() => window.location.reload(), 500);
+    } else {
+      if (statusEl) statusEl.textContent = '';
+      showToast(data.message, 'error');
+    }
+  } catch (e) {
+    if (statusEl) statusEl.textContent = '';
+    showToast('Upload failed', 'error');
+  }
+  input.value = '';
+}
+
+async function removeBanner() {
+  if (!confirm('Remove your current banner?')) return;
+  try {
+    const fd = new FormData();
+    fd.append('action', 'delete_banner');
+    const res = await fetch((window.__siteUrl || '') + '/api/upload_banner.php', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Banner removed.', 'success');
+      setTimeout(() => window.location.reload(), 500);
+    } else {
+      showToast(data.message || 'Failed to remove banner.', 'error');
+    }
+  } catch (e) {
+    showToast('Request failed.', 'error');
+  }
+}
+
+// ── Delete account ──────────────────────────────────────
+function openDeleteAccountModal() {
+  const input = document.getElementById('delete-account-password');
+  if (input) input.value = '';
+  const msg = document.getElementById('delete-account-msg');
+  if (msg) msg.textContent = '';
+  openModal('delete-account-modal');
+  setTimeout(() => input && input.focus(), 50);
+}
+
+async function confirmDeleteAccount(hasPassword, siteUrl) {
+  const input = document.getElementById('delete-account-password');
+  const msg = document.getElementById('delete-account-msg');
+  const v = (input.value || '').trim();
+  if (!hasPassword && v.toUpperCase() !== 'DELETE') {
+    msg.textContent = 'Type DELETE to confirm.';
+    return;
+  }
+  if (hasPassword && !v) {
+    msg.textContent = 'Enter your password.';
+    return;
+  }
+  const btn = document.getElementById('confirm-delete-account-btn');
+  btn.disabled = true;
+  try {
+    const fd = new FormData();
+    if (hasPassword) fd.append('password', v);
+    const res = await fetch((window.__siteUrl || '') + '/api/delete_account.php', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      showToast('Account deleted.', 'success');
+      setTimeout(() => window.location.href = siteUrl + '/', 700);
+    } else {
+      msg.textContent = data.message || 'Could not delete account.';
+      btn.disabled = false;
+    }
+  } catch (e) {
+    msg.textContent = 'Request failed.';
+    btn.disabled = false;
+  }
+}
 `;

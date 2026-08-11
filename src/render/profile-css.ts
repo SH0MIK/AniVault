@@ -62,5 +62,22 @@ export const PROFILE_CSS = `.avatar-cropper-modal {
   .avatar-crop-actions { justify-content: stretch; margin-left: 0; }
   .avatar-crop-actions .btn { flex: 1; }
 }
+
+/* Privacy tab toggle switches */
+.toggle-row { cursor: pointer; }
+.toggle-switch { appearance: none; -webkit-appearance: none; width: 42px; height: 24px; border-radius: 999px; background: rgba(255,255,255,.12); border: 1px solid var(--border); position: relative; flex-shrink: 0; cursor: pointer; transition: background .15s ease; }
+.toggle-switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .15s ease; }
+.toggle-switch:checked { background: var(--accent); border-color: var(--accent); }
+.toggle-switch:checked::after { transform: translateX(18px); }
+
+.danger-zone { border-color: rgba(232,69,60,.35); }
+
+/* Social links inputs — icon-prefixed rows in the Account tab */
+.social-input-row { display: flex; align-items: center; gap: 10px; }
+.social-input-row svg.icon { flex-shrink: 0; width: 18px; height: 18px; color: var(--text-muted); }
+.social-input-row .form-control { flex: 1; }
+.social-input-spacer { display: inline-block; width: 18px; flex-shrink: 0; }
+.social-input-static { flex: 1; font-size: .85rem; color: var(--text-secondary); background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 9px 12px; display: flex; align-items: center; gap: 6px; }
+.social-input-static svg.icon { color: var(--accent); }
 </style>
 `;

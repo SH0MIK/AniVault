@@ -365,15 +365,15 @@ async function lazyLoadCharacters() {
       const img    = char.images?.jpg?.image_url || '';
       const isMain = role.toLowerCase() === 'main';
       const div = document.createElement('div');
-      div.className = 'anime-card';
+      div.className = 'anime-card char-card';
       div.style.cursor = 'pointer';
       div.onclick = () => { window.location.href = window.__siteUrl + '/character?id=' + charId; };
       div.innerHTML = \`
-        <div class="anime-card-poster" style="aspect-ratio:1/1.2;position:relative;">
+        <div class="anime-card-poster char-card-poster">
           \${img ? \`<img src="\${img}" alt="\${char.name || ''}" loading="lazy">\` : ''}
-          \${isMain ? '<span style="position:absolute;top:6px;left:6px;background:var(--accent);color:#fff;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:.04em;">Main</span>' : ''}
+          \${isMain ? '<span style="position:absolute;top:6px;left:6px;background:var(--accent);color:#fff;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:.04em;z-index:2;">Main</span>' : ''}
         </div>
-        <div class="anime-card-info">
+        <div class="anime-card-info" style="text-align:center;">
           <div class="anime-card-title">\${(char.name||'').replace(/</g,'&lt;')}</div>
           <div class="anime-card-meta">\${role}\${va ? '<br><span style="color:var(--text-muted);">' + (va.name||'').replace(/</g,'&lt;') + '</span>' : ''}</div>
         </div>\`;
