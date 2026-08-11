@@ -481,7 +481,15 @@ export class Auth {
 
   async updateProfile(
     userId: number,
-    data: { bio?: string; avatar_url?: string; new_password?: string; username?: string; email?: string }
+    data: {
+      bio?: string; avatar_url?: string; new_password?: string; username?: string; email?: string;
+      pronouns?: string; tagline?: string;
+      social_twitter?: string; social_mal?: string; social_website?: string;
+      social_facebook?: string; social_instagram?: string; social_anilist?: string;
+      social_youtube?: string; social_reddit?: string;
+      social_discord_id?: string; social_discord_label?: string;
+      privacy_hide_followers?: boolean; privacy_hide_following?: boolean; privacy_hide_favorites?: boolean;
+    }
   ): Promise<AuthResult & { username?: string; email?: string }> {
     const fields: string[] = [];
     const params: unknown[] = [];
@@ -506,6 +514,66 @@ export class Auth {
       fields.push('bio = ?');
       params.push(data.bio.substring(0, 500));
     }
+    if (data.pronouns !== undefined) {
+      fields.push('pronouns = ?');
+      params.push(data.pronouns.trim().substring(0, 30) || null);
+    }
+    if (data.tagline !== undefined) {
+      fields.push('tagline = ?');
+      params.push(data.tagline.trim().substring(0, 80) || null);
+    }
+    if (data.social_twitter !== undefined) {
+      fields.push('social_twitter = ?');
+      params.push(data.social_twitter.trim().replace(/^@/, '').substring(0, 100) || null);
+    }
+    if (data.social_mal !== undefined) {
+      fields.push('social_mal = ?');
+      params.push(data.social_mal.trim().substring(0, 100) || null);
+    }
+    if (data.social_website !== undefined) {
+      fields.push('social_website = ?');
+      params.push(data.social_website.trim().substring(0, 200) || null);
+    }
+    if (data.social_facebook !== undefined) {
+      fields.push('social_facebook = ?');
+      params.push(data.social_facebook.trim().substring(0, 100) || null);
+    }
+    if (data.social_instagram !== undefined) {
+      fields.push('social_instagram = ?');
+      params.push(data.social_instagram.trim().replace(/^@/, '').substring(0, 100) || null);
+    }
+    if (data.social_anilist !== undefined) {
+      fields.push('social_anilist = ?');
+      params.push(data.social_anilist.trim().substring(0, 100) || null);
+    }
+    if (data.social_youtube !== undefined) {
+      fields.push('social_youtube = ?');
+      params.push(data.social_youtube.trim().substring(0, 100) || null);
+    }
+    if (data.social_reddit !== undefined) {
+      fields.push('social_reddit = ?');
+      params.push(data.social_reddit.trim().replace(/^u\//, '').substring(0, 100) || null);
+    }
+    if (data.social_discord_id !== undefined) {
+      fields.push('social_discord_id = ?');
+      params.push(data.social_discord_id.trim().substring(0, 40) || null);
+    }
+    if (data.social_discord_label !== undefined) {
+      fields.push('social_discord_label = ?');
+      params.push(data.social_discord_label.trim().substring(0, 60) || null);
+    }
+    if (data.privacy_hide_followers !== undefined) {
+      fields.push('privacy_hide_followers = ?');
+      params.push(data.privacy_hide_followers ? 1 : 0);
+    }
+    if (data.privacy_hide_following !== undefined) {
+      fields.push('privacy_hide_following = ?');
+      params.push(data.privacy_hide_following ? 1 : 0);
+    }
+    if (data.privacy_hide_favorites !== undefined) {
+      fields.push('privacy_hide_favorites = ?');
+      params.push(data.privacy_hide_favorites ? 1 : 0);
+    }
     if (data.avatar_url) {
       fields.push('avatar_url = ?');
       params.push(data.avatar_url);
@@ -520,6 +588,31 @@ export class Auth {
     await this.db.query(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`, params);
     return { success: true, username: data.username?.trim(), email: data.email?.trim() };
   }
+
+  // ----------------------------------------------------------
+  // Account deletion — soft delete via the same is_active flag the rest of
+  // the app already filters on (see user.ts's profile lookup), rather than
+  // a hard cascading DELETE across follows/favorites/anime_list/etc. Keeps
+  // referential data intact (e.g. other users' notifications that mention
+  // this user) while fully removing the account from public view and login.
+  // ----------------------------------------------------------
+  async deleteAccount(userId: number, password?: string): Promise<AuthResult> {
+    const user = await this.db.fetchOne<{ password_hash: string | null }>('SELECT password_hash FROM users WHERE id = ?', [userId]);
+    if (!user) return { success: false, message: 'Account not found.' };
+    if (user.password_hash) {
+      if (!password) return { success: false, message: 'Enter your password to confirm.' };
+      const ok = await bcrypt.compare(password, user.password_hash);
+      if (!ok) return { success: false, message: 'Incorrect password.' };
+    }
+    await this.db.query(
+      `UPDATE users SET is_active = 0, email = 'deleted_' || id || '@anivault.invalid' WHERE id = ?`,
+      [userId]
+    );
+    await this.db.query('DELETE FROM sessions WHERE user_id = ?', [userId]);
+    await Logger.log(this.db, userId, 'account_delete', 'Account deactivated by user');
+    return { success: true };
+  }
+
 
   // ----------------------------------------------------------
   // Live-check for the edit-username popup — same rules register()

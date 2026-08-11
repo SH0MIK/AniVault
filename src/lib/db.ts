@@ -33,6 +33,16 @@ export class Db {
     const val = Object.values(row)[0];
     return Number(val ?? 0);
   }
+
+  /** Exposes the raw D1 prepare/batch API for bulk operations (e.g. upserting
+   *  thousands of rows in one round trip) where the wrapper methods above,
+   *  which each do their own round trip, would be too slow. */
+  prepare(sql: string): D1PreparedStatement {
+    return this.d1.prepare(sql);
+  }
+  async batch(statements: D1PreparedStatement[]): Promise<D1Result[]> {
+    return this.d1.batch(statements);
+  }
 }
 
 export function nowIso(): string {

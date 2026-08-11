@@ -13,6 +13,7 @@ export interface MalEnv {
   MAL_CLIENT_ID?: string;
   API_CACHE_ENABLED?: string; // "1" / "0" via wrangler.toml var
   API_CACHE_TIME?: string; // seconds
+  TMDB_API_KEY?: string;
 }
 
 export interface NormalisedAnime {
@@ -44,6 +45,9 @@ export interface NormalisedAnime {
   members: number;
   broadcast: { day: string | null; time: string | null };
   duration_mins: number | null;
+  // Only populated for AniList-sourced entries (see getAniListSeasonNow) —
+  // MAL/Jikan has no equivalent field. A real wide banner image, not a poster.
+  banner_image?: string;
 }
 
 export class MalAPI {
@@ -103,10 +107,275 @@ export class MalAPI {
     return { data: [] };
   }
 
-  private async getLocalAnimeImage(animeId: number): Promise<string> {
+  // AniList's "this season" data is far more current than MAL/Jikan's
+  // season/now endpoint (which frequently lags real air dates or lists
+  // shows as "airing" long after/before they actually are). This also
+  // gives us AniList's real wide bannerImage for free, which MAL has no
+  // equivalent for at all — that's what the home page hero uses.
+  //
+  // Live requests should almost never need to hit AniList directly: a cron
+  // job (see refreshAniListSeasonCache below + src/scheduled.ts) keeps this
+  // cache warm on a timer. This method is the read path — cache first, and
+  // only falls back to a live AniList call / then MAL if the cache is
+  // somehow cold (e.g. right after first deploy, before the cron has run).
+  async getAniListSeasonNow(): Promise<{ data: NormalisedAnime[] }> {
+    const cacheKey = this.seasonCacheKey();
+    if (this.kv && this.cacheEnabled()) {
+      const cached = await this.kv.get(cacheKey, 'json') as { data: NormalisedAnime[] } | null;
+      if (cached) return cached;
+    }
+
+    const data = await this.fetchAniListSeasonLive();
+    if (!data || data.length === 0) return this.getSeasonNowFallback();
+
+    const result = { data };
+    if (this.kv && this.cacheEnabled()) {
+      // Generous TTL as a safety net — the cron is what actually keeps this
+      // fresh minute-to-minute; this just stops a cold cache from forcing
+      // every single request to call AniList live.
+      await this.kv.put(cacheKey, JSON.stringify(result), { expirationTtl: Math.max(this.cacheTtl(), 7200) });
+    }
+    return result;
+  }
+
+  // Called by the scheduled cron handler ONLY — always hits AniList live
+  // (ignores whatever's already cached) and overwrites the cache key that
+  // getAniListSeasonNow() reads. Returns true on a successful refresh.
+  async refreshAniListSeasonCache(): Promise<boolean> {
+    const data = await this.fetchAniListSeasonLive();
+    if (!data || data.length === 0) return false;
+    if (this.kv && this.cacheEnabled()) {
+      await this.kv.put(this.seasonCacheKey(), JSON.stringify({ data }), { expirationTtl: 7200 });
+    }
+    return true;
+  }
+
+  // AniList blocks requests from Cloudflare Workers outright (confirmed via
+  // a 403 "manually blocked" response) — there's no live single-anime
+  // lookup available here the way there is for MAL/Jikan. But the season
+  // cache your GitHub Action already populates (see
+  // .github/workflows/anilist-cache.yml) carries AniList's real
+  // bannerImage for every title in the current season "for free" — if the
+  // anime being viewed happens to be currently airing, we can pull its
+  // banner out of that cache with zero extra requests. Anything outside
+  // the current season simply isn't covered (returns '').
+  async getAniListBannerFromSeasonCache(malId: number): Promise<string> {
+    if (!malId || !this.kv) return '';
+    const cached = await this.kv.get(this.seasonCacheKey(), 'json') as { data: NormalisedAnime[] } | null;
+    if (!cached?.data) return '';
+    return cached.data.find((a) => a.mal_id === malId)?.banner_image || '';
+  }
+
+  // Second tier: AniList's all-time top-200-by-popularity banner map (also
+  // written by the same GitHub Action, refreshed roughly daily since it's
+  // effectively static). Covers older/finished popular titles that the
+  // season cache above can never include — Attack on Titan, Naruto, etc.
+  async getAniListTopBanner(malId: number): Promise<string> {
+    if (!malId || !this.kv) return '';
+    const map = await this.kv.get('anilist_top_banners', 'json') as Record<string, string> | null;
+    return map?.[malId] || '';
+  }
+
+  private seasonCacheKey(): string {
+    const now = new Date();
+    const month = now.getUTCMonth() + 1; // 1-12
+    const seasonYear = now.getUTCFullYear();
+    const season = month <= 3 ? 'WINTER' : month <= 6 ? 'SPRING' : month <= 9 ? 'SUMMER' : 'FALL';
+    return `anilist_season_${season}_${seasonYear}`;
+  }
+
+  private async fetchAniListSeasonLive(): Promise<NormalisedAnime[] | null> {
+    const now = new Date();
+    const month = now.getUTCMonth() + 1;
+    const seasonYear = now.getUTCFullYear();
+    const season = month <= 3 ? 'WINTER' : month <= 6 ? 'SPRING' : month <= 9 ? 'SUMMER' : 'FALL';
+
+    const query = `
+      query ($season: MediaSeason, $seasonYear: Int) {
+        Page(page: 1, perPage: 50) {
+          media(season: $season, seasonYear: $seasonYear, type: ANIME, sort: POPULARITY_DESC, isAdult: false) {
+            idMal
+            title { romaji english }
+            description(asHtml: false)
+            bannerImage
+            coverImage { large extraLarge }
+            genres
+            episodes
+            averageScore
+            format
+            status
+          }
+        }
+      }`;
+
+    try {
+      const res = await fetch('https://graphql.anilist.co', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify({ query, variables: { season, seasonYear } }),
+      });
+      if (!res.ok) {
+        const bodyText = await res.text().catch(() => '');
+        console.error(`[anilist] HTTP ${res.status} ${res.statusText}`, bodyText.slice(0, 500));
+        return null;
+      }
+      const json: any = await res.json();
+      if (json?.errors?.length) {
+        console.error('[anilist] GraphQL errors:', JSON.stringify(json.errors).slice(0, 500));
+        return null;
+      }
+      const media: any[] = json?.data?.Page?.media ?? [];
+      console.log(`[anilist] fetched ${media.length} media for ${season} ${seasonYear}`);
+
+      return media
+        .filter((m) => m.idMal)
+        .map((m) => ({
+          mal_id: m.idMal,
+          title: m.title?.romaji || m.title?.english || 'Unknown',
+          title_english: m.title?.english || '',
+          title_japanese: '',
+          images: {
+            jpg: {
+              image_url: m.coverImage?.large || '',
+              large_image_url: m.coverImage?.extraLarge || m.coverImage?.large || '',
+            },
+          },
+          synopsis: stripAniListHtml(m.description || ''),
+          background: '',
+          score: typeof m.averageScore === 'number' ? m.averageScore / 10 : null,
+          scored_by: null,
+          rank: null,
+          popularity: null,
+          episodes: m.episodes || 0,
+          status: m.status || '',
+          type: m.format || 'TV',
+          rating: '',
+          source: '',
+          duration: null,
+          aired: { string: null },
+          start_date: null,
+          genres: (m.genres || []).map((g: string, i: number) => ({ mal_id: i, name: g })),
+          studios: [],
+          related_anime: [],
+          recommendations: [],
+          trailer: [],
+          themes: [],
+          members: 0,
+          broadcast: { day: null, time: null },
+          duration_mins: null,
+          banner_image: m.bannerImage || undefined,
+        }));
+    } catch (err) {
+      console.error('[anilist] fetch threw:', err instanceof Error ? err.message : String(err));
+      return null;
+    }
+  }
+
+  // Used when AniList errors, times out, or returns nothing — falls back to
+  // MAL/Jikan's season/now data so the row and hero still populate (just
+  // without AniList's banner art) instead of showing nothing. Deliberately
+  // not cached under the AniList key, so the very next request tries
+  // AniList fresh rather than staying stuck on the fallback.
+  private async getSeasonNowFallback(): Promise<{ data: NormalisedAnime[] }> {
+    try {
+      return await this.getSeasonNow(1);
+    } catch {
+      return { data: [] };
+    }
+  }
+
+  // Public so the home page (and anywhere else) can look up an admin-saved
+  // local cover for a specific anime — e.g. the mobile hero, which shows
+  // your own cover art instead of the wide banner (see home.ts).
+  async getLocalAnimeImage(animeId: number): Promise<string> {
     if (!animeId) return '';
     const row = await this.db.fetchOne<{ image_url: string }>('SELECT image_url FROM anime_images WHERE anime_id = ?', [animeId]);
     return row ? row.image_url : '';
+  }
+
+  // Same idea as getLocalAnimeImage, but for wide banner art (a separate
+  // table/admin page: anime_banners / admin/anime_banners.php). AniList's
+  // bannerImage is community-submitted and often mediocre — this lets you
+  // manually curate a nicer banner per title, same as Anivexa does.
+  // Returns order_index too, so the home page hero can honour your manual
+  // display order (see getAniListSeasonNow's caller in home.ts).
+  async getLocalAnimeBannerInfo(animeId: number): Promise<{ image_url: string; order_index: number } | null> {
+    if (!animeId) return null;
+    const row = await this.db.fetchOne<{ image_url: string; order_index: number | null }>(
+      'SELECT image_url, order_index FROM anime_banners WHERE anime_id = ?',
+      [animeId]
+    );
+    return row ? { image_url: row.image_url, order_index: row.order_index ?? 0 } : null;
+  }
+
+  // A manually-saved logo (admin/anime_banners.php "Add Logo" button) takes
+  // priority over the automatic TMDB search — lets you fix a wrong/missing
+  // match without waiting on TMDB to have the right one.
+  async getLocalAnimeLogo(animeId: number): Promise<string> {
+    if (!animeId) return '';
+    const row = await this.db.fetchOne<{ image_url: string }>('SELECT image_url FROM anime_logos WHERE anime_id = ?', [animeId]);
+    return row ? row.image_url : '';
+  }
+
+  // TMDB stores a "clear logo" per title — transparent-background title art,
+  // which is what Anivexa overlays on the mobile cover instead of plain
+  // text. Checks your manually-saved local logo library first (instant,
+  // always correct); only falls back to a live TMDB title search (best-
+  // effort, first result — good enough for a hero row of a handful of
+  // titles) if you haven't saved one. Silently returns '' on any failure
+  // (missing key, no match, no logo for that title, network error) since
+  // this is purely a visual enhancement, never something that should break
+  // the page.
+  async getTitleLogo(animeId: number, title: string): Promise<string> {
+    const local = await this.getLocalAnimeLogo(animeId);
+    if (local) return local;
+
+    if (!this.env.TMDB_API_KEY || !title) return '';
+
+    const cacheKey = `tmdb_logo_${animeId || (await sha1(title.toLowerCase()))}`;
+    if (this.kv && this.cacheEnabled()) {
+      const cached = await this.kv.get(cacheKey);
+      if (cached !== null) return cached; // cached '' is a valid "no logo found" result
+    }
+
+    const logo = await this.fetchTmdbLogo(title);
+    if (this.kv && this.cacheEnabled()) {
+      // Logos essentially never change — cache for a week either way (even
+      // a "not found" result), so a title with no logo doesn't get
+      // re-searched on every single page load.
+      await this.kv.put(cacheKey, logo, { expirationTtl: 604800 });
+    }
+    return logo;
+  }
+
+  private async fetchTmdbLogo(title: string): Promise<string> {
+    try {
+      const key = this.env.TMDB_API_KEY!;
+      const searchUrl = (kind: 'tv' | 'movie') =>
+        `https://api.themoviedb.org/3/search/${kind}?api_key=${key}&query=${encodeURIComponent(title)}`;
+
+      let id: number | null = null;
+      let kind: 'tv' | 'movie' = 'tv';
+      for (const k of ['tv', 'movie'] as const) {
+        const res = await fetch(searchUrl(k));
+        if (!res.ok) continue;
+        const json: any = await res.json();
+        const first = json?.results?.[0];
+        if (first?.id) { id = first.id; kind = k; break; }
+      }
+      if (!id) return '';
+
+      const imgRes = await fetch(`https://api.themoviedb.org/3/${kind}/${id}/images?api_key=${key}&include_image_language=en,ja,null`);
+      if (!imgRes.ok) return '';
+      const imgJson: any = await imgRes.json();
+      const logos: any[] = imgJson?.logos ?? [];
+      if (logos.length === 0) return '';
+
+      const best = logos.find((l) => l.iso_639_1 === 'en') || logos[0];
+      return best?.file_path ? `https://image.tmdb.org/t/p/w500${best.file_path}` : '';
+    } catch {
+      return '';
+    }
   }
 
   private async normalise(node: any): Promise<NormalisedAnime> {
@@ -115,32 +384,32 @@ export class MalAPI {
     const mediumImage = localImage || node.main_picture?.medium || '';
     const largeImage = localImage || node.main_picture?.large || node.main_picture?.medium || '';
 
-    const genres = (node.genres ?? []).map((g: any) => ({ mal_id: g.id, name: g.name }));
-    const studios = (node.studios ?? []).map((s: any) => ({ mal_id: s.id, name: s.name }));
+    const genres = (node.genres ?? []).filter(Boolean).map((g: any) => ({ mal_id: g?.id ?? 0, name: g?.name ?? '' }));
+    const studios = (node.studios ?? []).filter(Boolean).map((s: any) => ({ mal_id: s?.id ?? 0, name: s?.name ?? '' }));
 
-    const related = await Promise.all((node.related_anime ?? []).map(async (r: any) => {
-      const entry = r.node ?? {};
-      const entryId = Number(entry.id ?? 0);
+    const related = await Promise.all((node.related_anime ?? []).filter(Boolean).map(async (r: any) => {
+      const entry = r?.node ?? {};
+      const entryId = Number(entry?.id ?? 0);
       const entryLocalImage = entryId ? await this.getLocalAnimeImage(entryId) : '';
       return {
         entry: {
           mal_id: entryId,
-          title: entry.title ?? '',
-          images: { jpg: { image_url: entryLocalImage || entry.main_picture?.medium || '' } },
+          title: entry?.title ?? '',
+          images: { jpg: { image_url: entryLocalImage || entry?.main_picture?.medium || '' } },
         },
-        relation_type_formatted: r.relation_type_formatted ?? '',
+        relation_type_formatted: r?.relation_type_formatted ?? '',
       };
     }));
 
-    const recommendations = await Promise.all((node.recommendations ?? []).map(async (r: any) => {
-      const entry = r.node ?? {};
-      const entryId = Number(entry.id ?? 0);
+    const recommendations = await Promise.all((node.recommendations ?? []).filter(Boolean).map(async (r: any) => {
+      const entry = r?.node ?? {};
+      const entryId = Number(entry?.id ?? 0);
       const entryLocalImage = entryId ? await this.getLocalAnimeImage(entryId) : '';
       return {
         entry: {
           mal_id: entryId,
-          title: entry.title ?? '',
-          images: { jpg: { image_url: entryLocalImage || entry.main_picture?.medium || '' } },
+          title: entry?.title ?? '',
+          images: { jpg: { image_url: entryLocalImage || entry?.main_picture?.medium || '' } },
         },
       };
     }));
@@ -353,4 +622,18 @@ function mapStatus(s: string): string {
 async function sha1(str: string): Promise<string> {
   const buf = await crypto.subtle.digest('SHA-1', new TextEncoder().encode(str));
   return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// AniList descriptions come back with light HTML markup (<br>, <i>, etc.)
+// and literal escaped entities — strip both down to plain text.
+function stripAniListHtml(input: string): string {
+  return input
+    .replace(/<br\s*\/?>/gi, ' ')
+    .replace(/<\/?[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&quot;/g, '"')
+    .replace(/&#039;/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
 }
