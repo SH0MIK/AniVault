@@ -46,7 +46,7 @@ adminIndexRoutes.get('/admin/index.php', async (c) => {
 
 <div class="admin-kpi">
   <div class="kpi-card blue"><div class="kpi-icon">👥</div><div class="kpi-value">${totalUsers.toLocaleString('en-US')}</div><div class="kpi-label">Total Users</div></div>
-  <div class="kpi-card teal"><div class="kpi-icon">🟢</div><div class="kpi-value">1181</div><div class="kpi-label">Active (7 days)</div></div>
+  <div class="kpi-card teal"><div class="kpi-icon">🟢</div><div class="kpi-value">1417</div><div class="kpi-label">Active (7 days)</div></div>
   <div class="kpi-card gold"><div class="kpi-icon">📋</div><div class="kpi-value">${totalAnime.toLocaleString('en-US')}</div><div class="kpi-label">List Entries</div></div>
   <div class="kpi-card accent"><div class="kpi-icon">♥</div><div class="kpi-value">${totalFavs.toLocaleString('en-US')}</div><div class="kpi-label">Favorites</div></div>
   <div class="kpi-card purple"><div class="kpi-icon">✨</div><div class="kpi-value">${newUsers.toLocaleString('en-US')}</div><div class="kpi-label">New Users (7d)</div></div>

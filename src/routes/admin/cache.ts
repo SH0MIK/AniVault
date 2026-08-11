@@ -14,6 +14,9 @@ import { Settings } from '../../lib/settings';
 import { Logger } from '../../lib/logger';
 import { h } from '../../lib/helpers';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
+import { DubStatus, DUB_LANGUAGES } from '../../lib/dub-status';
+import { MalAPI } from '../../lib/mal-api';
+import { EpisodeAir } from '../../lib/episode-air';
 
 export const adminCacheRoutes = new Hono<{ Bindings: Env }>();
 
@@ -96,6 +99,14 @@ adminCacheRoutes.on(['GET', 'POST'], '/admin/cache.php', async (c) => {
     ['Storage', 'R2'],
     ['AniVault', '1.0 (Workers)'],
   ];
+
+  const dubCounts = await Promise.all(
+    Object.keys(DUB_LANGUAGES).map(async (lang) => [DUB_LANGUAGES[lang], await db.count('SELECT COUNT(*) as cnt FROM dub_status WHERE lang = ?', [lang])] as [string, number])
+  );
+  const epCacheCount = await db.count('SELECT COUNT(*) as cnt FROM episode_air_cache');
+  const epCacheOldest = await db.fetchOne<{ updated_at: string }>('SELECT updated_at FROM episode_air_cache ORDER BY updated_at ASC LIMIT 1');
+  const lastDubRefreshRaw = await c.env.API_CACHE.get('dub_status_last_refresh');
+  const lastDubRefresh = lastDubRefreshRaw ? new Date(parseInt(lastDubRefreshRaw, 10)).toISOString() : null;
 
   let html = renderAdminHeader({ siteUrl, pageTitle: 'Cache Management', adminPage: 'cache', isOwner, impersonating });
   html += `
@@ -190,6 +201,71 @@ ${message ? `<div class="alert alert-success mb-2">${h(message)}</div>` : ''}
   </div>
 </div>
 
+<div class="card card-body mb-3">
+  <div class="flex-between mb-2"><h2>🎙️ Episode Count & Dub Data</h2></div>
+  <p class="text-muted mb-2" style="font-size:0.9rem;">Episode counts refresh hourly from Jikan; dub data refreshes roughly daily from <a href="https://mydublist.com" target="_blank" rel="noopener">MyDubList</a>. Both also run automatically on their own schedule — use these buttons to run one right now instead of waiting.</p>
+
+  <div class="grid-2" style="gap:1.5rem;">
+    <div>
+      <h3 style="font-size:0.95rem;margin-bottom:8px;">Dub status by language</h3>
+      <div class="data-table-wrap"><table class="data-table">
+        <thead><tr><th>Language</th><th>Cached rows</th></tr></thead>
+        <tbody id="dub-counts-body">
+          ${dubCounts.map(([name, cnt]) => `<tr><td>${h(name)}</td><td style="font-weight:600;color:${cnt > 0 ? 'var(--text-primary)' : 'var(--text-muted)'};">${cnt.toLocaleString('en-US')}</td></tr>`).join('')}
+        </tbody>
+      </table></div>
+      <p class="text-muted mt-1" style="font-size:0.78rem;">Last refresh: <span id="dub-last-refresh">${lastDubRefresh ? h(lastDubRefresh) : 'never'}</span></p>
+      <button id="dub-refresh-btn" class="btn btn-primary btn-sm mt-2">🔄 Refresh Dub Data Now</button>
+      <pre id="dub-refresh-log" style="display:none;margin-top:10px;font-size:0.78rem;background:rgba(255,255,255,0.03);padding:10px;border-radius:8px;white-space:pre-wrap;"></pre>
+    </div>
+    <div>
+      <h3 style="font-size:0.95rem;margin-bottom:8px;">Episode-air cache</h3>
+      <div class="stat-card mb-2"><div class="stat-value">${epCacheCount.toLocaleString('en-US')}</div><div class="stat-label">Anime with a cached count</div></div>
+      <p class="text-muted" style="font-size:0.85rem;">Oldest cached entry: ${epCacheOldest ? h(epCacheOldest.updated_at) : 'none yet'}</p>
+      <button id="ep-refresh-btn" class="btn btn-secondary btn-sm mt-2">🔄 Refresh Stale Episode Counts Now</button>
+      <pre id="ep-refresh-log" style="display:none;margin-top:10px;font-size:0.78rem;background:rgba(255,255,255,0.03);padding:10px;border-radius:8px;white-space:pre-wrap;"></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+const dubBtn = document.getElementById('dub-refresh-btn');
+if (dubBtn) {
+  dubBtn.addEventListener('click', async () => {
+    dubBtn.disabled = true; dubBtn.textContent = 'Refreshing… (can take ~10-20s)';
+    const log = document.getElementById('dub-refresh-log');
+    try {
+      const res = await fetch('dub_refresh.php', { method: 'POST' });
+      const data = await res.json();
+      log.style.display = 'block';
+      log.textContent = JSON.stringify(data, null, 2);
+      if (data.results) setTimeout(() => location.reload(), 2500);
+    } catch (e) {
+      log.style.display = 'block';
+      log.textContent = 'Request failed: ' + e;
+    }
+    dubBtn.disabled = false; dubBtn.textContent = '🔄 Refresh Dub Data Now';
+  });
+}
+const epBtn = document.getElementById('ep-refresh-btn');
+if (epBtn) {
+  epBtn.addEventListener('click', async () => {
+    epBtn.disabled = true; epBtn.textContent = 'Refreshing…';
+    const log = document.getElementById('ep-refresh-log');
+    try {
+      const res = await fetch('ep_refresh.php', { method: 'POST' });
+      const data = await res.json();
+      log.style.display = 'block';
+      log.textContent = JSON.stringify(data, null, 2);
+    } catch (e) {
+      log.style.display = 'block';
+      log.textContent = 'Request failed: ' + e;
+    }
+    epBtn.disabled = false; epBtn.textContent = '🔄 Refresh Stale Episode Counts Now';
+  });
+}
+</script>
+
 <style>
 .toggle-wrap { position:relative; display:inline-block; width:44px; height:24px; }
 .toggle-wrap input { display:none; }
@@ -276,4 +352,35 @@ adminCacheRoutes.on(['GET', 'POST'], '/admin/api_cache.php', async (c) => {
 
   await session.save(c, lifetime);
   return c.json({ error: 'Unknown action' }, 400);
+});
+
+// ── Manual dub-data / episode-air refresh (see admin/cache.php buttons) ────
+adminCacheRoutes.post('/admin/dub_refresh.php', async (c) => {
+  const db = new Db(c.env.DB);
+  const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
+  const session = await Session.load(c, db, lifetime);
+  const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
+  if (!auth.isAdmin()) { await session.save(c, lifetime); return c.json({ error: 'Forbidden' }, 403); }
+
+  const results = await DubStatus.refresh(db);
+  await c.env.API_CACHE.put('dub_status_last_refresh', String(Date.now()));
+  const failed = results.filter((r) => !r.ok);
+  await Logger.log(db, session.user_id ?? 0, 'admin_dub_refresh',
+    `Manually refreshed dub data: ${results.map((r) => `${r.lang}=${r.ok ? r.count : 'FAILED'}`).join(', ')}`);
+  await session.save(c, lifetime);
+  return c.json({ success: failed.length === 0, results, note: failed.length ? `${failed.length} language(s) failed to fetch — check that raw.githubusercontent.com is reachable and the language keys still match MyDubList's file names.` : undefined });
+});
+
+adminCacheRoutes.post('/admin/ep_refresh.php', async (c) => {
+  const db = new Db(c.env.DB);
+  const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
+  const session = await Session.load(c, db, lifetime);
+  const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
+  if (!auth.isAdmin()) { await session.save(c, lifetime); return c.json({ error: 'Forbidden' }, 403); }
+
+  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+  const refreshed = await EpisodeAir.refreshStale(db, mal, 20);
+  await Logger.log(db, session.user_id ?? 0, 'admin_ep_refresh', `Manually refreshed ${refreshed} stale episode-air cache entries`);
+  await session.save(c, lifetime);
+  return c.json({ success: true, refreshed });
 });
