@@ -235,6 +235,23 @@ function initTabs() {
   });
 }
 
+// ── Scrollable tab bar: hide the "more tabs" edge fade once scrolled
+//    to the end, so it doesn't look like the last tab is just cut off ──
+function initTabScrollFade() {
+  document.querySelectorAll('.u-tabs').forEach(wrap => {
+    const scroller = wrap.querySelector('.tabs');
+    if (!scroller) return;
+    const update = () => {
+      const atEnd = scroller.scrollLeft + scroller.clientWidth >= scroller.scrollWidth - 2;
+      const overflowing = scroller.scrollWidth > scroller.clientWidth + 2;
+      wrap.classList.toggle('at-scroll-end', atEnd || !overflowing);
+    };
+    scroller.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    update();
+  });
+}
+
 // ── Score buttons ───────────────────────────────────────
 function initScoreButtons() {
   document.querySelectorAll('.score-input').forEach(wrap => {
@@ -510,6 +527,7 @@ function previewAvatar(input) {
 // ── Main init ───────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
   initTabs();
+  initTabScrollFade();
   initScoreButtons();
   initDropdowns();
 
@@ -915,13 +933,14 @@ function initChat() {
   const fab    = document.getElementById('chat-fab');
   if (!widget || !fab) return;
 
+  const stored = sessionStorage.getItem('av_chat_open');
   const forceOpen = new URLSearchParams(location.search).get('openChat') === '1';
 
-  if (forceOpen) {
-    // Explicit request via query param — open it.
+  if (forceOpen || stored === '1') {
+    // Explicit request (e.g. ?openChat=1) or user had it open already this session — respect it on any page.
     openChat();
   } else {
-    // Never auto-open on load. The user has to click the chat button themselves.
+    // No auto-open on first visit anymore — user opens it manually via the FAB.
     widget.classList.remove('open');
   }
 
