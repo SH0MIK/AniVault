@@ -179,6 +179,61 @@ authRoutes.get('/pages/oauth_discord.php', async (c) => {
   }
 });
 
+// ── MAL/AniList list-sync connect callbacks — always require an existing
+//    logged-in session (unlike Google/Discord, these never double as a
+//    login/registration method, only account linking for list sync) ──────
+authRoutes.get('/pages/oauth_mal_sync.php', async (c) => {
+  const { auth, session, db } = await buildAuth(c);
+  const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
+  const siteUrl = c.env.SITE_URL;
+  if (!auth.check()) { await session.save(c, lifetime); return c.redirect(`${siteUrl}/login`); }
+
+  const code = c.req.query('code') ?? '';
+  const state = c.req.query('state') ?? '';
+  const error = c.req.query('error') ?? '';
+  if (error || !code) {
+    session.setFlash('error', 'MyAnimeList connection was cancelled.');
+    await session.save(c, lifetime);
+    return c.redirect(`${siteUrl}/profile?tab=connections`);
+  }
+
+  const { MalSync } = await import('../lib/list-sync');
+  const result = await MalSync.handleCallback(c.env as any, db, session, session.user_id!, code, state);
+  if (result.success) {
+    const pull = await MalSync.pullMerge(c.env as any, db, session.user_id!);
+    session.setFlash('success', pull.added ? `${result.message} Imported ${pull.added} new anime from your MAL list.` : result.message);
+  } else {
+    session.setFlash('error', result.message);
+  }
+  await session.save(c, lifetime);
+  return c.redirect(`${siteUrl}/profile?tab=connections`);
+});
+
+authRoutes.get('/pages/oauth_anilist_sync.php', async (c) => {
+  const { auth, session, db } = await buildAuth(c);
+  const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
+  const siteUrl = c.env.SITE_URL;
+  if (!auth.check()) { await session.save(c, lifetime); return c.redirect(`${siteUrl}/login`); }
+
+  const code = c.req.query('code') ?? '';
+  const error = c.req.query('error') ?? '';
+  if (error || !code) {
+    session.setFlash('error', 'AniList connection was cancelled.');
+    await session.save(c, lifetime);
+    return c.redirect(`${siteUrl}/profile?tab=connections`);
+  }
+
+  const { AniListSync } = await import('../lib/list-sync');
+  const result = await AniListSync.handleCallback(c.env as any, db, session, session.user_id!, code);
+  if (result.success) {
+    session.setFlash('success', result.message);
+  } else {
+    session.setFlash('error', result.message);
+  }
+  await session.save(c, lifetime);
+  return c.redirect(`${siteUrl}/profile?tab=connections`);
+});
+
 // ── logout (was Auth::logout(), triggered from a link/button site-wide) ──
 authRoutes.get('/logout', async (c) => {
   const { auth, session, db } = await buildAuth(c);

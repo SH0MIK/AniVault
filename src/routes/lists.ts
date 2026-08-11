@@ -9,7 +9,7 @@ import { AnimeTracker, ITEMS_PER_PAGE } from '../lib/tracker';
 import { Notification } from '../lib/notification';
 import { h, timeAgo, statusBadge } from '../lib/helpers';
 import { icon } from '../lib/icons';
-import { renderAnimeCard } from '../lib/anime-card';
+import { renderAnimeCard, buildCardMetaMap, LANG_CODE } from '../lib/anime-card';
 import { renderHeader, renderFooter, CurrentUser } from '../render/layout';
 import { HISTORY_CSS } from '../render/history-css';
 import { getBannerData } from '../lib/settings';
@@ -75,6 +75,7 @@ listRoutes.on(['GET', 'POST'], '/mylist', async (c) => {
   const data = await AnimeTracker.getUserList(db, userId, status, page);
   const stats = await AnimeTracker.getStats(db, userId);
   const showSuccess = c.req.query('deleted') !== undefined;
+  const cardMeta = await buildCardMetaMap(db, data.items.map((it: any) => ({ mal_id: it.anime_id } as any)));
 
   const { unreadCount, layoutUser } = await commonLayoutData(db, auth);
 
@@ -137,13 +138,21 @@ listRoutes.on(['GET', 'POST'], '/mylist', async (c) => {
         ${data.items.map((item, i) => {
           const jt = JSON.stringify(item.anime_title ?? '');
           const ji = JSON.stringify(item.anime_image ?? '');
-          const eps = item.anime_episodes ?? 0;
+          const meta = cardMeta.get(item.anime_id);
+          const airedInfo = meta?.airedInfo;
+          // Prefer the Jikan-derived aired-so-far total when we have it
+          // cached — the stored anime_episodes snapshot can lag behind for
+          // airing shows, same issue as the card grids.
+          const eps = (airedInfo?.total ?? item.anime_episodes) ?? 0;
+          const dubbed = meta?.dubbedLangs ?? [];
+          const dubCodes = dubbed.map((l) => LANG_CODE[l] ?? l.slice(0, 2).toUpperCase());
           return `
         <tr data-anime-id="${item.anime_id}">
           <td>${(page - 1) * ITEMS_PER_PAGE + i + 1}</td>
           <td><div class="flex" style="gap:12px;align-items:center;">
             ${item.anime_image ? `<img src="${h(item.anime_image)}" alt="" style="width:40px;height:56px;object-fit:cover;border-radius:4px;flex-shrink:0;">` : icon('user', 'icon-medium')}
             <a href="${siteUrl}/anime?id=${item.anime_id}" style="color:var(--text-primary);font-weight:500;font-size:0.9rem;">${h(item.anime_title ?? '')}</a>
+            ${dubCodes.length ? `<span title="Dubbed: ${h(dubbed.join(', '))}" style="font-size:.65rem;font-weight:700;color:var(--teal,#2dd4bf);white-space:nowrap;">🎙️ ${h(dubCodes.length > 3 ? dubCodes.slice(0, 3).join(' ') + ' +' + (dubCodes.length - 3) : dubCodes.join(' '))}</span>` : ''}
           </div></td>
           <td data-cell="status">${statusBadge(item.status)}</td>
           <td data-cell="progress">
@@ -254,6 +263,7 @@ listRoutes.get('/favorites', async (c) => {
 
   const favs = await AnimeTracker.getFavorites(db, userId);
   const { unreadCount, layoutUser } = await commonLayoutData(db, auth);
+  const cardMeta = await buildCardMetaMap(db, favs.map((f) => ({ mal_id: f.anime_id } as any)));
 
   const __banner = await getBannerData(db);
   let html = renderHeader({ ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: 'Favorites', currentPage: 'favorites', currentUser: layoutUser, unreadCount, requestUrl: c.req.url });
@@ -271,7 +281,7 @@ listRoutes.get('/favorites', async (c) => {
       mal_id: fav.anime_id, title: fav.anime_title, title_english: fav.anime_title,
       images: { jpg: { image_url: fav.anime_image, large_image_url: fav.anime_image } },
       type: '', score: null, episodes: 0,
-    } as any, siteUrl, null)).join('')}
+    } as any, siteUrl, null, cardMeta.get(fav.anime_id))).join('')}
   </div>`}
 </div>`;
 

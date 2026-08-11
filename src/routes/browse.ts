@@ -8,7 +8,7 @@ import { Notification } from '../lib/notification';
 import { getUserAnimeStatuses } from '../lib/user-list';
 import { icon } from '../lib/icons';
 import { h } from '../lib/helpers';
-import { renderAnimeCard } from '../lib/anime-card';
+import { renderAnimeCard, buildCardMetaMap } from '../lib/anime-card';
 import { renderHeader, renderFooter } from '../render/layout';
 import { getBannerData } from '../lib/settings';
 
@@ -46,6 +46,7 @@ browseRoutes.get('/browse', async (c) => {
   const items = result.data ?? [];
   const pagination = result.pagination ?? {};
   const totalPages = pagination.last_visible_page ?? 1;
+  const cardMeta = await buildCardMetaMap(db, items);
   const genreList = mal.getAnimeGenres().data;
 
   const currentUser = auth.check() ? await auth.getCurrentUser() : null;
@@ -64,6 +65,29 @@ browseRoutes.get('/browse', async (c) => {
   const heading = q ? `🔍 Results for "${h(q)}"` : (genres.length > 0 ? '🏷️ Genre Browse' : '🌐 All Anime');
   const totalCount = pagination.items?.total ?? items.length;
 
+  const activeFilterCount = (type ? 1 : 0) + (status ? 1 : 0) + genres.length + (q ? 1 : 0);
+  const hasAnyFilter = activeFilterCount > 0;
+
+  // Each chip links to the same filter set minus that one filter, so a
+  // person can back out of a single facet without opening the drawer.
+  function chipUrl(opts: { dropQ?: boolean; dropType?: boolean; dropStatus?: boolean; dropGenre?: number }): string {
+    const qs = new URLSearchParams();
+    if (q && !opts.dropQ) qs.set('q', q);
+    if (type && !opts.dropType) qs.set('type', type);
+    if (status && !opts.dropStatus) qs.set('status', status);
+    for (const g of genres) if (g !== opts.dropGenre) qs.append('genres[]', String(g));
+    const s = qs.toString();
+    return `/browse${s ? `?${s}` : ''}`;
+  }
+  const chips: string[] = [];
+  if (q) chips.push(`<a href="${chipUrl({ dropQ: true })}" class="active-filter-chip">"${h(q)}" ${icon('x', 'icon-small')}</a>`);
+  if (type) chips.push(`<a href="${chipUrl({ dropType: true })}" class="active-filter-chip">${h(type)} ${icon('x', 'icon-small')}</a>`);
+  if (status) chips.push(`<a href="${chipUrl({ dropStatus: true })}" class="active-filter-chip">${h(status.charAt(0).toUpperCase() + status.slice(1))} ${icon('x', 'icon-small')}</a>`);
+  for (const gid of genres) {
+    const g = genreList.find((x) => x.mal_id === gid);
+    if (g) chips.push(`<a href="${chipUrl({ dropGenre: gid })}" class="active-filter-chip">${h(g.name)} ${icon('x', 'icon-small')}</a>`);
+  }
+
   html += `
 <div class="container section">
   <div class="flex-between mb-3" style="flex-wrap:wrap;gap:1rem;">
@@ -71,47 +95,60 @@ browseRoutes.get('/browse', async (c) => {
     <span class="text-muted">${totalCount} titles found</span>
   </div>
 
+  <button type="button" class="btn btn-ghost filter-toggle-btn" onclick="openFilterDrawer()">
+    ${icon('settings', 'icon-small')} Filters${activeFilterCount > 0 ? `<span class="filter-toggle-count">${activeFilterCount}</span>` : ''}
+  </button>
+
+  ${chips.length ? `<div class="active-filters-row">${chips.join('')}</div>` : ''}
+
   <div class="layout-sidebar">
-    <aside>
+    <aside id="filter-drawer">
       <div class="sidebar">
+        <div class="filter-panel-header">
+          <span class="filter-panel-title">${icon('settings', 'icon-small')} Filters</span>
+          <div style="display:flex;align-items:center;gap:14px;">
+            ${hasAnyFilter ? `<a href="/browse" class="filter-clear-link">Clear all</a>` : ''}
+            <button type="button" onclick="closeFilterDrawer()" style="display:none;background:none;border:none;color:var(--text-muted);cursor:pointer;" id="drawer-close-btn">${icon('x', 'icon-small')}</button>
+          </div>
+        </div>
         <form method="GET" action="" id="browse-form">
-          <div style="padding:1rem;border-bottom:1px solid var(--border);">
-            <label class="form-label">Search</label>
-            <input type="text" name="q" class="form-control" value="${h(q)}" placeholder="Anime title...">
+          <div class="filter-section">
+            <div class="filter-section-label">Search</div>
+            <div class="filter-search-wrap">
+              ${icon('search', 'icon-small')}
+              <input type="text" name="q" class="form-control" value="${h(q)}" placeholder="Anime title...">
+            </div>
           </div>
-          <div style="padding:1rem;border-bottom:1px solid var(--border);">
-            <label class="form-label">Type</label>
-            <select name="type" class="form-control">
-              <option value="">All Types</option>
-              ${['TV', 'Movie', 'OVA', 'ONA', 'Special', 'Music'].map((t) => `<option value="${t}" ${type === t ? 'selected' : ''}>${t}</option>`).join('')}
-            </select>
+          <div class="filter-section">
+            <div class="filter-section-label">Type</div>
+            <div class="filter-pill-group" id="type-pills">
+              <span class="filter-pill ${!type ? 'active' : ''}" data-value="">All</span>
+              ${['TV', 'Movie', 'OVA', 'ONA', 'Special', 'Music'].map((t) => `<span class="filter-pill ${type === t ? 'active' : ''}" data-value="${t}">${t}</span>`).join('')}
+            </div>
+            <input type="hidden" name="type" id="type-input" value="${h(type)}">
           </div>
-          <div style="padding:1rem;border-bottom:1px solid var(--border);">
-            <label class="form-label">Status</label>
-            <select name="status" class="form-control">
-              <option value="">All Status</option>
-              <option value="airing" ${status === 'airing' ? 'selected' : ''}>Airing</option>
-              <option value="complete" ${status === 'complete' ? 'selected' : ''}>Completed</option>
-              <option value="upcoming" ${status === 'upcoming' ? 'selected' : ''}>Upcoming</option>
-            </select>
+          <div class="filter-section">
+            <div class="filter-section-label">Status</div>
+            <div class="filter-pill-group" id="status-pills">
+              <span class="filter-pill ${!status ? 'active' : ''}" data-value="">All</span>
+              <span class="filter-pill ${status === 'airing' ? 'active' : ''}" data-value="airing">Airing</span>
+              <span class="filter-pill ${status === 'complete' ? 'active' : ''}" data-value="complete">Completed</span>
+              <span class="filter-pill ${status === 'upcoming' ? 'active' : ''}" data-value="upcoming">Upcoming</span>
+            </div>
+            <input type="hidden" name="status" id="status-input" value="${h(status)}">
           </div>
-          <div id="genre-inputs"></div>
-          <div style="padding:1rem;">
-            <button type="submit" class="btn btn-primary btn-block">Apply Filters</button>
-            ${(q || type || status || genres.length > 0) ? `<a href="/browse" class="btn btn-ghost btn-block mt-1">Clear Filters</a>` : ''}
+          ${genreList.length > 0 ? `
+          <div class="filter-section">
+            <div class="filter-section-label">Genres</div>
+            <div class="filter-pill-group" id="genre-tags">
+              ${genreList.slice(0, 30).map((g) => `<span class="filter-pill ${genres.includes(g.mal_id) ? 'active' : ''}" data-id="${g.mal_id}">${h(g.name)}</span>`).join('')}
+            </div>
+            <div id="genre-inputs"></div>
+          </div>` : ''}
+          <div class="filter-section">
+            <button type="submit" class="btn btn-primary btn-block">${icon('search', 'icon-small')} Search</button>
           </div>
         </form>
-
-        ${genreList.length > 0 ? `
-        <div style="border-top:1px solid var(--border);padding:1rem;">
-          <div class="section-title" style="font-size:0.75rem;margin-bottom:0.5rem;">Genres</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;" id="genre-tags">
-            ${genreList.slice(0, 30).map((g) => {
-              const active = genres.includes(g.mal_id);
-              return `<span class="genre-tag ${active ? 'active' : ''}" data-id="${g.mal_id}" style="cursor:pointer;user-select:none;${active ? 'border-color:var(--accent);color:var(--accent);' : ''}">${h(g.name)}</span>`;
-            }).join('')}
-          </div>
-        </div>` : ''}
       </div>
     </aside>
 
@@ -122,19 +159,24 @@ browseRoutes.get('/browse', async (c) => {
         <p class="text-muted">No results found. Try a different search.</p>
       </div>` : `
       <div class="anime-grid">
-        ${items.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null)).join('')}
+        ${items.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}
       </div>
       ${totalPages > 1 ? renderPagination(q, type, status, genres, page, totalPages) : ''}`}
     </div>
   </div>
 </div>
 
+<div class="filter-drawer-backdrop" id="filter-backdrop" onclick="closeFilterDrawer()"></div>
+
 <script>
 (function () {
+  const form = document.getElementById('browse-form');
+  const typeInput = document.getElementById('type-input');
+  const statusInput = document.getElementById('status-input');
   const selected = new Set(${JSON.stringify(genres)});
   const inputBox = document.getElementById('genre-inputs');
 
-  function syncInputs() {
+  function syncGenreInputs() {
     inputBox.innerHTML = '';
     selected.forEach(id => {
       const inp = document.createElement('input');
@@ -145,25 +187,46 @@ browseRoutes.get('/browse', async (c) => {
     });
   }
 
-  document.querySelectorAll('#genre-tags .genre-tag').forEach(tag => {
+  // Type/status: single-select pills that auto-submit immediately —
+  // no separate "Apply" click needed for facet changes.
+  function wireSingleSelect(groupId, input) {
+    document.querySelectorAll('#' + groupId + ' .filter-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        input.value = pill.dataset.value;
+        form.submit();
+      });
+    });
+  }
+  wireSingleSelect('type-pills', typeInput);
+  wireSingleSelect('status-pills', statusInput);
+
+  // Genres: multi-select, also auto-submits on each click.
+  document.querySelectorAll('#genre-tags .filter-pill').forEach(tag => {
     tag.addEventListener('click', () => {
       const id = parseInt(tag.dataset.id, 10);
-      if (selected.has(id)) {
-        selected.delete(id);
-        tag.classList.remove('active');
-        tag.style.borderColor = '';
-        tag.style.color = '';
-      } else {
-        selected.add(id);
-        tag.classList.add('active');
-        tag.style.borderColor = 'var(--accent)';
-        tag.style.color = 'var(--accent)';
-      }
-      syncInputs();
+      if (selected.has(id)) selected.delete(id); else selected.add(id);
+      syncGenreInputs();
+      form.submit();
     });
   });
+  syncGenreInputs();
 
-  syncInputs();
+  // Mobile filter drawer
+  const drawer = document.getElementById('filter-drawer');
+  const backdrop = document.getElementById('filter-backdrop');
+  const closeBtn = document.getElementById('drawer-close-btn');
+  window.openFilterDrawer = function () {
+    drawer.classList.add('open');
+    backdrop.classList.add('open');
+    closeBtn.style.display = 'inline-flex';
+    document.body.style.overflow = 'hidden';
+  };
+  window.closeFilterDrawer = function () {
+    drawer.classList.remove('open');
+    backdrop.classList.remove('open');
+    closeBtn.style.display = 'none';
+    document.body.style.overflow = '';
+  };
 })();
 </script>`;
 

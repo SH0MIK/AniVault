@@ -11,7 +11,7 @@ import { Notification } from '../lib/notification';
 import { getBannerData } from '../lib/settings';
 import { getUserAnimeStatuses } from '../lib/user-list';
 import { icon } from '../lib/icons';
-import { renderAnimeCard } from '../lib/anime-card';
+import { renderAnimeCard, buildCardMetaMap } from '../lib/anime-card';
 import { renderHeader, renderFooter, CurrentUser } from '../render/layout';
 
 export const watchNowRoutes = new Hono<{ Bindings: Env }>();
@@ -37,6 +37,7 @@ watchNowRoutes.get('/watch-now', async (c) => {
   );
   const results = await Promise.all(rows.map((r) => mal.getAnime(r.anime_id)));
   const animeList = results.map((r) => r.data).filter(Boolean) as any[];
+  const cardMeta = await buildCardMetaMap(db, animeList);
 
   const currentUser = auth.check() ? await auth.getCurrentUser() : null;
   const unreadCount = currentUser ? await Notification.unreadCount(db, currentUser.id) : 0;
@@ -62,7 +63,7 @@ watchNowRoutes.get('/watch-now', async (c) => {
 
   ${animeList.length === 0 ? `<p class="text-muted text-center">No anime with episodes available yet.</p>` : `
   <div class="anime-grid">
-    ${animeList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null)).join('')}
+    ${animeList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}
   </div>
   ${totalPages > 1 ? renderPagination(page, totalPages) : ''}`}
 </div>`;

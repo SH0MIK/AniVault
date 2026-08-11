@@ -13,10 +13,11 @@ import { Notification } from '../lib/notification';
 import { getUserAnimeStatuses } from '../lib/user-list';
 import { icon } from '../lib/icons';
 import { h } from '../lib/helpers';
-import { renderAnimeCard } from '../lib/anime-card';
+import { renderAnimeCard, buildCardMetaMap } from '../lib/anime-card';
 import { renderHeader, renderFooter } from '../render/layout';
 import { CONTINUE_WATCHING_CSS } from '../render/home-css';
-import { continueWatchingScript } from '../render/home-js';
+import { continueWatchingScript, heroSliderScript, rowNavScript } from '../render/home-js';
+import type { NormalisedAnime } from '../lib/mal-api';
 import { getBannerData } from '../lib/settings';
 
 export const homeRoutes = new Hono<{ Bindings: Env }>();
@@ -43,7 +44,7 @@ homeRoutes.get('/', async (c) => {
   const siteUrl = c.env.SITE_URL;
 
   const [seasonal, topAnime, upcoming] = await Promise.all([
-    mal.getSeasonNow(1),
+    mal.getAniListSeasonNow(),
     mal.getTopAnime('bypopularity', 1),
     mal.getSeasonUpcoming(),
   ]);
@@ -83,6 +84,7 @@ homeRoutes.get('/', async (c) => {
 
   const unreadCount = currentUser ? await Notification.unreadCount(db, currentUser.id) : 0;
   const userStatuses = currentUser ? await getUserAnimeStatuses(db, currentUser.id) : {};
+  const cardMeta = await buildCardMetaMap(db, [...watchNowList, ...seasonalList, ...topList, ...upcomingList]);
 
   const layoutUser = currentUser
     ? { id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url, role: currentUser.role }
@@ -100,19 +102,62 @@ homeRoutes.get('/', async (c) => {
     requestUrl: c.req.url,
   });
 
+  // Hero slider slides. If the admin has curated slides in
+  // home_hero_banners (admin/home_banners.php), those win — in the exact
+  // order set there, with their own banner/logo overrides. Otherwise fall
+  // back to the auto-generated pool: newly-airing anime this season
+  // (sourced from AniList since MAL/Jikan's season/now data is frequently
+  // stale), matching Anivexa's "spotlight" behaviour rather than the
+  // all-time popular list.
+  let heroPool: NormalisedAnime[] = [];
+  let heroBanners: string[] = [];
+  let heroLogos: string[] = [];
+
+  const curatedRows = await db
+    .fetchAll<any>('SELECT anime_id, banner_image_url, logo_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
+    .catch(() => []);
+
+  if (curatedRows.length > 0) {
+    const curatedAnime = await Promise.all(curatedRows.map((r) => mal.getAnime(r.anime_id)));
+    for (let i = 0; i < curatedRows.length; i++) {
+      const r = curatedRows[i];
+      const anime = curatedAnime[i].data;
+      if (!anime) continue; // skip slides whose Anime ID no longer resolves
+      heroPool.push(anime);
+      heroBanners.push(r.banner_image_url || '');
+      // No manually-saved logo on this slide — fall back to the same TMDB
+      // clear-logo lookup the auto pool uses, rather than showing nothing.
+      const logo = r.logo_image_url || (await mal.getTitleLogo(anime.title_english || anime.title).catch(() => ''));
+      heroLogos.push(logo);
+    }
+  }
+
+  if (heroPool.length === 0) {
+    heroPool = (seasonalList.length > 0 ? seasonalList : topList).slice(0, 6);
+    // Desktop shows the wide banner (your own curated upload if you've
+    // saved one for that title, else AniList's, else the poster). Mobile
+    // shows the portrait cover instead — your own saved local cover if
+    // there is one, matching Anivexa's mobile behaviour — via a <picture>
+    // breakpoint swap, no JS needed.
+    [heroBanners, heroLogos] = await Promise.all([
+      Promise.all(heroPool.map((a) => mal.getLocalAnimeBanner(a.mal_id))),
+      Promise.all(heroPool.map((a) => mal.getTitleLogo(a.title_english || a.title))),
+    ]);
+  }
+  const heroCovers = await Promise.all(heroPool.map((a) => mal.getLocalAnimeImage(a.mal_id)));
+
   html += `
-<div class="hero">
-  ${icon('fire', 'hero-icon', '48px')}
-  <h1 class="hero-title">Your Anime<br><span>Universe</span></h1>
-  <p class="hero-sub">Track what you watch, discover what's trending, and never lose your place again.</p>
-  <div class="flex flex-center gap-1 hero-actions">
-    ${!currentUser ? `
-    <a href="${siteUrl}/register" class="btn btn-primary btn-lg">${icon('plus', 'icon-small')} Get Started</a>
-    <a href="${siteUrl}/browse" class="btn btn-ghost btn-lg">${icon('search', 'icon-small')} Browse</a>` : `
-    <a href="${siteUrl}/mylist" class="btn btn-primary btn-lg">${icon('list', 'icon-small')} My List</a>
-    <a href="${siteUrl}/browse" class="btn btn-ghost btn-lg">${icon('search', 'icon-small')} Discover More</a>`}
+<section id="hero">
+  <div id="hero-slides">
+    ${heroPool.map((a, i) => renderHeroSlide(a, i, siteUrl, heroBanners[i] || a.banner_image, heroCovers[i], heroLogos[i])).join('')}
   </div>
-</div>
+  <div class="hero-indicators" id="hero-dots">
+    ${heroPool.map((_, i) => `<button class="hero-dot ${i === 0 ? 'active' : ''}" data-idx="${i}" aria-label="Slide ${i + 1}"></button>`).join('')}
+  </div>
+  <button class="hero-prev" id="hero-prev" aria-label="Previous slide">${icon('chevron-left', 'icon-medium')}</button>
+  <button class="hero-next" id="hero-next" aria-label="Next slide">${icon('chevron-right', 'icon-medium')}</button>
+</section>
+${heroSliderScript(heroPool.length)}
 
 <div class="container">`;
 
@@ -127,74 +172,87 @@ homeRoutes.get('/', async (c) => {
   </div>`;
   }
 
+  // ── Genre bar ────────────────────────────────────────────────────────────
+  const genreList = mal.getAnimeGenres().data;
+  html += `
+  <div class="genre-nav-wrap">
+    <button class="btn btn-ghost btn-sm btn-icon genre-nav-btn prev" data-target="genre-bar" data-dir="prev" aria-label="Previous genres">${icon('chevron-left', 'icon-small')}</button>
+    <div class="genre-bar" id="genre-bar">
+      ${genreList.map((g) => `<a href="${siteUrl}/browse?genre=${g.mal_id}" class="genre-pill">${h(g.name)}</a>`).join('')}
+    </div>
+    <button class="btn btn-ghost btn-sm btn-icon genre-nav-btn next" data-target="genre-bar" data-dir="next" aria-label="Next genres">${icon('chevron-right', 'icon-small')}</button>
+  </div>
+
+  <div class="home-grid">
+    <div class="home-sections">`;
+
   // ── Continue Watching ──────────────────────────────────────────────────
   if (watchHistory.length > 0) {
     html += `
-  <section class="section">
-      <style>${CONTINUE_WATCHING_CSS}</style>
-    <div class="cw-header">
-      <div class="section-title" style="margin-bottom:0;flex:1;">${icon('watching', 'icon-small')} Continue Watching</div>
-      <button onclick="clearWatchHistory(this)" class="cw-clear">Clear History</button>
-    </div>
-    <div class="cw-row" id="watch-history-grid">
-      ${watchHistory.map((hRow) => renderContinueWatchingCard(hRow, siteUrl)).join('')}
-    </div>
-    <div class="cw-show-more-wrap">
-      <div class="cw-show-more-line"></div>
-      <a href="${siteUrl}/history" class="cw-show-more-btn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:6px;flex-shrink:0;"><circle cx="12" cy="12" r="10"/><polyline points="12 8 12 16"/><polyline points="8 12 12 16 16 12"/></svg>
-        View Full History
-      </a>
-      <div class="cw-show-more-line"></div>
-    </div>
-  </section>
-  ${continueWatchingScript(siteUrl)}`;
+      <section class="content-section">
+        <style>${CONTINUE_WATCHING_CSS}</style>
+        <div class="section-header">
+          <h2 class="section-title">Continue Watching</h2>
+          <div style="display:flex;align-items:center;gap:14px;">
+            <button onclick="clearWatchHistory(this)" class="btn btn-ghost btn-sm">Clear All</button>
+            <button class="btn btn-ghost btn-sm btn-icon row-nav-btn" data-target="row-history" data-dir="prev" aria-label="Previous">${icon('chevron-left', 'icon-small')}</button>
+            <button class="btn btn-ghost btn-sm btn-icon row-nav-btn" data-target="row-history" data-dir="next" aria-label="Next">${icon('chevron-right', 'icon-small')}</button>
+            <a href="${siteUrl}/history" class="section-link">View Full History ${icon('arrow-right', 'icon-small')}</a>
+          </div>
+        </div>
+        <div class="scroll-row" id="row-history">
+          ${watchHistory.map((hRow) => renderContinueWatchingCard(hRow, siteUrl)).join('')}
+        </div>
+      </section>
+      ${continueWatchingScript(siteUrl)}`;
   }
 
   // ── Watch Now ────────────────────────────────────────────────────────────
   if (watchNowList.length > 0) {
     html += `
-  <section class="section">
-    <div class="section-title">${icon('watching', 'icon-small')} Watch Now</div>
-    <div class="anime-grid" id="watch-now-grid">
-      ${watchNowList.map((a, i) => `<div class="watch-now-item" ${i >= 6 ? 'style="display:none;"' : ''}>${renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null)}</div>`).join('')}
-    </div>
-    ${watchNowList.length > 6 ? `
-    <style>
-    .wn-more-wrap { display:flex; align-items:center; gap:1rem; margin-top:1.5rem; }
-    .wn-line      { flex:1; height:1px; background:var(--border, rgba(255,255,255,.1)); }
-    .wn-more-btn  { background:none; border:1px solid var(--border, rgba(255,255,255,.15)); color:var(--text-muted); font-size:.78rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase; padding:.45rem 1.4rem; border-radius:999px; white-space:nowrap; text-decoration:none; transition:color .15s, border-color .15s; }
-    .wn-more-btn:hover { color:var(--text-primary); border-color:var(--accent, #e00); }
-    </style>
-    <div class="wn-more-wrap"><div class="wn-line"></div><a href="${siteUrl}/watch-now" class="wn-more-btn">Show More</a><div class="wn-line"></div></div>` : ''}
-  </section>`;
+      <section class="content-section">
+        ${sectionHeader('Watch Now', 'row-watchnow', `${siteUrl}/watch-now`)}
+        <div class="scroll-row" id="row-watchnow">
+          ${watchNowList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}
+        </div>
+      </section>`;
   }
 
-  // ── Airing This Season ─────────────────────────────────────────────────
+  // ── Trending Now (seasonal) ─────────────────────────────────────────────
   html += `
-  <section class="section">
-    <div class="section-title">${icon('fire', 'icon-small')} Airing This Season</div>
-    ${seasonalList.length === 0
-      ? `<p class="text-muted text-center">Could not load seasonal anime. API may be rate limited — try again shortly.</p>`
-      : `<div class="anime-grid">${seasonalList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null)).join('')}</div>`}
-    <div class="text-center mt-2"><a href="${siteUrl}/seasonal" class="btn btn-ghost">${icon('arrow-right', 'icon-small')} View All Seasonal →</a></div>
-  </section>
+      <section class="content-section">
+        ${sectionHeader('Trending Now', 'row-trending', `${siteUrl}/seasonal`)}
+        ${seasonalList.length === 0
+          ? `<p class="text-muted text-center">Could not load seasonal anime. API may be rate limited — try again shortly.</p>`
+          : `<div class="scroll-row" id="row-trending">${seasonalList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}</div>`}
+      </section>
 
-  <section class="section">
-    <div class="section-title">${icon('trophy', 'icon-small')} Top Anime</div>
-    <div class="anime-grid">${topList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null)).join('')}</div>
-    <div class="text-center mt-2"><a href="${siteUrl}/top" class="btn btn-ghost">${icon('arrow-right', 'icon-small')} View Full Rankings →</a></div>
-  </section>`;
+      <section class="content-section">
+        ${sectionHeader('Most Popular', 'row-popular', `${siteUrl}/top`, 'View Full Rankings')}
+        <div class="scroll-row" id="row-popular">${topList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}</div>
+      </section>`;
 
   if (upcomingList.length > 0) {
     html += `
-  <section class="section">
-    <div class="section-title">${icon('calendar', 'icon-small')} Coming Soon</div>
-    <div class="anime-grid">${upcomingList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null)).join('')}</div>
-  </section>`;
+      <section class="content-section">
+        ${sectionHeader('Coming Soon', 'row-upcoming')}
+        <div class="scroll-row" id="row-upcoming">${upcomingList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}</div>
+      </section>`;
   }
 
+  html += `
+    </div>
+
+    <aside>
+      <div class="sidebar-widget">
+        <div class="sidebar-widget-header">${icon('trophy', 'icon-small')} Top 10 Ranked</div>
+        ${topList.slice(0, 10).map((a, i) => renderSidebarItem(a, i + 1, siteUrl)).join('')}
+      </div>
+    </aside>
+  </div>`;
+
   html += `</div>`;
+  html += rowNavScript();
   html += renderFooter({ siteUrl, currentUser: layoutUser });
 
   await session.save(c, lifetime);
@@ -234,6 +292,86 @@ function renderContinueWatchingCard(hRow: WatchHistoryRow, siteUrl: string): str
   <div class="cw-info">
     <div class="cw-anime-name">${animeTitle}</div>
     <div class="cw-ep-title">E${epNum} – ${epTitle}</div>
+  </div>
+</a>`;
+}
+
+// Reusable Anivexa-style section header: title + prev/next row-scroll arrows
+// + an optional "View All" link.
+function sectionHeader(title: string, rowId: string, viewAllHref?: string, viewAllLabel = 'View All'): string {
+  return `
+<div class="section-header">
+  <h2 class="section-title">${h(title)}</h2>
+  <div style="display:flex;align-items:center;gap:14px;">
+    <button class="btn btn-ghost btn-sm btn-icon row-nav-btn" data-target="${rowId}" data-dir="prev" aria-label="Previous">${icon('chevron-left', 'icon-small')}</button>
+    <button class="btn btn-ghost btn-sm btn-icon row-nav-btn" data-target="${rowId}" data-dir="next" aria-label="Next">${icon('chevron-right', 'icon-small')}</button>
+    ${viewAllHref ? `<a href="${viewAllHref}" class="section-link">${h(viewAllLabel)} ${icon('arrow-right', 'icon-small')}</a>` : ''}
+  </div>
+</div>`;
+}
+
+// One slide of the hero carousel, built from a currently-airing anime entry.
+// `banner` = wide art for desktop (local override > AniList's bannerImage >
+// poster fallback). `mobileCover` = your own saved local cover, shown
+// instead of the banner on small screens (Anivexa does the same) — falls
+// back to the API poster if you haven't saved one for this title yet.
+// `logo` = TMDB's transparent title-art image, shown ONLY on mobile in
+// place of the plain text title (Anivexa's desktop still uses plain text —
+// this matches that split exactly). Falls back to plain text if TMDB has
+// no logo for this title.
+function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?: string, mobileCover?: string, logo?: string): string {
+  const title = a.title_english && a.title_english !== a.title ? a.title_english : (a.title || 'Unknown');
+  const poster = a.images?.jpg?.large_image_url || a.images?.jpg?.image_url || '';
+  const bg = banner || poster;
+  const cover = mobileCover || poster;
+  const desc = a.synopsis || '';
+  const genres = (a.genres || []).slice(0, 3);
+  const aurl = `${siteUrl}/anime?id=${a.mal_id}`;
+
+  return `
+<div class="hero-slide ${i === 0 ? 'active' : ''}" data-idx="${i}">
+  <div class="hero-bg${banner ? '' : ' hero-bg-fallback'}">
+    <picture>
+      ${cover ? `<source media="(max-width: 768px)" srcset="${h(cover)}">` : ''}
+      ${bg ? `<img src="${h(bg)}" alt="${h(title)}" loading="${i === 0 ? 'eager' : 'lazy'}">` : ''}
+    </picture>
+  </div>
+  <div class="hero-gradient"></div>
+  <div class="hero-content">
+    <div class="container">
+      <div class="hero-info${logo ? ' has-logo' : ''}">
+        <h1 class="hero-title">${h(title)}</h1>
+        ${logo ? `<img class="hero-logo" src="${h(logo)}" alt="${h(title)}" loading="${i === 0 ? 'eager' : 'lazy'}">` : ''}
+        ${desc ? `<p class="hero-desc">${h(desc)}</p>` : ''}
+        ${genres.length ? `<div class="hero-genres">${genres.map((g) => `<span class="hero-genre-tag">${h(g.name)}</span>`).join('')}</div>` : ''}
+        <div class="hero-stat-strip">
+          ${a.score ? `<span>${icon('star', 'icon-small')} ${a.score.toFixed(1)}</span>` : ''}
+          ${a.episodes ? `<span>${icon('list', 'icon-small')} ${a.episodes} eps</span>` : ''}
+          ${a.type ? `<span>${icon('tv', 'icon-small')} ${h(a.type)}</span>` : ''}
+        </div>
+        <div class="hero-actions">
+          <a href="${aurl}" class="btn btn-primary">${icon('play', 'icon-small')} View Details</a>
+          <button class="btn btn-ghost" onclick='event.stopPropagation(); addToList(${a.mal_id}, ${JSON.stringify(title)}, ${JSON.stringify(poster)}, ${Number(a.episodes || 0)})'>${icon('plus', 'icon-small')} Add to List</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+// A ranked row in the "Top 10" sidebar widget.
+function renderSidebarItem(a: NormalisedAnime, rank: number, siteUrl: string): string {
+  const title = a.title_english && a.title_english !== a.title ? a.title_english : (a.title || 'Unknown');
+  const img = a.images?.jpg?.image_url || '';
+  const aurl = `${siteUrl}/anime?id=${a.mal_id}`;
+
+  return `
+<a class="sidebar-item" href="${aurl}">
+  <span class="sidebar-rank">#${rank}</span>
+  ${img ? `<img class="sidebar-thumb" src="${h(img)}" alt="${h(title)}" loading="lazy">` : ''}
+  <div>
+    <div class="sidebar-title">${h(title)}</div>
+    <div class="sidebar-meta">${a.score ? `${icon('star', 'icon-small')} ${a.score.toFixed(1)}` : ''}${a.type ? ` · ${h(a.type)}` : ''}</div>
   </div>
 </a>`;
 }

@@ -13,9 +13,10 @@ import { Follow } from '../lib/follow';
 import { Notification } from '../lib/notification';
 import { h, timeAgo, statusBadge } from '../lib/helpers';
 import { icon } from '../lib/icons';
-import { renderAnimeCard } from '../lib/anime-card';
+import { renderAnimeCard, buildCardMetaMap } from '../lib/anime-card';
 import { renderHeader, renderFooter, CurrentUser } from '../render/layout';
 import { getBannerData } from '../lib/settings';
+import { buildSocialLinks, platformColor } from '../lib/social';
 
 export const userRoutes = new Hono<{ Bindings: Env }>();
 
@@ -36,7 +37,7 @@ userRoutes.get('/u/:username', async (c) => {
     : null;
 
   const profileUser = await db.fetchOne<any>(
-    'SELECT id, username, email, avatar_url, bio, role, created_at, last_login FROM users WHERE username = ? AND is_active = 1',
+    'SELECT id, username, email, avatar_url, banner_url, bio, role, created_at, last_login, pronouns, tagline, discord_id, social_twitter, social_mal, social_website, social_facebook, social_instagram, social_anilist, social_youtube, social_reddit, social_discord_id, social_discord_label, privacy_hide_followers, privacy_hide_following, privacy_hide_favorites FROM users WHERE username = ? AND is_active = 1',
     [username]
   );
 
@@ -58,6 +59,10 @@ userRoutes.get('/u/:username', async (c) => {
   const profileBadges = await Badge.getForUser(db, profileId);
   const isOwn = !!currentUser && currentUser.id === profileId;
   const isFollowing = currentUser && !isOwn ? await Follow.isFollowing(db, currentUser.id, profileId) : false;
+  const canViewFollowers = isOwn || !profileUser.privacy_hide_followers;
+  const canViewFollowing = isOwn || !profileUser.privacy_hide_following;
+  const canViewFavorites = isOwn || !profileUser.privacy_hide_favorites;
+  const privateNotice = (what: string) => `<div class="flex-center" style="padding:3rem;flex-direction:column;gap:1rem;">${icon('lock', 'icon-large')}<p class="text-muted">${h(profileUser.username)} has hidden their ${what}.</p></div>`;
 
   const filterStatus = c.req.query('status') ?? '';
   const listPage = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1);
@@ -67,6 +72,10 @@ userRoutes.get('/u/:username', async (c) => {
   const stats = await AnimeTracker.getStats(db, profileId);
   const favs = await AnimeTracker.getFavorites(db, profileId);
   const recentList = await AnimeTracker.getUserList(db, profileId, filterStatus, listPage);
+  const cardMeta = await buildCardMetaMap(db, [
+    ...favs.map((f: any) => ({ mal_id: f.anime_id } as any)),
+    ...recentList.items.map((it: any) => ({ mal_id: it.anime_id } as any)),
+  ]);
   const followers = await Follow.getFollowers(db, profileId, 12);
   const following = await Follow.getFollowing(db, profileId, 12);
   const modalUserIds = [...followers.map((f) => f.id), ...following.map((f) => f.id)];
@@ -90,51 +99,59 @@ userRoutes.get('/u/:username', async (c) => {
   const joinedDate = profileUser.created_at ? new Date(profileUser.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
 
   html += `
-<div class="container section">
-  <div style="background:linear-gradient(135deg,rgba(232,69,60,0.12),rgba(162,155,254,0.08));border:1px solid var(--border);border-radius:var(--radius-xl);padding:2rem;margin-bottom:1.5rem;position:relative;overflow:hidden;">
-    <div style="position:absolute;top:-40px;right:-40px;width:200px;height:200px;border-radius:50%;background:radial-gradient(rgba(232,69,60,0.08),transparent);pointer-events:none;"></div>
-    <div class="flex" style="gap:1.5rem;align-items:flex-start;flex-wrap:wrap;">
-      <div style="position:relative;flex-shrink:0;">
-        <div class="nav-avatar" style="width:100px;height:100px;font-size:2.5rem;border:3px solid var(--border-accent);">
-          ${profileUser.avatar_url ? `<img src="${h(profileUser.avatar_url)}" alt="${h(profileUser.username)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : h(profileUser.username.charAt(0).toUpperCase())}
-        </div>
-        ${isProfileOwner ? `<span style="position:absolute;bottom:-4px;right:-4px;background:var(--accent);color:white;border-radius:20px;font-size:0.65rem;padding:2px 7px;font-weight:700;letter-spacing:0.5px;">OWNER</span>`
-          : profileUser.role === 'admin' ? `<span style="position:absolute;bottom:-4px;right:-4px;background:var(--accent);color:white;border-radius:20px;font-size:0.65rem;padding:2px 7px;font-weight:700;letter-spacing:0.5px;">ADMIN</span>` : ''}
+<div class="u-hero">
+  <div class="u-banner${profileUser.banner_url ? '' : ' u-banner-fallback'}"${profileUser.banner_url ? ` style="background-image:url('${h(profileUser.banner_url)}')"` : ''} id="u-banner-el"></div>
+</div>
+
+<div class="container section" style="padding-top:0;">
+  <div class="u-header">
+    <div class="u-avatar-wrap">
+      <div class="nav-avatar u-avatar">
+        ${profileUser.avatar_url ? `<img src="${h(profileUser.avatar_url)}" alt="${h(profileUser.username)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : h(profileUser.username.charAt(0).toUpperCase())}
       </div>
-      <div style="flex:1;min-width:200px;">
-        <div class="flex" style="align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;">
-          <h1 class="username-with-badges" style="font-size:1.6rem;">${h(profileUser.username)}${Badge.renderList(profileBadges)}</h1>
-          ${isOwn ? `<a href="${siteUrl}/profile" class="btn btn-ghost btn-sm">✏️ Edit Profile</a>`
-            : currentUser ? `<button class="btn ${isFollowing ? 'btn-ghost' : 'btn-primary'} btn-sm" id="follow-btn" onclick="toggleFollow(${profileId}, this)">${isFollowing ? '✓ Following' : '+ Follow'}</button>`
-            : `<button onclick="requireLogin()" class="btn btn-primary btn-sm">+ Follow</button>`}
-        </div>
-        ${profileUser.bio ? `<p style="color:var(--text-secondary);font-size:0.95rem;margin-bottom:10px;max-width:500px;">${h(profileUser.bio).replace(/\n/g, '<br>')}</p>` : ''}
-        <div class="flex flex-wrap" style="gap:1.25rem;">
-          <button onclick="openModal('followers-modal')" style="background:none;border:none;cursor:pointer;text-align:left;padding:0;">
-            <span class="follower-count" style="font-family:var(--font-display);font-size:1.2rem;font-weight:700;color:var(--text-primary);">${followerCount.toLocaleString('en-US')}</span>
-            <span class="text-muted" style="font-size:0.85rem;margin-left:4px;">Followers</span>
-          </button>
-          <button onclick="openModal('following-modal')" style="background:none;border:none;cursor:pointer;text-align:left;padding:0;">
-            <span style="font-family:var(--font-display);font-size:1.2rem;font-weight:700;color:var(--text-primary);">${followingCount.toLocaleString('en-US')}</span>
-            <span class="text-muted" style="font-size:0.85rem;margin-left:4px;">Following</span>
-          </button>
-          <div><span style="font-family:var(--font-display);font-size:1.2rem;font-weight:700;color:var(--text-primary);">${stats.total.toLocaleString('en-US')}</span><span class="text-muted" style="font-size:0.85rem;margin-left:4px;">Anime</span></div>
-        </div>
-        <p class="text-muted" style="font-size:0.78rem;margin-top:10px;">Joined ${joinedDate}${profileUser.last_login ? ` · Last seen ${timeAgo(profileUser.last_login)}` : ''}</p>
-      </div>
+      ${isProfileOwner ? `<span class="u-role-badge">OWNER</span>` : profileUser.role === 'admin' ? `<span class="u-role-badge">ADMIN</span>` : ''}
+    </div>
+    <div class="u-name-block">
+      <h1 class="u-username username-with-badges">${h(profileUser.username)}${Badge.renderList(profileBadges)}${profileUser.pronouns ? `<span class="u-pronouns">${h(profileUser.pronouns)}</span>` : ''}</h1>
+      <!-- Tagline disabled for now -->
+      <p class="u-joined text-muted">Joined ${joinedDate}${profileUser.last_login ? ` · Last seen ${timeAgo(profileUser.last_login)}` : ''}</p>
+    </div>
+    <div class="u-header-actions">
+      ${isOwn ? `<a href="${siteUrl}/profile" class="btn btn-ghost btn-sm">${icon('edit', 'icon-small')} Edit Profile</a>`
+        : currentUser ? `<button class="btn ${isFollowing ? 'btn-ghost' : 'btn-primary'} btn-sm" id="follow-btn" onclick="toggleFollow(${profileId}, this)">${isFollowing ? `${icon('check', 'icon-small')} Following` : `${icon('plus', 'icon-small')} Follow`}</button>`
+        : `<button onclick="requireLogin()" class="btn btn-primary btn-sm">${icon('plus', 'icon-small')} Follow</button>`}
     </div>
   </div>
 
-  <div class="grid-4 mb-3" style="gap:12px;">
-    ${[
-      [stats.watching, '▶️ Watching', 'blue'],
-      [stats.completed, '✅ Completed', 'teal'],
-      [stats.plan_to_watch, '📅 Planning', 'purple'],
-      [stats.avg_score || '—', '⭐ Avg Score', 'gold'],
-    ].map(([v, l, cl]) => `<div class="stat-card"><div class="stat-value" style="color:var(--${cl})">${v}</div><div class="stat-label">${l}</div></div>`).join('')}
+  <div class="u-header-meta">
+    ${profileUser.bio ? `<p class="u-bio">${h(profileUser.bio).replace(/\n/g, '<br>')}</p>` : ''}
+    ${(() => {
+      const links = buildSocialLinks(profileUser);
+      if (!links.length) return '';
+      return `<div class="u-social-links">${links.map(([ic, url, label]) => `<a href="${h(url)}" target="_blank" rel="noopener noreferrer nofollow" class="u-social-link" style="--platform-color:${platformColor(ic)}" title="${h(label)}">${icon(ic, 'icon-small')}<span>${h(label)}</span></a>`).join('')}</div>`;
+    })()}
   </div>
 
-  <div class="tabs-container">
+  <div class="profile-stat-strip u-stat-strip">
+    <div class="profile-stat-box clickable" onclick="openModal('followers-modal')">
+      <span class="profile-stat-val follower-count">${followerCount.toLocaleString('en-US')}</span>
+      <span class="profile-stat-label">${icon('users', 'icon-small')} Followers</span>
+    </div>
+    <div class="profile-stat-box clickable" onclick="openModal('following-modal')">
+      <span class="profile-stat-val">${followingCount.toLocaleString('en-US')}</span>
+      <span class="profile-stat-label">${icon('users', 'icon-small')} Following</span>
+    </div>
+    <div class="profile-stat-box">
+      <span class="profile-stat-val" style="color:var(--text-primary);">${stats.total.toLocaleString('en-US')}</span>
+      <span class="profile-stat-label">${icon('list', 'icon-small')} Anime</span>
+    </div>
+    <div class="profile-stat-box">
+      <span class="profile-stat-val" style="color:var(--gold);">${stats.avg_score || '—'}</span>
+      <span class="profile-stat-label">${icon('star', 'icon-small')} Avg Score</span>
+    </div>
+  </div>
+
+  <div class="tabs-container u-tabs">
     <div class="tabs">
       <button class="tab-btn active" data-tab="animelist">Anime List</button>
       <button class="tab-btn" data-tab="favorites">Favorites (${favs.length})</button>
@@ -160,7 +177,8 @@ userRoutes.get('/u/:username', async (c) => {
           <thead><tr><th>#</th><th>Anime</th><th>Status</th><th>Progress</th><th>Score</th><th>Updated</th>${isOwn ? '<th>Actions</th>' : ''}</tr></thead>
           <tbody>
             ${recentList.items.map((item, i) => {
-              const eps = item.anime_episodes ?? 0;
+              const meta = cardMeta.get(item.anime_id);
+              const eps = (meta?.airedInfo?.total ?? item.anime_episodes) ?? 0;
               const jt = JSON.stringify(item.anime_title ?? '');
               const ji = JSON.stringify(item.anime_image ?? '');
               return `
@@ -187,19 +205,19 @@ userRoutes.get('/u/:username', async (c) => {
     </div>
 
     <div id="tab-favorites" class="tab-content">
-      ${favs.length === 0 ? `<div class="flex-center" style="padding:3rem;flex-direction:column;gap:1rem;"><span style="font-size:2.5rem;">♡</span><p class="text-muted">No favorites yet.</p></div>`
+      ${!canViewFavorites ? privateNotice('favorites') : favs.length === 0 ? `<div class="flex-center" style="padding:3rem;flex-direction:column;gap:1rem;"><span style="font-size:2.5rem;">♡</span><p class="text-muted">No favorites yet.</p></div>`
         : `<div class="anime-grid">${favs.map((fav: any) => renderAnimeCard({
             mal_id: fav.anime_id, title: fav.anime_title, title_english: fav.anime_title,
             images: { jpg: { image_url: fav.anime_image, large_image_url: fav.anime_image } }, type: '', score: null, episodes: 0,
-          } as any, siteUrl, null)).join('')}</div>`}
+          } as any, siteUrl, null, cardMeta.get(fav.anime_id))).join('')}</div>`}
     </div>
 
     <div id="tab-followers" class="tab-content">
-      ${followers.length === 0 ? `<div class="flex-center" style="padding:3rem;flex-direction:column;gap:1rem;"><span style="font-size:2.5rem;">👥</span><p class="text-muted">No followers yet.</p></div>`
+      ${!canViewFollowers ? privateNotice('followers list') : followers.length === 0 ? `<div class="flex-center" style="padding:3rem;flex-direction:column;gap:1rem;"><span style="font-size:2.5rem;">👥</span><p class="text-muted">No followers yet.</p></div>`
         : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;">${followers.map((u) => renderUserCard(u, modalUserBadges, siteUrl)).join('')}</div>`}
     </div>
     <div id="tab-following" class="tab-content">
-      ${following.length === 0 ? `<div class="flex-center" style="padding:3rem;flex-direction:column;gap:1rem;"><span style="font-size:2.5rem;">👤</span><p class="text-muted">Not following anyone yet.</p></div>`
+      ${!canViewFollowing ? privateNotice('following list') : following.length === 0 ? `<div class="flex-center" style="padding:3rem;flex-direction:column;gap:1rem;"><span style="font-size:2.5rem;">👤</span><p class="text-muted">Not following anyone yet.</p></div>`
         : `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:1rem;">${following.map((u) => renderUserCard(u, modalUserBadges, siteUrl)).join('')}</div>`}
     </div>
   </div>
@@ -209,8 +227,8 @@ userRoutes.get('/u/:username', async (c) => {
   <div class="modal" style="max-width:400px;">
     <div class="modal-header"><h3>👥 Followers (${followerCount})</h3><button class="modal-close">✕</button></div>
     <div class="modal-body" id="followers-list" style="padding:0.5rem;max-height:420px;overflow-y:auto;">
-      ${followers.length === 0 ? `<p class="text-muted text-center" style="padding:1.5rem;">No followers yet.</p>` : followers.map((u) => renderModalUserRow(u, modalUserBadges, siteUrl, 'Followed')).join('')}
-      <div id="followers-loader" style="text-align:center;padding:10px;display:none;color:var(--text-muted);font-size:0.85rem;">Loading…</div>
+      ${!canViewFollowers ? privateNotice('followers list') : followers.length === 0 ? `<p class="text-muted text-center" style="padding:1.5rem;">No followers yet.</p>` : followers.map((u) => renderModalUserRow(u, modalUserBadges, siteUrl, 'Followed')).join('')}
+      ${canViewFollowers ? `<div id="followers-loader" style="text-align:center;padding:10px;display:none;color:var(--text-muted);font-size:0.85rem;">Loading…</div>` : ''}
     </div>
   </div>
 </div>
@@ -218,8 +236,8 @@ userRoutes.get('/u/:username', async (c) => {
   <div class="modal" style="max-width:400px;">
     <div class="modal-header"><h3>👤 Following (${followingCount})</h3><button class="modal-close">✕</button></div>
     <div class="modal-body" id="following-list" style="padding:0.5rem;max-height:420px;overflow-y:auto;">
-      ${following.length === 0 ? `<p class="text-muted text-center" style="padding:1.5rem;">Not following anyone.</p>` : following.map((u) => renderModalUserRow(u, modalUserBadges, siteUrl, 'Following since')).join('')}
-      <div id="following-loader" style="text-align:center;padding:10px;display:none;color:var(--text-muted);font-size:0.85rem;">Loading…</div>
+      ${!canViewFollowing ? privateNotice('following list') : following.length === 0 ? `<p class="text-muted text-center" style="padding:1.5rem;">Not following anyone.</p>` : following.map((u) => renderModalUserRow(u, modalUserBadges, siteUrl, 'Following since')).join('')}
+      ${canViewFollowing ? `<div id="following-loader" style="text-align:center;padding:10px;display:none;color:var(--text-muted);font-size:0.85rem;">Loading…</div>` : ''}
     </div>
   </div>
 </div>
@@ -227,6 +245,7 @@ userRoutes.get('/u/:username', async (c) => {
 <script>
 (function () {
   const PROFILE_ID = ${profileId};
+  const CAN_VIEW = { followers: ${canViewFollowers ? 'true' : 'false'}, following: ${canViewFollowing ? 'true' : 'false'} };
   const state = {
     followers: { offset: ${followers.length}, loading: false, done: ${followers.length < 12 ? 'true' : 'false'} },
     following: { offset: ${following.length}, loading: false, done: ${following.length < 12 ? 'true' : 'false'} },
@@ -241,6 +260,7 @@ userRoutes.get('/u/:username', async (c) => {
     </a>\`;
   }
   async function loadMore(type) {
+    if (!CAN_VIEW[type]) return;
     const s = state[type];
     if (s.loading || s.done) return;
     s.loading = true;

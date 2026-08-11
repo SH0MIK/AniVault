@@ -6,6 +6,7 @@ import { Session } from '../lib/session';
 import { Auth, AUTO_SESSION_LIFETIME_SECONDS } from '../lib/auth';
 import { MalAPI } from '../lib/mal-api';
 import { AnimeTracker } from '../lib/tracker';
+import { pushListSync } from '../lib/list-sync';
 import { Notification } from '../lib/notification';
 import { timeAgo } from '../lib/helpers';
 
@@ -50,9 +51,19 @@ apiListRoutes.on(['GET', 'POST'], '/api/list.php', async (c) => {
 
   let result: any;
   switch (action) {
-    case 'add':
+    case 'add': {
       result = await AnimeTracker.addOrUpdate(db, mal, userId, body as Record<string, any>);
+      if (result.success) {
+        const animeId = parseInt((body.anime_id as string) ?? '0', 10) || 0;
+        const status = (body.status as string) || 'plan_to_watch';
+        const watched = parseInt((body.episodes_watched as string) ?? '0', 10) || 0;
+        const score = body.score ? parseInt(body.score as string, 10) : null;
+        // Fire-and-forget: keep any connected MAL/AniList account current.
+        // Never blocks or fails the local update if MAL/AniList is down.
+        await pushListSync(c.env, db, userId, animeId, status, watched, score).catch(() => {});
+      }
       break;
+    }
     case 'remove': {
       const animeId = parseInt((body.anime_id as string) ?? '0', 10) || 0;
       result = await AnimeTracker.remove(db, userId, animeId);

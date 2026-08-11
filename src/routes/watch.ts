@@ -25,6 +25,8 @@ import { playerBody } from '../render/player-body';
 import { getBannerData } from '../lib/settings';
 import { findEpisodeThumbnails, episodeThumbCacheKey } from '../lib/episode-thumb';
 import { AnimeTracker } from '../lib/tracker';
+import { EpisodeAir } from '../lib/episode-air';
+import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
 
 export const watchRoutes = new Hono<{ Bindings: Env }>();
 
@@ -141,7 +143,13 @@ watchRoutes.get('/watch', async (c) => {
   const title = getAnimeTitle(anime);
   const image = anime.images?.jpg?.large_image_url ?? '';
   const coverSm = anime.images?.jpg?.image_url ?? image;
-  const totalEps = anime.episodes ?? 0;
+  // Same correction as the anime detail page — MAL's own episode count
+  // lags for airing shows, and this total also drives which episode
+  // numbers get nav chips below (missing/wrong = viewers can't reach an
+  // episode that's actually already out).
+  const airedInfo = await EpisodeAir.get(db, mal, animeId);
+  const totalEps = airedInfo?.total ?? anime.episodes ?? 0;
+  const dubbedLangs = await DubStatus.getFor(db, animeId);
 
   let epDurationSec = parseDurationSeconds(anime.duration);
   if (epDurationSec <= 0) epDurationSec = 1380;
@@ -249,7 +257,7 @@ watchRoutes.get('/watch', async (c) => {
   html += renderWatchBody({
     anime, image, coverSm, title, animeId, epNum, totalEps, video, qSub, hasMegaplayFallback,
     isLoggedIn: auth.check(), prevEp, nextEp, currentEpInfo, chars, allEps, allVideos,
-    videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched,
+    videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched, dubbedLangs,
   });
 
   // Server-probing/switching script (always present)
@@ -336,12 +344,13 @@ interface WatchBodyParams {
   layoutUser: CurrentUser | null;
   siteUrl: string;
   episodesWatched: number;
+  dubbedLangs: string[];
 }
 
 export function renderWatchBody(p: WatchBodyParams): string {
   const { anime, image, coverSm, title, animeId, epNum, totalEps, video, qSub, hasMegaplayFallback,
     isLoggedIn, prevEp, nextEp, currentEpInfo, chars, allEps, allVideos, videoEpNumSet, layoutUser, siteUrl,
-    episodesWatched } = p;
+    episodesWatched, dubbedLangs } = p;
 
   const genres = (anime.genres ?? []).slice(0, 6);
   const score = anime.score;
@@ -534,6 +543,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
         <div class="wp-anime-body">
           <div class="wp-anime-title"><a href="${animePage}">${h(title)}</a></div>
           <div class="wp-anime-sub">${h(animeType)}${animeType && status ? ' · ' : ''}${h(status)}${totalEps > 0 ? ` · ${totalEps} eps` : ''}</div>
+          ${dubbedLangs.length > 0 ? `<div class="wp-anime-sub" style="color:var(--teal,#2dd4bf);font-size:0.78rem;margin-top:2px;">🎙️ Dubbed: ${h(dubbedLangs.map((l) => DUB_LANGUAGES[l] ?? l).join(', '))} <span style="color:var(--text-muted);">(© <a href="https://mydublist.com" target="_blank" rel="noopener" style="color:inherit;">MyDubList</a>)</span></div>` : ''}
           ${score ? `
           <div class="wp-score-row">
             <div class="wp-score"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>${score}</div>

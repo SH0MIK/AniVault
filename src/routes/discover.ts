@@ -7,7 +7,7 @@ import { MalAPI, NormalisedAnime } from '../lib/mal-api';
 import { Notification } from '../lib/notification';
 import { getUserAnimeStatuses } from '../lib/user-list';
 import { h, getAnimeTitle, statusBadge } from '../lib/helpers';
-import { renderAnimeCard } from '../lib/anime-card';
+import { renderAnimeCard, buildCardMetaMap, AnimeCardMeta, LANG_CODE } from '../lib/anime-card';
 import { renderHeader, renderFooter, CurrentUser } from '../render/layout';
 import { getBannerData } from '../lib/settings';
 
@@ -38,20 +38,26 @@ discoverRoutes.get('/seasonal', async (c) => {
   const result = season === 'upcoming' ? await mal.getSeasonUpcoming() : await mal.getSeasonNow(page);
   const items = result.data ?? [];
   const totalPages = (result as any).pagination?.last_visible_page ?? 1;
+  const cardMeta = await buildCardMetaMap(db, items);
 
   const __banner = await getBannerData(db);
   let html = renderHeader({ ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: 'Seasonal Anime', currentPage: 'seasonal', currentUser: layoutUser, unreadCount, requestUrl: c.req.url });
+  const seasonYear = new Date().getUTCFullYear();
+  const seasonLabel = mal.currentSeasonPublic().replace(/^./, (c) => c.toUpperCase());
   html += `
 <div class="container section">
-  <div class="flex-between mb-3">
-    <h1>🌸 Seasonal Anime</h1>
+  <div class="flex-between mb-3" style="flex-wrap:wrap;gap:1rem;">
+    <div>
+      <h1>🌸 Seasonal Anime</h1>
+      <p class="text-muted" style="font-size:.85rem;margin-top:2px;">${season === 'upcoming' ? 'Next season' : `${seasonLabel} ${seasonYear}`}</p>
+    </div>
     <div class="flex gap-1">
-      <a href="/seasonal?season=now" class="btn ${season !== 'upcoming' ? 'btn-primary' : 'btn-ghost'} btn-sm">Airing Now</a>
-      <a href="/seasonal?season=upcoming" class="btn ${season === 'upcoming' ? 'btn-primary' : 'btn-ghost'} btn-sm">Upcoming</a>
+      <a href="/seasonal?season=now" class="filter-pill ${season !== 'upcoming' ? 'active' : ''}">Airing Now</a>
+      <a href="/seasonal?season=upcoming" class="filter-pill ${season === 'upcoming' ? 'active' : ''}">Upcoming</a>
     </div>
   </div>
   ${items.length === 0 ? `<p class="text-muted text-center">API may be rate-limited. Please wait a moment and refresh.</p>` : `
-  <div class="anime-grid">${items.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null)).join('')}</div>
+  <div class="anime-grid">${items.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}</div>
   ${totalPages > 1 ? `<div class="pagination">${Array.from({ length: totalPages }, (_, i) => i + 1).map((i) => `<a href="/seasonal?season=${season}&page=${i}" class="${i === page ? 'current' : ''}">${i}</a>`).join('')}</div>` : ''}`}
 </div>`;
 
@@ -74,6 +80,7 @@ discoverRoutes.get('/top', async (c) => {
   const result = await mal.getTopAnime(filter, page);
   const items = result.data ?? [];
   const totalPages = result.pagination?.last_visible_page ?? 1;
+  const cardMeta = await buildCardMetaMap(db, items);
 
   const __banner = await getBannerData(db);
   let html = renderHeader({ ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: 'Top Anime', currentPage: 'top', currentUser: layoutUser, unreadCount, requestUrl: c.req.url });
@@ -92,7 +99,7 @@ discoverRoutes.get('/top', async (c) => {
   <div class="flex-between mb-3" style="flex-wrap:wrap;gap:1rem;">
     <h1>🏆 Top Anime</h1>
     <div class="flex gap-1 flex-wrap">
-      ${Object.entries(TOP_FILTERS).map(([k, v]) => `<a href="/top?filter=${k}" class="btn ${filter === k ? 'btn-primary' : 'btn-ghost'} btn-sm">${v}</a>`).join('')}
+      ${Object.entries(TOP_FILTERS).map(([k, v]) => `<a href="/top?filter=${k}" class="filter-pill ${filter === k ? 'active' : ''}">${v}</a>`).join('')}
     </div>
   </div>
 
@@ -101,7 +108,7 @@ discoverRoutes.get('/top', async (c) => {
       <div class="data-table-wrap"><div class="data-table-wrap"><table class="data-table">
         <thead><tr><th>Rank</th><th>Anime</th><th>Type</th><th>Eps</th><th>Score</th><th>Members</th><th></th></tr></thead>
         <tbody>
-          ${items.map((a, i) => renderTopRow(a, i, page, siteUrl, userStatuses[a.mal_id] ?? null)).join('')}
+          ${items.map((a, i) => renderTopRow(a, i, page, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}
         </tbody>
       </table></div></div>
     </div>
@@ -115,17 +122,26 @@ discoverRoutes.get('/top', async (c) => {
   return c.html(html);
 });
 
-function renderTopRow(a: NormalisedAnime, i: number, page: number, siteUrl: string, userStatus: string | null): string {
+function renderTopRow(a: NormalisedAnime, i: number, page: number, siteUrl: string, userStatus: string | null, meta?: AnimeCardMeta): string {
   const displayTitle = getAnimeTitle(a);
   const safeTitle = h(displayTitle);
   const safeImg = h(a.images?.jpg?.image_url ?? '');
   const animeId = a.mal_id;
+  const airedInfo = meta?.airedInfo;
+  const epsDisplay = airedInfo && airedInfo.aired > 0
+    ? (airedInfo.total && airedInfo.total !== airedInfo.aired ? `${airedInfo.aired}/${airedInfo.total}` : `${airedInfo.aired}`)
+    : (a.episodes || '—');
+  const dubbed = meta?.dubbedLangs ?? [];
+  const dubCodes = dubbed.map((l) => LANG_CODE[l] ?? l.slice(0, 2).toUpperCase());
+  const dubBadge = dubCodes.length
+    ? ` <span title="Dubbed: ${h(dubbed.join(', '))}" style="font-size:.65rem;font-weight:700;color:var(--teal,#2dd4bf);letter-spacing:.02em;">🎙️ ${h(dubCodes.length > 3 ? dubCodes.slice(0, 3).join(' ') + ' +' + (dubCodes.length - 3) : dubCodes.join(' '))}</span>`
+    : '';
   return `
 <tr onclick="window.location.href='/anime?id=${animeId}'" style="cursor:pointer;">
   <td><strong style="color:var(--gold); font-family:var(--font-display);">#${(page - 1) * 25 + i + 1}</strong></td>
-  <td><div class="flex" style="gap:12px; align-items:center;"><img src="${safeImg}" alt="" style="width:36px; height:50px; object-fit:cover; border-radius:4px;"><span style="font-weight:500;">${safeTitle}</span></div></td>
+  <td><div class="flex" style="gap:12px; align-items:center;"><img src="${safeImg}" alt="" style="width:36px; height:50px; object-fit:cover; border-radius:4px;"><span style="font-weight:500;">${safeTitle}</span>${dubBadge}</div></td>
   <td>${h(a.type || '—')}</td>
-  <td>${a.episodes || '—'}</td>
+  <td>${epsDisplay}</td>
   <td style="color:var(--gold); font-weight:600;">${a.score ? a.score.toFixed(2) : 'N/A'}</td>
   <td>${a.members ? a.members.toLocaleString('en-US') : '—'}</td>
   <td class="schedule-action" data-anime-id="${animeId}" onclick="event.stopPropagation()">
@@ -172,6 +188,7 @@ discoverRoutes.get('/schedule', async (c) => {
 
   const result = await mal.getSchedule(day);
   const items = result.data ?? [];
+  const cardMeta = await buildCardMetaMap(db, items);
 
   const __banner = await getBannerData(db);
   let html = renderHeader({ ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: 'Schedule', currentPage: 'schedule', currentUser: layoutUser, unreadCount, requestUrl: c.req.url });
@@ -202,6 +219,14 @@ discoverRoutes.get('/schedule', async (c) => {
 .day-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
 .day-tab.today-tab{position:relative;}
 .today-dot{display:inline-block;width:6px;height:6px;background:var(--gold);border-radius:50%;margin-left:5px;vertical-align:middle;}
+.sched-now-divider{display:flex;align-items:center;gap:10px;padding:8px 16px;background:rgba(232,69,60,0.04);}
+.sched-now-divider::before,.sched-now-divider::after{content:'';flex:1;height:1px;background:var(--accent);opacity:.45;}
+.sched-now-divider span{font-size:.66rem;font-weight:800;letter-spacing:.1em;color:var(--accent);white-space:nowrap;}
+.schedule-row.sched-aired{opacity:.5;}
+.schedule-row.sched-aired:hover{opacity:.8;}
+.schedule-row.sched-next-up{background:rgba(232,69,60,.07);box-shadow:inset 3px 0 0 var(--accent);}
+.sched-countdown{display:block;font-size:.65rem;color:var(--accent);font-weight:700;margin-top:3px;white-space:nowrap;}
+.sched-countdown.sched-elapsed{color:var(--text-muted);font-weight:600;}
 @media(max-width:640px){.schedule-row{grid-template-columns:44px 60px 1fr auto;gap:10px;}.schedule-score,.schedule-eps{display:none;}.schedule-thumb{width:44px;height:62px;}.schedule-thumb-placeholder{width:44px;height:62px;}}
 </style>
 
@@ -223,7 +248,7 @@ discoverRoutes.get('/schedule', async (c) => {
   </div>` : `
   <div class="card" style="overflow:hidden;padding:0;">
     <div class="schedule-list">
-      ${items.map((a) => renderScheduleRow(a, day, userStatuses[a.mal_id] ?? null)).join('')}
+      ${items.map((a) => renderScheduleRow(a, day, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}
     </div>
   </div>
   <p class="text-muted" style="font-size:0.78rem;margin-top:0.75rem;text-align:right;">${items.length} anime airing ${cap(day)} · Times in <span id='tz-label'>JST</span></p>`}
@@ -293,6 +318,77 @@ discoverRoutes.get('/schedule', async (c) => {
     });
   } catch(e) {}
 })();
+(function() {
+  // Rows are already sorted by broadcast time server-side, and each
+  // carries the exact broadcast instant in data-jst — so a straight
+  // chronological walk tells us what's already aired vs what's next,
+  // regardless of the viewer's timezone or which day is being browsed.
+  const rows = Array.from(document.querySelectorAll('.schedule-row'));
+  if (!rows.length) return;
+  const now = new Date();
+  let dividerPlaced = false;
+  let nextUpRow = null;
+
+  function formatCountdown(ms) {
+    const mins = Math.max(0, Math.round(ms / 60000));
+    if (mins < 60) return 'in ' + mins + 'm';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return 'in ' + hrs + 'h ' + (mins % 60) + 'm';
+    return 'in ' + Math.floor(hrs / 24) + 'd ' + (hrs % 24) + 'h';
+  }
+  function formatElapsed(ms) {
+    const mins = Math.max(0, Math.round(ms / 60000));
+    if (mins < 60) return 'Aired ' + mins + 'm ago';
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return 'Aired ' + hrs + 'h ' + (mins % 60) + 'm ago';
+    return 'Aired ' + Math.floor(hrs / 24) + 'd ' + (hrs % 24) + 'h ago';
+  }
+
+  rows.forEach(row => {
+    const timeEl = row.querySelector('.local-time[data-jst]');
+    if (!timeEl) return;
+    const iso = timeEl.getAttribute('data-jst');
+    if (!iso) return;
+    const airDate = new Date(iso);
+    if (isNaN(airDate)) return;
+
+    // Every row gets a status label — aired X ago, or upcoming in X —
+    // so it's never ambiguous why a row is faded or highlighted.
+    const badge = document.createElement('small');
+    badge.className = 'sched-countdown';
+
+    if (airDate < now) {
+      row.classList.add('sched-aired');
+      badge.classList.add('sched-elapsed');
+      badge.textContent = formatElapsed(now - airDate);
+      timeEl.closest('.schedule-time')?.appendChild(badge);
+      return;
+    }
+
+    badge.textContent = formatCountdown(airDate - now);
+    timeEl.closest('.schedule-time')?.appendChild(badge);
+
+    if (!dividerPlaced) {
+      const divider = document.createElement('div');
+      divider.className = 'sched-now-divider';
+      divider.innerHTML = '<span>NOW</span>';
+      row.parentNode.insertBefore(divider, row);
+      row.classList.add('sched-next-up');
+      dividerPlaced = true;
+      nextUpRow = row;
+    }
+  });
+
+  // Jump straight to what's next instead of making people scroll past
+  // everything that's already aired today.
+  if (nextUpRow) {
+    requestAnimationFrame(() => {
+      const headerOffset = 90; // clears the sticky site header + day-tabs
+      const y = nextUpRow.getBoundingClientRect().top + window.scrollY - headerOffset;
+      window.scrollTo({ top: Math.max(0, y), behavior: 'smooth' });
+    });
+  }
+})();
 </script>`;
 
   html += renderFooter({ siteUrl, currentUser: layoutUser });
@@ -321,7 +417,7 @@ export function currentEpisode(startDate: string, broadcastDay: string, totalEps
   }
 }
 
-function renderScheduleRow(a: NormalisedAnime, day: string, userStatus: string | null): string {
+function renderScheduleRow(a: NormalisedAnime, day: string, userStatus: string | null, meta?: AnimeCardMeta): string {
   const aid = a.mal_id ?? 0;
   const title = getAnimeTitle(a);
   const img = a.images?.jpg?.image_url ?? '';
@@ -346,25 +442,55 @@ function renderScheduleRow(a: NormalisedAnime, day: string, userStatus: string |
     }
   }
 
-  // Next occurrence of this broadcast day, in JST, as ISO — for client-side tz conversion.
+  // This broadcast's actual instant in JST, as ISO — used both for the
+  // client-side tz conversion AND (as of the NOW-divider feature) for
+  // deciding whether it's already aired.
+  //
+  // JST runs far enough ahead (UTC+9) that "today" in JST can already be
+  // tomorrow for viewers west of it — e.g. 10:48 PM in GMT+6 is already
+  // 1:48 AM the next day in Tokyo. So "the next occurrence going forward"
+  // is the wrong question once that's happened: JST's Sunday slot may
+  // have technically just ended, and jumping forward lands 6 days away
+  // instead of recognizing it aired a few hours ago. Instead, compute
+  // both the forward and the week-earlier occurrence and take whichever
+  // is actually closest to right now — that's the one a viewer means.
   let jstIso = '';
   if (btime) {
     const dayIdx: Record<string, number> = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
     const targetDay = dayIdx[day] ?? 1;
     const now = new Date();
     const nowJstDay = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' })).getDay();
-    let daysAhead = (targetDay - nowJstDay + 7) % 7;
-    if (daysAhead === 0) daysAhead = 7;
+    const daysAhead = (targetDay - nowJstDay + 7) % 7;
     const [hh, mm] = btime.split(':').map(Number);
-    const next = new Date();
-    next.setUTCDate(next.getUTCDate() + daysAhead);
-    next.setUTCHours((hh ?? 0) - 9, mm ?? 0, 0, 0); // JST is UTC+9
-    jstIso = next.toISOString();
+
+    const forward = new Date();
+    forward.setUTCDate(forward.getUTCDate() + daysAhead);
+    forward.setUTCHours((hh ?? 0) - 9, mm ?? 0, 0, 0); // JST is UTC+9
+
+    const backward = new Date(forward);
+    backward.setUTCDate(backward.getUTCDate() - 7);
+
+    const nowMs = now.getTime();
+    const closest = Math.abs(forward.getTime() - nowMs) <= Math.abs(backward.getTime() - nowMs) ? forward : backward;
+    jstIso = closest.toISOString();
   }
 
   const startDate = a.start_date;
   const bday = a.broadcast?.day ?? day;
   const currentEp = startDate ? currentEpisode(startDate, bday, eps) : null;
+
+  // Jikan's actual per-episode air-date count (cached, see episode-air.ts)
+  // is more reliable than the start-date/cadence guess above once we have
+  // it — MAL/the cadence math can drift for shows with breaks or delays.
+  const airedInfo = meta?.airedInfo;
+  const epNum = airedInfo && airedInfo.aired > 0 ? airedInfo.aired : currentEp;
+  const epTotal = airedInfo?.total ?? eps;
+
+  const dubbed = meta?.dubbedLangs ?? [];
+  const dubCodes = dubbed.map((l) => LANG_CODE[l] ?? l.slice(0, 2).toUpperCase());
+  const dubBadge = dubCodes.length
+    ? `<span class="dot">·</span><span title="Dubbed: ${h(dubbed.join(', '))}" style="color:var(--teal,#2dd4bf);font-weight:700;">🎙️ ${h(dubCodes.length > 3 ? dubCodes.slice(0, 3).join(' ') + ' +' + (dubCodes.length - 3) : dubCodes.join(' '))}</span>`
+    : '';
 
   return `
 <div class="schedule-row" onclick="window.location.href='/anime?id=${aid}'">
@@ -380,11 +506,12 @@ function renderScheduleRow(a: NormalisedAnime, day: string, userStatus: string |
       ${duration ? `<span class="dot">·</span><span>${duration} min</span>` : ''}
       ${genres.map((g) => `<span class="dot">·</span><span>${h(g.name)}</span>`).join('')}
       ${studios[0] ? `<span class="dot">·</span><span style="color:var(--accent);">${h(studios[0].name)}</span>` : ''}
+      ${dubBadge}
     </div>
   </div>
   <div class="schedule-score">${score ? '⭐ ' + score.toFixed(2) : '—'}</div>
   <div class="schedule-eps">
-    ${currentEp ? `<span style="color:var(--accent);font-weight:600;">EP ${currentEp}</span><span style="color:var(--text-muted);font-size:0.75rem;">/${eps || '?'}</span>` : `<span style="color:var(--text-muted);">Soon</span>`}
+    ${epNum ? `<span style="color:var(--accent);font-weight:600;">EP ${epNum}</span><span style="color:var(--text-muted);font-size:0.75rem;">/${epTotal || '?'}</span>` : `<span style="color:var(--text-muted);">Soon</span>`}
   </div>
   <div class="schedule-action" data-anime-id="${aid}" onclick="event.stopPropagation()">
     ${userStatus
