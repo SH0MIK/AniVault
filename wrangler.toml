@@ -24,14 +24,32 @@ id = "a8cfab6673614ae0a2fa243529787ba4"
 binding = "AVATARS"
 bucket_name = "anivault"
 
+# NOTE: AniList season caching is NOT done via [triggers] below — Cloudflare
+# Workers cannot reach AniList at all (AniList has manually blocked Workers'
+# IP ranges, confirmed via a 403 "You have been manually blocked" response).
+# That cache is instead refreshed by a GitHub Actions workflow
+# (.github/workflows/anilist-cache.yml), which writes straight into the
+# API_CACHE KV namespace below over Cloudflare's REST API. The Worker only
+# ever reads that cache — see getAniListSeasonNow() in src/lib/mal-api.ts.
+#
+# The two crons below are unrelated to AniList — Jikan and
+# raw.githubusercontent.com (used by src/scheduled.ts) are both reachable
+# fine from Workers.
+[triggers]
+crons = ["0 * * * *", "0 3 * * *"]
+
 [vars]
 SITE_NAME = "AniVault"
-SITE_URL = "https://www.anivault.co"
+SITE_URL = "https://beta.anivault.co"
 SESSION_LIFETIME_SECONDS = "86400"
 GOOGLE_REDIRECT_URI = "https://www.anivault.co/pages/oauth_google.php"
 DISCORD_REDIRECT_URI = "https://www.anivault.co/pages/oauth_discord.php"
 API_CACHE_ENABLED = "1"
 API_CACHE_TIME = "3600"
+
+[observability.logs]
+enabled = true
+invocation_logs = true
 
 # Secrets (do NOT put real values here — set them with:
 #   wrangler secret put DB_PASS_LEGACY   (only needed if you keep a MySQL fallback)
