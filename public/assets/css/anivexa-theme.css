@@ -1,0 +1,456 @@
+/* ==========================================================================
+   Anivexa-inspired theme layer for AniVault.
+   Loaded after style.css — reuses AniVault's existing CSS variable names
+   and component classes so the whole site re-themes automatically, then
+   adds the new home-page components (hero slider, genre bar, scroll rows,
+   sidebar widget) that mirror Anivexa's layout.
+   ========================================================================== */
+
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&display=swap');
+
+:root {
+  --bg-base:       #080808;
+  --bg-surface:    #0d0d0d;
+  --bg-card:       #0f0f0f;
+  --bg-hover:      #1a1a1a;
+  --accent:        #7c3aed;
+  --accent-2:      #9d6ef8;
+  --accent-dim:    #5b21b6;
+  --accent-glow:   rgba(124,58,237,0.28);
+  --gold:          #f5c842;
+  --teal:          #22c55e;
+  --purple:        #9d6ef8;
+  --blue:          #54a0ff;
+  --text-primary:  #ffffff;
+  --text-secondary:#8a8aa3;
+  --text-muted:    #4a4a5c;
+  --border:        rgba(255,255,255,0.07);
+  --border-accent: rgba(124,58,237,0.5);
+  --glass-bg:      rgba(8,8,8,0.85);
+  --glass-border:  rgba(255,255,255,0.06);
+  --radius-sm:     6px;
+  --radius-md:     10px;
+  --radius-lg:     16px;
+  --radius-xl:     24px;
+  --radius-pill:   999px;
+  --font-display:  'Outfit', sans-serif;
+  --font-body:     'Outfit', sans-serif;
+  --shadow-card:   0 4px 32px rgba(0,0,0,0.8);
+  --shadow-glow:   0 8px 40px var(--accent-glow);
+  --grad-accent:   linear-gradient(135deg, var(--accent), var(--accent-dim));
+  --grad-card:     linear-gradient(180deg, transparent 35%, rgba(8,8,8,0.98) 100%);
+  --grad-hero:     linear-gradient(0deg, rgba(8,8,8,0.96) 0%, rgba(8,8,8,0.35) 55%, transparent 100%);
+  --trans:         all 0.22s cubic-bezier(0.4,0,0.2,1);
+  --header-h:      64px;
+}
+
+body { font-family: var(--font-body); }
+
+/* ---- buttons / cards get the Anivexa treatment site-wide ---- */
+.btn { border-radius: var(--radius-pill); font-family: var(--font-body); font-weight: 600; transition: var(--trans); }
+.btn-primary { background: linear-gradient(135deg, var(--accent), var(--accent-dim)); box-shadow: 0 0 22px var(--accent-glow); border: none; }
+.btn-primary:hover { transform: translateY(-2px); box-shadow: 0 4px 30px var(--accent-glow); }
+.btn-ghost { background: rgba(255,255,255,0.06); border: 1px solid var(--border); backdrop-filter: blur(8px); }
+.btn-ghost:hover { background: rgba(255,255,255,0.12); border-color: var(--border-accent); }
+
+.anime-card { border-radius: var(--radius-md); border: 1px solid var(--border); background: var(--bg-card); transition: var(--trans); }
+.anime-card:hover { transform: translateY(-6px) scale(1.02); border-color: var(--border-accent); box-shadow: var(--shadow-glow); }
+.anime-card-poster img { transition: transform .45s ease; }
+.anime-card:hover .anime-card-poster img { transform: scale(1.06); }
+.anime-card-overlay { background: var(--grad-card); }
+.anime-card-score { background: rgba(0,0,0,0.72); color: var(--gold); border: 1px solid rgba(245,200,66,0.3); backdrop-filter: blur(4px); }
+
+/* ==========================================================================
+   Home page — Anivexa-style layout
+   ========================================================================== */
+
+/* -- hero slider -- */
+#hero { position: relative; height: 56vh; min-height: 480px; max-height: 680px; overflow: hidden; margin-bottom: 8px; }
+.hero-slide { position: absolute; inset: 0; opacity: 0; transition: opacity .7s ease; pointer-events: none; z-index: 0; }
+.hero-slide.active { opacity: 1; pointer-events: auto; z-index: 1; }
+.hero-bg { position: absolute; inset: 0; }
+.hero-bg img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; transform: scale(1.03); transition: transform 8s ease; }
+.hero-slide.active .hero-bg img { transform: scale(1); }
+/* Fallback (no banner on file at all — neither your own nor AniList's):
+   using the poster art full-bleed, so blur/darken it and push it
+   off-center a bit, since it's not composed as a banner. */
+.hero-bg-fallback img { object-position: center 15%; filter: blur(1px) brightness(.8); }
+.hero-gradient { position: absolute; inset: 0; background: var(--grad-hero); }
+.hero-gradient::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8,8,8,.9) 0%, transparent 55%); }
+.hero-content { position: relative; z-index: 2; height: 100%; display: flex; align-items: flex-end; padding-bottom: 40px; }
+/* .container normally centers itself with a max-width (that's what keeps
+   the rest of the site's page content centered) — override that just here
+   so the hero text hugs the banner's actual left edge on every screen
+   size, instead of being inset by however much space is left over around
+   the centered 1280px container on a wide screen. */
+.hero-content .container { max-width: none; margin: 0; padding-left: clamp(20px, 5vw, 64px); padding-right: 20px; }
+.hero-info { max-width: 560px; }
+.hero-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.hero-title { font-size: clamp(1.7rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 12px; }
+.hero-desc { font-size: .95rem; color: var(--text-secondary); line-height: 1.7; margin-bottom: 18px; max-width: 460px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.hero-genres { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
+.hero-genre-tag { padding: 3px 10px; border-radius: var(--radius-pill); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1); font-size: .75rem; font-weight: 500; color: var(--text-secondary); }
+.hero-stat-strip { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; font-size: .82rem; color: var(--text-secondary); }
+.hero-stat-strip span { display: flex; align-items: center; gap: 5px; }
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.hero-prev, .hero-next { position: absolute; top: 50%; transform: translateY(-50%); width: 46px; height: 46px; border-radius: 50%; background: rgba(8,8,8,.5); backdrop-filter: blur(8px); border: 1px solid var(--glass-border); color: var(--text-primary); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 5; transition: var(--trans); opacity: 0; }
+#hero:hover .hero-prev, #hero:hover .hero-next { opacity: 1; }
+.hero-prev { left: 20px; } .hero-next { right: 20px; }
+.hero-prev:hover, .hero-next:hover { background: var(--accent); border-color: var(--border-accent); }
+.hero-indicators { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 5; }
+.hero-dot { width: 8px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.3); cursor: pointer; transition: var(--trans); border: none; }
+.hero-dot.active { width: 28px; background: var(--accent); }
+
+/* The TMDB logo image (when found) replaces the plain text title on both
+   desktop and mobile — falls back to the plain text automatically when no
+   logo was found for that title (has-logo class only gets added then). */
+.hero-info.has-logo .hero-title { display: none; }
+.hero-logo { display: none; }
+.hero-info.has-logo .hero-logo { display: block; max-width: 420px; max-height: 150px; width: auto; height: auto; object-fit: contain; margin-bottom: 14px; filter: drop-shadow(0 4px 18px rgba(0,0,0,.6)); }
+
+/* Mobile: the <picture> swap serves your local (portrait) cover instead of
+   the wide banner — object-position needs to bias toward the top so faces
+   aren't cropped out, and per your call, genre tags are hidden here since
+   the cover art itself is the visual, no badges cluttering it. Text block
+   stays left-aligned here too, same as desktop. */
+@media (max-width: 768px) {
+  .hero-bg img { object-position: center top; }
+  .hero-badges, .hero-genres { display: none; }
+  .hero-info.has-logo .hero-logo { max-width: 78%; max-height: 130px; }
+  .hero-desc { max-width: 90%; -webkit-line-clamp: 3; }
+}
+
+
+/* -- genre nav bar -- */
+.genre-nav-wrap { position: relative; margin-bottom: 40px; }
+.genre-bar { display: flex; gap: 10px; overflow-x: auto; padding: 10px 4px 6px; scrollbar-width: none; }
+.genre-bar::-webkit-scrollbar { display: none; }
+.genre-pill { padding: 9px 20px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-pill); color: var(--text-secondary); font-size: .86rem; font-weight: 500; white-space: nowrap; transition: var(--trans); flex-shrink: 0; }
+.genre-pill:hover { background: var(--accent); border-color: var(--border-accent); color: #fff; transform: translateY(-3px); box-shadow: 0 6px 20px var(--accent-glow); }
+.genre-nav-btn { position: absolute; top: 50%; transform: translateY(-50%); z-index: 4; width: 34px; height: 34px; border-radius: 50%; opacity: 0; pointer-events: none; transition: var(--trans); }
+.genre-nav-wrap:hover .genre-nav-btn { opacity: 1; pointer-events: auto; }
+.genre-nav-btn.prev { left: -14px; } .genre-nav-btn.next { right: -14px; }
+@media (max-width: 768px) { .genre-nav-btn { display: none !important; } }
+
+/* -- section headers / scroll rows -- */
+.content-section { margin-bottom: 48px; position: relative; min-width: 0; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+.section-title { display: flex; align-items: center; gap: 10px; font-size: 1.15rem; font-weight: 700; }
+.section-title::before { content: ''; display: block; width: 4px; height: 20px; background: var(--grad-accent); border-radius: 2px; }
+.section-link { font-size: .84rem; font-weight: 500; color: var(--accent-2); display: flex; align-items: center; gap: 4px; transition: var(--trans); }
+.section-link:hover { color: var(--purple); gap: 8px; }
+.row-nav-btn { opacity: .5; transition: var(--trans); }
+.content-section:hover .row-nav-btn { opacity: 1; }
+.scroll-row { display: flex; gap: 14px; overflow-x: auto; scroll-behavior: smooth; padding: 6px 2px 12px; scrollbar-width: thin; scrollbar-color: var(--accent) transparent; min-width: 0; }
+.scroll-row::-webkit-scrollbar { height: 4px; }
+.scroll-row::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 99px; }
+.scroll-row .anime-card { flex-shrink: 0; width: 158px; }
+.scroll-row .cw-card { flex-shrink: 0; width: 260px; }
+.scroll-row .cw-card:nth-child(n+4) { display: flex !important; }
+@media (max-width: 640px) {
+  .scroll-row .anime-card { width: 130px; }
+  .scroll-row .cw-card { width: 200px; }
+}
+
+/* -- home grid + sidebar widget -- */
+.home-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 40px; align-items: start; }
+.home-grid > .home-sections { min-width: 0; }
+@media (max-width: 1024px) { .home-grid { grid-template-columns: minmax(0, 1fr); } }
+.sidebar-widget { position: sticky; top: calc(var(--header-h) + 16px); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+@media (max-width: 1024px) { .sidebar-widget { position: static; margin-top: 8px; } }
+.sidebar-widget-header { padding: 16px 16px 12px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.02); font-size: .95rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.sidebar-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; transition: var(--trans); border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; }
+.sidebar-item:last-child { border-bottom: none; }
+.sidebar-item:hover { background: var(--bg-hover); }
+.sidebar-thumb { width: 46px; height: 64px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+.sidebar-rank { font-size: .8rem; font-weight: 800; color: var(--text-muted); width: 20px; flex-shrink: 0; }
+.sidebar-title { font-size: .85rem; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: 1; }
+.sidebar-meta { font-size: .7rem; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
+
+/* ==========================================================================
+   Anime detail page ("/anime?id=") — Anivexa-style layout
+   ========================================================================== */
+
+.info-hero { position: relative; width: 100%; min-height: 480px; overflow: hidden; }
+.info-hero-bg { position: absolute; inset: 0; background-position: center; background-size: cover; background-repeat: no-repeat; transform: scale(1.03); }
+/* No real banner on file (neither yours nor AniList's) — using the poster
+   art full-bleed instead, so blur/darken it since it's not composed as a
+   wide banner. Kept as a CSS class (not an inline style) so the mobile
+   override below can cleanly turn it back off. */
+.info-hero-bg.info-hero-bg-fallback { filter: brightness(.5) blur(2px); }
+.info-hero::before, .info-hero::after { content: ''; position: absolute; inset: 0; pointer-events: none; }
+.info-hero::before { background: radial-gradient(120% 80% at 30% 30%, rgba(0,0,0,.25), rgba(0,0,0,.85) 70%, var(--bg-base) 100%); }
+.info-hero::after { background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(0,0,0,.85) 80%, var(--bg-base) 100%); }
+.info-hero-inner { position: relative; z-index: 2; display: flex; gap: 32px; padding: 88px 0 48px; align-items: flex-end; }
+.info-poster { flex: 0 0 220px; width: 220px; aspect-ratio: 2/3; border-radius: var(--radius-md); overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.06); background: var(--bg-card); }
+.info-poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.info-head { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+
+/* Same TMDB clear-logo swap as the home hero (see .hero-info.has-logo) --
+   replaces the plain text <h1> with transparent title art when TMDB has
+   one for this title, falls back to text automatically otherwise. */
+.info-logo { display: none; }
+.info-head.has-logo .info-title { display: none; }
+.info-head.has-logo .info-logo { display: block; max-width: 380px; max-height: 130px; width: auto; height: auto; object-fit: contain; object-position: left center; filter: drop-shadow(0 4px 18px rgba(0,0,0,.6)); }
+@media (max-width: 768px) { .info-head.has-logo .info-logo { max-width: 82%; max-height: 110px; margin: 0 auto; } }
+
+.meta-pill.meta-sub, .meta-pill.meta-dub { display: inline-flex; align-items: center; gap: 5px; }
+.meta-pill.meta-dub { color: var(--teal, #2dd4bf); }
+.meta-pill .icon-inline { width: 13px; height: 13px; }
+.info-eyebrow { display: inline-flex; align-items: center; gap: 9px; color: rgba(255,255,255,.7); font-size: .76rem; font-weight: 700; letter-spacing: .16em; text-transform: uppercase; }
+.info-eyebrow .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+.info-title { font-size: clamp(1.6rem, 3.2vw, 2.6rem); font-weight: 800; line-height: 1.1; margin: 0; text-shadow: 0 6px 24px rgba(0,0,0,.6); }
+.info-subtitle { font-size: .92rem; color: rgba(255,255,255,.6); font-weight: 500; }
+.info-meta-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.meta-pill { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.08); padding: 5px 12px; border-radius: var(--radius-pill); font-size: .82rem; font-weight: 600; color: rgba(255,255,255,.85); backdrop-filter: blur(6px); }
+.meta-pill.meta-score { color: var(--gold); }
+.meta-pill.meta-status-airing { color: var(--teal); }
+.info-genres { display: flex; gap: 8px; flex-wrap: wrap; }
+.info-genre-tag { background: rgba(255,255,255,.06); border: 1px solid rgba(255,255,255,.08); padding: 5px 12px; border-radius: var(--radius-pill); font-size: .74rem; font-weight: 600; color: rgba(255,255,255,.85); transition: var(--trans); }
+.info-genre-tag:hover { background: rgba(255,255,255,.12); transform: translateY(-1px); color: #fff; }
+.info-cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.info-cta .btn-watch { display: inline-flex; align-items: center; gap: 9px; padding: 13px 26px; border-radius: var(--radius-md); background: var(--grad-accent); color: #fff; font-weight: 700; font-size: .92rem; text-decoration: none; border: none; cursor: pointer; box-shadow: 0 10px 28px var(--accent-glow); transition: var(--trans); }
+.info-cta .btn-watch:hover { transform: translateY(-2px); box-shadow: 0 16px 36px var(--accent-glow); }
+.info-cta .btn-secondary { display: inline-flex; align-items: center; gap: 8px; padding: 13px 20px; border-radius: var(--radius-md); background: rgba(255,255,255,.08); color: #fff; font-weight: 600; font-size: .88rem; border: 1px solid rgba(255,255,255,.1); cursor: pointer; transition: var(--trans); }
+.info-cta .btn-secondary:hover { background: rgba(255,255,255,.14); }
+
+.info-body { padding: 40px 0 72px; }
+.info-body .info-section { margin-bottom: 44px; }
+.info-body .info-section-title { display: flex; align-items: center; gap: 10px; font-size: 1.15rem; font-weight: 700; margin: 0 0 16px; }
+.info-body .info-section-title::before { content: ''; width: 4px; height: 20px; border-radius: 2px; background: var(--grad-accent); flex-shrink: 0; }
+.info-grid-2 { display: grid; grid-template-columns: minmax(0,2fr) minmax(0,1fr); gap: 32px; align-items: start; }
+.info-desc { font-size: .94rem; line-height: 1.75; color: var(--text-secondary); margin: 0; position: relative; max-height: 22em; overflow: hidden; transition: max-height .3s ease; }
+.info-desc.expanded { max-height: 200em; }
+.info-desc::after { content: ''; position: absolute; inset: auto 0 0 0; height: 3em; background: linear-gradient(180deg, transparent 0%, var(--bg-base) 100%); pointer-events: none; transition: opacity .3s ease; }
+.info-desc.expanded::after { opacity: 0; }
+.info-desc-toggle { display: inline-block; margin-top: 8px; color: var(--accent-2); font-weight: 700; font-size: .85rem; cursor: pointer; background: none; border: none; padding: 0; }
+.info-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; background: rgba(255,255,255,.02); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 20px; }
+.info-stat-row { display: flex; flex-direction: column; gap: 4px; }
+.info-stat-row .label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .1em; color: var(--text-muted); }
+.info-stat-row .value { font-size: .92rem; font-weight: 700; color: var(--text-primary); }
+.info-tags { display: flex; flex-wrap: wrap; gap: 6px; }
+.info-tag { background: rgba(255,255,255,.04); border: 1px solid var(--border); padding: 4px 10px; border-radius: 6px; font-size: .72rem; font-weight: 600; color: var(--text-secondary); }
+
+/* Used by streamWatchOn() (src/lib/stream-services.ts) wherever it's
+   rendered — the "Show more" toggle and the region-restriction tooltip. */
+.stream-hidden { display: none !important; }
+.stream-region-tip { position: relative; display: inline-flex; align-items: center; cursor: default; }
+.stream-region-tip .stream-tooltip { display: none; position: absolute; bottom: calc(100% + 5px); left: 50%; transform: translateX(-50%); background: var(--bg-card); color: #fff; font-size: .7rem; white-space: nowrap; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--border); pointer-events: none; z-index: 99; }
+.stream-region-tip:hover .stream-tooltip { display: block; }
+
+/* Character cards reuse .anime-card (same as posters everywhere else) but
+   get a circular photo instead, matching Anivexa's avatar treatment — the
+   .char-card modifier class strips the normal card chrome. */
+.anime-card.char-card { background: none; border: none; box-shadow: none; text-align: center; }
+.anime-card.char-card:hover { transform: none; box-shadow: none; border-color: transparent; }
+.char-card-poster { aspect-ratio: 1/1; border-radius: 50%; border: 2px solid rgba(255,255,255,.08); position: relative; }
+.anime-card.char-card:hover .char-card-poster img { transform: scale(1.08); }
+
+@media (max-width: 880px) {
+  .info-hero-inner { flex-direction: column; align-items: center; text-align: center; padding: 76px 20px 36px; gap: 20px; }
+  .info-poster { flex: 0 0 170px; width: 170px; }
+  .info-meta-row, .info-genres, .info-cta { justify-content: center; }
+  .info-grid-2 { grid-template-columns: 1fr; }
+  .info-hero { min-height: auto; }
+  .info-body { padding: 32px 20px 72px; }
+
+  /* No real banner: on mobile a stretched-and-blurred portrait poster looks
+     smeared (it's being upscaled well past its real resolution to cover a
+     landscape strip). Instead hide the small floating poster box and let
+     the poster itself be the sharp, cropped hero image — same idea as the
+     home page's mobile cover swap, and much closer to Anivexa's own look. */
+  .info-hero-no-banner .info-poster { display: none; }
+  .info-hero-no-banner .info-hero-bg { filter: none; background-position: center top; transform: scale(1); }
+}
+
+/* ==========================================================================
+   Profile page ("/profile") — Anivexa-style layout
+   ========================================================================== */
+
+.profile-avatar-wrap { cursor: pointer; }
+.profile-avatar-edit-overlay { position: absolute; inset: 4px; border-radius: 50%; background: rgba(0,0,0,.55); display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 2px; opacity: 0; transition: opacity .2s; font-size: .65rem; color: #fff; line-height: 1.2; pointer-events: none; text-align: center; }
+.profile-avatar-wrap:hover .profile-avatar-edit-overlay { opacity: 1; }
+.profile-hero-email { font-size: .88rem; color: var(--text-secondary); margin: 0; }
+.u-banner-remove-btn { position: absolute; top: 16px; right: 168px; z-index: 3; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; background: rgba(0,0,0,.5); backdrop-filter: blur(8px); border: 1px solid var(--glass-border); color: #fff; border-radius: 50%; cursor: pointer; transition: var(--trans); }
+.u-banner-remove-btn:hover { background: rgba(232,69,60,.7); border-color: var(--accent-2); }
+.u-pronouns { font-size: .8rem; font-weight: 600; color: var(--text-muted); }
+.u-tagline { font-size: .88rem; color: var(--text-secondary); margin: 2px 0 0; }
+.u-tagline-empty a { color: var(--accent-2); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+.u-tagline-empty a:hover { text-decoration: underline; }
+.u-social-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.u-social-link { display: inline-flex; align-items: center; gap: 7px; font-size: .78rem; font-weight: 600; color: var(--text-secondary); background: rgba(255,255,255,.04); border: 1px solid var(--border); border-radius: var(--radius-pill); padding: 7px 13px; text-decoration: none; transition: var(--trans); }
+.u-social-link svg.icon { flex-shrink: 0; width: 15px; height: 15px; transition: color .15s ease; }
+.u-social-link:hover { color: #fff; border-color: var(--platform-color, var(--border-accent)); background: color-mix(in srgb, var(--platform-color, var(--accent)) 18%, transparent); }
+.u-social-link:hover svg.icon { color: var(--platform-color, #fff); }
+
+@media (max-width: 480px) {
+  /* Collapse to icon-only circles once there isn't room for 6-8 labelled
+     pills on one line — title attribute still gives the name on long-press. */
+  .u-social-link { width: 38px; height: 38px; padding: 0; justify-content: center; border-radius: 50%; }
+  .u-social-link span { display: none; }
+}
+
+.profile-stat-strip { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1px; background: var(--border); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; margin: 24px clamp(20px, 5vw, 64px) 28px; position: relative; z-index: 3; }
+.profile-stat-box { background: var(--bg-surface); padding: 14px 10px; text-align: center; }
+.profile-stat-val { font-size: 1.25rem; font-weight: 800; display: block; }
+.profile-stat-label { font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-top: 2px; }
+
+@media (max-width: 560px) {
+  .u-banner-remove-btn { display: none; }
+}
+
+.profile-columns { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 32px; align-items: start; }
+.profile-side { min-width: 0; }
+
+/* Reuse the anime-page section-title bar generically (it's normally scoped
+   to .info-body, but the profile tabs live outside that wrapper). */
+.info-section-title { display: flex; align-items: center; gap: 10px; font-size: 1.05rem; font-weight: 700; margin: 0 0 14px; }
+.info-section-title::before { content: ''; width: 4px; height: 18px; border-radius: 2px; background: var(--grad-accent); flex-shrink: 0; }
+
+/* -- tabs -- */
+.profile-tabs { display: flex; gap: 4px; background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 4px; margin-bottom: 24px; max-width: fit-content; }
+.profile-tab-btn { display: flex; align-items: center; gap: 7px; background: none; border: none; padding: 9px 18px; border-radius: 8px; color: var(--text-secondary); font-family: var(--font-body); font-weight: 600; font-size: .85rem; cursor: pointer; transition: var(--trans); white-space: nowrap; }
+.profile-tab-btn:hover { color: var(--text-primary); }
+.profile-tab-btn.active { background: var(--accent-glow); color: #fff; }
+.profile-tab-panel[hidden] { display: none; }
+
+/* -- settings rows (Account / Connections tabs) -- */
+.settings-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+.settings-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 18px; border-bottom: 1px solid var(--border); }
+.settings-row:last-child { border-bottom: none; }
+.settings-row:is(a):hover { background: var(--bg-hover); }
+.settings-row-label { min-width: 0; }
+.settings-row-name { font-weight: 600; font-size: .92rem; display: flex; align-items: center; gap: 8px; }
+.settings-row-desc { font-size: .8rem; color: var(--text-secondary); margin-top: 3px; }
+
+@media (max-width: 900px) {
+  .profile-columns { grid-template-columns: minmax(0, 1fr); }
+  .profile-stat-strip { grid-template-columns: repeat(2, 1fr); margin-left: 16px; margin-right: 16px; }
+  .u-avatar { width: 96px; height: 96px; font-size: 2.1rem; }
+  .profile-tabs { max-width: 100%; overflow-x: auto; }
+}
+
+/* ==========================================================================
+   Public user profile ("/u/:username") — banner + header + stat strip
+   ========================================================================== */
+
+.u-hero { position: relative; }
+.u-banner { width: 100%; height: 260px; background-size: cover; background-position: center 35%; position: relative; }
+.u-banner-fallback { background: radial-gradient(120% 140% at 12% 0%, var(--accent-dim) 0%, var(--bg-base) 65%); }
+.u-banner::after { content: ''; position: absolute; inset: 0; background: linear-gradient(180deg, rgba(8,8,8,0) 45%, var(--bg-base) 100%); pointer-events: none; }
+.u-banner-edit-btn { position: absolute; top: 16px; right: 16px; z-index: 3; display: flex; align-items: center; gap: 6px; background: rgba(0,0,0,.5); backdrop-filter: blur(8px); border: 1px solid var(--glass-border); color: #fff; padding: 8px 16px; border-radius: var(--radius-pill); font-size: .8rem; font-weight: 600; font-family: var(--font-body); cursor: pointer; transition: var(--trans); }
+.u-banner-edit-btn:hover { background: rgba(0,0,0,.75); border-color: var(--border-accent); }
+.u-banner-status { position: absolute; top: 20px; right: 190px; z-index: 3; font-size: .78rem; color: rgba(255,255,255,.75); }
+
+/* Avatar sits half-on/half-off the banner: the header is pulled up by
+   exactly half the avatar's height, and avatar + username are vertically
+   centered together so the name lines up with the middle of the avatar.
+   Bio/joined-date/edit-button live outside this row, below it. */
+.u-header { display: flex; gap: 18px; align-items: center; flex-wrap: wrap; margin-top: -56px; position: relative; z-index: 2; padding: 0 0 10px; }
+.u-avatar-wrap { position: relative; flex-shrink: 0; }
+.u-avatar { width: 112px; height: 112px; font-size: 2.4rem; border: 4px solid var(--bg-base); box-shadow: 0 10px 30px rgba(0,0,0,.6); }
+.u-role-badge { position: absolute; bottom: -2px; right: -2px; background: var(--grad-accent); color: #fff; border-radius: 20px; font-size: .62rem; padding: 3px 9px; font-weight: 800; letter-spacing: .04em; border: 2px solid var(--bg-base); }
+.u-username { font-size: clamp(1.3rem, 3vw, 1.6rem); font-weight: 800; margin: 0; display: flex; align-items: center; gap: 8px; }
+.u-username button { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 2px; display: inline-flex; }
+.u-username button:hover { color: #fff; }
+.u-name-block { flex: 1; min-width: 140px; display: flex; flex-direction: column; gap: 4px; }
+.u-header-actions { align-self: flex-end; padding-bottom: 6px; }
+.u-header-meta { margin: 4px 0 20px; }
+.u-bio { color: var(--text-secondary); font-size: .92rem; line-height: 1.65; margin: 0; max-width: 560px; }
+.u-joined { font-size: .78rem; margin: 0; }
+
+@media (max-width: 560px) {
+  .u-header { padding-bottom: 4px; }
+  .u-header-actions { align-self: flex-start; width: 100%; order: 3; margin-top: 4px; }
+  .u-header-actions .btn { width: 100%; justify-content: center; }
+}
+
+.u-stat-strip { margin: 24px 0 28px; }
+.profile-stat-box.clickable { cursor: pointer; transition: var(--trans); }
+.profile-stat-box.clickable:hover { background: var(--bg-hover); }
+
+/* Scoped tab restyle — reuses the site's existing .tab-btn/.tab-content
+   JS (app.js toggles by class + data-tab, untouched) but only repaints
+   the look inside .u-tabs so anime/character/list pages elsewhere keep
+   their own tab style. */
+.u-tabs { position: relative; }
+.u-tabs .tabs { display: flex; gap: 4px; background: rgba(255,255,255,.03); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 4px; margin-bottom: 20px; overflow-x: auto; scrollbar-width: none; }
+.u-tabs .tabs::-webkit-scrollbar { display: none; }
+.u-tabs .tab-btn { border-bottom: none !important; border-radius: 8px; padding: 9px 16px; font-size: .85rem; white-space: nowrap; }
+.u-tabs .tab-btn.active { background: var(--accent-glow); color: #fff; }
+/* Right-edge fade hinting there's more to scroll to; JS toggles this off
+   once the user has scrolled the tab bar to its end. */
+.u-tabs::after {
+  content: '';
+  position: absolute; top: 4px; right: 1px; bottom: 24px; width: 36px;
+  background: linear-gradient(to right, transparent, var(--bg-base) 80%);
+  pointer-events: none; border-radius: 0 var(--radius-md) var(--radius-md) 0;
+  opacity: 1; transition: opacity .15s ease;
+}
+.u-tabs.at-scroll-end::after { opacity: 0; }
+
+@media (max-width: 720px) {
+  .u-banner { height: 190px; }
+  .u-header { margin-top: -42px; }
+  .u-avatar { width: 84px; height: 84px; font-size: 1.9rem; }
+  .u-banner-edit-btn { padding: 6px 12px; font-size: .72rem; top: 12px; right: 12px; }
+  .u-banner-status { display: none; }
+}
+
+/* ── Browse/Discover filter components ───────────────────────────────
+   Shared pill-toggle group + active-filter chips + mobile filter drawer,
+   used by /browse and echoed lightly on /top, /seasonal for a consistent
+   filtering feel across the discovery pages. */
+
+.filter-pill-group { display: flex; flex-wrap: wrap; gap: 8px; }
+.filter-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 8px 14px; border-radius: var(--radius-pill, 999px);
+  background: rgba(255,255,255,.03); border: 1px solid var(--border);
+  color: var(--text-secondary); font-size: .83rem; font-weight: 600;
+  cursor: pointer; transition: var(--trans); user-select: none; text-decoration: none;
+}
+.filter-pill:hover { border-color: var(--border-accent); color: var(--text-primary); }
+.filter-pill.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+
+.filter-section { padding: 16px; border-bottom: 1px solid var(--border); }
+.filter-section:last-child { border-bottom: none; }
+.filter-section-label { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--text-muted); margin-bottom: 10px; }
+.filter-search-wrap { position: relative; }
+.filter-search-wrap svg.icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); width: 15px; height: 15px; color: var(--text-muted); pointer-events: none; }
+.filter-search-wrap input { padding-left: 34px; }
+
+.filter-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--border); }
+.filter-panel-title { font-size: .88rem; font-weight: 800; display: flex; align-items: center; gap: 8px; }
+.filter-clear-link { font-size: .76rem; color: var(--accent); text-decoration: none; font-weight: 600; }
+.filter-clear-link:hover { text-decoration: underline; }
+
+/* Active filter chips shown above the results grid */
+.active-filters-row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
+.active-filter-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 8px 6px 12px; border-radius: var(--radius-pill, 999px);
+  background: var(--accent-glow); border: 1px solid var(--border-accent);
+  color: var(--text-primary); font-size: .78rem; font-weight: 600; text-decoration: none;
+}
+.active-filter-chip svg.icon { width: 13px; height: 13px; opacity: .8; }
+.active-filter-chip:hover svg.icon { opacity: 1; }
+
+/* Mobile filter toggle button — hidden on desktop where the sidebar is
+   always visible; shown only under the breakpoint where layout-sidebar
+   collapses to a single column (see style.css @720/900px rules). */
+.filter-toggle-btn { display: none; align-items: center; gap: 8px; margin-bottom: 16px; }
+.filter-toggle-count { background: var(--accent); color: #fff; border-radius: 999px; font-size: .68rem; font-weight: 800; padding: 1px 7px; }
+
+.filter-drawer-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 900; }
+.filter-drawer-backdrop.open { display: block; }
+
+@media (max-width: 900px) {
+  .filter-toggle-btn { display: inline-flex; }
+  /* On mobile the sidebar becomes a slide-in drawer instead of a block
+     that pushes the results down the page. */
+  .layout-sidebar > aside { position: fixed; top: 0; left: 0; bottom: 0; width: min(340px, 86vw); z-index: 901; transform: translateX(-100%); transition: transform .25s ease; overflow-y: auto; }
+  .layout-sidebar > aside.open { transform: translateX(0); }
+  .layout-sidebar > aside .sidebar { border-radius: 0; height: 100%; position: static; top: 0; }
+}
+

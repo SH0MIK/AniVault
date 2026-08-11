@@ -1004,6 +1004,24 @@ h3 { font-size: 1.1rem; }
   z-index: 2;
 }
 
+.anime-card-dub {
+  position: absolute;
+  bottom: 8px;
+  left: 8px;
+  background: rgba(0,0,0,0.8);
+  color: var(--teal, #2dd4bf);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: .02em;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  z-index: 2;
+}
+.anime-card-dub .icon { width: 10px; height: 10px; }
+
 .anime-card-user-status {
   position: absolute;
   top: 8px;
