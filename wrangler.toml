@@ -40,7 +40,7 @@ crons = ["0 * * * *", "0 3 * * *"]
 
 [vars]
 SITE_NAME = "AniVault"
-SITE_URL = "https://beta.anivault.co"
+SITE_URL = "https://www.anivault.co"
 SESSION_LIFETIME_SECONDS = "86400"
 GOOGLE_REDIRECT_URI = "https://www.anivault.co/pages/oauth_google.php"
 DISCORD_REDIRECT_URI = "https://www.anivault.co/pages/oauth_discord.php"
