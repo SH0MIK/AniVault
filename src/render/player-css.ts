@@ -101,6 +101,23 @@ export const PLAYER_CSS = `<style id="sp-skin">
 #sp-video-area:fullscreen #sp-ctrl-bar,
 #sp-video-area:-webkit-full-screen #sp-ctrl-bar{padding-bottom:18px}
 
+/* iOS Safari fallback fullscreen — iOS doesn't support the Fullscreen API on
+   non-<video> elements, so we fake it with fixed positioning instead. */
+#sp-video-area.sp-ios-fs{
+  position:fixed!important;
+  top:0;left:0;right:0;bottom:0;
+  width:100vw!important;height:100vh!important;
+  max-width:none!important;max-height:none!important;
+  aspect-ratio:unset!important;
+  z-index:2147483000;
+  border-radius:0!important;
+  background:#000;
+  padding-top:env(safe-area-inset-top);
+  padding-bottom:env(safe-area-inset-bottom);
+}
+#sp-video-area.sp-ios-fs #sp-ctrl-bar{padding-bottom:18px}
+html.sp-ios-fs-lock,html.sp-ios-fs-lock body{overflow:hidden!important;height:100%!important}
+
 @media (max-width:640px){
   .sp-vol{width:44px}
   .sp-time{font-size:.62rem}
