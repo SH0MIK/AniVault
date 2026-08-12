@@ -6,6 +6,7 @@ import type { Env } from '../../index';
 import { buildAdminCtx } from '../../lib/admin-ctx';
 import { h } from '../../lib/helpers';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
+import { Logger } from '../../lib/logger';
 
 export const adminWatchStatsRoutes = new Hono<{ Bindings: Env }>();
 
@@ -16,11 +17,33 @@ function fmtTime(secs: number): string {
   return hrs > 0 ? `${hrs}h ${mins}m` : `${mins}m`;
 }
 
-adminWatchStatsRoutes.get('/admin/watch_stats.php', async (c) => {
+// Matches the save_progress write-gate in api-lists.ts, which now only
+// skips writing when episode_duration is unknown (null/0) -- so "null"
+// here means the same: no duration or no watch_time recorded. Rows with
+// real (even small) progress are left alone.
+
+adminWatchStatsRoutes.on(['GET', 'POST'], '/admin/watch_stats.php', async (c) => {
   const ctx = await buildAdminCtx(c);
   const siteUrl = c.env.SITE_URL;
   if (!ctx) return c.redirect(siteUrl + '/');
-  const { db, session, lifetime, isOwner, impersonating } = ctx;
+  const { db, session, lifetime, isOwner, impersonating, userId } = ctx;
+
+  if (c.req.method === 'POST') {
+    const body = await c.req.parseBody();
+    const action = (body.action as string) ?? '';
+    if (action === 'purge_null_watch') {
+      const result = await db.query(
+        `DELETE FROM watch_history
+         WHERE watch_time IS NULL OR watch_time = 0
+            OR episode_duration IS NULL OR episode_duration = 0`
+      );
+      const removed = result.meta?.changes ?? 0;
+      await Logger.log(db, userId, 'admin_purge_watch_history', `Purged ${removed} null watch_history rows`);
+      session.setFlash('success', `✅ Removed ${removed} null watch log entries.`);
+    }
+    await session.save(c, lifetime);
+    return c.redirect(`${siteUrl}/admin/watch_stats.php`);
+  }
 
   const search = (c.req.query('search') ?? '').trim();
   const animeQ = (c.req.query('anime') ?? '').trim();
@@ -82,11 +105,15 @@ adminWatchStatsRoutes.get('/admin/watch_stats.php', async (c) => {
   }
   const maxCnt = Math.max(1, ...days.map((d) => d.cnt));
 
+  const flash = session.takeFlash();
+  const suc = flash?.type === 'success' ? flash.message : null;
+
   let html = renderAdminHeader({ siteUrl, pageTitle: 'Watch Stats', adminPage: 'watch_stats', isOwner, impersonating });
   const dateLabel = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
 
   html += `
 <div class="admin-header"><div><h1>📺 Watch Stats</h1><p class="text-muted" style="font-size:0.9rem;">What your users are watching</p></div><span class="text-muted" style="font-size:0.85rem;">${dateLabel}</span></div>
+${suc ? `<div class="alert alert-success mb-2">${h(suc)}</div>` : ''}
 
 <div class="admin-kpi" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:1.5rem;">
   <div class="kpi-card blue"><div class="kpi-icon">▶</div><div class="kpi-value">${totalWatches.toLocaleString('en-US')}</div><div class="kpi-label">Total Episode Views</div></div>
@@ -149,6 +176,10 @@ adminWatchStatsRoutes.get('/admin/watch_stats.php', async (c) => {
 
 <div class="card card-body">
   <div class="flex-between mb-2"><h2>🗂 Watch Log</h2><span class="text-muted" style="font-size:0.85rem;">${totalRows.toLocaleString('en-US')} entries</span></div>
+  <form method="POST" class="mb-3" onsubmit="return confirm('Permanently delete all watch_history rows with null/zero watch time or duration? This cannot be undone.');">
+    <input type="hidden" name="action" value="purge_null_watch">
+    <button type="submit" class="btn btn-ghost" style="border-color:var(--accent,#e00);color:var(--accent,#e00);">🗑 Purge null watch logs</button>
+  </form>
   <form method="GET" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:1rem;">
     <input type="text" name="search" class="form-control" placeholder="Username..." value="${h(search)}" style="max-width:180px;">
     <input type="text" name="anime" class="form-control" placeholder="Anime title..." value="${h(animeQ)}" style="max-width:200px;">

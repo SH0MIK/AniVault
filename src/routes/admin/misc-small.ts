@@ -19,11 +19,26 @@ const ACTION_COLORS: Record<string, string> = {
   admin_delete_user: 'badge-dropped', admin_toggle_user: 'badge-onhold',
 };
 
-adminMiscSmallRoutes.get('/admin/activity.php', async (c) => {
+adminMiscSmallRoutes.on(['GET', 'POST'], '/admin/activity.php', async (c) => {
   const ctx = await buildAdminCtx(c);
   const siteUrl = c.env.SITE_URL;
   if (!ctx) return c.redirect(siteUrl + '/');
-  const { db, session, lifetime, isOwner, impersonating } = ctx;
+  const { db, session, lifetime, isOwner, impersonating, userId } = ctx;
+
+  if (c.req.method === 'POST') {
+    const body = await c.req.parseBody();
+    const action = (body.action as string) ?? '';
+    if (action === 'purge_auto_registered') {
+      const result = await db.query(
+        `DELETE FROM activity_log WHERE action = 'register' AND details LIKE 'Auto-created account%'`
+      );
+      const removed = result.meta?.changes ?? 0;
+      await Logger.log(db, userId, 'admin_purge_activity_log', `Purged ${removed} auto-registered-account entries from activity_log`);
+      session.setFlash('success', `✅ Removed ${removed} auto-registered-account log entries.`);
+    }
+    await session.save(c, lifetime);
+    return c.redirect(`${siteUrl}/admin/activity.php`);
+  }
 
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1);
   const limit = 50;
@@ -43,15 +58,24 @@ adminMiscSmallRoutes.get('/admin/activity.php', async (c) => {
   const total = await db.count(`SELECT COUNT(*) as cnt FROM activity_log l LEFT JOIN users u ON l.user_id=u.id ${where}`, params);
   const pages = Math.ceil(total / limit);
 
+  const flash = session.takeFlash();
+  const suc = flash?.type === 'success' ? flash.message : null;
+
   let html = renderAdminHeader({ siteUrl, pageTitle: 'Activity Log', adminPage: 'activity', isOwner, impersonating });
   html += `
 <div class="admin-header"><h1>📋 Activity Log</h1><span class="text-muted">${total.toLocaleString('en-US')} entries</span></div>
+${suc ? `<div class="alert alert-success mb-2">${h(suc)}</div>` : ''}
 
 <form method="GET" class="flex gap-1 mb-3" style="flex-wrap:wrap;">
   <input type="text" name="user" class="form-control" placeholder="Filter by username..." value="${h(user)}" style="max-width:220px;">
   <input type="text" name="action" class="form-control" placeholder="Filter by action..." value="${h(action)}" style="max-width:220px;">
   <button type="submit" class="btn btn-primary">Filter</button>
   ${(user || action) ? `<a href="activity.php" class="btn btn-ghost">Clear</a>` : ''}
+</form>
+
+<form method="POST" class="mb-3" onsubmit="return confirm('Permanently delete all auto-registered-account entries from the activity log? This cannot be undone.');">
+  <input type="hidden" name="action" value="purge_auto_registered">
+  <button type="submit" class="btn btn-ghost" style="border-color:var(--accent,#e00);color:var(--accent,#e00);">🗑 Purge old auto-registered-account logs</button>
 </form>
 
 <div class="card" style="overflow-x:auto;">
