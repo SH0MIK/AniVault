@@ -136,27 +136,11 @@ animeRoutes.get('/anime', async (c) => {
 
   <div class="container ih-inner">
     <div class="ih-thumb">
-      <img src="${h(backdrop || image)}" alt="${h(title)}">
+      <img src="${h(image || backdrop)}" alt="${h(title)}">
     </div>
 
     <div class="ih-content">
-      <div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;">
-        <div class="ih-plaintitle">${h(title)}</div>
-        ${hasSeriesLinks ? `
-        <div id="series-dropdown-wrap" style="position:relative;flex-shrink:0;">
-          <button id="series-dropdown-btn" onclick="toggleSeriesDropdown(event)"
-            style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);color:#fff;padding:5px 10px 5px 12px;border-radius:8px;font-size:0.78rem;font-weight:600;cursor:pointer;transition:background .15s;white-space:nowrap;"
-            onmouseover="this.style.background='rgba(255,255,255,0.14)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'"
-            aria-haspopup="listbox" aria-expanded="false">
-            <span id="series-btn-label">Season …</span>
-            <svg id="series-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;flex-shrink:0;"><polyline points="6 9 12 15 18 9"/></svg>
-          </button>
-          <div id="series-dropdown-menu" style="display:none;position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);z-index:200;background:var(--bg-card,#1a1a1a);border:1px solid var(--border);border-radius:10px;min-width:220px;max-width:300px;box-shadow:0 8px 24px rgba(0,0,0,.5);overflow:hidden;text-align:left;" role="listbox">
-            <div id="series-menu-loading" style="padding:12px 14px;font-size:0.82rem;color:var(--text-muted);text-align:center;">Loading series…</div>
-          </div>
-        </div>
-        <script>window.__seriesData = ${JSON.stringify({ currentId: id, currentTitle: title, siteUrl, entries: seriesEntries })};</script>` : ''}
-      </div>
+      <div class="ih-plaintitle">${h(title)}</div>
 
       ${titleLogo ? `<img class="ih-logo" src="${h(titleLogo)}" alt="${h(title)}" loading="eager">` : `<h1 class="ih-title">${h(title)}</h1>`}
       ${jpTitle && jpTitle !== title ? `<div class="ih-subtitle">${h(jpTitle)}</div>` : ''}
@@ -164,12 +148,12 @@ animeRoutes.get('/anime', async (c) => {
       <div class="ih-meta-row">
         ${anime.score ? `<span class="ih-meta-item ih-meta-score">${icon('star', 'icon-inline')} ${anime.score.toFixed(1)}</span>` : ''}
         <span class="ih-meta-item">${icon('tv', 'icon-inline')} ${h(anime.type || 'TV')}</span>
-        <span class="ih-meta-item">${airedSoFar !== null && airedSoFar > 0 && airedSoFar !== totalEps ? `Ep ${airedSoFar}/${totalEps || '?'} aired` : (totalEps ? totalEps + ' eps' : 'Unknown eps')}</span>
-        ${anime.duration ? `<span class="ih-meta-item">${h(anime.duration)}</span>` : ''}
+        <span class="ih-meta-item">${icon('clock', 'icon-inline')} ${airedSoFar !== null && airedSoFar > 0 && airedSoFar !== totalEps ? `Ep ${airedSoFar}/${totalEps || '?'} aired` : (totalEps ? totalEps + ' eps' : 'Unknown eps')}</span>
+        ${anime.duration ? `<span class="ih-meta-item">${icon('clock', 'icon-inline')} ${h(anime.duration)}</span>` : ''}
         ${anime.aired?.string ? `<span class="ih-meta-item">${icon('calendar', 'icon-inline')} ${h(anime.aired.string)}</span>` : ''}
         <span class="ih-meta-item${anime.status === 'Currently Airing' ? ' ih-meta-airing' : ''}">${h(anime.status || '—')}</span>
-        ${hasSub ? `<span class="ih-meta-item ih-meta-sub">${icon('captions', 'icon-inline')} Sub</span>` : ''}
-        ${hasDub ? `<span class="ih-meta-item ih-meta-dub">${icon('mic', 'icon-inline')} Dub</span>` : ''}
+        ${hasSub ? `<span class="ih-meta-item">${icon('captions', 'icon-inline')} Sub</span>` : ''}
+        ${hasDub ? `<span class="ih-meta-item">${icon('mic', 'icon-inline')} Dub</span>` : ''}
         <a href="https://anilist.co/search/anime?search=${encodeURIComponent(title)}" target="_blank" rel="noopener" class="ih-anilist-link">AniList ${icon('arrow-right', 'icon-inline')}</a>
       </div>
 
