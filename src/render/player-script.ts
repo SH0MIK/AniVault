@@ -263,7 +263,7 @@ if(popSpdList){
 
   /* iOS Safari has a longstanding bug where native <track> caption boxes
      are positioned against an internal default video size rather than the
-     actual CSS `aspect-ratio` box, so they can render outside the player
+     actual CSS \`aspect-ratio\` box, so they can render outside the player
      entirely. Giving the area an explicit pixel height (recalculated on
      resize) sidesteps it; overflow:hidden on #sp-video-area (see CSS) is
      the backstop in case a caption box still miscalculates. */
