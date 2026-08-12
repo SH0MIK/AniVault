@@ -22,12 +22,6 @@ import { DubStatus } from '../lib/dub-status';
 
 export const animeRoutes = new Hono<{ Bindings: Env }>();
 
-// icons.ts has no clock/external-link glyphs registered in the sprite, so
-// these two small ones (used only in the hero meta row) are inlined here
-// rather than growing the shared sprite for a single-page use.
-const CLOCK_ICON = '<svg class="icon icon-inline" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>';
-const EXTERNAL_ICON = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:2px;"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>';
-
 const SERIES_RELATION_TYPES = ['Sequel', 'Prequel', 'Alternative Version', 'Alternative Setting', 'Side Story', 'Parent Story', 'Full Story', 'Summary', 'Movie', 'Spin-off'];
 
 animeRoutes.get('/anime', async (c) => {
@@ -134,95 +128,91 @@ animeRoutes.get('/anime', async (c) => {
   const jTitle = JSON.stringify(title);
   const jImage = JSON.stringify(image);
 
-  const studioLine = (anime.studios ?? []).filter(Boolean).map((s: any) => s?.name ?? '').filter(Boolean).join(', ');
-  const sourceLine = anime.source || '';
-  const seasonYearLabel = anime.season && anime.year
-    ? `${String(anime.season).charAt(0).toUpperCase()}${String(anime.season).slice(1)} ${anime.year}`
-    : (anime.aired?.string || '—');
-
   html += `
-<section class="info-hero${hasBanner ? '' : ' info-hero-no-banner'}">
-  <div class="info-hero-bg${hasBanner ? '' : ' info-hero-bg-fallback'}" style="background-image:url('${h(backdrop)}')"></div>
-  <div class="container info-hero-inner">
-    ${image ? `
-    <div class="info-thumb">
-      <img src="${h(image)}" alt="${h(title)}">
-    </div>` : ''}
+<section class="ih-hero${hasBanner ? '' : ' ih-hero-no-banner'}">
+  <div class="ih-bg${hasBanner ? '' : ' ih-bg-fallback'}" style="background-image:url('${h(backdrop)}')"></div>
+  <div class="ih-bg-scrim"></div>
+  ${titleLogo ? `<img class="ih-logo-bg" src="${h(titleLogo)}" alt="" aria-hidden="true">` : ''}
 
-    <div class="info-head${titleLogo ? ' has-logo' : ''}">
-      ${titleLogo ? `<div class="info-subtitle">${h(title)}</div>` : ''}
+  <div class="container ih-inner">
+    <div class="ih-thumb">
+      <img src="${h(backdrop || image)}" alt="${h(title)}">
+    </div>
 
-      ${titleLogo ? `<img class="info-logo" src="${h(titleLogo)}" alt="${h(title)}" loading="eager">` : ''}
-      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <h1 class="info-title">${h(title)}</h1>
+    <div class="ih-content">
+      <div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;">
+        <div class="ih-plaintitle">${h(title)}</div>
         ${hasSeriesLinks ? `
         <div id="series-dropdown-wrap" style="position:relative;flex-shrink:0;">
           <button id="series-dropdown-btn" onclick="toggleSeriesDropdown(event)"
-            style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);color:#fff;padding:6px 12px 6px 14px;border-radius:8px;font-size:0.85rem;font-weight:600;cursor:pointer;transition:background .15s;white-space:nowrap;"
+            style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.1);color:#fff;padding:5px 10px 5px 12px;border-radius:8px;font-size:0.78rem;font-weight:600;cursor:pointer;transition:background .15s;white-space:nowrap;"
             onmouseover="this.style.background='rgba(255,255,255,0.14)'" onmouseout="this.style.background='rgba(255,255,255,0.08)'"
             aria-haspopup="listbox" aria-expanded="false">
             <span id="series-btn-label">Season …</span>
             <svg id="series-dropdown-arrow" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="transition:transform .2s;flex-shrink:0;"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
-          <div id="series-dropdown-menu" style="display:none;position:absolute;top:calc(100% + 6px);left:0;z-index:200;background:var(--bg-card,#1a1a1a);border:1px solid var(--border);border-radius:10px;min-width:220px;max-width:300px;box-shadow:0 8px 24px rgba(0,0,0,.5);overflow:hidden;" role="listbox">
+          <div id="series-dropdown-menu" style="display:none;position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);z-index:200;background:var(--bg-card,#1a1a1a);border:1px solid var(--border);border-radius:10px;min-width:220px;max-width:300px;box-shadow:0 8px 24px rgba(0,0,0,.5);overflow:hidden;text-align:left;" role="listbox">
             <div id="series-menu-loading" style="padding:12px 14px;font-size:0.82rem;color:var(--text-muted);text-align:center;">Loading series…</div>
           </div>
         </div>
         <script>window.__seriesData = ${JSON.stringify({ currentId: id, currentTitle: title, siteUrl, entries: seriesEntries })};</script>` : ''}
       </div>
 
-      <div class="info-meta-row">
-        ${anime.score ? `<span class="meta-pill meta-score">${icon('star', 'icon-inline')} ${anime.score.toFixed(1)}</span>` : ''}
-        <span class="meta-pill">${icon('tv', 'icon-inline')} ${h(anime.type || 'Anime')}</span>
-        <span class="meta-pill">${airedSoFar !== null && airedSoFar > 0 && airedSoFar !== totalEps ? `Ep ${airedSoFar}/${totalEps || '?'} aired` : (totalEps ? totalEps + ' eps' : 'Unknown eps')}</span>
-        ${anime.duration ? `<span class="meta-pill">${CLOCK_ICON} ${h(anime.duration)}</span>` : ''}
-        <span class="meta-pill">${icon('calendar', 'icon-inline')} ${h(seasonYearLabel)}</span>
-        <span class="meta-pill${anime.status === 'Currently Airing' ? ' meta-status-airing' : ''}">${h(anime.status || '—')}</span>
-        ${hasSub ? `<span class="meta-pill meta-sub">${icon('captions', 'icon-inline')} Sub</span>` : ''}
-        ${hasDub ? `<span class="meta-pill meta-dub">${icon('mic', 'icon-inline')} Dub</span>` : ''}
-        <a class="meta-pill meta-link" href="https://anilist.co/search/anime?search=${encodeURIComponent(title)}" target="_blank" rel="noopener">AniList ${EXTERNAL_ICON}</a>
+      ${titleLogo ? `<img class="ih-logo" src="${h(titleLogo)}" alt="${h(title)}" loading="eager">` : `<h1 class="ih-title">${h(title)}</h1>`}
+      ${jpTitle && jpTitle !== title ? `<div class="ih-subtitle">${h(jpTitle)}</div>` : ''}
+
+      <div class="ih-meta-row">
+        ${anime.score ? `<span class="ih-meta-item ih-meta-score">${icon('star', 'icon-inline')} ${anime.score.toFixed(1)}</span>` : ''}
+        <span class="ih-meta-item">${icon('tv', 'icon-inline')} ${h(anime.type || 'TV')}</span>
+        <span class="ih-meta-item">${airedSoFar !== null && airedSoFar > 0 && airedSoFar !== totalEps ? `Ep ${airedSoFar}/${totalEps || '?'} aired` : (totalEps ? totalEps + ' eps' : 'Unknown eps')}</span>
+        ${anime.duration ? `<span class="ih-meta-item">${h(anime.duration)}</span>` : ''}
+        ${anime.aired?.string ? `<span class="ih-meta-item">${icon('calendar', 'icon-inline')} ${h(anime.aired.string)}</span>` : ''}
+        <span class="ih-meta-item${anime.status === 'Currently Airing' ? ' ih-meta-airing' : ''}">${h(anime.status || '—')}</span>
+        ${hasSub ? `<span class="ih-meta-item ih-meta-sub">${icon('captions', 'icon-inline')} Sub</span>` : ''}
+        ${hasDub ? `<span class="ih-meta-item ih-meta-dub">${icon('mic', 'icon-inline')} Dub</span>` : ''}
+        <a href="https://anilist.co/search/anime?search=${encodeURIComponent(title)}" target="_blank" rel="noopener" class="ih-anilist-link">AniList ${icon('arrow-right', 'icon-inline')}</a>
       </div>
 
       ${(anime.genres?.length ?? 0) > 0 ? `
-      <div class="info-genres">
-        ${anime.genres.filter(Boolean).map((g) => `<a href="${siteUrl}/browse?genre=${g?.mal_id ?? ''}" class="info-genre-tag">${h(g?.name ?? '')}</a>`).join('')}
+      <div class="ih-genres">
+        ${anime.genres.filter(Boolean).map((g) => `<a href="${siteUrl}/browse?genre=${g?.mal_id ?? ''}" class="ih-genre-tag">${h(g?.name ?? '')}</a>`).join('')}
       </div>` : ''}
 
-      ${studioLine || sourceLine ? `
-      <div class="info-studio-line">
-        ${studioLine ? `<span><b>Studio:</b> ${h(studioLine)}</span>` : ''}
-        ${sourceLine ? `<span><b>Source:</b> ${h(sourceLine)}</span>` : ''}
-      </div>` : ''}
+      <div class="ih-infoline">
+        <span>Studio: <strong>${h((anime.studios ?? []).filter(Boolean).map((s) => s?.name ?? '').filter(Boolean).join(', ') || '—')}</strong></span>
+        <span>Source: <strong>${h(anime.source || '—')}</strong></span>
+      </div>
 
-      <div class="info-cta">
-        <a href="#episodes-section" class="btn-watch" onclick="var s=document.getElementById('episodes-section'); if(s) s.scrollIntoView({behavior:'smooth'});">
+      <div class="ih-cta">
+        <a href="#episodes-section" class="ih-btn-play" onclick="var s=document.getElementById('episodes-section'); if(s) s.scrollIntoView({behavior:'smooth'});">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
           Play Episode 1
         </a>
-        <button class="btn-secondary" onclick='addToList(${id}, ${jTitle}, ${jImage}, ${totalEps})'>
-          ${icon('heart', 'icon-inline')} ${userEntry ? `Edit in List` : `Add to list`}
+        <button class="ih-btn-secondary" onclick='addToList(${id}, ${jTitle}, ${jImage}, ${totalEps})'>
+          ${icon(userEntry ? 'edit' : 'heart', 'icon-inline')} ${userEntry ? 'Edit in List' : 'Add to list'}
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
-        <button class="btn-secondary" id="fav-btn" style="${isFav ? 'color:var(--accent-2)' : ''}" onclick='toggleFavorite(this, ${id}, ${jTitle}, ${jImage})'>
+        <button class="ih-btn-secondary ih-btn-subscribe" id="fav-btn" style="${isFav ? 'color:var(--accent-2)' : ''}" onclick='toggleFavorite(this, ${id}, ${jTitle}, ${jImage})'>
           ${icon('bell', 'icon-inline')} ${isFav ? 'Subscribed' : 'Subscribe'}
         </button>
       </div>
 
       <div id="anime-user-status" class="mt-2" data-total-eps="${totalEps}">
         ${userEntry ? `
-        <div class="flex gap-1" style="gap:8px;align-items:center;">
+        <div class="flex gap-1" style="gap:8px;align-items:center;justify-content:center;">
           <span id="anime-status-badge">${statusBadge(userEntry.status)}</span>
           <span id="anime-score-badge" style="color:var(--gold);font-size:0.9rem;">${userEntry.score ? `⭐ ${userEntry.score}/10` : ''}</span>
           <span id="anime-eps-badge" class="text-muted" style="font-size:0.85rem;">${totalEps > 0 ? `${userEntry.episodes_watched}/${totalEps} eps` : ''}</span>
         </div>
-        <div id="anime-progress-wrap" class="progress-bar mt-1" style="max-width:400px;${totalEps > 0 && userEntry.episodes_watched ? '' : 'display:none'}">
+        <div id="anime-progress-wrap" class="progress-bar mt-1" style="max-width:400px;margin-left:auto;margin-right:auto;${totalEps > 0 && userEntry.episodes_watched ? '' : 'display:none'}">
           <div id="anime-progress-fill" class="progress-fill" style="width:${totalEps > 0 ? Math.min(100, Math.round((userEntry.episodes_watched / totalEps) * 100)) : 0}%"></div>
         </div>` : `
-        <div class="flex gap-1" style="gap:8px;align-items:center;">
+        <div class="flex gap-1" style="gap:8px;align-items:center;justify-content:center;">
           <span id="anime-status-badge"></span>
           <span id="anime-score-badge" style="color:var(--gold);font-size:0.9rem;"></span>
           <span id="anime-eps-badge" class="text-muted" style="font-size:0.85rem;"></span>
         </div>
-        <div id="anime-progress-wrap" class="progress-bar mt-1" style="max-width:400px;display:none;"><div id="anime-progress-fill" class="progress-fill" style="width:0%"></div></div>`}
+        <div id="anime-progress-wrap" class="progress-bar mt-1" style="max-width:400px;margin-left:auto;margin-right:auto;display:none;"><div id="anime-progress-fill" class="progress-fill" style="width:0%"></div></div>`}
       </div>
     </div>
   </div>
