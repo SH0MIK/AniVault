@@ -70,8 +70,8 @@ export const CHARACTER_CSS = `/* ── Character page specific styles ── */
 }
 
 .char-nickname-tag {
-    background: rgba(232,69,60,0.1);
-    border: 1px solid rgba(232,69,60,0.25);
+    background: rgba(124,58,237,0.1);
+    border: 1px solid rgba(124,58,237,0.25);
     color: var(--accent);
     padding: 3px 10px;
     border-radius: 20px;

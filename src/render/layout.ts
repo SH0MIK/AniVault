@@ -73,7 +73,7 @@ ${og.type === 'video.episode' ? `
 <meta name="twitter:description" content="${h(og.description ?? '')}">
 <meta name="twitter:image" content="${h(og.image ?? '')}">
 <meta name="twitter:site" content="@AniVault">
-<meta name="theme-color" content="#e8453c">`
+<meta name="theme-color" content="#7c3aed">`
     : `
 <meta property="og:title" content="${h(o.siteName)}.co">
 <meta property="og:description" content="Watch all anime subbed & dubbed Ad-free on Anivault!">
@@ -87,7 +87,7 @@ ${og.type === 'video.episode' ? `
 <meta name="twitter:title" content="${h(o.siteName)}.co">
 <meta name="twitter:description" content="Watch all anime subbed & dubbed Ad-free on Anivault!">
 <meta name="twitter:image" content="${o.siteUrl}/assets/img/site-img/embed.png">
-<meta name="theme-color" content="#e8453c">`;
+<meta name="theme-color" content="#7c3aed">`;
 
   const bannerBlock = o.bannerEnabled && o.bannerMessage
     ? `<div style="padding:10px 20px;font-size:0.88rem;text-align:center;background:${BANNER_COLORS[o.bannerType ?? 'info']};border-bottom:1px solid ${BANNER_BORDERS[o.bannerType ?? 'info']};color:var(--text-primary);">${BANNER_ICONS[o.bannerType ?? 'info']} ${h(o.bannerMessage)}</div>`

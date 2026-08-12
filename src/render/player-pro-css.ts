@@ -1,9 +1,9 @@
 export const PLAYER_PRO_CSS = `<style id="sp-skin">
 /* ─── Tokens ────────────────────────────────────────────── */
 :root{
-  --sp-accent:#e8453c;
-  --sp-accent-rgb:232,69,60;
-  --sp-accent-glow:rgba(232,69,60,0.4);
+  --sp-accent:#7c3aed;
+  --sp-accent-rgb:124,58,237;
+  --sp-accent-glow:rgba(124,58,237,0.4);
   --sp-bg:#05070d;
   --sp-surface:#0f1219;
   --sp-surface2:#161b26;
@@ -11,8 +11,8 @@ export const PLAYER_PRO_CSS = `<style id="sp-skin">
   --sp-text:#e8eaf0;
   --sp-text-sub:rgba(232,234,240,0.6);
   --sp-text-muted:rgba(232,234,240,0.35);
-  --sp-border:rgba(232,69,60,0.15);
-  --sp-border2:rgba(232,69,60,0.08);
+  --sp-border:rgba(124,58,237,0.15);
+  --sp-border2:rgba(124,58,237,0.08);
   --sp-r:14px;
   --sp-hud:'Orbitron',monospace;
   --sp-body:'Exo 2',sans-serif;
@@ -25,7 +25,7 @@ export const PLAYER_PRO_CSS = `<style id="sp-skin">
   background:var(--sp-bg);
   font-family:var(--sp-body);
   border-radius:var(--sp-r);
-  box-shadow:0 0 0 1px var(--sp-border),0 0 28px rgba(232,69,60,0.07);
+  box-shadow:0 0 0 1px var(--sp-border),0 0 28px rgba(124,58,237,0.07);
   overflow:hidden;
   -webkit-tap-highlight-color:transparent;
 }
@@ -46,7 +46,7 @@ export const PLAYER_PRO_CSS = `<style id="sp-skin">
 /* ─── Spinner ───────────────────────────────────────────── */
 #sp-spinner{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;background:#000;opacity:1;transition:opacity .25s}
 #sp-spinner.hide{opacity:0;pointer-events:none}
-.sp-spin{width:46px;height:46px;border-radius:50%;border:2.5px solid transparent;border-top-color:var(--sp-accent);border-bottom-color:rgba(232,69,60,0.2);animation:sp-spin .75s linear infinite;box-shadow:0 0 12px var(--sp-accent-glow)}
+.sp-spin{width:46px;height:46px;border-radius:50%;border:2.5px solid transparent;border-top-color:var(--sp-accent);border-bottom-color:rgba(124,58,237,0.2);animation:sp-spin .75s linear infinite;box-shadow:0 0 12px var(--sp-accent-glow)}
 @keyframes sp-spin{to{transform:rotate(360deg)}}
 
 /* ─── Error ─────────────────────────────────────────────── */
@@ -71,7 +71,7 @@ export const PLAYER_PRO_CSS = `<style id="sp-skin">
 #sp-center{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);display:flex;align-items:center;gap:26px;z-index:18;opacity:0;pointer-events:none;transition:opacity .2s}
 #sp-center.show{opacity:1;pointer-events:auto}
 .sp-cr-btn{width:52px;height:52px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:rgba(8,10,18,.55);backdrop-filter:blur(6px);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:all .15s}
-.sp-cr-btn:hover{background:rgba(232,69,60,.35);border-color:var(--sp-accent)}
+.sp-cr-btn:hover{background:rgba(124,58,237,.35);border-color:var(--sp-accent)}
 .sp-cr-btn svg{width:22px;height:22px;fill:currentColor}
 #sp-cr-btn{width:64px;height:64px}
 #sp-cr-btn svg{width:28px;height:28px}
@@ -93,7 +93,7 @@ export const PLAYER_PRO_CSS = `<style id="sp-skin">
 #sp-sc-overlay{position:absolute;inset:0;z-index:70;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.82);backdrop-filter:blur(4px)}
 #sp-sc-overlay.show{display:flex}
 #sp-sc-overlay>div{background:var(--sp-surface2);border:1px solid var(--sp-border);border-radius:12px;padding:1.4rem 1.6rem;max-width:92%;width:380px}
-.sp-sc-title{font-family:var(--sp-hud);font-size:.65rem;font-weight:700;letter-spacing:.14em;color:rgba(232,69,60,.7);text-transform:uppercase;text-align:center;margin-bottom:.9rem}
+.sp-sc-title{font-family:var(--sp-hud);font-size:.65rem;font-weight:700;letter-spacing:.14em;color:rgba(124,58,237,.7);text-transform:uppercase;text-align:center;margin-bottom:.9rem}
 .sp-sc-grid{display:grid;grid-template-columns:auto 1fr;gap:.5rem 1rem;align-items:center}
 .sp-sc-key{font-family:var(--sp-hud);font-size:.62rem;color:var(--sp-accent);background:var(--sp-surface3);border:1px solid var(--sp-border);border-radius:5px;padding:3px 8px;white-space:nowrap;justify-self:start}
 .sp-sc-desc{font-size:.78rem;color:var(--sp-text-sub)}
@@ -110,9 +110,9 @@ export const PLAYER_PRO_CSS = `<style id="sp-skin">
 }
 #sp-topbar.hidden{opacity:0;pointer-events:none}
 .sp-top-title{font-family:var(--sp-hud);font-size:.72rem;font-weight:500;letter-spacing:.05em;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:60vw}
-.sp-top-ep{font-family:var(--sp-hud);font-size:.58rem;letter-spacing:.07em;color:rgba(232,69,60,.85);margin-top:3px}
+.sp-top-ep{font-family:var(--sp-hud);font-size:.58rem;letter-spacing:.07em;color:rgba(124,58,237,.85);margin-top:3px}
 .sp-top-right{display:flex;align-items:center;gap:8px}
-#sp-hls-badge{font-family:var(--sp-hud);font-size:.5rem;letter-spacing:.14em;color:rgba(232,69,60,.9);border:1px solid rgba(232,69,60,.4);border-radius:4px;padding:2px 6px;background:rgba(232,69,60,.1);flex-shrink:0}
+#sp-hls-badge{font-family:var(--sp-hud);font-size:.5rem;letter-spacing:.14em;color:rgba(124,58,237,.9);border:1px solid rgba(124,58,237,.4);border-radius:4px;padding:2px 6px;background:rgba(124,58,237,.1);flex-shrink:0}
 
 /* ─── Bottom controls bar ────────────────────────────────── */
 #sp-controls{
@@ -128,7 +128,7 @@ export const PLAYER_PRO_CSS = `<style id="sp-skin">
 #sp-prog-buf,#sp-prog-fill{position:absolute;top:0;left:0;height:100%;border-radius:2px}
 #sp-prog-buf{background:rgba(255,255,255,.32);width:0}
 #sp-prog-fill{background:var(--sp-accent);width:0;box-shadow:0 0 8px var(--sp-accent-glow)}
-#sp-prog-thumb{position:absolute;top:50%;left:0;width:13px;height:13px;border-radius:50%;background:var(--sp-accent);transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(232,69,60,.25);opacity:0;transition:opacity .15s}
+#sp-prog-thumb{position:absolute;top:50%;left:0;width:13px;height:13px;border-radius:50%;background:var(--sp-accent);transform:translate(-50%,-50%);box-shadow:0 0 0 3px rgba(124,58,237,.25);opacity:0;transition:opacity .15s}
 #sp-prog-area:hover #sp-prog-thumb,#sp-prog-area.dragging #sp-prog-thumb{opacity:1}
 #sp-prog-tip{position:absolute;bottom:100%;left:0;transform:translateX(-50%);margin-bottom:6px;background:rgba(8,10,18,.95);border:1px solid var(--sp-border);color:#fff;font-family:var(--sp-hud);font-size:.6rem;padding:3px 7px;border-radius:5px;opacity:0;pointer-events:none;transition:opacity .12s;white-space:nowrap}
 #sp-prog-area:hover #sp-prog-tip,#sp-prog-area.dragging #sp-prog-tip{opacity:1}
@@ -171,7 +171,7 @@ export const PLAYER_PRO_CSS = `<style id="sp-skin">
   background:rgba(10,12,20,.97);border:1px solid var(--sp-border);border-radius:12px;
   box-shadow:0 12px 32px rgba(0,0,0,.55);
   display:none;flex-direction:column;
-  scrollbar-width:thin;scrollbar-color:rgba(232,69,60,.35) transparent;
+  scrollbar-width:thin;scrollbar-color:rgba(124,58,237,.35) transparent;
 }
 .sp-menu.open{display:flex}
 .sp-tab-bar{display:flex;border-bottom:1px solid var(--sp-border);position:sticky;top:0;background:rgba(10,12,20,.97);z-index:1}
@@ -191,7 +191,7 @@ export const PLAYER_PRO_CSS = `<style id="sp-skin">
 .sp-speed-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
 .sp-speed-opt{padding:8px 2px;background:var(--sp-surface2);border:1px solid var(--sp-border);border-radius:7px;color:var(--sp-text-muted);font-family:var(--sp-hud);font-size:.6rem;cursor:pointer;transition:all .15s}
 .sp-speed-opt:hover{color:#fff;border-color:var(--sp-accent)}
-.sp-speed-opt.active{color:var(--sp-accent);border-color:var(--sp-accent);background:rgba(232,69,60,.1)}
+.sp-speed-opt.active{color:var(--sp-accent);border-color:var(--sp-accent);background:rgba(124,58,237,.1)}
 
 .sp-sub-item{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:7px;color:var(--sp-text-sub);font-size:.8rem;cursor:pointer;transition:background .15s}
 .sp-sub-item svg{width:13px;height:13px;fill:currentColor;flex-shrink:0;visibility:hidden}
@@ -227,7 +227,7 @@ export const PLAYER_PRO_CSS = `<style id="sp-skin">
 #sp-info-strip::-webkit-scrollbar{display:none}
 .sp-istat{position:relative;display:flex;align-items:center;gap:5px;padding:3px 8px;border-radius:6px;cursor:default;flex-shrink:0;transition:background .15s}
 .sp-istat:hover{background:rgba(255,255,255,.06)}
-.sp-istat svg{width:13px;height:13px;fill:rgba(232,69,60,.7);flex-shrink:0}
+.sp-istat svg{width:13px;height:13px;fill:rgba(124,58,237,.7);flex-shrink:0}
 .sp-istat-val{font-family:var(--sp-hud);font-size:.6rem;color:var(--sp-text-sub);letter-spacing:.02em;white-space:nowrap}
 .sp-istat-sep{width:1px;height:12px;background:var(--sp-border);margin:0 3px;flex-shrink:0}
 
@@ -262,7 +262,7 @@ export const PLAYER_PRO_CSS = `<style id="sp-skin">
   color:var(--sp-text-sub);font-family:var(--sp-body);font-size:.8rem;font-weight:500;
   cursor:pointer;text-decoration:none;transition:all .18s;
 }
-.sp-ep-nav-btn:hover{border-color:var(--sp-accent);color:#fff;background:rgba(232,69,60,.07)}
+.sp-ep-nav-btn:hover{border-color:var(--sp-accent);color:#fff;background:rgba(124,58,237,.07)}
 .sp-ep-nav-btn.disabled{opacity:.28;pointer-events:none;cursor:default}
 .sp-ep-nav-btn svg{width:16px;height:16px;fill:currentColor;flex-shrink:0}
 .sp-ep-nav-lbl{display:flex;flex-direction:column}
@@ -275,41 +275,41 @@ export const PLAYER_PRO_CSS = `<style id="sp-skin">
   display:flex;align-items:center;justify-content:space-between;
 }
 .sp-ep-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:6px;margin-top:2px;overflow:hidden}
-.sp-ep-grid.sp-ep-expanded{max-height:152px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(232,69,60,.35) transparent;padding-right:3px}
+.sp-ep-grid.sp-ep-expanded{max-height:152px;overflow-y:auto;scrollbar-width:thin;scrollbar-color:rgba(124,58,237,.35) transparent;padding-right:3px}
 .sp-ep-grid.sp-ep-expanded::-webkit-scrollbar{width:4px}
 .sp-ep-grid.sp-ep-expanded::-webkit-scrollbar-track{background:transparent}
-.sp-ep-grid.sp-ep-expanded::-webkit-scrollbar-thumb{background:rgba(232,69,60,.35);border-radius:2px}
+.sp-ep-grid.sp-ep-expanded::-webkit-scrollbar-thumb{background:rgba(124,58,237,.35);border-radius:2px}
 .sp-ep-chip{display:block;padding:7px 2px;background:var(--sp-surface2);border:1px solid var(--sp-border);border-radius:7px;text-align:center;font-family:var(--sp-hud);font-size:.62rem;color:var(--sp-text-muted);cursor:pointer;text-decoration:none;transition:all .15s}
-.sp-ep-chip:hover{border-color:var(--sp-accent);color:#fff;background:rgba(232,69,60,.08)}
-.sp-ep-chip.current{border-color:var(--sp-accent);background:rgba(232,69,60,.15);color:var(--sp-accent)}
+.sp-ep-chip:hover{border-color:var(--sp-accent);color:#fff;background:rgba(124,58,237,.08)}
+.sp-ep-chip.current{border-color:var(--sp-accent);background:rgba(124,58,237,.15);color:var(--sp-accent)}
 .sp-ep-chip.watched:not(.current){background:rgba(0,0,0,.4);border-color:rgba(255,255,255,.05);color:var(--sp-text-muted)}
 .sp-ep-chip.watched:not(.current):hover{background:rgba(0,0,0,.5)}
 .sp-ep-chip.sp-ep-extra{display:none}
 .sp-ep-grid.sp-ep-expanded .sp-ep-chip.sp-ep-extra{display:block}
 
 .sp-ep-more{display:flex;align-items:center;justify-content:center;gap:6px;width:100%;margin-top:12px!important;padding:9px;background:var(--sp-surface2);border:1px solid var(--sp-border);border-radius:8px;color:var(--sp-text-sub);font-family:var(--sp-hud);font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;cursor:pointer;transition:all .15s}
-.sp-ep-more:hover{border-color:var(--sp-accent);color:#fff;background:rgba(232,69,60,.08)}
+.sp-ep-more:hover{border-color:var(--sp-accent);color:#fff;background:rgba(124,58,237,.08)}
 .sp-ep-more svg{width:12px;height:12px;fill:currentColor;transition:transform .2s;flex-shrink:0}
 .sp-ep-more.sp-expanded svg{transform:rotate(180deg)}
 
 .sp-qual-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .sp-qopt{padding:10px 8px;background:var(--sp-surface2);border:1px solid var(--sp-border);border-radius:8px;cursor:pointer;text-align:center;transition:all .18s}
-.sp-qopt:hover{border-color:var(--sp-accent);background:rgba(232,69,60,.06)}
-.sp-qopt.active{border-color:var(--sp-accent);background:rgba(232,69,60,.12)}
+.sp-qopt:hover{border-color:var(--sp-accent);background:rgba(124,58,237,.06)}
+.sp-qopt.active{border-color:var(--sp-accent);background:rgba(124,58,237,.12)}
 .sp-qopt-lbl{font-family:var(--sp-hud);font-size:.8rem;font-weight:500;color:var(--sp-text)}
 .sp-qopt-sub{font-size:.65rem;color:var(--sp-text-muted);margin-top:4px;font-family:var(--sp-body)}
 
 .sp-spd-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
 .sp-sopt{padding:10px 4px;background:var(--sp-surface2);border:1px solid var(--sp-border);border-radius:8px;cursor:pointer;text-align:center;font-family:var(--sp-hud);font-size:.68rem;color:var(--sp-text-muted);transition:all .18s}
 .sp-sopt:hover{border-color:var(--sp-accent);color:var(--sp-text)}
-.sp-sopt.active{border-color:var(--sp-accent);color:var(--sp-accent);background:rgba(232,69,60,.1);text-shadow:0 0 8px rgba(232,69,60,.35)}
+.sp-sopt.active{border-color:var(--sp-accent);color:var(--sp-accent);background:rgba(124,58,237,.1);text-shadow:0 0 8px rgba(124,58,237,.35)}
 
 .sp-stat-bar{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px!important}
 .sp-stat-item{font-family:var(--sp-hud);font-size:.58rem;letter-spacing:.05em;color:var(--sp-text-muted)}
 .sp-stat-item span{color:var(--sp-accent)}
 .sp-buf-lbl{font-family:var(--sp-hud);font-size:.44rem;letter-spacing:.18em;color:var(--sp-text-muted);text-transform:uppercase;margin-bottom:6px!important}
 #sp-buf-chart{height:48px;background:var(--sp-surface2);border:1px solid var(--sp-border);border-radius:8px;overflow:hidden;display:flex;align-items:flex-end;padding:5px;gap:2px}
-.sp-buf-bar{flex:1;border-radius:3px 3px 0 0;background:rgba(232,69,60,.45);min-width:0;transition:height .4s,opacity .4s}
+.sp-buf-bar{flex:1;border-radius:3px 3px 0 0;background:rgba(124,58,237,.45);min-width:0;transition:height .4s,opacity .4s}
 
 .sp-keys-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .sp-key-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)}

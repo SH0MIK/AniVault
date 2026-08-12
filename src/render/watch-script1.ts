@@ -55,11 +55,11 @@ function _showFatalClientError(msg) {
     console.error('[AniVault player]', msg);
     var fs = document.getElementById('wp-finding-server');
     if (fs) {
-        fs.innerHTML = '<div class="wpfs-text" style="color:#e8453c;max-width:320px;text-align:center;">Player script error:<br><span style="font-size:0.8em;opacity:.85;">' + String(msg).replace(/</g,'&lt;') + '</span></div>';
+        fs.innerHTML = '<div class="wpfs-text" style="color:#7c3aed;max-width:320px;text-align:center;">Player script error:<br><span style="font-size:0.8em;opacity:.85;">' + String(msg).replace(/</g,'&lt;') + '</span></div>';
     }
     var pw = document.getElementById('watch-player-wrap');
     if (pw && !fs) {
-        pw.innerHTML = '<div style="padding:1rem;color:#e8453c;text-align:center;">Player script error: ' + String(msg).replace(/</g,'&lt;') + '</div>';
+        pw.innerHTML = '<div style="padding:1rem;color:#7c3aed;text-align:center;">Player script error: ' + String(msg).replace(/</g,'&lt;') + '</div>';
     }
 }
 window.addEventListener('error', function(e) {

@@ -70,7 +70,7 @@ export const PROFILE_CSS = `.avatar-cropper-modal {
 .toggle-switch:checked { background: var(--accent); border-color: var(--accent); }
 .toggle-switch:checked::after { transform: translateX(18px); }
 
-.danger-zone { border-color: rgba(232,69,60,.35); }
+.danger-zone { border-color: rgba(124,58,237,.35); }
 
 /* Social links inputs — icon-prefixed rows in the Account tab */
 .social-input-row { display: flex; align-items: center; gap: 10px; }

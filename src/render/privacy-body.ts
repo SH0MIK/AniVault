@@ -2,7 +2,7 @@ export function privacyBody(siteUrl: string, lastUpdated: string): string {
   return `
 <style>
 .legal-hero {
-  background: linear-gradient(135deg, rgba(232,69,60,0.08) 0%, transparent 60%);
+  background: linear-gradient(135deg, rgba(124,58,237,0.08) 0%, transparent 60%);
   border-bottom: 1px solid var(--border);
   padding: 3rem 0 2.5rem;
   margin-bottom: 0;
@@ -106,7 +106,7 @@ export function privacyBody(siteUrl: string, lastUpdated: string): string {
 }
 .toc-list a.active {
   color: var(--accent);
-  background: rgba(232,69,60,0.08);
+  background: rgba(124,58,237,0.08);
   border-left-color: var(--accent);
 }
 
@@ -129,7 +129,7 @@ export function privacyBody(siteUrl: string, lastUpdated: string): string {
   font-size: 0.7rem;
   font-weight: 800;
   color: var(--accent);
-  background: rgba(232,69,60,0.1);
+  background: rgba(124,58,237,0.1);
   border: 1px solid var(--border-accent);
   border-radius: var(--radius-sm);
   padding: 3px 8px;
@@ -198,7 +198,7 @@ export function privacyBody(siteUrl: string, lastUpdated: string): string {
   color: var(--accent);
   font-size: 0.9rem;
 }
-.legal-contact-card a:hover { color: #ff6b6b; }
+.legal-contact-card a:hover { color: #9d6ef8; }
 .legal-contact-label {
   font-size: 0.78rem;
   color: var(--text-muted);

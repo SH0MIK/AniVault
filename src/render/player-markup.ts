@@ -91,7 +91,7 @@ export function renderPlayerMarkup(p: PlayerMarkupProps): string {
     <!-- Keyboard shortcut overlay -->
     <div id="sp-sc-overlay">
       <div>
-        <div style="font-family:'Orbitron',monospace;font-size:.65rem;font-weight:700;letter-spacing:.14em;color:rgba(232,69,60,.5);text-transform:uppercase;text-align:center;margin-bottom:.9rem">Keyboard Shortcuts</div>
+        <div style="font-family:'Orbitron',monospace;font-size:.65rem;font-weight:700;letter-spacing:.14em;color:rgba(124,58,237,.5);text-transform:uppercase;text-align:center;margin-bottom:.9rem">Keyboard Shortcuts</div>
         <div class="sp-sc-grid">
           <span class="sp-sc-key">Space / K</span><span class="sp-sc-desc">Play / Pause</span>
           <span class="sp-sc-key">← / →</span><span class="sp-sc-desc">Seek ±10 seconds</span>
