@@ -43,9 +43,9 @@
   height: 240px;
   border-radius: 50%;
   border: 3px solid rgba(255, 255, 255, 0.06);
-  border-top: 3px solid #ff2a2a;
+  border-top: 3px solid #7c3aed;
   animation: av-spin 2s linear infinite;
-  filter: drop-shadow(0 0 10px rgba(255, 0, 0, 0.5)) drop-shadow(0 0 20px rgba(255, 0, 0, 0.25));
+  filter: drop-shadow(0 0 10px rgba(124, 58, 237, 0.5)) drop-shadow(0 0 20px rgba(124, 58, 237, 0.25));
 }
 
 .av-loader::after {
@@ -69,7 +69,7 @@
   width: 100%;
   display: block;
   animation: av-float 2.5s ease-in-out infinite, av-pulse 2s ease-in-out infinite;
-  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.12)) drop-shadow(0 0 20px rgba(255, 0, 0, 0.35));
+  filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.12)) drop-shadow(0 0 20px rgba(124, 58, 237, 0.35));
 }
 
 .av-loader .particle {
@@ -77,8 +77,8 @@
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #ff2a2a;
-  box-shadow: 0 0 10px #ff2a2a;
+  background: #7c3aed;
+  box-shadow: 0 0 10px #7c3aed;
 }
 
 .av-loader .p1 { top: 10%; left: 20%; animation: av-particle-float 3s infinite ease-in-out; }
