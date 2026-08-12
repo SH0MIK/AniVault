@@ -147,10 +147,10 @@ animeRoutes.get('/anime', async (c) => {
 
       <div class="ih-meta-row">
         ${anime.score ? `<span class="ih-meta-item ih-meta-score">${icon('star', 'icon-inline')} ${anime.score.toFixed(1)}</span>` : ''}
-        <span class="ih-meta-item">${icon('tv', 'icon-inline')} ${h(anime.type || 'TV')}</span>
-        <span class="ih-meta-item">${icon('clock', 'icon-inline')} ${airedSoFar !== null && airedSoFar > 0 && airedSoFar !== totalEps ? `Ep ${airedSoFar}/${totalEps || '?'} aired` : (totalEps ? totalEps + ' eps' : 'Unknown eps')}</span>
-        ${anime.duration ? `<span class="ih-meta-item">${icon('clock', 'icon-inline')} ${h(anime.duration)}</span>` : ''}
-        ${anime.aired?.string ? `<span class="ih-meta-item">${icon('calendar', 'icon-inline')} ${h(anime.aired.string)}</span>` : ''}
+        <span class="ih-meta-item">${icon('tv', 'icon-inline')} ${h(titleCase(anime.type || 'TV'))}</span>
+        <span class="ih-meta-item">${airedSoFar !== null && airedSoFar > 0 && airedSoFar !== totalEps ? `Ep ${airedSoFar}/${totalEps || '?'} aired` : (totalEps ? totalEps + ' eps' : 'Unknown eps')}</span>
+        ${anime.duration_mins ? `<span class="ih-meta-item">${icon('clock', 'icon-inline')} ${anime.duration_mins}m</span>` : ''}
+        ${seasonYearLabel(anime.start_date) ? `<span class="ih-meta-item">${icon('calendar', 'icon-inline')} ${h(seasonYearLabel(anime.start_date)!)}</span>` : ''}
         <span class="ih-meta-item${anime.status === 'Currently Airing' ? ' ih-meta-airing' : ''}">${h(anime.status || '—')}</span>
         ${hasSub ? `<span class="ih-meta-item">${icon('captions', 'icon-inline')} Sub</span>` : ''}
         ${hasDub ? `<span class="ih-meta-item">${icon('mic', 'icon-inline')} Dub</span>` : ''}
@@ -318,6 +318,25 @@ ${animeTailScript(animeDubConfirmed)}`;
 
 function infoStatRow(label: string, value: string | number): string {
   return `<div class="info-stat-row"><span class="label">${h(label)}</span><span class="value">${h(String(value))}</span></div>`;
+}
+
+// "2004-10-05" -> "Fall 2004" (Jan-Mar Winter, Apr-Jun Spring, Jul-Sep
+// Summer, Oct-Dec Fall — same quarter boundaries AniList uses), so the meta
+// row shows one compact season badge instead of a full aired date range.
+function seasonYearLabel(startDate: string | null | undefined): string | null {
+  if (!startDate) return null;
+  const d = new Date(startDate + 'T00:00:00Z');
+  if (isNaN(d.getTime())) return null;
+  const month = d.getUTCMonth() + 1;
+  const year = d.getUTCFullYear();
+  const season = month <= 3 ? 'Winter' : month <= 6 ? 'Spring' : month <= 9 ? 'Summer' : 'Fall';
+  return `${season} ${year}`;
+}
+
+// "TV" -> "Tv", "OVA" -> "Ova" — matches the reference's title-case badge
+// instead of MAL's all-caps media type.
+function titleCase(s: string): string {
+  return s.length ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s;
 }
 
 function renderEpisodeEditorModal(): string {
