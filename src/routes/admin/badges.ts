@@ -45,8 +45,8 @@ adminBadgesRoutes.on(['GET', 'POST'], '/admin/badges.php', async (c) => {
         imageUrl = `${siteUrl}/assets/img/badges/${filename}`;
       }
 
-      let color = ((formData.get('color') as string) ?? '#e8453c').trim();
-      if (!/^#[0-9a-fA-F]{6}$/.test(color)) color = '#e8453c';
+      let color = ((formData.get('color') as string) ?? '#7c3aed').trim();
+      if (!/^#[0-9a-fA-F]{6}$/.test(color)) color = '#7c3aed';
       const sortOrder = parseInt((formData.get('sort_order') as string) ?? '0', 10) || 0;
       const isAnimated = formData.get('is_animated') ? 1 : 0;
 
@@ -124,7 +124,7 @@ ${suc ? `<div class="alert alert-success mb-2">${h(suc)}</div>` : ''}
         <p class="text-muted" style="font-size:0.78rem;margin-top:4px;">PNG, JPG, WEBP, or GIF up to 2MB. GIF/animated WEBP work as animated badges.</p>
       </div>
       <div class="flex gap-1" style="align-items:end;flex-wrap:wrap;">
-        <div class="form-group" style="margin-bottom:0;"><label class="form-label">Color</label><input class="form-control" type="color" name="color" value="#e8453c" style="width:80px;padding:4px;"></div>
+        <div class="form-group" style="margin-bottom:0;"><label class="form-label">Color</label><input class="form-control" type="color" name="color" value="#7c3aed" style="width:80px;padding:4px;"></div>
         <div class="form-group" style="margin-bottom:0;"><label class="form-label">Sort</label><input class="form-control" type="number" name="sort_order" value="0" style="width:90px;"></div>
         <label class="flex" style="gap:8px;align-items:center;margin-bottom:8px;"><input type="checkbox" name="is_animated" value="1"> Animated</label>
       </div>

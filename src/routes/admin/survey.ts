@@ -89,7 +89,7 @@ adminSurveyRoutes.on(['GET', 'POST'], '/admin/survey.php', async (c) => {
 .sv-bar-fill { height: 100%; border-radius: 999px; transition: width 0.6s ease; }
 .sv-field label { display: block; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted, #888); margin-bottom: 6px; }
 .sv-field input, .sv-field textarea, .sv-field select { width: 100%; box-sizing: border-box; background: var(--bg-surface, #12121e); color: var(--text-primary, #f0f0f0); border: 1px solid var(--border, #2e2e45); border-radius: 8px; padding: 9px 12px; font-size: 0.87rem; font-family: inherit; outline: none; transition: border-color 0.2s; }
-.sv-field input:focus, .sv-field textarea:focus { border-color: var(--accent, #e8453c); }
+.sv-field input:focus, .sv-field textarea:focus { border-color: var(--accent, #7c3aed); }
 .sv-field textarea { resize: vertical; }
 </style>
 
@@ -147,7 +147,7 @@ ${suc ? `<div class="alert alert-success mb-2">✅ ${h(suc)}</div>` : ''}
         const dateStr = v.voted_at ? new Date(v.voted_at.replace(' ', 'T') + 'Z').toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZone: 'UTC' }) : '';
         return `
       <tr>
-        <td><a href="users.php?search=${encodeURIComponent(v.username)}" style="color:var(--accent,#e8453c);text-decoration:none;">${h(v.username)}</a></td>
+        <td><a href="users.php?search=${encodeURIComponent(v.username)}" style="color:var(--accent,#7c3aed);text-decoration:none;">${h(v.username)}</a></td>
         <td>${v.vote === 'ads' ? `<span style="color:#f59e0b;font-weight:600;">😶 Okay with Ads</span>` : `<span style="color:#a78bfa;font-weight:600;">💜 Will Donate</span>`}</td>
         <td style="font-size:0.82rem;color:var(--text-muted,#888);"><time class="local-ts" data-ts="${ts}" data-full="1">${dateStr}</time></td>
         <td><form method="POST" onsubmit="return confirm('Remove this vote?')"><input type="hidden" name="action" value="delete_vote"><input type="hidden" name="vote_id" value="${v.id}"><button class="btn btn-sm btn-danger" title="Remove vote">✕</button></form></td>
