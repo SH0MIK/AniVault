@@ -15,7 +15,7 @@ export interface BadgeRow {
 }
 
 function safeColor(color: string): string {
-  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#e8453c';
+  return /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#7c3aed';
 }
 
 export const Badge = {
@@ -53,7 +53,7 @@ export const Badge = {
     let html = '<span class="user-badges" aria-label="User badges">';
     for (const badge of badges) {
       const name = h(badge.name ?? 'Badge');
-      const color = safeColor(badge.color ?? '#e8453c');
+      const color = safeColor(badge.color ?? '#7c3aed');
       const imageUrl = (badge.image_url ?? '').trim();
       const iconText = (badge.icon_text ?? '').trim();
       const animatedClass = badge.is_animated ? ' user-badge-animated' : '';
