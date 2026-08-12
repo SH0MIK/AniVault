@@ -18,9 +18,15 @@ import { animeTailScript } from '../render/anime-tail';
 import { getBannerData } from '../lib/settings';
 import { rowNavScript } from '../render/home-js';
 import { EpisodeAir } from '../lib/episode-air';
-import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
+import { DubStatus } from '../lib/dub-status';
 
 export const animeRoutes = new Hono<{ Bindings: Env }>();
+
+// icons.ts has no clock/external-link glyphs registered in the sprite, so
+// these two small ones (used only in the hero meta row) are inlined here
+// rather than growing the shared sprite for a single-page use.
+const CLOCK_ICON = '<svg class="icon icon-inline" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/></svg>';
+const EXTERNAL_ICON = '<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-left:2px;"><line x1="7" y1="17" x2="17" y2="7"/><polyline points="7 7 17 7 17 17"/></svg>';
 
 const SERIES_RELATION_TYPES = ['Sequel', 'Prequel', 'Alternative Version', 'Alternative Setting', 'Side Story', 'Parent Story', 'Full Story', 'Summary', 'Movie', 'Spin-off'];
 
@@ -128,17 +134,23 @@ animeRoutes.get('/anime', async (c) => {
   const jTitle = JSON.stringify(title);
   const jImage = JSON.stringify(image);
 
+  const studioLine = (anime.studios ?? []).filter(Boolean).map((s: any) => s?.name ?? '').filter(Boolean).join(', ');
+  const sourceLine = anime.source || '';
+  const seasonYearLabel = anime.season && anime.year
+    ? `${String(anime.season).charAt(0).toUpperCase()}${String(anime.season).slice(1)} ${anime.year}`
+    : (anime.aired?.string || '—');
+
   html += `
 <section class="info-hero${hasBanner ? '' : ' info-hero-no-banner'}">
   <div class="info-hero-bg${hasBanner ? '' : ' info-hero-bg-fallback'}" style="background-image:url('${h(backdrop)}')"></div>
   <div class="container info-hero-inner">
     ${image ? `
-    <div class="info-poster">
+    <div class="info-thumb">
       <img src="${h(image)}" alt="${h(title)}">
     </div>` : ''}
 
     <div class="info-head${titleLogo ? ' has-logo' : ''}">
-      <div class="info-eyebrow"><span class="dot"></span><span>${h(anime.type || 'Anime')}</span></div>
+      ${titleLogo ? `<div class="info-subtitle">${h(title)}</div>` : ''}
 
       ${titleLogo ? `<img class="info-logo" src="${h(titleLogo)}" alt="${h(title)}" loading="eager">` : ''}
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -158,40 +170,40 @@ animeRoutes.get('/anime', async (c) => {
         </div>
         <script>window.__seriesData = ${JSON.stringify({ currentId: id, currentTitle: title, siteUrl, entries: seriesEntries })};</script>` : ''}
       </div>
-      ${jpTitle && jpTitle !== title ? `<div class="info-subtitle">${h(jpTitle)}</div>` : ''}
 
       <div class="info-meta-row">
-        ${anime.score ? `<span class="meta-pill meta-score">★ ${anime.score.toFixed(2)} <span style="opacity:.65;font-weight:500;">(${(anime.scored_by || anime.members || 0).toLocaleString('en-US')})</span></span>` : ''}
-        ${anime.rank ? `<span class="meta-pill">🏆 #${anime.rank}</span>` : ''}
-        ${anime.popularity ? `<span class="meta-pill">🔥 #${anime.popularity}</span>` : ''}
-        <span class="meta-pill">${h(anime.type || '—')}</span>
+        ${anime.score ? `<span class="meta-pill meta-score">${icon('star', 'icon-inline')} ${anime.score.toFixed(1)}</span>` : ''}
+        <span class="meta-pill">${icon('tv', 'icon-inline')} ${h(anime.type || 'Anime')}</span>
         <span class="meta-pill">${airedSoFar !== null && airedSoFar > 0 && airedSoFar !== totalEps ? `Ep ${airedSoFar}/${totalEps || '?'} aired` : (totalEps ? totalEps + ' eps' : 'Unknown eps')}</span>
+        ${anime.duration ? `<span class="meta-pill">${CLOCK_ICON} ${h(anime.duration)}</span>` : ''}
+        <span class="meta-pill">${icon('calendar', 'icon-inline')} ${h(seasonYearLabel)}</span>
         <span class="meta-pill${anime.status === 'Currently Airing' ? ' meta-status-airing' : ''}">${h(anime.status || '—')}</span>
         ${hasSub ? `<span class="meta-pill meta-sub">${icon('captions', 'icon-inline')} Sub</span>` : ''}
         ${hasDub ? `<span class="meta-pill meta-dub">${icon('mic', 'icon-inline')} Dub</span>` : ''}
+        <a class="meta-pill meta-link" href="https://anilist.co/search/anime?search=${encodeURIComponent(title)}" target="_blank" rel="noopener">AniList ${EXTERNAL_ICON}</a>
       </div>
-
-      ${dubbedLangs.length > 0 ? `
-      <div class="info-dub-row" style="display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;">
-        ${dubbedLangs.map((l) => `<span class="meta-pill" style="color:var(--teal,#2dd4bf);">🎙️ ${h(DUB_LANGUAGES[l] ?? l)}</span>`).join('')}
-        <span style="font-size:0.7rem;color:var(--text-muted);">Dub data © <a href="https://mydublist.com" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">MyDubList</a></span>
-      </div>` : ''}
 
       ${(anime.genres?.length ?? 0) > 0 ? `
       <div class="info-genres">
         ${anime.genres.filter(Boolean).map((g) => `<a href="${siteUrl}/browse?genre=${g?.mal_id ?? ''}" class="info-genre-tag">${h(g?.name ?? '')}</a>`).join('')}
       </div>` : ''}
 
+      ${studioLine || sourceLine ? `
+      <div class="info-studio-line">
+        ${studioLine ? `<span><b>Studio:</b> ${h(studioLine)}</span>` : ''}
+        ${sourceLine ? `<span><b>Source:</b> ${h(sourceLine)}</span>` : ''}
+      </div>` : ''}
+
       <div class="info-cta">
-        <a href="#episodes-section" class="btn-watch" onclick="var b=document.getElementById('ep-grid-js'); var s=document.getElementById('episodes-section'); if(s) s.scrollIntoView({behavior:'smooth'});">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
-          Watch Now
+        <a href="#episodes-section" class="btn-watch" onclick="var s=document.getElementById('episodes-section'); if(s) s.scrollIntoView({behavior:'smooth'});">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
+          Play Episode 1
         </a>
         <button class="btn-secondary" onclick='addToList(${id}, ${jTitle}, ${jImage}, ${totalEps})'>
-          ${userEntry ? `✏️ Edit in List` : `+ Add to List`}
+          ${icon('heart', 'icon-inline')} ${userEntry ? `Edit in List` : `Add to list`}
         </button>
         <button class="btn-secondary" id="fav-btn" style="${isFav ? 'color:var(--accent-2)' : ''}" onclick='toggleFavorite(this, ${id}, ${jTitle}, ${jImage})'>
-          ${isFav ? '♥ Favorited' : '♡ Favorite'}
+          ${icon('bell', 'icon-inline')} ${isFav ? 'Subscribed' : 'Subscribe'}
         </button>
       </div>
 
