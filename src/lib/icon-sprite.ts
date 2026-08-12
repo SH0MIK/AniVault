@@ -172,6 +172,10 @@ export const ICON_SPRITE = `<svg xmlns="http://www.w3.org/2000/svg" style="displ
   <rect x="2" y="7" width="20" height="15" rx="2" ry="2"/>
   <polyline points="17 2 12 7 7 2"/>
 </symbol>
+<symbol id="icon-clock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <circle cx="12" cy="12" r="10"/>
+  <polyline points="12 6 12 12 16 14"/>
+</symbol>
 <symbol id="icon-wrench" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M14.7 6.3a4 4 0 1 1-5.4 5.4l-7.6 7.6a1.5 1.5 0 0 0 2.1 2.1l7.6-7.6a4 4 0 0 1 5.4-5.4l-2.2 2.2a1 1 0 0 1-1.4 0l-1.4-1.4a1 1 0 0 1 0-1.4z"/>
 </symbol>
