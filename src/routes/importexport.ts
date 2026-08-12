@@ -169,7 +169,7 @@ importExportRoutes.get('/importexport', async (c) => {
           </div>
           <input type="file" name="import_file" id="import_file" accept=".xml,.json" style="display:none" onchange="showFilename(this)">
         </div>
-        <div style="background:rgba(232,69,60,0.08);border:1px solid var(--border-accent);border-radius:var(--radius-md);padding:12px;margin-bottom:1rem;font-size:0.85rem;">
+        <div style="background:rgba(124,58,237,0.08);border:1px solid var(--border-accent);border-radius:var(--radius-md);padding:12px;margin-bottom:1rem;font-size:0.85rem;">
           ⚠️ <strong>Important:</strong> Existing entries with the same anime ID will be overwritten. Imported entries use your local image library first. Use the admin image healer afterward to save any missing posters locally.
         </div>
         <button type="submit" class="btn btn-primary btn-block" id="import-btn">⬆ Import List</button>

@@ -350,13 +350,13 @@ scraperRoutes.get('/api/embed.php', async (c) => {
 <meta name="twitter:title" content="Ep ${epNum} — ${h(title)} | AniVault">
 <meta name="twitter:description" content="&quot;${h(epTitle)}&quot; · Watch on AniVault">
 <meta name="twitter:image" content="${h(ogImage)}">
-<meta name="theme-color" content="#e8453c">
+<meta name="theme-color" content="#7c3aed">
 </head>
 <body style="margin:0;padding:20px;font-family:sans-serif;background:#0a0a0f;color:#fff;text-align:center;">
   <h1>${h(title)}</h1>
   <h2>Episode ${epNum}: ${h(epTitle)}</h2>
   <p>Watch on AniVault</p>
-  <p><a href="${h(watchUrl)}" style="color:#e8453c;">Click to Watch →</a></p>
+  <p><a href="${h(watchUrl)}" style="color:#7c3aed;">Click to Watch →</a></p>
 </body>
 </html>`;
   return c.html(html);

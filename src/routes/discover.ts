@@ -219,12 +219,12 @@ discoverRoutes.get('/schedule', async (c) => {
 .day-tab.active{background:var(--accent);border-color:var(--accent);color:#fff;}
 .day-tab.today-tab{position:relative;}
 .today-dot{display:inline-block;width:6px;height:6px;background:var(--gold);border-radius:50%;margin-left:5px;vertical-align:middle;}
-.sched-now-divider{display:flex;align-items:center;gap:10px;padding:8px 16px;background:rgba(232,69,60,0.04);}
+.sched-now-divider{display:flex;align-items:center;gap:10px;padding:8px 16px;background:rgba(124,58,237,0.04);}
 .sched-now-divider::before,.sched-now-divider::after{content:'';flex:1;height:1px;background:var(--accent);opacity:.45;}
 .sched-now-divider span{font-size:.66rem;font-weight:800;letter-spacing:.1em;color:var(--accent);white-space:nowrap;}
 .schedule-row.sched-aired{opacity:.5;}
 .schedule-row.sched-aired:hover{opacity:.8;}
-.schedule-row.sched-next-up{background:rgba(232,69,60,.07);box-shadow:inset 3px 0 0 var(--accent);}
+.schedule-row.sched-next-up{background:rgba(124,58,237,.07);box-shadow:inset 3px 0 0 var(--accent);}
 .sched-countdown{display:block;font-size:.65rem;color:var(--accent);font-weight:700;margin-top:3px;white-space:nowrap;}
 .sched-countdown.sched-elapsed{color:var(--text-muted);font-weight:600;}
 @media(max-width:640px){.schedule-row{grid-template-columns:44px 60px 1fr auto;gap:10px;}.schedule-score,.schedule-eps{display:none;}.schedule-thumb{width:44px;height:62px;}.schedule-thumb-placeholder{width:44px;height:62px;}}

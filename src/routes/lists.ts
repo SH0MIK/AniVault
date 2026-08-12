@@ -184,7 +184,7 @@ listRoutes.on(['GET', 'POST'], '/mylist', async (c) => {
       <div style="text-align: center; margin-bottom: 1.5rem;">${icon('trash', 'icon-xl', '48px')}</div>
       <h4 style="text-align: center; margin-bottom: 1rem;">This action cannot be undone!</h4>
       <p style="text-align: center; color: var(--text-secondary); margin-bottom: 1.5rem;">You are about to delete <strong>${stats.total.toLocaleString('en-US')}</strong> anime entries from your list.</p>
-      <div style="background:rgba(232,69,60,0.1); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
+      <div style="background:rgba(124,58,237,0.1); padding: 1rem; border-radius: var(--radius-md); margin-bottom: 1.5rem;">
         <p style="font-size: 0.85rem; margin: 0;">${icon('info', 'icon-small')} <strong>Tip:</strong> <a href="${siteUrl}/importexport" style="color: var(--accent);">Export your list</a> first if you want to keep a backup.</p>
       </div>
       <form method="POST" id="delete-full-list-form">
@@ -553,7 +553,7 @@ listRoutes.get('/notifications', async (c) => {
     ${notifs.map((n) => {
       const meta = Notification.getMeta(n.type);
       const link = Notification.getLink(n, siteUrl);
-      const unreadStyle = !n.is_read ? 'border-color:rgba(232,69,60,0.25);background:rgba(232,69,60,0.04);' : '';
+      const unreadStyle = !n.is_read ? 'border-color:rgba(124,58,237,0.25);background:rgba(124,58,237,0.04);' : '';
       return `
     <div class="card" style="display:flex;align-items:flex-start;gap:14px;padding:14px 16px;${unreadStyle}" id="notif-${n.id}">
       <a href="${siteUrl}/u/${h(n.actor_name ?? '')}" style="flex-shrink:0;position:relative;">
