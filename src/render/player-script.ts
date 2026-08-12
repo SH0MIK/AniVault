@@ -260,6 +260,21 @@ if(popSpdList){
 /* ── Custom control bar ──────────────────────────────────── */
 (function(){
   const area      = document.getElementById('sp-video-area');
+
+  /* iOS Safari has a longstanding bug where native <track> caption boxes
+     are positioned against an internal default video size rather than the
+     actual CSS `aspect-ratio` box, so they can render outside the player
+     entirely. Giving the area an explicit pixel height (recalculated on
+     resize) sidesteps it; overflow:hidden on #sp-video-area (see CSS) is
+     the backstop in case a caption box still miscalculates. */
+  function sizeVideoArea(){
+    if(area.classList.contains('sp-ios-fs')||document.fullscreenElement===area) return;
+    const w=area.getBoundingClientRect().width;
+    if(w>0) area.style.height=(w*9/16)+'px';
+  }
+  sizeVideoArea();
+  window.addEventListener('resize',sizeVideoArea);
+  window.addEventListener('orientationchange',()=>setTimeout(sizeVideoArea,350));
   const ctrlBar   = document.getElementById('sp-ctrl-bar');
   const playBtn   = document.getElementById('sp-play');
   const back10Btn = document.getElementById('sp-back10');

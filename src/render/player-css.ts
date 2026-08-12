@@ -30,7 +30,7 @@ export const PLAYER_CSS = `<style id="sp-skin">
 }
 
 /* ─── Video area ────────────────────────────────────────── */
-#sp-video-area{position:relative;width:100%;aspect-ratio:16/9;background:#000}
+#sp-video-area{position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden}
 #sp-video{width:100%;height:100%;display:block;background:#000}
 
 /* ─── Spinner ─────────────────────────────────────────────
