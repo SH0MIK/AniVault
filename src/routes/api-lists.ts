@@ -221,7 +221,7 @@ apiListRoutes.post('/api/watch_history.php', async (c) => {
         }
         animeTitle = animeTitle || existing.anime_title || '';
         animeImage = animeImage || existing.anime_image || '';
-      } else {
+      } else if (duration > 0) {
         const epThumb = (body.ep_thumb ?? '').trim();
         const epTitle = (body.ep_title ?? '').trim();
         await db.query(
@@ -232,6 +232,9 @@ apiListRoutes.post('/api/watch_history.php', async (c) => {
           [userId, animeId, animeTitle, animeImage, epNum, epTitle, epThumb, watchTime, duration]
         );
       }
+      // else: episode_duration isn't known yet (null/0) -- skip writing a
+      // row until the client sends a real duration, so we don't save a
+      // permanently-null watch log entry.
 
       // Auto-track the watchlist off real watch percentage: 5% watched ->
       // ensure it's on the list as "watching"; 90%+ -> mark this episode
@@ -252,7 +255,7 @@ apiListRoutes.post('/api/watch_history.php', async (c) => {
         } else {
           await db.query('UPDATE watch_history SET watch_time=? WHERE id=?', [watchTime, existing.id]);
         }
-      } else {
+      } else if (duration > 0) {
         const animeTitle = (body.anime_title ?? '').trim();
         const animeImage = (body.anime_image ?? '').trim();
         const epTitle = (body.ep_title ?? '').trim();
