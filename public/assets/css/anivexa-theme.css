@@ -274,7 +274,7 @@ body { font-family: var(--font-body); }
 .profile-avatar-wrap:hover .profile-avatar-edit-overlay { opacity: 1; }
 .profile-hero-email { font-size: .88rem; color: var(--text-secondary); margin: 0; }
 .u-banner-remove-btn { position: absolute; top: 16px; right: 168px; z-index: 3; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; background: rgba(0,0,0,.5); backdrop-filter: blur(8px); border: 1px solid var(--glass-border); color: #fff; border-radius: 50%; cursor: pointer; transition: var(--trans); }
-.u-banner-remove-btn:hover { background: rgba(232,69,60,.7); border-color: var(--accent-2); }
+.u-banner-remove-btn:hover { background: rgba(124,58,237,.7); border-color: var(--accent-2); }
 .u-pronouns { font-size: .8rem; font-weight: 600; color: var(--text-muted); }
 .u-tagline { font-size: .88rem; color: var(--text-secondary); margin: 2px 0 0; }
 .u-tagline-empty a { color: var(--accent-2); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }

@@ -42,7 +42,7 @@
 .admin-nav a:hover { color: var(--text-primary); background: var(--bg-hover); }
 .admin-nav a.active {
   color: var(--accent);
-  background: rgba(232,69,60,0.06);
+  background: rgba(124,58,237,0.06);
   border-left-color: var(--accent);
 }
 .admin-nav .nav-group {
