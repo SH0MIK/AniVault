@@ -170,6 +170,7 @@ export const WATCH_CSS = `/* ═════════════════
   background: rgba(22,26,34,0.95);
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 12px;
+  -webkit-backdrop-filter: blur(8px);
   backdrop-filter: blur(8px);
 }
 
@@ -226,6 +227,7 @@ export const WATCH_CSS = `/* ═════════════════
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 14px;
   overflow: hidden;
+  -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   box-shadow: 0 4px 28px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.04);
 }
@@ -369,6 +371,7 @@ export const WATCH_CSS = `/* ═════════════════
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 16px;
   overflow: hidden;
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   animation: cardReveal .5s .1s cubic-bezier(0.16,1,0.3,1) both;
 }
@@ -562,6 +565,7 @@ export const WATCH_CSS = `/* ═════════════════
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 16px;
   overflow: hidden;
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   animation: cardReveal .5s .05s cubic-bezier(0.16,1,0.3,1) both;
 }
@@ -629,6 +633,7 @@ export const WATCH_CSS = `/* ═════════════════
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 16px;
   overflow: hidden;
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   animation: cardReveal .5s .15s cubic-bezier(0.16,1,0.3,1) both;
 }
@@ -791,6 +796,7 @@ export const WATCH_CSS = `/* ═════════════════
   border: 1px solid rgba(255,255,255,0.07);
   border-radius: 16px;
   overflow: hidden;
+  -webkit-backdrop-filter: blur(12px);
   backdrop-filter: blur(12px);
   animation: cardReveal .5s .2s cubic-bezier(0.16,1,0.3,1) both;
 }
@@ -898,6 +904,7 @@ export const WATCH_CSS = `/* ═════════════════
   display:flex; align-items:center; justify-content:center;
   cursor:pointer;
   transition:all .2s;
+  -webkit-backdrop-filter:blur(6px);
   backdrop-filter:blur(6px);
   animation:ringPulse 2.8s ease-in-out infinite;
 }
@@ -932,6 +939,7 @@ export const WATCH_CSS = `/* ═════════════════
   color:#fff; font-weight:700; font-size:.87rem;
   cursor:pointer; font-family:var(--font-body);
   transition:background .15s;
+  -webkit-backdrop-filter:blur(4px);
   backdrop-filter:blur(4px);
 }
 .wp-gate-ghost:hover { background:rgba(255,255,255,.14); }
