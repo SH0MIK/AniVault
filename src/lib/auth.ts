@@ -202,12 +202,15 @@ export class Auth {
 
     this.setSession(user);
     this.session.data.auto_created = true;
-    await Logger.log(this.db, id, 'register', 'Auto-created account (no login wall)', this.ip);
-    await DiscordNotifier.newUser(this.env, this.db, user, 'auto');
+    // Intentionally NOT logged to activity_log, and NOT notified to the
+    // owner (Discord or in-app) — these accounts are created silently in
+    // the background on nearly every anonymous action (watching,
+    // list-adding, favoriting), so logging/notifying on every one was
+    // flooding the activity log and spamming the owner. Real
+    // logins/registrations (email/Google/Discord) still log and notify.
 
     if (id !== OWNER_USER_ID) {
       await this.db.query('INSERT OR IGNORE INTO follows (follower_id, following_id) VALUES (?, ?)', [id, OWNER_USER_ID]);
-      await this.db.insert('INSERT INTO notifications (user_id, actor_id, type) VALUES (?, ?, ?)', [OWNER_USER_ID, id, 'follow']);
     }
 
     // Self-notification carrying the generated credentials, so the user can
