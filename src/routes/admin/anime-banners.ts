@@ -115,9 +115,24 @@ adminAnimeBannersRoutes.on(['GET', 'POST'], '/admin/anime_banners.php', async (c
     else { where = 'WHERE anime_title LIKE ?'; params.push(`%${q}%`); }
   }
   const banners = await db.fetchAll<any>(`SELECT * FROM anime_banners ${where} ORDER BY updated_at DESC LIMIT 80`, params);
-  const total = await db.count('SELECT COUNT(*) as cnt FROM anime_banners');
   const logos = await db.fetchAll<any>(`SELECT * FROM anime_logos ${where} ORDER BY updated_at DESC LIMIT 80`, params);
-  const totalLogos = await db.count('SELECT COUNT(*) as cnt FROM anime_logos');
+
+  // Titles curated via the Homepage Hero Carousel (home_hero_banners) also
+  // count as "saved" here — they're a different admin page, but the same
+  // underlying banner/logo art, so this library shouldn't claim they don't
+  // exist. Excludes anime_ids already covered above to avoid duplicates;
+  // these rows are read-only here (managed on the carousel page instead).
+  const bannerIds = new Set(banners.map((b: any) => b.anime_id));
+  const logoIds = new Set(logos.map((l: any) => l.anime_id));
+  const heroRows = await db.fetchAll<any>(
+    `SELECT anime_id, anime_title, banner_image_url, logo_image_url FROM home_hero_banners ${where} ORDER BY display_order ASC`,
+    params
+  );
+  const heroBanners = heroRows.filter((r: any) => r.banner_image_url && !bannerIds.has(r.anime_id));
+  const heroLogos = heroRows.filter((r: any) => r.logo_image_url && !logoIds.has(r.anime_id));
+
+  const total = banners.length + heroBanners.length;
+  const totalLogos = logos.length + heroLogos.length;
 
   const flash = session.takeFlash();
   const err = flash?.type === 'error' ? flash.message : null;
@@ -137,7 +152,7 @@ adminAnimeBannersRoutes.on(['GET', 'POST'], '/admin/anime_banners.php', async (c
 </style>
 
 <div class="admin-header">
-  <div><h1>Anime Banner & Logo Library</h1><p class="text-muted" style="font-size:0.9rem;">Local wide banner art for the home page hero, and transparent title-logo art for anime detail pages — both take priority over their automatic sources (AniList's community bannerImage, TMDB's clear logo search).</p></div>
+  <div><h1>Anime Banner & Logo Library</h1><p class="text-muted" style="font-size:0.9rem;">Local wide banner art for the home page hero, and transparent title-logo art for anime detail pages — both take priority over their automatic sources (AniList's community bannerImage, TMDB's clear logo search). Also includes titles curated via the Homepage Hero Carousel, shown read-only below.</p></div>
   <span class="badge badge-default">${total.toLocaleString('en-US')} banners</span>
   <span class="badge badge-default">${totalLogos.toLocaleString('en-US')} logos</span>
 </div>
@@ -200,7 +215,7 @@ ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
 </div>
 
 <h2 class="mb-2">Banners</h2>
-${banners.length === 0 ? `<div class="card card-body text-center text-muted mb-3">No saved banners yet.</div>` : `
+${(banners.length === 0 && heroBanners.length === 0) ? `<div class="card card-body text-center text-muted mb-3">No saved banners yet.</div>` : `
 <div class="banner-library-grid mb-3">
   ${banners.map((b: any) => `
   <div class="banner-library-card">
@@ -214,10 +229,19 @@ ${banners.length === 0 ? `<div class="card card-body text-center text-muted mb-3
       </form>
     </div>
   </div>`).join('')}
+  ${heroBanners.map((r: any) => `
+  <div class="banner-library-card">
+    <img src="${h(r.banner_image_url)}" alt="">
+    <div class="banner-library-body">
+      <div class="banner-library-title">${h(r.anime_title || 'Untitled')}</div>
+      <div class="banner-library-meta">#${r.anime_id} · from Homepage Hero Carousel</div>
+      <a class="btn btn-ghost btn-sm" style="margin-top:8px;" href="home_banners.php">Manage there</a>
+    </div>
+  </div>`).join('')}
 </div>`}
 
 <h2 class="mb-2">Logos</h2>
-${logos.length === 0 ? `<div class="card card-body text-center text-muted">No saved logos yet.</div>` : `
+${(logos.length === 0 && heroLogos.length === 0) ? `<div class="card card-body text-center text-muted">No saved logos yet.</div>` : `
 <div class="banner-library-grid">
   ${logos.map((l: any) => `
   <div class="banner-library-card">
@@ -229,6 +253,15 @@ ${logos.length === 0 ? `<div class="card card-body text-center text-muted">No sa
         <input type="hidden" name="action" value="delete_logo"><input type="hidden" name="anime_id" value="${l.anime_id}">
         <button class="btn btn-danger btn-sm" type="submit">Delete</button>
       </form>
+    </div>
+  </div>`).join('')}
+  ${heroLogos.map((r: any) => `
+  <div class="banner-library-card">
+    <img src="${h(r.logo_image_url)}" alt="" style="aspect-ratio:2.5/1; object-fit:contain; background:#111;">
+    <div class="banner-library-body">
+      <div class="banner-library-title">${h(r.anime_title || 'Untitled')}</div>
+      <div class="banner-library-meta">#${r.anime_id} · from Homepage Hero Carousel</div>
+      <a class="btn btn-ghost btn-sm" style="margin-top:8px;" href="home_banners.php">Manage there</a>
     </div>
   </div>`).join('')}
 </div>`}`;
