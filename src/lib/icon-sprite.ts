@@ -229,7 +229,7 @@ export const ICON_SPRITE = `<svg xmlns="http://www.w3.org/2000/svg" style="displ
   <path d="M6.361 2.943 0 21.056h4.024l1.075-3.379h6.238l1.075 3.379h4.024L9.075 2.943zm-.397 11.482 2.014-6.312 2.014 6.312zM17.09 2.943v18.113h6.91v-3.076h-3.588V2.943z"/>
 </symbol>
 <symbol id="icon-captions" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M7 10.5c-.5-.6-1.2-1-2-1-1.4 0-2.5 1.1-2.5 2.5S3.6 14.5 5 14.5c.8 0 1.5-.4 2-1"/><path d="M15.5 10.5c-.5-.6-1.2-1-2-1-1.4 0-2.5 1.1-2.5 2.5s1.1 2.5 2.5 2.5c.8 0 1.5-.4 2-1"/>
+<rect x="3" y="5" width="18" height="14" rx="3"/><path d="M7 10.5h2.5M11.5 10.5h5.5M7 14.5h5.5M15.5 14.5h1.5"/>
 </symbol>
 <symbol id="icon-mic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
   <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
