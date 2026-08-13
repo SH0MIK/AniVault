@@ -152,9 +152,8 @@ animeRoutes.get('/anime', async (c) => {
         ${anime.duration_mins ? `<span class="ih-meta-item">${icon('clock', 'icon-inline')} ${anime.duration_mins}m</span>` : ''}
         ${seasonYearLabel(anime.start_date) ? `<span class="ih-meta-item">${icon('calendar', 'icon-inline')} ${h(seasonYearLabel(anime.start_date)!)}</span>` : ''}
         <span class="ih-meta-item${anime.status === 'Currently Airing' ? ' ih-meta-airing' : ''}">${h(anime.status || '—')}</span>
-        ${hasSub ? `<span class="ih-meta-item">${icon('captions', 'icon-inline')} Sub</span>` : ''}
+        <span class="ih-meta-item">${icon('captions', 'icon-inline')} Sub</span>
         ${hasDub ? `<span class="ih-meta-item">${icon('mic', 'icon-inline')} Dub</span>` : ''}
-        <a href="https://anilist.co/search/anime?search=${encodeURIComponent(title)}" target="_blank" rel="noopener" class="ih-anilist-link">AniList ${icon('arrow-right', 'icon-inline')}</a>
       </div>
 
       ${(anime.genres?.length ?? 0) > 0 ? `
