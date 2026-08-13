@@ -266,6 +266,13 @@ ${bannerBlock}
     <div class="chat-typing-row" id="chat-typing-row" style="display:none;"></div>
     ${cu ? `
     <div class="chat-mention-suggest" id="chat-mention-suggest" style="display:none;"></div>
+    <div class="chat-replying-bar" id="chat-replying-bar" style="display:none;">
+      <div class="chat-replying-info">
+        <span class="chat-replying-label">Replying to <span id="chat-replying-name"></span></span>
+        <span class="chat-replying-text" id="chat-replying-text"></span>
+      </div>
+      <button type="button" class="chat-replying-cancel" id="chat-replying-cancel" aria-label="Cancel reply" title="Cancel reply">${icon('x', 'icon-small')}</button>
+    </div>
     <form class="chat-input-row" id="chat-form">
       <textarea id="chat-input" class="chat-input" placeholder="Message everyone…" maxlength="500" rows="1"></textarea>
       <button type="submit" class="chat-send-btn" id="chat-send-btn" aria-label="Send">${icon('arrow-right', 'icon-small')}</button>
