@@ -998,7 +998,10 @@ function openChat() {
   scrollChatToBottom();
   hideChatBadge();
   updateChatPresence();
-  if (window.__loggedIn && __chatLoadedOnce) markChatRead();
+  if (window.__loggedIn) {
+    pingChatActive(); // immediately, so mention/reply notifications start skipping us without waiting for the next poll tick
+    if (__chatLoadedOnce) markChatRead();
+  }
 }
 
 function closeChat() {
@@ -1063,6 +1066,7 @@ async function chatPollTick() {
   const widget = document.getElementById('chat-widget');
   const isOpen = widget?.classList.contains('open');
   if (isOpen && __chatLoadedOnce) {
+    if (window.__loggedIn) pingChatActive(); // keep the "panel is open" heartbeat alive server-side
     try {
       const res  = await fetch('/api/chat?action=poll&after_id=' + __chatLatestId);
       const data = await res.json();
@@ -1114,6 +1118,15 @@ function updateChatBadge(count) {
   else badge.style.display = 'none';
 }
 function hideChatBadge() { updateChatBadge(0); }
+
+// Heartbeat telling the server "I'm actively looking at the chat panel right now" —
+// short-lived server-side (see Chat.setActive), so mention/reply notifications can
+// skip anyone currently viewing the message live instead of double-notifying them.
+function pingChatActive() {
+  const fd = new FormData();
+  fd.append('action', 'active');
+  fetch('/api/chat', { method: 'POST', body: fd }).catch(() => {});
+}
 
 async function markChatRead() {
   const fd = new FormData();
