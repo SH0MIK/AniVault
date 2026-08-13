@@ -150,8 +150,6 @@ animeRoutes.get('/anime', async (c) => {
         <span class="ih-meta-item">${airedSoFar !== null && airedSoFar > 0 && airedSoFar !== totalEps ? `Ep ${airedSoFar}/${totalEps || '?'} aired` : (totalEps ? totalEps + ' eps' : 'Unknown eps')}</span>
         ${anime.duration_mins ? `<span class="ih-meta-item">${icon('clock', 'icon-inline')} ${anime.duration_mins}m</span>` : ''}
         ${seasonYearLabel(anime.start_date) ? `<span class="ih-meta-item">${icon('calendar', 'icon-inline')} ${h(seasonYearLabel(anime.start_date)!)}</span>` : ''}
-      </div>
-      <div class="ih-meta-row">
         <span class="ih-meta-item${anime.status === 'Currently Airing' ? ' ih-meta-airing' : ''}">${h(anime.status || '—')}</span>
         <span class="ih-meta-item">${icon('captions', 'icon-inline')} Sub</span>
         ${hasDub ? `<span class="ih-meta-item">${icon('mic', 'icon-inline')} Dub</span>` : ''}
