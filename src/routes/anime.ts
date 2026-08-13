@@ -92,16 +92,22 @@ animeRoutes.get('/anime', async (c) => {
   const hasDub = animeDubConfirmed || dubbedLangs.length > 0 || Object.values(videoEpSet).some((v) => v.dub);
 
   // Backdrop priority: your own admin-saved banner (admin/anime_banners.php)
-  // > AniList's real banner from the current-season cache (currently airing
-  // titles only) > AniList's real banner from the all-time top-200 cache
-  // (covers older/finished popular titles) > blurred poster.
+  // > TMDB's textless backdrop (shares the same cached /images lookup as
+  // the logo above, so this is a free KV read, not a second API call)
+  // > AniList's real banner from the current-season cache (currently
+  // airing titles only) > AniList's real banner from the all-time top-200
+  // cache (covers older/finished popular titles) > blurred poster.
   const bannerInfo = await mal.getLocalAnimeBannerInfo(id);
+  let tmdbBackdrop = '';
   let aniListBanner = '';
   if (!bannerInfo?.image_url) {
-    aniListBanner = (await mal.getAniListBannerFromSeasonCache(id)) || (await mal.getAniListTopBanner(id));
+    tmdbBackdrop = await mal.getTitleBackdrop(id, title).catch(() => '');
+    if (!tmdbBackdrop) {
+      aniListBanner = (await mal.getAniListBannerFromSeasonCache(id)) || (await mal.getAniListTopBanner(id));
+    }
   }
-  const backdrop = bannerInfo?.image_url || aniListBanner || image;
-  const hasBanner = !!(bannerInfo?.image_url || aniListBanner);
+  const backdrop = bannerInfo?.image_url || tmdbBackdrop || aniListBanner || image;
+  const hasBanner = !!(bannerInfo?.image_url || tmdbBackdrop || aniListBanner);
 
   const currentUser = auth.check() ? await auth.getCurrentUser() : null;
   let userEntry: any = null;
