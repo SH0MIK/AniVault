@@ -49,6 +49,15 @@ function serialize(row: ChatMessageRow, currentUserId: number, isAdmin: boolean,
     can_delete: row.user_id === currentUserId || isAdmin,
     reactions: extras.reactions,
     reaction_emojis: CHAT_REACTION_EMOJIS,
+    reply_to: row.reply_to_id
+      ? {
+          id: row.reply_to_id,
+          // username/message come back NULL if the original was deleted since —
+          // client shows a "message deleted" placeholder in that case.
+          username: row.reply_to_username ? h(row.reply_to_username) : null,
+          message: row.reply_to_message ? h(row.reply_to_message.slice(0, 120)) : null,
+        }
+      : null,
   };
 }
 
@@ -118,7 +127,8 @@ apiChatRoutes.on(['GET', 'POST'], '/api/chat', async (c) => {
 
     case 'send': {
       const text = (getParam('message') || '').toString();
-      const sent = await Chat.send(db, userId, text);
+      const replyToId = parseInt(getParam('reply_to') || '0', 10) || undefined;
+      const sent = await Chat.send(db, userId, text, replyToId);
       if (!sent.success) {
         result = { success: false, message: sent.error };
         break;
