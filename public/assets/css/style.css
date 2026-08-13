@@ -2881,3 +2881,94 @@ textarea.form-control { resize: vertical; min-height: 100px; }
   line-height: 1;
 }
 .chat-react-picker button:hover { background: var(--bg-hover); }
+
+.chat-reply-trigger {
+  position: absolute;
+  top: -6px;
+  right: 52px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: var(--trans);
+}
+.chat-msg:hover .chat-reply-trigger { opacity: 1; }
+.chat-reply-trigger:hover { color: var(--accent); border-color: var(--accent); }
+
+/* Quoted preview of the message being replied to, shown above the reply's own text. */
+.chat-reply-quote {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  max-width: 100%;
+  margin-bottom: 2px;
+  padding: 2px 8px;
+  border-left: 2px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  cursor: pointer;
+  transition: var(--trans);
+}
+.chat-reply-quote:hover { border-left-color: var(--accent); color: var(--text-secondary); }
+.chat-reply-quote-name { font-weight: 600; color: var(--text-secondary); flex-shrink: 0; }
+.chat-reply-quote-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.chat-reply-quote-deleted { font-style: italic; }
+
+/* Brief highlight when jumping to a message via a reply quote click. */
+.chat-msg-flash { animation: chatMsgFlash 1.2s ease-out; }
+@keyframes chatMsgFlash {
+  0% { background: rgba(124,58,237,0.25); }
+  100% { background: transparent; }
+}
+
+/* "Replying to X" bar shown above the input while composing a reply. */
+.chat-replying-bar {
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--border);
+  background: var(--bg-surface);
+}
+.chat-replying-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.chat-replying-label { font-size: 0.72rem; color: var(--accent); font-weight: 600; }
+.chat-replying-text {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chat-replying-cancel {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: var(--trans);
+}
+.chat-replying-cancel:hover { background: var(--bg-hover); color: var(--text-primary); }
