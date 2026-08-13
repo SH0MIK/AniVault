@@ -12,14 +12,26 @@ export interface ChatMessageRow {
   username: string;
   avatar_url: string | null;
   role: string;
+  reply_to_id: number | null;
+  reply_to_username: string | null;
+  reply_to_message: string | null;
 }
 
 export const MAX_MESSAGE_LENGTH = 500;
 const MIN_INTERVAL_MS = 1500; // basic per-user flood guard
 
+// LEFT JOINs back onto chat_messages/users for the message being replied to
+// (if any) so the reply preview comes along for free with every fetch —
+// no per-message follow-up query on the client. If the original message was
+// since deleted, reply_to_id survives but reply_to_message/username come
+// back NULL, and the client shows "original message deleted".
 const SELECT_WITH_USER = `
-  SELECT m.id, m.user_id, m.message, m.created_at, u.username, u.avatar_url, u.role
-  FROM chat_messages m JOIN users u ON u.id = m.user_id`;
+  SELECT m.id, m.user_id, m.message, m.created_at, u.username, u.avatar_url, u.role,
+         m.reply_to_id, pu.username AS reply_to_username, p.message AS reply_to_message
+  FROM chat_messages m
+  JOIN users u ON u.id = m.user_id
+  LEFT JOIN chat_messages p ON p.id = m.reply_to_id
+  LEFT JOIN users pu ON pu.id = p.user_id`;
 
 export const Chat = {
   /** Most recent `limit` messages, oldest first (ready to render top-to-bottom).
@@ -45,7 +57,7 @@ export const Chat = {
     );
   },
 
-  async send(db: Db, userId: number, message: string): Promise<{ success: boolean; error?: string; row?: ChatMessageRow }> {
+  async send(db: Db, userId: number, message: string, replyToId?: number): Promise<{ success: boolean; error?: string; row?: ChatMessageRow }> {
     const trimmed = message.trim();
     if (!trimmed) return { success: false, error: 'Message cannot be empty.' };
     if (trimmed.length > MAX_MESSAGE_LENGTH) {
@@ -63,7 +75,18 @@ export const Chat = {
       }
     }
 
-    const id = await db.insert('INSERT INTO chat_messages (user_id, message) VALUES (?, ?)', [userId, trimmed]);
+    // Only keep the reply link if it actually points at a message that still exists —
+    // stops a stale/spoofed id from ever reaching the insert.
+    let replyTo: number | null = null;
+    if (replyToId) {
+      const parent = await db.fetchOne<{ id: number }>('SELECT id FROM chat_messages WHERE id = ?', [replyToId]);
+      if (parent) replyTo = parent.id;
+    }
+
+    const id = await db.insert(
+      'INSERT INTO chat_messages (user_id, message, reply_to_id) VALUES (?, ?, ?)',
+      [userId, trimmed, replyTo]
+    );
     const row = await db.fetchOne<ChatMessageRow>(`${SELECT_WITH_USER} WHERE m.id = ?`, [id]);
     return { success: true, row: row ?? undefined };
   },
