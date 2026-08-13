@@ -363,7 +363,29 @@ export class MalAPI {
     return logo;
   }
 
-  private async fetchTmdbLogo(title: string): Promise<string> {
+  // Strips a trailing season marker from a title so a season-2+ entry can
+  // fall back to searching for its base/season-1 title. Returns null if no
+  // recognisable season suffix is present (nothing to strip).
+  private stripSeasonSuffix(title: string): string | null {
+    const patterns = [
+      /\s+(?:the\s+)?\d+(?:st|nd|rd|th)\s+season$/i,   // "... 2nd Season"
+      /\s+season\s+\d+$/i,                              // "... Season 2"
+      /\s+cour\s+\d+$/i,                                 // "... Cour 2"
+      /\s+part\s+\d+$/i,                                 // "... Part 2"
+      /\s+s\d+$/i,                                       // "... S2"
+      /\s+(?:ii|iii|iv|v)$/i,                            // "... II" / "III" etc
+      /\s+\d+$/,                                         // "... 2" (plain trailing number)
+    ];
+    for (const re of patterns) {
+      if (re.test(title)) {
+        const stripped = title.replace(re, '').trim();
+        if (stripped && stripped.toLowerCase() !== title.toLowerCase()) return stripped;
+      }
+    }
+    return null;
+  }
+
+  private async fetchTmdbLogo(title: string, isFallback = false): Promise<string> {
     try {
       const key = this.env.TMDB_API_KEY!;
       const searchUrl = (kind: 'tv' | 'movie') =>
@@ -378,13 +400,29 @@ export class MalAPI {
         const first = json?.results?.[0];
         if (first?.id) { id = first.id; kind = k; break; }
       }
-      if (!id) return '';
+      if (!id) {
+        // No TMDB entry matched this exact title (common for season 2+
+        // entries) — retry once with the season suffix stripped so we land
+        // on the season 1 / base show entry instead.
+        if (!isFallback) {
+          const stripped = this.stripSeasonSuffix(title);
+          if (stripped) return await this.fetchTmdbLogo(stripped, true);
+        }
+        return '';
+      }
 
       const imgRes = await fetch(`https://api.themoviedb.org/3/${kind}/${id}/images?api_key=${key}&include_image_language=en,ja,null`);
       if (!imgRes.ok) return '';
       const imgJson: any = await imgRes.json();
       const logos: any[] = imgJson?.logos ?? [];
-      if (logos.length === 0) return '';
+      if (logos.length === 0) {
+        // Entry exists but has no logos uploaded — same fallback as above.
+        if (!isFallback) {
+          const stripped = this.stripSeasonSuffix(title);
+          if (stripped) return await this.fetchTmdbLogo(stripped, true);
+        }
+        return '';
+      }
 
       const best = logos.find((l) => l.iso_639_1 === 'en') || logos[0];
       return best?.file_path ? `https://image.tmdb.org/t/p/w500${best.file_path}` : '';
