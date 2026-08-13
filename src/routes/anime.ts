@@ -140,6 +140,7 @@ animeRoutes.get('/anime', async (c) => {
     </div>
 
     <div class="ih-content">
+      ${anime.status === 'Currently Airing' && anime.broadcast?.day ? `<div class="ih-airtime">${icon('clock', 'icon-inline')} ${h(anime.broadcast.day)}${anime.broadcast.time ? ` at ${h(anime.broadcast.time)} JST` : ''}</div>` : ''}
       <div class="ih-plaintitle">${h(title)}</div>
 
       ${titleLogo ? `<img class="ih-logo" src="${h(titleLogo)}" alt="${h(title)}" loading="eager">` : `<h1 class="ih-title">${h(title)}</h1>`}
