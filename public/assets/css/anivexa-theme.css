@@ -195,8 +195,10 @@ body { font-family: var(--font-body); }
 .ih-meta-row { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; font-size: .85rem; font-weight: 600; color: rgba(255,255,255,.85); }
 .ih-meta-item { display: inline-flex; align-items: center; gap: 5px; }
 .ih-meta-item .icon-inline { width: 14px; height: 14px; }
-.ih-meta-score { color: var(--gold); }
+.ih-meta-score { color: #fff; }
 .ih-meta-airing { color: #fff; }
+.ih-airtime { display: flex; align-items: center; gap: 5px; font-size: .74rem; font-weight: 600; color: rgba(255,255,255,.5); text-transform: uppercase; letter-spacing: .03em; }
+.ih-airtime .icon-inline { width: 12px; height: 12px; }
 .ih-anilist-link { display: inline-flex; align-items: center; gap: 4px; color: rgba(255,255,255,.55); text-decoration: none; }
 .ih-anilist-link:hover { color: #fff; text-decoration: underline; }
 .ih-anilist-link .icon-inline { width: 12px; height: 12px; transform: rotate(-45deg); }
