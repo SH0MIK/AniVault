@@ -250,8 +250,8 @@ body { font-family: var(--font-body); }
 .anime-card.char-card:hover .char-card-poster img { transform: scale(1.08); }
 
 @media (max-width: 880px) {
-  .ih-inner { flex-direction: column; align-items: center; text-align: left; padding: 24px 20px 36px; gap: 16px; }
-  .ih-thumb { flex: 0 0 auto; width: min(170px, 45vw); aspect-ratio: 2/3; align-self: center; }
+  .ih-inner { flex-direction: column; align-items: center; text-align: left; padding: 24px 12px 36px; gap: 16px; }
+  .ih-thumb { flex: 0 0 auto; width: min(150px, 40vw); aspect-ratio: 2/3; align-self: center; }
   .ih-content { align-items: flex-start; width: 100%; gap: 8px; }
   .ih-meta-row, .ih-genres, .ih-infoline { justify-content: flex-start; }
   .ih-logo { max-width: 76%; max-height: 90px; margin-left: 0; margin-right: auto; }
@@ -261,8 +261,12 @@ body { font-family: var(--font-body); }
 
   /* Smaller, left-aligned meta row + genre pills to match the reference
      app layout — text sits flush to the content's left edge rather than
-     centered under the poster. */
-  .ih-meta-row { gap: 6px 10px; font-size: .72rem; }
+     centered under the poster. Row 1 (rating/type/eps/duration/season)
+     must not wrap onto its own extra line even on narrow screens. */
+  .ih-meta-row { gap: 5px 8px; font-size: .66rem; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
+  .ih-meta-row::-webkit-scrollbar { display: none; }
+  .ih-meta-row .ih-meta-item { flex: 0 0 auto; white-space: nowrap; }
+  .ih-meta-row .icon-inline { width: 12px; height: 12px; }
   .ih-genres { gap: 8px; }
   .ih-genre-tag { padding: 5px 13px; font-size: .74rem; }
   .ih-infoline { gap: 4px 18px; font-size: .78rem; }
