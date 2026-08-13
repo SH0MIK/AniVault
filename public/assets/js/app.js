@@ -905,6 +905,7 @@ let __mentionMatches = [];
 let __mentionIndex   = -1;
 let __mentionStart   = -1; // index of the "@" the current suggestions are for
 let __mentionDebounce = null;
+let __chatReplyTo = null; // { id, username, message } of the message currently being replied to, if any
 const CHAT_GROUP_WINDOW = 600; // seconds — consecutive messages from the same sender within this window are grouped, Discord-style
 const CHAT_REACTION_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
 
@@ -958,6 +959,7 @@ function initChat() {
         if (e.key === 'Escape') { e.preventDefault(); closeMentionSuggestions(); return; }
         if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickMentionSuggestion(__mentionIndex >= 0 ? __mentionIndex : 0); return; }
       }
+      if (e.key === 'Escape' && __chatReplyTo) { cancelChatReply(); return; }
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); }
     });
     input.addEventListener('input', () => {
@@ -976,6 +978,7 @@ function initChat() {
   }
 
   document.getElementById('chat-load-more')?.addEventListener('click', loadOlderChatMessages);
+  document.getElementById('chat-replying-cancel')?.addEventListener('click', cancelChatReply);
 
   document.addEventListener('click', e => {
     if (!widget.classList.contains('open')) return;
@@ -1149,14 +1152,24 @@ function buildChatMessageEl(m, grouped) {
          ${CHAT_REACTION_EMOJIS.map(e => `<button type="button" onclick="sendReaction(${m.id}, '${e}')">${e}</button>`).join('')}
        </div>`
     : '';
+  // Built with a plain listener below (not an inline onclick) since m.username/m.message
+  // can contain quote characters that would break out of an inline handler string.
+  const replyTrigger = window.__loggedIn ? `<button type="button" class="chat-reply-trigger" title="Reply">↩</button>` : '';
   const reactionsHtml = renderReactionPills(m.id, m.reactions);
-  const bodyHtml = `<div class="chat-text">${formatChatText(m.message)}</div>${reactionsHtml}`;
+  const replyQuoteHtml = m.reply_to
+    ? `<div class="chat-reply-quote" onclick="scrollToChatMessage(${m.reply_to.id})">
+         ↩ ${m.reply_to.username
+            ? `<span class="chat-reply-quote-name">${m.reply_to.username}</span><span class="chat-reply-quote-text">${m.reply_to.message || ''}</span>`
+            : `<span class="chat-reply-quote-text chat-reply-quote-deleted">Original message deleted</span>`}
+       </div>`
+    : '';
+  const bodyHtml = `${replyQuoteHtml}<div class="chat-text">${formatChatText(m.message)}</div>${reactionsHtml}`;
 
   if (grouped) {
     wrap.innerHTML = `
       <div class="chat-msg-gutter"><span class="chat-msg-hover-time">${m.time}</span></div>
       <div class="chat-msg-body">${bodyHtml}</div>
-      ${deleteBtn}${reactTrigger}`;
+      ${deleteBtn}${reactTrigger}${replyTrigger}`;
   } else {
     const initial = m.username ? m.username.charAt(0).toUpperCase() : '?';
     const avatarPill = m.avatar_badge ? `<span class="chat-avatar-role-badge">${m.avatar_badge}</span>` : '';
@@ -1174,8 +1187,11 @@ function buildChatMessageEl(m, grouped) {
         </div>
         ${bodyHtml}
       </div>
-      ${deleteBtn}${reactTrigger}`;
+      ${deleteBtn}${reactTrigger}${replyTrigger}`;
   }
+  // formatChatText() already stripped nothing here — m.message/m.username are the
+  // server-escaped strings, so this text content matches exactly what's on screen.
+  wrap.querySelector('.chat-reply-trigger')?.addEventListener('click', () => startChatReply(m.id, m.username, m.message));
   return wrap;
 }
 
@@ -1233,6 +1249,40 @@ function appendChatMessage(m) {
 function scrollChatToBottom() {
   const list = document.getElementById('chat-messages');
   if (list) list.scrollTop = list.scrollHeight;
+}
+
+// ── Reply-to ───────────────────────────────────────────────
+
+function startChatReply(id, username, message) {
+  if (!window.__loggedIn) { requireLogin('login'); return; }
+  __chatReplyTo = { id, username, message };
+  const bar = document.getElementById('chat-replying-bar');
+  if (!bar) return;
+  // username/message are already server-escaped HTML (entities intact), same as
+  // everywhere else they're rendered — set via innerHTML so entities decode
+  // correctly instead of showing up literally as "&amp;" etc.
+  document.getElementById('chat-replying-name').innerHTML = username;
+  const preview = message.length > 80 ? message.slice(0, 77) + '…' : message;
+  document.getElementById('chat-replying-text').innerHTML = preview;
+  bar.style.display = 'flex';
+  document.getElementById('chat-input')?.focus();
+}
+
+function cancelChatReply() {
+  __chatReplyTo = null;
+  const bar = document.getElementById('chat-replying-bar');
+  if (bar) bar.style.display = 'none';
+}
+
+// Jumps to a message currently in the loaded panel, if it's still there —
+// older messages the user hasn't scrolled back to (or a deleted message)
+// just no-op rather than erroring.
+function scrollToChatMessage(id) {
+  const el = document.getElementById('chat-msg-' + id);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('chat-msg-flash');
+  setTimeout(() => el.classList.remove('chat-msg-flash'), 1200);
 }
 
 // ── @mention autocomplete ─────────────────────────────────
@@ -1308,12 +1358,14 @@ async function sendChatMessage() {
   const fd = new FormData();
   fd.append('action', 'send');
   fd.append('message', text);
+  if (__chatReplyTo) fd.append('reply_to', __chatReplyTo.id);
   try {
     const res  = await fetch('/api/chat', { method: 'POST', body: fd });
     const data = await res.json();
     if (data.success) {
       input.value = '';
       input.style.height = 'auto';
+      cancelChatReply();
       appendChatMessage(data.message);
       __chatLatestId = Math.max(__chatLatestId, data.message.id);
       scrollChatToBottom();
