@@ -257,11 +257,20 @@ body { font-family: var(--font-body); }
   .info-grid-2 { grid-template-columns: 1fr; }
   .info-body { padding: 32px 20px 72px; }
 
+  /* Tighter, larger meta row + genre pills to match the reference app
+     layout: bigger touch targets, more breathing room between rows. */
+  .ih-meta-row { gap: 6px 14px; font-size: .82rem; justify-content: center; }
+  .ih-genres { gap: 10px; justify-content: center; }
+  .ih-genre-tag { padding: 7px 16px; font-size: .8rem; }
+  .ih-infoline { justify-content: center; gap: 4px 18px; }
+
   /* Matches the mobile reference: only the two primary actions (Play,
      Add to list) are shown full-width and stacked; the Subscribe/bell
-     button is reserved for wider screens. */
+     button is reserved for wider screens. Play button matches the
+     reference's prominent full-width white pill. */
   .ih-cta { flex-direction: column; align-items: stretch; }
   .ih-cta .ih-btn-play, .ih-cta .ih-btn-secondary { justify-content: center; }
+  .ih-cta .ih-btn-play { padding: 15px 26px; font-size: .95rem; }
   .ih-cta .ih-btn-subscribe { display: none; }
 }
 
