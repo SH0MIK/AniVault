@@ -261,11 +261,10 @@ body { font-family: var(--font-body); }
 
   /* Smaller, left-aligned meta row + genre pills to match the reference
      app layout — text sits flush to the content's left edge rather than
-     centered under the poster. Row 1 (rating/type/eps/duration/season)
-     must not wrap onto its own extra line even on narrow screens. */
-  .ih-meta-row { gap: 5px 8px; font-size: .66rem; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none; }
-  .ih-meta-row::-webkit-scrollbar { display: none; }
-  .ih-meta-row .ih-meta-item { flex: 0 0 auto; white-space: nowrap; }
+     centered under the poster. Lets items wrap naturally so nothing is
+     ever cropped/scrolled off; the tighter sizing below keeps as many
+     items as possible on the first line without forcing it. */
+  .ih-meta-row { gap: 6px 10px; font-size: .7rem; }
   .ih-meta-row .icon-inline { width: 12px; height: 12px; }
   .ih-genres { gap: 8px; }
   .ih-genre-tag { padding: 5px 13px; font-size: .74rem; }
