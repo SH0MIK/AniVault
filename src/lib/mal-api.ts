@@ -299,22 +299,37 @@ export class MalAPI {
   // manually curate a nicer banner per title, same as Anivexa does.
   // Returns order_index too, so the home page hero can honour your manual
   // display order (see getAniListSeasonNow's caller in home.ts).
+  // Falls back to home_hero_banners (the Homepage Hero Carousel admin page)
+  // if nothing's saved in the dedicated anime_banners library — titles
+  // curated for the homepage hero should also get their banner on their
+  // own detail page instead of needing to be saved twice.
   async getLocalAnimeBannerInfo(animeId: number): Promise<{ image_url: string; order_index: number } | null> {
     if (!animeId) return null;
     const row = await this.db.fetchOne<{ image_url: string; order_index: number | null }>(
       'SELECT image_url, order_index FROM anime_banners WHERE anime_id = ?',
       [animeId]
     );
-    return row ? { image_url: row.image_url, order_index: row.order_index ?? 0 } : null;
+    if (row) return { image_url: row.image_url, order_index: row.order_index ?? 0 };
+
+    const heroRow = await this.db.fetchOne<{ banner_image_url: string | null; display_order: number | null }>(
+      'SELECT banner_image_url, display_order FROM home_hero_banners WHERE anime_id = ?',
+      [animeId]
+    );
+    return heroRow?.banner_image_url ? { image_url: heroRow.banner_image_url, order_index: heroRow.display_order ?? 0 } : null;
   }
 
   // A manually-saved logo (admin/anime_banners.php "Add Logo" button) takes
   // priority over the automatic TMDB search — lets you fix a wrong/missing
-  // match without waiting on TMDB to have the right one.
+  // match without waiting on TMDB to have the right one. Falls back to
+  // home_hero_banners' logo_image_url (Homepage Hero Carousel) if nothing's
+  // saved in the dedicated anime_logos library, for the same reason as above.
   async getLocalAnimeLogo(animeId: number): Promise<string> {
     if (!animeId) return '';
     const row = await this.db.fetchOne<{ image_url: string }>('SELECT image_url FROM anime_logos WHERE anime_id = ?', [animeId]);
-    return row ? row.image_url : '';
+    if (row) return row.image_url;
+
+    const heroRow = await this.db.fetchOne<{ logo_image_url: string | null }>('SELECT logo_image_url FROM home_hero_banners WHERE anime_id = ?', [animeId]);
+    return heroRow?.logo_image_url ?? '';
   }
 
   // TMDB stores a "clear logo" per title — transparent-background title art,
