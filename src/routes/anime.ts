@@ -140,7 +140,6 @@ animeRoutes.get('/anime', async (c) => {
     </div>
 
     <div class="ih-content">
-      ${seasonYearLabel(anime.start_date) ? `<div class="ih-airtime">${icon('calendar', 'icon-inline')} ${h(seasonYearLabel(anime.start_date)!)}</div>` : ''}
       <div class="ih-plaintitle">${h(title)}</div>
 
       ${titleLogo ? `<img class="ih-logo" src="${h(titleLogo)}" alt="${h(title)}" loading="eager">` : `<h1 class="ih-title">${h(title)}</h1>`}
@@ -150,6 +149,7 @@ animeRoutes.get('/anime', async (c) => {
         <span class="ih-meta-item">${icon('tv', 'icon-inline')} ${h(titleCase(anime.type || 'TV'))}</span>
         <span class="ih-meta-item">${airedSoFar !== null && airedSoFar > 0 && airedSoFar !== totalEps ? `Ep ${airedSoFar}/${totalEps || '?'} aired` : (totalEps ? totalEps + ' eps' : 'Unknown eps')}</span>
         ${anime.duration_mins ? `<span class="ih-meta-item">${icon('clock', 'icon-inline')} ${anime.duration_mins}m</span>` : ''}
+        ${seasonYearLabel(anime.start_date) ? `<span class="ih-meta-item">${icon('calendar', 'icon-inline')} ${h(seasonYearLabel(anime.start_date)!)}</span>` : ''}
         <span class="ih-meta-item${anime.status === 'Currently Airing' ? ' ih-meta-airing' : ''}">${h(anime.status || '—')}</span>
         <span class="ih-meta-item">${icon('captions', 'icon-inline')} Sub</span>
         ${hasDub ? `<span class="ih-meta-item">${icon('mic', 'icon-inline')} Dub</span>` : ''}
