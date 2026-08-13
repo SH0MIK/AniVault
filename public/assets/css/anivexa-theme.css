@@ -251,7 +251,7 @@ body { font-family: var(--font-body); }
 
 @media (max-width: 880px) {
   .ih-inner { flex-direction: column; align-items: center; text-align: left; padding: 24px 20px 36px; gap: 16px; }
-  .ih-thumb { flex: 0 0 auto; width: min(200px, 52vw); aspect-ratio: 2/3; align-self: center; }
+  .ih-thumb { flex: 0 0 auto; width: min(170px, 45vw); aspect-ratio: 2/3; align-self: center; }
   .ih-content { align-items: flex-start; width: 100%; gap: 8px; }
   .ih-meta-row, .ih-genres, .ih-infoline { justify-content: flex-start; }
   .ih-logo { max-width: 76%; max-height: 90px; margin-left: 0; margin-right: auto; }
@@ -262,7 +262,7 @@ body { font-family: var(--font-body); }
   /* Smaller, left-aligned meta row + genre pills to match the reference
      app layout — text sits flush to the content's left edge rather than
      centered under the poster. */
-  .ih-meta-row { gap: 6px 14px; font-size: .78rem; }
+  .ih-meta-row { gap: 6px 10px; font-size: .72rem; }
   .ih-genres { gap: 8px; }
   .ih-genre-tag { padding: 5px 13px; font-size: .74rem; }
   .ih-infoline { gap: 4px 18px; font-size: .78rem; }
