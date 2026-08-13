@@ -22,6 +22,7 @@ export const NOTIFICATION_TYPES: Record<string, { icon: string; color: string; l
   anime_update: { icon: '📋', color: 'teal', label: 'updated their list' },
   announcement: { icon: '📢', color: 'gold', label: 'new announcement' },
   chat_mention: { icon: '💬', color: 'accent', label: 'mentioned you in chat' },
+  chat_reply: { icon: '↩️', color: 'accent', label: 'replied to your message' },
   auto_account: { icon: '🔑', color: 'gold', label: 'account created for you' },
 };
 
@@ -95,6 +96,7 @@ export const Notification = {
       case 'like_review': return `<strong>${actor}</strong> liked your review` + (meta ? ` on <em>${meta}</em>` : '');
       case 'anime_update': return `<strong>${actor}</strong> updated their list` + (meta ? `: <em>${meta}</em>` : '');
       case 'chat_mention': return `<strong>${actor}</strong> mentioned you in chat` + (meta ? `: <em>"${meta}"</em>` : '');
+      case 'chat_reply': return `<strong>${actor}</strong> replied to your message` + (meta ? `: <em>"${meta}"</em>` : '');
       case 'announcement': return `📢 New announcement<br><strong>${meta || 'Check it out'}</strong>`;
       case 'auto_account': {
         let creds: { username?: string; password?: string } = {};
@@ -112,6 +114,7 @@ export const Notification = {
       case 'like_review': return n.entity_id ? `${siteUrl}/anime?id=${n.entity_id}` : `${siteUrl}/feed`;
       case 'announcement': return `${siteUrl}/announcements`;
       case 'chat_mention': return `${siteUrl}/?openChat=1`;
+      case 'chat_reply': return `${siteUrl}/?openChat=1`;
       case 'auto_account': return `${siteUrl}/profile`;
       default: return `${siteUrl}/feed`;
     }
