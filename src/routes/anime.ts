@@ -143,7 +143,6 @@ animeRoutes.get('/anime', async (c) => {
       <div class="ih-plaintitle">${h(title)}</div>
 
       ${titleLogo ? `<img class="ih-logo" src="${h(titleLogo)}" alt="${h(title)}" loading="eager">` : `<h1 class="ih-title">${h(title)}</h1>`}
-      ${jpTitle && jpTitle !== title ? `<div class="ih-subtitle">${h(jpTitle)}</div>` : ''}
 
       <div class="ih-meta-row">
         ${anime.score ? `<span class="ih-meta-item ih-meta-score">${icon('star', 'icon-inline')} ${anime.score.toFixed(1)}</span>` : ''}
