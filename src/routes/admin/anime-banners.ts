@@ -18,6 +18,14 @@ async function saveLocalAnimeBanner(db: any, animeId: number, title: string, ima
   );
 }
 
+async function saveLocalAnimeLogo(db: any, animeId: number, title: string, imageUrl: string, source: string): Promise<void> {
+  await db.query(
+    `INSERT INTO anime_logos (anime_id, anime_title, image_url, source) VALUES (?,?,?,?)
+     ON CONFLICT(anime_id) DO UPDATE SET anime_title=excluded.anime_title, image_url=excluded.image_url, source=excluded.source, updated_at=datetime('now')`,
+    [animeId, title || null, imageUrl, source]
+  );
+}
+
 adminAnimeBannersRoutes.on(['GET', 'POST'], '/admin/anime_banners.php', async (c) => {
   const ctx = await buildAdminCtx(c);
   const siteUrl = c.env.SITE_URL;
@@ -61,6 +69,36 @@ adminAnimeBannersRoutes.on(['GET', 'POST'], '/admin/anime_banners.php', async (c
         }
         await db.query('DELETE FROM anime_banners WHERE anime_id=?', [animeId]);
         session.setFlash('success', 'Banner removed from library.');
+      } else if (action === 'save_logo_url') {
+        const imageUrl = ((formData.get('image_url') as string) ?? '').trim();
+        let valid = false;
+        try { const u = new URL(imageUrl); valid = u.protocol === 'http:' || u.protocol === 'https:'; } catch { /* invalid */ }
+        if (!animeId || !valid) throw new Error('Enter a valid Anime ID and image URL.');
+        await saveLocalAnimeLogo(db, animeId, title, imageUrl, 'url');
+        session.setFlash('success', 'Logo URL saved.');
+      } else if (action === 'upload_logo') {
+        const file = formData.get('image_file') as File | null;
+        if (!animeId || !file || file.size === 0) throw new Error('Choose an image file and enter a valid Anime ID.');
+        if (file.size > 3 * 1024 * 1024) throw new Error('Image is too large. Use 3 MB or less.');
+        const allowed: Record<string, string> = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' };
+        const ext = allowed[file.type];
+        if (!ext) throw new Error('Upload JPG, PNG, or WebP only.');
+
+        const filename = `anime-${animeId}-${Date.now()}.${ext}`;
+        const buf = await file.arrayBuffer();
+        await c.env.AVATARS.put(`anime-logo-library/${filename}`, buf, { httpMetadata: { contentType: file.type } });
+        const imageUrl = `${siteUrl}/assets/img/anime-logo-library/${filename}`;
+        await saveLocalAnimeLogo(db, animeId, title, imageUrl, 'upload');
+        session.setFlash('success', 'Logo uploaded and saved.');
+      } else if (action === 'delete_logo') {
+        if (!animeId) throw new Error('Missing Anime ID.');
+        const row = await db.fetchOne<{ image_url: string }>('SELECT image_url FROM anime_logos WHERE anime_id=?', [animeId]);
+        if (row?.image_url?.includes('/assets/img/anime-logo-library/')) {
+          const filename = row.image_url.split('/assets/img/anime-logo-library/')[1];
+          try { await c.env.AVATARS.delete(`anime-logo-library/${filename}`); } catch { /* best-effort */ }
+        }
+        await db.query('DELETE FROM anime_logos WHERE anime_id=?', [animeId]);
+        session.setFlash('success', 'Logo removed from library.');
       }
     } catch (e: any) {
       session.setFlash('error', e.message ?? 'An error occurred.');
@@ -78,12 +116,14 @@ adminAnimeBannersRoutes.on(['GET', 'POST'], '/admin/anime_banners.php', async (c
   }
   const banners = await db.fetchAll<any>(`SELECT * FROM anime_banners ${where} ORDER BY updated_at DESC LIMIT 80`, params);
   const total = await db.count('SELECT COUNT(*) as cnt FROM anime_banners');
+  const logos = await db.fetchAll<any>(`SELECT * FROM anime_logos ${where} ORDER BY updated_at DESC LIMIT 80`, params);
+  const totalLogos = await db.count('SELECT COUNT(*) as cnt FROM anime_logos');
 
   const flash = session.takeFlash();
   const err = flash?.type === 'error' ? flash.message : null;
   const suc = flash?.type === 'success' ? flash.message : null;
 
-  let html = renderAdminHeader({ siteUrl, pageTitle: 'Anime Banner Library', adminPage: 'anime_banners', isOwner, impersonating });
+  let html = renderAdminHeader({ siteUrl, pageTitle: 'Anime Banner & Logo Library', adminPage: 'anime_banners', isOwner, impersonating });
   html += `
 <style>
 .image-admin-grid { display:grid; grid-template-columns: 1fr 1fr; gap:1rem; margin-bottom:1.5rem; }
@@ -97,8 +137,9 @@ adminAnimeBannersRoutes.on(['GET', 'POST'], '/admin/anime_banners.php', async (c
 </style>
 
 <div class="admin-header">
-  <div><h1>Anime Banner Library</h1><p class="text-muted" style="font-size:0.9rem;">Local wide banner art for the home page hero — takes priority over AniList's bannerImage, which is community-submitted and often inconsistent quality.</p></div>
+  <div><h1>Anime Banner & Logo Library</h1><p class="text-muted" style="font-size:0.9rem;">Local wide banner art for the home page hero, and transparent title-logo art for anime detail pages — both take priority over their automatic sources (AniList's community bannerImage, TMDB's clear logo search).</p></div>
   <span class="badge badge-default">${total.toLocaleString('en-US')} banners</span>
+  <span class="badge badge-default">${totalLogos.toLocaleString('en-US')} logos</span>
 </div>
 
 ${suc ? `<div class="alert alert-success mb-2">${h(suc)}</div>` : ''}
@@ -127,6 +168,29 @@ ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
   </div>
 </div>
 
+<div class="image-admin-grid">
+  <div class="card card-body">
+    <h2 class="mb-2">Upload Logo</h2>
+    <form method="POST" enctype="multipart/form-data">
+      <input type="hidden" name="action" value="upload_logo">
+      <div class="form-group"><label class="form-label">Anime ID (MAL ID)</label><input class="form-control" type="number" name="anime_id" required placeholder="16498"></div>
+      <div class="form-group"><label class="form-label">Title</label><input class="form-control" name="anime_title" placeholder="Optional, for searching"></div>
+      <div class="form-group"><label class="form-label">Logo File (transparent PNG/WebP)</label><input class="form-control" type="file" name="image_file" accept="image/jpeg,image/png,image/webp" required></div>
+      <button class="btn btn-primary" type="submit">Upload Logo</button>
+    </form>
+  </div>
+  <div class="card card-body">
+    <h2 class="mb-2">Save Logo URL</h2>
+    <form method="POST">
+      <input type="hidden" name="action" value="save_logo_url">
+      <div class="form-group"><label class="form-label">Anime ID (MAL ID)</label><input class="form-control" type="number" name="anime_id" required placeholder="16498"></div>
+      <div class="form-group"><label class="form-label">Title</label><input class="form-control" name="anime_title" placeholder="Optional, for searching"></div>
+      <div class="form-group"><label class="form-label">Logo URL</label><input class="form-control" type="url" name="image_url" required placeholder="https://..."></div>
+      <button class="btn btn-primary" type="submit">Save URL</button>
+    </form>
+  </div>
+</div>
+
 <div class="card card-body mb-3">
   <form method="GET" style="display:flex;gap:8px;flex-wrap:wrap;">
     <input class="form-control" name="q" value="${h(q)}" placeholder="Search by title or Anime ID" style="max-width:320px;">
@@ -135,8 +199,9 @@ ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
   </form>
 </div>
 
-${banners.length === 0 ? `<div class="card card-body text-center text-muted">No saved banners yet.</div>` : `
-<div class="banner-library-grid">
+<h2 class="mb-2">Banners</h2>
+${banners.length === 0 ? `<div class="card card-body text-center text-muted mb-3">No saved banners yet.</div>` : `
+<div class="banner-library-grid mb-3">
   ${banners.map((b: any) => `
   <div class="banner-library-card">
     <img src="${h(b.image_url)}" alt="">
@@ -145,6 +210,23 @@ ${banners.length === 0 ? `<div class="card card-body text-center text-muted">No 
       <div class="banner-library-meta">#${b.anime_id} · ${h(b.source)}</div>
       <form method="POST" onsubmit="return confirm('Remove this banner from the library?')" style="margin-top:8px;">
         <input type="hidden" name="action" value="delete"><input type="hidden" name="anime_id" value="${b.anime_id}">
+        <button class="btn btn-danger btn-sm" type="submit">Delete</button>
+      </form>
+    </div>
+  </div>`).join('')}
+</div>`}
+
+<h2 class="mb-2">Logos</h2>
+${logos.length === 0 ? `<div class="card card-body text-center text-muted">No saved logos yet.</div>` : `
+<div class="banner-library-grid">
+  ${logos.map((l: any) => `
+  <div class="banner-library-card">
+    <img src="${h(l.image_url)}" alt="" style="aspect-ratio:2.5/1; object-fit:contain; background:#111;">
+    <div class="banner-library-body">
+      <div class="banner-library-title">${h(l.anime_title || 'Untitled')}</div>
+      <div class="banner-library-meta">#${l.anime_id} · ${h(l.source)}</div>
+      <form method="POST" onsubmit="return confirm('Remove this logo from the library?')" style="margin-top:8px;">
+        <input type="hidden" name="action" value="delete_logo"><input type="hidden" name="anime_id" value="${l.anime_id}">
         <button class="btn btn-danger btn-sm" type="submit">Delete</button>
       </form>
     </div>
@@ -159,6 +241,15 @@ ${banners.length === 0 ? `<div class="card card-body text-center text-muted">No 
 adminAnimeBannersRoutes.get('/assets/img/anime-banner-library/:filename', async (c) => {
   const filename = c.req.param('filename');
   const obj = await c.env.AVATARS.get(`anime-banner-library/${filename}`);
+  if (!obj) return c.notFound();
+  return new Response(obj.body, {
+    headers: { 'Content-Type': obj.httpMetadata?.contentType ?? 'application/octet-stream', 'Cache-Control': 'public, max-age=31536000, immutable' },
+  });
+});
+
+adminAnimeBannersRoutes.get('/assets/img/anime-logo-library/:filename', async (c) => {
+  const filename = c.req.param('filename');
+  const obj = await c.env.AVATARS.get(`anime-logo-library/${filename}`);
   if (!obj) return c.notFound();
   return new Response(obj.body, {
     headers: { 'Content-Type': obj.httpMetadata?.contentType ?? 'application/octet-stream', 'Cache-Control': 'public, max-age=31536000, immutable' },
