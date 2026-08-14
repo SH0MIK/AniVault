@@ -51,8 +51,10 @@ export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus:
   }
 
   const dubbed = meta?.dubbedLangs ?? [];
-  const dubCodes = dubbed.map((l) => LANG_CODE[l] ?? l.slice(0, 2).toUpperCase());
-  const dubLabel = dubCodes.length ? (dubCodes.length > 3 ? `${dubCodes.slice(0, 3).join(' ')} +${dubCodes.length - 3}` : dubCodes.join(' ')) : '';
+  const hasDub = dubbed.length > 0;
+  const audioItem = hasDub
+    ? `<span class="anime-card-meta-item anime-card-meta-dub" title="Dubbed: ${h(dubbed.join(', '))}">${icon('mic', 'icon-inline')} Dub</span>`
+    : `<span class="anime-card-meta-item">${icon('captions', 'icon-inline')} Sub</span>`;
 
   return `
 <div class="anime-card" onclick="window.location.href='${h(aurl)}'">
@@ -61,7 +63,6 @@ export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus:
       ? `<img src="${h(aimg)}" alt="${h(atitle)}" loading="lazy">`
       : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:2rem;">${icon('user', 'icon-xl')}</div>`}
     ${ascore ? `<div class="anime-card-score">${icon('star', 'icon-small')} ${ascore.toFixed(1)}</div>` : ''}
-    ${dubLabel ? `<div class="anime-card-dub" title="Dubbed: ${h(dubbed.join(', '))}">${icon('mic', 'icon-small')} ${h(dubLabel)}</div>` : ''}
     ${userStatus ? `<div class="anime-card-user-status badge ${STATUS_CLASSES[userStatus] ?? 'badge-default'}" data-anime-id="${aid}">${STATUS_LABELS[userStatus] ?? userStatus}</div>` : ''}
     <div class="anime-card-overlay">
       <button class="btn btn-primary btn-sm" onclick='event.stopPropagation(); addToList(${aid}, ${jTitle}, ${jImage}, ${Number(aeps)})'>
@@ -77,7 +78,11 @@ export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus:
   </div>
   <div class="anime-card-info">
     <div class="anime-card-title">${h(atitle)}</div>
-    <div class="anime-card-meta">${h(atype)}${epsLabel ? ` · ${epsLabel}` : ''}</div>
+    <div class="anime-card-meta">
+      ${atype ? `<span class="anime-card-meta-item">${icon('tv', 'icon-inline')} ${h(atype)}</span>` : ''}
+      ${epsLabel ? `<span class="anime-card-meta-item">${icon('list', 'icon-inline')} ${h(epsLabel)}</span>` : ''}
+      ${audioItem}
+    </div>
   </div>
 </div>`;
 }
