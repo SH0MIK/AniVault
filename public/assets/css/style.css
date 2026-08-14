@@ -1030,7 +1030,7 @@ h3 { font-size: 1.1rem; }
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   font-size: 0.62rem;
   font-weight: 600;
   color: var(--text-muted);
@@ -1040,13 +1040,14 @@ h3 { font-size: 1.1rem; }
 .anime-card-meta-item {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
+  gap: 1px;
   flex-shrink: 0;
 }
 .anime-card-meta-item .icon-inline {
   width: 9px;
   height: 9px;
   flex-shrink: 0;
+  margin-right: 2px;
 }
 .anime-card-meta-dub {
   color: var(--teal, #2dd4bf);
