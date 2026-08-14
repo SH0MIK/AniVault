@@ -1004,24 +1004,6 @@ h3 { font-size: 1.1rem; }
   z-index: 2;
 }
 
-.anime-card-dub {
-  position: absolute;
-  bottom: 8px;
-  left: 8px;
-  background: rgba(0,0,0,0.8);
-  color: var(--teal, #2dd4bf);
-  font-size: 0.68rem;
-  font-weight: 700;
-  letter-spacing: .02em;
-  padding: 3px 7px;
-  border-radius: var(--radius-sm);
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  z-index: 2;
-}
-.anime-card-dub .icon { width: 10px; height: 10px; }
-
 .anime-card-user-status {
   position: absolute;
   top: 8px;
@@ -1045,8 +1027,26 @@ h3 { font-size: 1.1rem; }
   margin-bottom: 4px;
 }
 .anime-card-meta {
-  font-size: 0.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 3px 10px;
+  font-size: 0.72rem;
+  font-weight: 600;
   color: var(--text-muted);
+}
+.anime-card-meta-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.anime-card-meta-item .icon-inline {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+}
+.anime-card-meta-dub {
+  color: var(--teal, #2dd4bf);
 }
 
 /* ── Badges ────────────────────────────────── */
