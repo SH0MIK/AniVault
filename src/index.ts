@@ -70,6 +70,7 @@ export interface Env {
   ANILIST_CLIENT_SECRET?: string;
   ANILIST_REDIRECT_URI?: string;
   TMDB_API_KEY?: string;
+  SCRAPER_API_BASE?: string;
 }
 
 const app = new Hono<{ Bindings: Env }>();
