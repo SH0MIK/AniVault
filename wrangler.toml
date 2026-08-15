@@ -64,3 +64,4 @@ invocation_logs = true
 #   wrangler secret put MAL_CLIENT_ID
 #   wrangler secret put MAL_CLIENT_SECRET
 #   wrangler secret put TMDB_API_KEY
+#   wrangler secret put SCRAPER_API_BASE   (base URL of your private scraper backend, no trailing slash)

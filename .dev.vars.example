@@ -1,0 +1,5 @@
+# Copy this file to .dev.vars (gitignored) and fill in real values for local
+# `wrangler dev`. For production, set secrets with `wrangler secret put NAME`
+# instead — never commit real values.
+
+SCRAPER_API_BASE=https://your-scraper-service.example.com
