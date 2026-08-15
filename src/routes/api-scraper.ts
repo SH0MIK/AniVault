@@ -19,11 +19,17 @@ export const scraperRoutes = new Hono<{ Bindings: Env }>();
 
 // Scraper backend base URL — set via `wrangler secret put SCRAPER_API_BASE`
 // (or SCRAPER_API_BASE in .dev.vars for local dev). Never hardcode this or
-// commit it; it's the address of the private scraping service. Returns null
-// if unset so callers can fail with a clean error instead of throwing.
+// commit it; it's the address of the private scraping service.
+//
+// Accepts either form: "https://host" or "https://host/api" — a trailing
+// "/api" (with or without a trailing slash) is stripped so callers can
+// append "/api/watch/..." or "/watch/..." consistently regardless of which
+// form was configured. Returns null if unset so callers can fail with a
+// clean error instead of throwing.
 function getScraperBase(env: Env): string | null {
   const base = env.SCRAPER_API_BASE;
-  return base ? base.replace(/\/+$/, '') : null;
+  if (!base) return null;
+  return base.replace(/\/+$/, '').replace(/\/api$/i, '');
 }
 
 async function fetchJson(url: string, timeoutMs = 12000): Promise<{ ok: boolean; code: number; data: any }> {
