@@ -17,8 +17,14 @@ import { h } from '../lib/helpers';
 
 export const scraperRoutes = new Hono<{ Bindings: Env }>();
 
-const SENSHI_BASE = 'https://anivault-api.up.railway.app/api';
-const ANIKOTO_MIRURO_BASE = 'https://anivault-api.up.railway.app/';
+// Scraper backend base URL — set via `wrangler secret put SCRAPER_API_BASE`
+// (or SCRAPER_API_BASE in .dev.vars for local dev). Never hardcode this or
+// commit it; it's the address of the private scraping service. Returns null
+// if unset so callers can fail with a clean error instead of throwing.
+function getScraperBase(env: Env): string | null {
+  const base = env.SCRAPER_API_BASE;
+  return base ? base.replace(/\/+$/, '') : null;
+}
 
 async function fetchJson(url: string, timeoutMs = 12000): Promise<{ ok: boolean; code: number; data: any }> {
   try {
@@ -45,8 +51,10 @@ scraperRoutes.get('/api/animeheaven_stream.php', async (c) => {
   const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
+  const base = getScraperBase(c.env);
+  if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
-  const { ok, code, data } = await fetchJson(`${SENSHI_BASE}/watch/animeheaven/mal-${animeId}/${epNum}/sub`, 20000);
+  const { ok, code, data } = await fetchJson(`${base}/api/watch/animeheaven/mal-${animeId}/${epNum}/sub`, 20000);
   if (!ok) return c.json({ error: data?.error ?? `Scraper API error HTTP ${code}` });
   const mp4 = data?.mp4ProxyUrl ?? data?.streamUrl ?? data?.mp4 ?? null;
   if (!mp4) return c.json({ error: 'No stream URL in response', raw: data });
@@ -65,10 +73,12 @@ scraperRoutes.get('/api/anikoto_stream.php', async (c) => {
   const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
   const server = (c.req.query('server') ?? '').trim();
   if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
+  const base = getScraperBase(c.env);
+  if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
   // Anikoto moved from the anivault-scraper Railway service to the same
   // one senshi_stream.php uses, and now expects a "mal-" prefixed ID.
-  let watchUrl = `${SENSHI_BASE}/watch/anikoto/mal-${animeId}/${epNum}/${audio}`;
+  let watchUrl = `${base}/api/watch/anikoto/mal-${animeId}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 20000);
@@ -85,8 +95,8 @@ scraperRoutes.get('/api/anikoto_stream.php', async (c) => {
 // ── api/server_check.php ───────────────────────────────────────────────────
 const ERROR_PHRASES = ['episode not found', 'video not found', '404 not found', 'page not found', 'no video found', 'no sources found', 'no servers found', 'this episode is not available', 'something went wrong'];
 
-async function checkSenshiUp(malId: number, epNum: number): Promise<boolean> {
-  const { ok, data } = await fetchJson(`${ANIKOTO_MIRURO_BASE}/watch/senshi/mal-${malId}/${epNum}/sub`, 10000);
+async function checkSenshiUp(base: string, malId: number, epNum: number): Promise<boolean> {
+  const { ok, data } = await fetchJson(`${base}/watch/senshi/mal-${malId}/${epNum}/sub`, 10000);
   if (!ok) return false;
   return !!(data?.hlsProxyUrl ?? data?.m3u8);
 }
@@ -120,13 +130,15 @@ scraperRoutes.get('/api/server_check.php', async (c) => {
   const anilistId = parseInt(c.req.query('anilist') ?? '0', 10) || 0;
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   if (!malId || !anilistId || !epNum) { await session.save(c, lifetime); return c.json({ error: 'Missing mal, anilist, or ep' }, 400); }
+  const base = getScraperBase(c.env);
+  if (!base) { await session.save(c, lifetime); return c.json({ error: 'Scraper API not configured' }, 500); }
 
   const cacheKey = `serverchk_${malId}_${anilistId}_${epNum}`;
   const cached = await c.env.API_CACHE.get(cacheKey, 'json');
   if (cached) { await session.save(c, lifetime); return c.json(cached); }
 
   const [volt, warp, ayame] = await Promise.all([
-    checkSenshiUp(malId, epNum),
+    checkSenshiUp(base, malId, epNum),
     checkEmbedUp(`https://tryembed.us.cc/embed/anime/${anilistId}/${epNum}/sub`),
     checkEmbedUp(`https://vidnest.fun/animepahe/${anilistId}/${epNum}/sub`),
   ]);
@@ -156,6 +168,8 @@ scraperRoutes.get('/api/server_check_stream.php', async (c) => {
 
       if (!auth.check()) { send('error', { message: 'Unauthorized' }); controller.close(); return; }
       if (!malId || !anilistId || !epNum) { send('error', { message: 'Missing mal, anilist, or ep' }); controller.close(); return; }
+      const base = getScraperBase(c.env);
+      if (!base) { send('error', { message: 'Scraper API not configured' }); controller.close(); return; }
 
       const cacheKey = `serverchk_${malId}_${anilistId}_${epNum}`;
       const cached = await c.env.API_CACHE.get(cacheKey, 'json') as Record<string, boolean> | null;
@@ -168,7 +182,7 @@ scraperRoutes.get('/api/server_check_stream.php', async (c) => {
 
       const results: Record<string, boolean> = {};
       const checks: [string, Promise<boolean>][] = [
-        ['volt', checkSenshiUp(malId, epNum)],
+        ['volt', checkSenshiUp(base, malId, epNum)],
         ['warp', checkEmbedUp(`https://tryembed.us.cc/embed/anime/${anilistId}/${epNum}/sub`)],
         ['ayame', checkEmbedUp(`https://vidnest.fun/animepahe/${anilistId}/${epNum}/sub`)],
       ];
