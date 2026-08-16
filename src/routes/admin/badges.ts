@@ -137,10 +137,11 @@ ${suc ? `<div class="alert alert-success mb-2">${h(suc)}</div>` : ''}
     <form method="POST" class="mb-2">
       <input type="hidden" name="action" value="assign_badge">
       <div class="form-group"><label class="form-label">User</label>
-        <select class="form-control" name="user_id" required>
-          <option value="">Choose user...</option>
-          ${users.map((u) => `<option value="${u.id}">#${u.id} ${h(u.username)} (${h(u.email)})</option>`).join('')}
-        </select>
+        <input class="form-control" id="badge-user-search" list="badge-user-list" placeholder="Search username..." autocomplete="off">
+        <datalist id="badge-user-list">
+          ${users.map((u) => `<option value="${h(u.username)}">#${u.id} ${h(u.email)}</option>`).join('')}
+        </datalist>
+        <input type="hidden" name="user_id" id="badge-user-id" required>
       </div>
       <div class="form-group"><label class="form-label">Badge</label>
         <select class="form-control" name="badge_id" required>
@@ -173,11 +174,12 @@ ${suc ? `<div class="alert alert-success mb-2">${h(suc)}</div>` : ''}
 
 <div class="card card-body mt-3">
   <h2 class="mb-2">Assigned Badges</h2>
-  <div class="data-table-wrap"><table class="data-table">
+  <input class="form-control mb-2" id="badge-assigned-filter" placeholder="Filter by username..." style="max-width:300px;" autocomplete="off">
+  <div class="data-table-wrap"><table class="data-table" id="assigned-badges-table">
     <thead><tr><th>User</th><th>Badge</th><th>Assigned</th><th>Actions</th></tr></thead>
     <tbody>
       ${assigned.map((row) => `
-      <tr>
+      <tr data-username="${h(row.username.toLowerCase())}">
         <td><a href="users.php?search=${h(row.username)}">${h(row.username)}</a></td>
         <td>${Badge.renderList([row])} ${h(row.name)}</td>
         <td>${timeAgo(row.assigned_at)}</td>
@@ -186,7 +188,34 @@ ${suc ? `<div class="alert alert-success mb-2">${h(suc)}</div>` : ''}
       ${assigned.length === 0 ? `<tr><td colspan="4" class="text-center text-muted" style="padding:2rem;">No assigned badges yet.</td></tr>` : ''}
     </tbody>
   </table></div>
-</div>`;
+</div>
+
+<script>
+(function(){
+  var users = ${JSON.stringify(users.map((u) => ({ id: u.id, username: u.username }))).replace(/</g, '\\u003c')};
+  var byName = {};
+  users.forEach(function(u){ byName[u.username] = u.id; });
+
+  var search = document.getElementById('badge-user-search');
+  var hidden = document.getElementById('badge-user-id');
+  if (search) {
+    search.addEventListener('input', function(){
+      hidden.value = byName.hasOwnProperty(search.value) ? byName[search.value] : '';
+    });
+  }
+
+  var filter = document.getElementById('badge-assigned-filter');
+  if (filter) {
+    filter.addEventListener('input', function(){
+      var q = filter.value.toLowerCase();
+      document.querySelectorAll('#assigned-badges-table tbody tr').forEach(function(tr){
+        var name = tr.getAttribute('data-username') || '';
+        tr.style.display = name.indexOf(q) !== -1 ? '' : 'none';
+      });
+    });
+  }
+})();
+</script>`;
   html += renderAdminFooter(siteUrl);
   await session.save(c, lifetime);
   return c.html(html);
