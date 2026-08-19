@@ -216,20 +216,29 @@ export const EpisodeAir = {
 
   /** Actually runs the scan: force-refreshes (ignores staleness) up to `limit` candidates,
    *  prioritizing in-season titles without a fresh look yet. Meant to be called both by the
-   *  cron (gated by the auto-run setting) and the admin page's "Scan Now" button. */
-  async scanCurrentlyAiring(db: Db, env: EpisodeAirEnv, mal: MalAPI, limit = 40): Promise<{ candidates: number; scanned: number; updated: number }> {
+   *  cron (gated by the auto-run setting) and the admin page's "Scan Now" button.
+   *  onProgress fires after every candidate (found or not) so a caller can surface a live
+   *  progress bar — see admin/episode-scanner.ts, which persists it to KV for polling since
+   *  the scan itself runs in the background via waitUntil. */
+  async scanCurrentlyAiring(
+    db: Db, env: EpisodeAirEnv, mal: MalAPI, limit = 40,
+    onProgress?: (done: number, total: number, cand: ScanCandidate) => void | Promise<void>
+  ): Promise<{ candidates: number; scanned: number; updated: number }> {
     const candidates = await EpisodeAir.getScanCandidates(db, mal);
     const toScan = candidates.slice(0, limit);
     let updated = 0;
-    for (const cand of toScan) {
+    for (let i = 0; i < toScan.length; i++) {
+      const cand = toScan[i];
       const fetched = await EpisodeAir.fetchAiredCount(env, mal, cand.id);
-      if (!fetched) continue;
-      await db.query(
-        `INSERT INTO episode_air_cache (anime_id, aired_count, total_count, updated_at) VALUES (?, ?, ?, datetime('now'))
-         ON CONFLICT(anime_id) DO UPDATE SET aired_count=excluded.aired_count, total_count=excluded.total_count, updated_at=excluded.updated_at`,
-        [cand.id, fetched.aired, fetched.total]
-      );
-      updated++;
+      if (fetched) {
+        await db.query(
+          `INSERT INTO episode_air_cache (anime_id, aired_count, total_count, updated_at) VALUES (?, ?, ?, datetime('now'))
+           ON CONFLICT(anime_id) DO UPDATE SET aired_count=excluded.aired_count, total_count=excluded.total_count, updated_at=excluded.updated_at`,
+          [cand.id, fetched.aired, fetched.total]
+        );
+        updated++;
+      }
+      if (onProgress) await onProgress(i + 1, toScan.length, cand);
     }
     return { candidates: candidates.length, scanned: toScan.length, updated };
   },
