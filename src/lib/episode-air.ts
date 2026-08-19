@@ -1,23 +1,82 @@
-// MAL's `num_episodes` field is frequently 0/stale/wrong for
-// currently-airing shows — MAL only reliably finalizes it once a show
-// completes. This instead counts actual aired episodes from Jikan's
-// per-episode air-date data, which updates promptly as each episode airs.
+// Primary source: your own scraper API's /api/info?malId=X, which returns
+// episodeCount for whatever it has actually indexed across your streaming
+// providers (animeheaven/anikoto/zoro/etc). One fast call, and it reflects
+// what's really watchable on-site rather than a third-party field.
 //
-// Not cheap to compute (Jikan pagination, rate-limited 3req/s) so this is
-// cached in `episode_air_cache` rather than ever computed live for a card
-// grid. Only the single-anime detail page does a synchronous
-// refresh-if-stale; grids only ever read the cache (see getForMany).
+// Fallback: MAL's `num_episodes` field is frequently 0/stale/wrong for
+// currently-airing shows, and the scraper may not have ingested a title yet
+// — in that case this falls back to counting actual aired episodes from
+// Jikan's per-episode air-date data, which updates promptly as each episode
+// airs (but is expensive: pagination, rate-limited 3req/s).
+//
+// Either way this isn't cheap enough to compute live for a card grid, so
+// it's cached in `episode_air_cache`. Only the single-anime detail page does
+// a synchronous refresh-if-stale; grids only ever read the cache (see
+// getForMany).
 import { Db } from './db';
 import { MalAPI } from './mal-api';
 
 const STALE_AFTER_MS = 6 * 60 * 60 * 1000; // 6 hours
 const MAX_PAGES = 15; // 15 * 100 = up to 1500 episodes tracked; covers everything but a handful of very long runners
+const SCRAPER_TIMEOUT_MS = 5000;
+const JIKAN_FALLBACK_BUDGET_MS = 5000; // total cap across all pages, not per-request
 
 export interface AiredInfo { aired: number; total: number | null; updatedAt: string; }
+export interface EpisodeAirEnv { SCRAPER_API_BASE?: string; }
+
+// Races a promise against a plain timeout so a slow/hanging source can never
+// hold up the whole lookup — used below because fetchAiredCountFromJikan has
+// no internal timeout of its own (it can page + retry-on-429 indefinitely).
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return new Promise((resolve) => {
+    const t = setTimeout(() => resolve(fallback), ms);
+    promise.then((v) => { clearTimeout(t); resolve(v); }, () => { clearTimeout(t); resolve(fallback); });
+  });
+}
 
 export const EpisodeAir = {
+  /** Scraper API lookup — same base-URL handling as api-scraper.ts (accepts
+   *  either "https://host" or "https://host/api"). Returns null on any
+   *  failure or missing/zero episodeCount so callers fall through to Jikan.
+   *  Logs *why* it failed (unlike before, which swallowed everything) —
+   *  check `wrangler tail` if this keeps falling through: the two most
+   *  common causes are SCRAPER_API_BASE not being set for this environment,
+   *  or the scraper responding with a different field name than expected. */
+  async fetchFromScraperApi(env: EpisodeAirEnv, animeId: number): Promise<{ aired: number; total: number } | null> {
+    const base = env.SCRAPER_API_BASE?.replace(/\/+$/, '').replace(/\/api$/i, '');
+    if (!base) {
+      console.warn('[episode-air] SCRAPER_API_BASE is not set — falling back to Jikan for anime', animeId);
+      return null;
+    }
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), SCRAPER_TIMEOUT_MS);
+      const res = await fetch(`${base}/api/info?malId=${animeId}`, { headers: { Accept: 'application/json' }, signal: controller.signal });
+      clearTimeout(t);
+      if (!res.ok) {
+        console.warn(`[episode-air] scraper API HTTP ${res.status} for anime ${animeId} — falling back to Jikan`);
+        return null;
+      }
+      const data: any = await res.json().catch(() => null);
+      const count = Number(data?.episodeCount);
+      if (!count || count <= 0) {
+        console.warn('[episode-air] scraper API returned no usable episodeCount for anime', animeId, '— raw response:', JSON.stringify(data));
+        return null;
+      }
+      // The scraper only exposes one count, not an aired/total split — treat
+      // it as both. For a streaming site this is arguably more useful than
+      // MAL's "aired" distinction anyway: it's the number of episodes your
+      // site actually has, which is what drives the episode grid.
+      return { aired: count, total: count };
+    } catch (err: any) {
+      const reason = err?.name === 'AbortError' ? `timed out after ${SCRAPER_TIMEOUT_MS}ms` : String(err?.message ?? err);
+      console.warn('[episode-air] scraper API call failed for anime', animeId, '—', reason, '— falling back to Jikan');
+      return null;
+    }
+  },
+
   /** Does the actual Jikan fetch + count. No caching here — callers decide when this is worth running. */
-  async fetchAiredCount(mal: MalAPI, animeId: number): Promise<{ aired: number; total: number } | null> {
+  async fetchAiredCountFromJikan(mal: MalAPI, animeId: number): Promise<{ aired: number; total: number } | null> {
     let aired = 0;
     let total = 0;
     let page = 1;
@@ -38,15 +97,24 @@ export const EpisodeAir = {
     return { aired, total };
   },
 
+  /** Scraper API first (bounded by its own internal timeout), Jikan
+   *  pagination fallback second (bounded here, since it has no timeout of
+   *  its own and can otherwise run long on rate-limited/very long shows). */
+  async fetchAiredCount(env: EpisodeAirEnv, mal: MalAPI, animeId: number): Promise<{ aired: number; total: number } | null> {
+    const fromScraper = await EpisodeAir.fetchFromScraperApi(env, animeId);
+    if (fromScraper) return fromScraper;
+    return withTimeout(EpisodeAir.fetchAiredCountFromJikan(mal, animeId), JIKAN_FALLBACK_BUDGET_MS, null);
+  },
+
   /** Read-through cache for a single anime — used by the detail page, where the extra round trip on a cache miss is worth it. */
-  async get(db: Db, mal: MalAPI, animeId: number): Promise<AiredInfo | null> {
+  async get(db: Db, env: EpisodeAirEnv, mal: MalAPI, animeId: number): Promise<AiredInfo | null> {
     const cached = await db.fetchOne<{ aired_count: number; total_count: number | null; updated_at: string }>(
       'SELECT aired_count, total_count, updated_at FROM episode_air_cache WHERE anime_id = ?', [animeId]
     );
     const isFresh = cached && (Date.now() - new Date(cached.updated_at.replace(' ', 'T') + 'Z').getTime()) < STALE_AFTER_MS;
     if (cached && isFresh) return { aired: cached.aired_count, total: cached.total_count, updatedAt: cached.updated_at };
 
-    const fetched = await EpisodeAir.fetchAiredCount(mal, animeId);
+    const fetched = await EpisodeAir.fetchAiredCount(env, mal, animeId);
     if (!fetched) return cached ? { aired: cached.aired_count, total: cached.total_count, updatedAt: cached.updated_at } : null;
 
     await db.query(
@@ -57,7 +125,21 @@ export const EpisodeAir = {
     return { aired: fetched.aired, total: fetched.total, updatedAt: new Date().toISOString() };
   },
 
-  /** Cache-only bulk lookup for card grids — never calls Jikan directly, so it's always fast regardless of how many cards are on the page. */
+  /** Cache-only, any age — never calls the scraper API or Jikan, so this is
+   *  always fast. For pages that shouldn't block their render on a live
+   *  lookup: use this immediately (falling back to MAL's own field if
+   *  there's nothing cached yet) and, when isFresh is false, fetch the real
+   *  number client-side via /api/ep_count.php instead. */
+  async getCachedAny(db: Db, animeId: number): Promise<{ info: AiredInfo | null; isFresh: boolean }> {
+    const cached = await db.fetchOne<{ aired_count: number; total_count: number | null; updated_at: string }>(
+      'SELECT aired_count, total_count, updated_at FROM episode_air_cache WHERE anime_id = ?', [animeId]
+    );
+    if (!cached) return { info: null, isFresh: false };
+    const isFresh = (Date.now() - new Date(cached.updated_at.replace(' ', 'T') + 'Z').getTime()) < STALE_AFTER_MS;
+    return { info: { aired: cached.aired_count, total: cached.total_count, updatedAt: cached.updated_at }, isFresh };
+  },
+
+  /** Cache-only bulk lookup for card grids — never calls the scraper API or Jikan directly, so it's always fast regardless of how many cards are on the page. */
   async getForMany(db: Db, animeIds: number[]): Promise<Map<number, AiredInfo>> {
     const map = new Map<number, AiredInfo>();
     if (!animeIds.length) return map;
@@ -70,15 +152,15 @@ export const EpisodeAir = {
     return map;
   },
 
-  /** Cron entry point — refreshes the stalest cached entries so card grids stay reasonably current without any page view ever blocking on Jikan. */
-  async refreshStale(db: Db, mal: MalAPI, limit = 20): Promise<number> {
+  /** Cron entry point — refreshes the stalest cached entries so card grids stay reasonably current without any page view ever blocking on the scraper API or Jikan. */
+  async refreshStale(db: Db, env: EpisodeAirEnv, mal: MalAPI, limit = 20): Promise<number> {
     const cutoff = new Date(Date.now() - STALE_AFTER_MS).toISOString().replace('T', ' ').substring(0, 19);
     const stale = await db.fetchAll<{ anime_id: number }>(
       'SELECT anime_id FROM episode_air_cache WHERE updated_at < ? ORDER BY updated_at ASC LIMIT ?', [cutoff, limit]
     );
     let refreshed = 0;
     for (const row of stale) {
-      const fetched = await EpisodeAir.fetchAiredCount(mal, row.anime_id);
+      const fetched = await EpisodeAir.fetchAiredCount(env, mal, row.anime_id);
       if (fetched) {
         await db.query('UPDATE episode_air_cache SET aired_count=?, total_count=?, updated_at=datetime(\'now\') WHERE anime_id=?', [fetched.aired, fetched.total, row.anime_id]);
         refreshed++;
