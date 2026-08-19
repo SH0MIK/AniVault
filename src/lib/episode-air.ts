@@ -214,9 +214,31 @@ export const EpisodeAir = {
     return out;
   },
 
+  /** Force-refreshes exactly the given anime IDs (ignores staleness). Used by the chunked
+   *  client-driven manual scan (see admin/episode-scanner.ts) — each call is small and
+   *  short-lived by design, so it never risks hitting a platform background-task time limit
+   *  the way one long scanCurrentlyAiring() call over 40 items could. */
+  async scanIds(db: Db, env: EpisodeAirEnv, mal: MalAPI, ids: number[]): Promise<{ updated: number }> {
+    let updated = 0;
+    for (const id of ids) {
+      const fetched = await EpisodeAir.fetchAiredCount(env, mal, id);
+      if (!fetched) continue;
+      await db.query(
+        `INSERT INTO episode_air_cache (anime_id, aired_count, total_count, updated_at) VALUES (?, ?, ?, datetime('now'))
+         ON CONFLICT(anime_id) DO UPDATE SET aired_count=excluded.aired_count, total_count=excluded.total_count, updated_at=excluded.updated_at`,
+        [id, fetched.aired, fetched.total]
+      );
+      updated++;
+    }
+    return { updated };
+  },
+
   /** Actually runs the scan: force-refreshes (ignores staleness) up to `limit` candidates,
-   *  prioritizing in-season titles without a fresh look yet. Meant to be called both by the
-   *  cron (gated by the auto-run setting) and the admin page's "Scan Now" button.
+   *  prioritizing in-season titles without a fresh look yet. Used by the cron (gated by the
+   *  auto-run setting) — runs inside the Cron Trigger's own execution context, not a
+   *  fetch-handler's waitUntil, so it isn't subject to the same background-task duration cap.
+   *  The admin page's manual "Scan Now" button uses scanIds() in small chunks instead — see
+   *  the comment on scanIds for why.
    *  onProgress fires after every candidate (found or not) so a caller can surface a live
    *  progress bar — see admin/episode-scanner.ts, which persists it to KV for polling since
    *  the scan itself runs in the background via waitUntil. */
