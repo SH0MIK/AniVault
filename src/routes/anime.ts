@@ -79,9 +79,16 @@ animeRoutes.get('/anime', async (c) => {
   // the one page where the extra round trip on a cache miss is worth it
   // (single anime, not a grid), so it's a live refresh-if-stale rather
   // than a cache-only lookup.
-  const airedInfo = await EpisodeAir.get(db, mal, id);
+  const { info: airedInfo, isFresh: airedInfoFresh } = await EpisodeAir.getCachedAny(db, id);
   const totalEps = airedInfo?.total ?? anime.episodes ?? 0;
   const airedSoFar = airedInfo?.aired ?? null;
+  // Nothing cached (or nothing from MAL) to show at all -- render a
+  // skeleton for the ep count and fill it in client-side once
+  // /api/ep_count.php resolves, instead of blocking this page on the
+  // scraper API. If we DO have a number (even a stale one), show it
+  // immediately and just quietly refresh it in the background.
+  const epsUnknown = totalEps === 0;
+  const epsNeedsRefresh = !airedInfoFresh;
   const dubbedLangs = await DubStatus.getFor(db, id);
 
   // Same TMDB clear-logo lookup the home hero uses, plus a simple sub/dub
@@ -153,7 +160,7 @@ animeRoutes.get('/anime', async (c) => {
       <div class="ih-meta-row">
         ${anime.score ? `<span class="ih-meta-item ih-meta-score">${icon('star', 'icon-inline')} ${anime.score.toFixed(1)}</span>` : ''}
         <span class="ih-meta-item">${icon('tv', 'icon-inline')} ${h(titleCase(anime.type || 'TV'))}</span>
-        <span class="ih-meta-item">${icon('list', 'icon-inline')} ${airedSoFar !== null && airedSoFar > 0 && airedSoFar !== totalEps ? `Ep ${airedSoFar}/${totalEps || '?'} aired` : (totalEps ? totalEps + ' eps' : 'Unknown eps')}</span>
+        <span class="ih-meta-item">${icon('list', 'icon-inline')} <span id="ih-eps-text"${epsUnknown ? ' class="eps-skel"' : ''}>${epsUnknown ? '' : (airedSoFar !== null && airedSoFar > 0 && airedSoFar !== totalEps ? `Ep ${airedSoFar}/${totalEps || '?'} aired` : `${totalEps} eps`)}</span></span>
         ${anime.duration_mins ? `<span class="ih-meta-item">${icon('clock', 'icon-inline')} ${anime.duration_mins}m</span>` : ''}
         ${seasonYearLabel(anime.start_date) ? `<span class="ih-meta-item">${icon('calendar', 'icon-inline')} ${h(seasonYearLabel(anime.start_date)!)}</span>` : ''}
         <span class="ih-meta-item${anime.status === 'Currently Airing' ? ' ih-meta-airing' : ''}">${icon(anime.status === 'Currently Airing' ? 'airing' : anime.status === 'Finished Airing' ? 'finished' : anime.status === 'Not yet aired' ? 'upcoming' : 'info', 'icon-inline')} ${h(anime.status || '—')}</span>
@@ -176,7 +183,7 @@ animeRoutes.get('/anime', async (c) => {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
           Play Episode 1
         </a>
-        <button class="ih-btn-secondary" onclick='addToList(${id}, ${jTitle}, ${jImage}, ${totalEps})'>
+        <button class="ih-btn-secondary" id="ih-add-list-btn" onclick='addToList(${id}, ${jTitle}, ${jImage}, ${totalEps})'>
           ${icon(userEntry ? 'edit' : 'heart', 'icon-inline')} ${userEntry ? 'Edit in List' : 'Add to list'}
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
@@ -185,7 +192,7 @@ animeRoutes.get('/anime', async (c) => {
         </button>
       </div>
 
-      <div id="anime-user-status" class="mt-2" data-total-eps="${totalEps}">
+      <div id="anime-user-status" class="mt-2" data-total-eps="${totalEps}" data-eps-watched="${userEntry?.episodes_watched ?? 0}">
         ${userEntry ? `
         <div class="flex gap-1" style="gap:8px;align-items:center;justify-content:center;">
           <span id="anime-status-badge">${statusBadge(userEntry.status)}</span>
@@ -219,7 +226,7 @@ animeRoutes.get('/anime', async (c) => {
         <h2 class="info-section-title">Information</h2>
         <div class="info-stats">
           ${infoStatRow('Type', anime.type || '—')}
-          ${infoStatRow('Episodes', airedSoFar !== null && airedSoFar > 0 && airedSoFar !== totalEps ? `${airedSoFar} aired${totalEps ? ' / ' + totalEps + ' total' : ''}` : (totalEps || 'Unknown'))}
+          ${infoStatRow('Episodes', `<span id="info-eps-value"${epsUnknown ? ' class="eps-skel"' : ''}>${epsUnknown ? '' : (airedSoFar !== null && airedSoFar > 0 && airedSoFar !== totalEps ? `${airedSoFar} aired${totalEps ? ' / ' + totalEps + ' total' : ''}` : String(totalEps))}</span>`, true)}
           ${infoStatRow('Status', anime.status || '—')}
           ${infoStatRow('Aired', anime.aired?.string || '—')}
           ${infoStatRow('Duration', anime.duration || '—')}
@@ -312,7 +319,7 @@ ${rowNavScript()}
 <script>window.__animeCover = ${JSON.stringify(image)};</script>
 <script>window.__tmdbKey    = ${JSON.stringify(c.env.TMDB_API_KEY ?? '')};</script>
 <script>window.__videoEps  = ${JSON.stringify(videoEpSet)};</script>
-
+${epsNeedsRefresh ? epsLiveScript(id) : ''}
 ${animeTailScript(animeDubConfirmed)}`;
 
   html += renderFooter({ siteUrl, currentUser: layoutUser });
@@ -320,8 +327,54 @@ ${animeTailScript(animeDubConfirmed)}`;
   return c.html(html);
 });
 
-function infoStatRow(label: string, value: string | number): string {
-  return `<div class="info-stat-row"><span class="label">${h(label)}</span><span class="value">${h(String(value))}</span></div>`;
+function infoStatRow(label: string, value: string | number, rawHtml = false): string {
+  return `<div class="info-stat-row"><span class="label">${h(label)}</span><span class="value">${rawHtml ? value : h(String(value))}</span></div>`;
+}
+
+// Fetches /api/ep_count.php (the slow scraper/Jikan lookup) in the
+// background and fills in every spot on the page that shows an episode
+// count -- meta badge, info panel, the user's watched/total badge +
+// progress bar, and the "Add to list" episode total -- once it resolves.
+// Only emitted when the server-rendered page didn't already have a fresh
+// cached number (see epsNeedsRefresh in the route handler above).
+function epsLiveScript(animeId: number): string {
+  return `<script>
+(function(){
+  fetch(window.__siteUrl + '/api/ep_count.php?anime_id=${animeId}')
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(d){
+      if (!d || !d.total) return;
+      var total = d.total, aired = d.aired;
+      window.__totalEps = total;
+      var label = (aired !== null && aired > 0 && aired !== total) ? ('Ep ' + aired + '/' + total + ' aired') : (total + ' eps');
+      var infoLabel = (aired !== null && aired > 0 && aired !== total) ? (aired + ' aired / ' + total + ' total') : String(total);
+
+      var badge = document.getElementById('ih-eps-text');
+      if (badge) { badge.classList.remove('eps-skel'); badge.textContent = label; }
+
+      var infoVal = document.getElementById('info-eps-value');
+      if (infoVal) { infoVal.classList.remove('eps-skel'); infoVal.textContent = infoLabel; }
+
+      var listBtn = document.getElementById('ih-add-list-btn');
+      if (listBtn) listBtn.setAttribute('onclick', "addToList(${animeId}, " + JSON.stringify(window.__animeTitle) + ", " + JSON.stringify(window.__animeCover) + ", " + total + ")");
+
+      var statusWrap = document.getElementById('anime-user-status');
+      if (statusWrap) {
+        statusWrap.setAttribute('data-total-eps', String(total));
+        var watched = parseInt(statusWrap.getAttribute('data-eps-watched') || '0', 10);
+        var epsBadge = document.getElementById('anime-eps-badge');
+        if (epsBadge && watched) epsBadge.textContent = watched + '/' + total + ' eps';
+        var progWrap = document.getElementById('anime-progress-wrap');
+        var progFill = document.getElementById('anime-progress-fill');
+        if (progWrap && progFill && watched) {
+          progWrap.style.display = '';
+          progFill.style.width = Math.min(100, Math.round((watched / total) * 100)) + '%';
+        }
+      }
+    })
+    .catch(function(){});
+})();
+</script>`;
 }
 
 // "2004-10-05" -> "Fall 2004" (Jan-Mar Winter, Apr-Jun Spring, Jul-Sep

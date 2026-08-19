@@ -146,8 +146,16 @@ watchRoutes.get('/watch', async (c) => {
   // Same correction as the anime detail page — MAL's own episode count
   // lags for airing shows, and this total also drives which episode
   // numbers get nav chips below (missing/wrong = viewers can't reach an
-  // episode that's actually already out).
-  const airedInfo = await EpisodeAir.get(db, mal, animeId);
+  // episode that's actually already out). The nav grid has to render with
+  // *some* number right now, so unlike the detail page this can't defer to
+  // a client-side skeleton — instead it reads the cache non-blocking (any
+  // age) and, if that cache is missing/stale, kicks off a background
+  // refresh via waitUntil so the scraper/Jikan lookup never holds up this
+  // page load; the next visit (or the detail page) picks up the fresh value.
+  const { info: airedInfo, isFresh: airedInfoFresh } = await EpisodeAir.getCachedAny(db, animeId);
+  if (!airedInfoFresh) {
+    c.executionCtx?.waitUntil?.(EpisodeAir.get(db, c.env, mal, animeId).catch(() => {}));
+  }
   const totalEps = airedInfo?.total ?? anime.episodes ?? 0;
   const dubbedLangs = await DubStatus.getFor(db, animeId);
 

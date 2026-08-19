@@ -13,7 +13,7 @@ import { Notification } from '../lib/notification';
 import { getUserAnimeStatuses } from '../lib/user-list';
 import { icon } from '../lib/icons';
 import { h } from '../lib/helpers';
-import { renderAnimeCard, buildCardMetaMap } from '../lib/anime-card';
+import { renderAnimeCard, buildCardMetaMap, AnimeCardMeta } from '../lib/anime-card';
 import { renderHeader, renderFooter } from '../render/layout';
 import { CONTINUE_WATCHING_CSS } from '../render/home-css';
 import { continueWatchingScript, heroSliderScript, rowNavScript } from '../render/home-js';
@@ -149,7 +149,7 @@ homeRoutes.get('/', async (c) => {
   html += `
 <section id="hero">
   <div id="hero-slides">
-    ${heroPool.map((a, i) => renderHeroSlide(a, i, siteUrl, heroBanners[i] || a.banner_image, heroCovers[i], heroLogos[i])).join('')}
+    ${heroPool.map((a, i) => renderHeroSlide(a, i, siteUrl, heroBanners[i] || a.banner_image, heroCovers[i], heroLogos[i], cardMeta.get(a.mal_id))).join('')}
   </div>
   <div class="hero-indicators" id="hero-dots">
     ${heroPool.map((_, i) => `<button class="hero-dot ${i === 0 ? 'active' : ''}" data-idx="${i}" aria-label="Slide ${i + 1}"></button>`).join('')}
@@ -319,7 +319,7 @@ function sectionHeader(title: string, rowId: string, viewAllHref?: string, viewA
 // place of the plain text title (Anivexa's desktop still uses plain text —
 // this matches that split exactly). Falls back to plain text if TMDB has
 // no logo for this title.
-function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?: string, mobileCover?: string, logo?: string): string {
+function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?: string, mobileCover?: string, logo?: string, meta?: AnimeCardMeta): string {
   const title = a.title_english && a.title_english !== a.title ? a.title_english : (a.title || 'Unknown');
   const poster = a.images?.jpg?.large_image_url || a.images?.jpg?.image_url || '';
   const bg = banner || poster;
@@ -327,6 +327,14 @@ function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?
   const desc = a.synopsis || '';
   const genres = (a.genres || []).slice(0, 3);
   const aurl = `${siteUrl}/anime?id=${a.mal_id}`;
+
+  // Same scraper-backed count as the card grids below (see anime-card.ts) —
+  // cache-only, so this never blocks the homepage render.
+  const airedInfo = meta?.airedInfo;
+  const totalEps = airedInfo?.total ?? a.episodes ?? 0;
+  const epsLabel = airedInfo && airedInfo.aired > 0
+    ? (airedInfo.total && airedInfo.total !== airedInfo.aired ? `Ep ${airedInfo.aired}/${airedInfo.total}` : `Ep ${airedInfo.aired}`)
+    : (totalEps ? `${totalEps} eps` : '');
 
   return `
 <div class="hero-slide ${i === 0 ? 'active' : ''}" data-idx="${i}">
@@ -346,12 +354,12 @@ function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?
         ${genres.length ? `<div class="hero-genres">${genres.map((g) => `<span class="hero-genre-tag">${h(g.name)}</span>`).join('')}</div>` : ''}
         <div class="hero-stat-strip">
           ${a.score ? `<span>${icon('star', 'icon-small')} ${a.score.toFixed(1)}</span>` : ''}
-          ${a.episodes ? `<span>${icon('list', 'icon-small')} ${a.episodes} eps</span>` : ''}
+          ${epsLabel ? `<span>${icon('list', 'icon-small')} ${epsLabel}</span>` : ''}
           ${a.type ? `<span>${icon('tv', 'icon-small')} ${h(a.type)}</span>` : ''}
         </div>
         <div class="hero-actions">
           <a href="${aurl}" class="btn btn-primary">${icon('play', 'icon-small')} View Details</a>
-          <button class="btn btn-ghost" onclick='event.stopPropagation(); addToList(${a.mal_id}, ${JSON.stringify(title)}, ${JSON.stringify(poster)}, ${Number(a.episodes || 0)})'>${icon('plus', 'icon-small')} Add to List</button>
+          <button class="btn btn-ghost" onclick='event.stopPropagation(); addToList(${a.mal_id}, ${JSON.stringify(title)}, ${JSON.stringify(poster)}, ${Number(totalEps || 0)})'>${icon('plus', 'icon-small')} Add to List</button>
         </div>
       </div>
     </div>
