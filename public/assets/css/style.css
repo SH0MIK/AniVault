@@ -2221,9 +2221,59 @@ textarea.form-control { resize: vertical; min-height: 100px; }
 #ep-modal-thumb-wrap { display: block; }
 #ep-modal-thumb[src=""] { display: none; }
 
+/* ── Episode card skeleton (shimmer loading state) ────────
+   Mirrors .ep-card / .ep-thumb / .ep-info exactly so there's no layout
+   jump when the real cards swap in. Shimmer keyframe (epsSkelShimmer)
+   is defined globally alongside .eps-skel. */
+.ep-card-skel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.ep-skel-thumb {
+  aspect-ratio: 16/9;
+  background: rgba(255,255,255,.06);
+  position: relative;
+  overflow: hidden;
+}
+.ep-skel-info {
+  padding: 0.6rem 0.75rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.ep-skel-line {
+  position: relative;
+  overflow: hidden;
+  height: 10px;
+  border-radius: 4px;
+  background: rgba(255,255,255,.06);
+}
+.ep-skel-line.short { width: 55%; height: 8px; }
+.ep-skel-thumb::after,
+.ep-skel-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(124,58,237,.16), transparent);
+  animation: epsSkelShimmer 1.5s ease-in-out infinite;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .ep-grid { grid-template-columns: 1fr; gap: 0; }
+  .ep-card-skel {
+    display: flex;
+    flex-direction: row;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .ep-skel-thumb { width: 140px; min-width: 140px; aspect-ratio: 16/9; border-radius: 0; }
+  .ep-skel-info { flex: 1; justify-content: center; padding: 0.5rem 0.75rem; }
   .ep-card {
     display: flex;
     flex-direction: row;
@@ -2253,6 +2303,7 @@ textarea.form-control { resize: vertical; min-height: 100px; }
 }
 @media (max-width: 480px) {
   .ep-thumb { width: 110px; min-width: 110px; }
+  .ep-skel-thumb { width: 110px; min-width: 110px; }
 }
 
 /* ── Episode Modal: Watch On ───────────────────────────── */
