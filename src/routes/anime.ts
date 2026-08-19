@@ -340,39 +340,75 @@ function infoStatRow(label: string, value: string | number, rawHtml = false): st
 function epsLiveScript(animeId: number): string {
   return `<script>
 (function(){
-  fetch(window.__siteUrl + '/api/ep_count.php?anime_id=${animeId}')
-    .then(function(r){ return r.ok ? r.json() : null; })
-    .then(function(d){
-      if (!d || !d.total) return;
-      var total = d.total, aired = d.aired;
-      window.__totalEps = total;
-      var label = (aired !== null && aired > 0 && aired !== total) ? ('Ep ' + aired + '/' + total + ' aired') : (total + ' eps');
-      var infoLabel = (aired !== null && aired > 0 && aired !== total) ? (aired + ' aired / ' + total + ' total') : String(total);
+  // ep_count.php can legitimately take several seconds on a cold cache
+  // (scraper timeout + Jikan pagination fallback), so a dropped connection,
+  // a backgrounded tab, or a Worker hiccup is enough for this one-shot
+  // fetch to fail silently -- and until this fix, a failure here just left
+  // the skeleton spinning forever with nothing else ever touching it
+  // (only a full page reload, which re-reads the cache this same lookup
+  // writes through to, would pick it up). This adds a timeout, one retry,
+  // and -- if both attempts fail -- an explicit fallback so the UI always
+  // resolves out of the skeleton state instead of hanging indefinitely.
+  function fetchWithTimeout(ms) {
+    var ctrl = new AbortController();
+    var t = setTimeout(function(){ ctrl.abort(); }, ms);
+    return fetch(window.__siteUrl + '/api/ep_count.php?anime_id=${animeId}', { signal: ctrl.signal })
+      .then(function(r){ clearTimeout(t); return r.ok ? r.json() : null; })
+      .catch(function(){ clearTimeout(t); return null; });
+  }
 
-      var badge = document.getElementById('ih-eps-text');
-      if (badge) { badge.classList.remove('eps-skel'); badge.textContent = label; }
+  function apply(d) {
+    if (!d || !d.total) return false;
+    var total = d.total, aired = d.aired;
+    window.__totalEps = total;
+    var label = (aired !== null && aired > 0 && aired !== total) ? ('Ep ' + aired + '/' + total + ' aired') : (total + ' eps');
+    var infoLabel = (aired !== null && aired > 0 && aired !== total) ? (aired + ' aired / ' + total + ' total') : String(total);
 
-      var infoVal = document.getElementById('info-eps-value');
-      if (infoVal) { infoVal.classList.remove('eps-skel'); infoVal.textContent = infoLabel; }
+    var badge = document.getElementById('ih-eps-text');
+    if (badge) { badge.classList.remove('eps-skel'); badge.textContent = label; }
 
-      var listBtn = document.getElementById('ih-add-list-btn');
-      if (listBtn) listBtn.setAttribute('onclick', "addToList(${animeId}, " + JSON.stringify(window.__animeTitle) + ", " + JSON.stringify(window.__animeCover) + ", " + total + ")");
+    var infoVal = document.getElementById('info-eps-value');
+    if (infoVal) { infoVal.classList.remove('eps-skel'); infoVal.textContent = infoLabel; }
 
-      var statusWrap = document.getElementById('anime-user-status');
-      if (statusWrap) {
-        statusWrap.setAttribute('data-total-eps', String(total));
-        var watched = parseInt(statusWrap.getAttribute('data-eps-watched') || '0', 10);
-        var epsBadge = document.getElementById('anime-eps-badge');
-        if (epsBadge && watched) epsBadge.textContent = watched + '/' + total + ' eps';
-        var progWrap = document.getElementById('anime-progress-wrap');
-        var progFill = document.getElementById('anime-progress-fill');
-        if (progWrap && progFill && watched) {
-          progWrap.style.display = '';
-          progFill.style.width = Math.min(100, Math.round((watched / total) * 100)) + '%';
-        }
+    var listBtn = document.getElementById('ih-add-list-btn');
+    if (listBtn) listBtn.setAttribute('onclick', "addToList(${animeId}, " + JSON.stringify(window.__animeTitle) + ", " + JSON.stringify(window.__animeCover) + ", " + total + ")");
+
+    var statusWrap = document.getElementById('anime-user-status');
+    if (statusWrap) {
+      statusWrap.setAttribute('data-total-eps', String(total));
+      var watched = parseInt(statusWrap.getAttribute('data-eps-watched') || '0', 10);
+      var epsBadge = document.getElementById('anime-eps-badge');
+      if (epsBadge && watched) epsBadge.textContent = watched + '/' + total + ' eps';
+      var progWrap = document.getElementById('anime-progress-wrap');
+      var progFill = document.getElementById('anime-progress-fill');
+      if (progWrap && progFill && watched) {
+        progWrap.style.display = '';
+        progFill.style.width = Math.min(100, Math.round((watched / total) * 100)) + '%';
       }
-    })
-    .catch(function(){});
+    }
+    return true;
+  }
+
+  function fail() {
+    // Both attempts failed (or returned nothing usable) -- stop pretending
+    // it's still loading. Clear the skeleton so it isn't stuck forever;
+    // a later grid view / refresh will pick up a real number once the
+    // scraper resolves it on the backend.
+    var badge = document.getElementById('ih-eps-text');
+    if (badge) { badge.classList.remove('eps-skel'); badge.textContent = '? eps'; }
+    var infoVal = document.getElementById('info-eps-value');
+    if (infoVal) { infoVal.classList.remove('eps-skel'); infoVal.textContent = 'Unknown'; }
+  }
+
+  fetchWithTimeout(6000).then(function(d){
+    if (apply(d)) return;
+    // One retry after a short delay before giving up.
+    setTimeout(function(){
+      fetchWithTimeout(6000).then(function(d2){
+        if (!apply(d2)) fail();
+      });
+    }, 1500);
+  });
 })();
 </script>`;
 }
