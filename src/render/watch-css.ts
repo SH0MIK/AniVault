@@ -651,6 +651,17 @@ export const WATCH_CSS = `/* ═════════════════
   font-size:.72rem; font-weight:700;
   color:var(--accent);
 }
+.ep-range-wrap {
+  padding:.55rem .6rem;
+  border-bottom:1px solid rgba(255,255,255,.05);
+}
+.ep-range-wrap .ep-range-btn {
+  width:100%;
+  justify-content:space-between;
+  font-size:.78rem;
+  padding:.45rem .8rem;
+  background: rgba(255,255,255,.05);
+}
 .wp-ep-search-wrap {
   padding:.5rem .6rem;
   border-bottom:1px solid rgba(255,255,255,.05);

@@ -295,6 +295,85 @@ function updateEpTabCount(actualCount) {
   span.textContent = count > 0 ? '(' + count + ')' : '';
 }
 
+// ── Episode range chunking ──────────────────────────────────────────
+// Long-running shows (Naruto, One Piece...) are unusable as one giant
+// scroll of cards. Past EP_CHUNK_SIZE episodes we split into fixed-size
+// numeric ranges and only render the active chunk into the grid, with a
+// pill + modal (like Kazekage Rescue · 1-32 style pickers) to jump
+// between them. Shows at or under the threshold render exactly as
+// before -- no picker, no chunking.
+const EP_CHUNK_SIZE = 30;
+
+function renderEpisodeGrid(fullEps, animeId, cover, thumbMap) {
+  const grid     = document.getElementById('ep-grid-js');
+  const rangeWrap = document.getElementById('ep-range-wrap');
+  if (!grid) return;
+  fullEps = fullEps.slice().sort((a, b) => Number(a.mal_id ?? 0) - Number(b.mal_id ?? 0));
+
+  function paint(list) {
+    grid.innerHTML = '';
+    list.forEach(ep => grid.appendChild(buildEpCard(ep, animeId, cover, thumbMap)));
+    grid.style.display = '';
+    if (typeof loadEpCardThumbnails === 'function') loadEpCardThumbnails();
+  }
+
+  if (fullEps.length <= EP_CHUNK_SIZE) {
+    if (rangeWrap) rangeWrap.style.display = 'none';
+    paint(fullEps);
+    return;
+  }
+
+  const chunks = [];
+  for (let i = 0; i < fullEps.length; i += EP_CHUNK_SIZE) chunks.push(fullEps.slice(i, i + EP_CHUNK_SIZE));
+
+  function closeRangeModal() {
+    const m = document.getElementById('ep-range-modal');
+    if (m) m.classList.remove('open');
+  }
+
+  function renderChunk(idx) {
+    paint(chunks[idx]);
+    const first = chunks[idx][0].mal_id, last = chunks[idx][chunks[idx].length - 1].mal_id;
+    const label = document.getElementById('ep-range-label');
+    if (label) label.textContent = 'Episodes ' + first + '\u2013' + last;
+    document.querySelectorAll('.ep-range-row').forEach((row, i) => {
+      row.classList.toggle('active', i === idx);
+    });
+    closeRangeModal();
+  }
+
+  if (rangeWrap) {
+    rangeWrap.style.display = '';
+    rangeWrap.innerHTML =
+      '<button type="button" class="ep-range-btn" id="ep-range-toggle">' +
+        '<span id="ep-range-label"></span>' +
+        '<svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>' +
+      '</button>' +
+      '<div class="modal-overlay" id="ep-range-modal">' +
+        '<div class="modal" style="max-width:420px;">' +
+          '<div class="modal-header"><span style="font-weight:700;">Jump to episodes</span><button type="button" class="modal-close" id="ep-range-close">&times;</button></div>' +
+          '<div class="modal-body" style="padding:.5rem 0;max-height:60vh;overflow-y:auto;" id="ep-range-list"></div>' +
+        '</div>' +
+      '</div>';
+
+    const list = document.getElementById('ep-range-list');
+    chunks.forEach((chunk, idx) => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'ep-range-row';
+      row.innerHTML = '<span>Episodes ' + chunk[0].mal_id + '\u2013' + chunk[chunk.length - 1].mal_id + '</span><span class="ep-range-radio"></span>';
+      row.onclick = () => renderChunk(idx);
+      list.appendChild(row);
+    });
+
+    document.getElementById('ep-range-toggle').onclick = () => document.getElementById('ep-range-modal').classList.add('open');
+    document.getElementById('ep-range-close').onclick = closeRangeModal;
+    document.getElementById('ep-range-modal').onclick = (e) => { if (e.target.id === 'ep-range-modal') closeRangeModal(); };
+  }
+
+  renderChunk(0);
+}
+
 // ── Fetch and render episodes (all pages) ─────────────────────────────
 async function lazyLoadEpisodes() {
   const animeId = window.__animeId;
@@ -342,8 +421,7 @@ async function lazyLoadEpisodes() {
         mal_id: n, title: null, aired: null, score: null, filler: false, recap: false
       }));
       updateEpTabCount(stubEps.length);
-      stubEps.forEach(ep => grid.appendChild(buildEpCard(ep, animeId, cover, thumbMap)));
-      grid.style.display = '';
+      renderEpisodeGrid(stubEps, animeId, cover, thumbMap);
       return;
     }
     updateEpTabCount(jikanEps.length);
@@ -363,10 +441,7 @@ async function lazyLoadEpisodes() {
         }
       }
     }
-    fullEps.sort((a, b) => Number(a.mal_id ?? 0) - Number(b.mal_id ?? 0));
-    fullEps.forEach(ep => grid.appendChild(buildEpCard(ep, animeId, cover, thumbMap)));
-    grid.style.display = '';
-    if (typeof loadEpCardThumbnails === 'function') loadEpCardThumbnails();
+    renderEpisodeGrid(fullEps, animeId, cover, thumbMap);
   } catch(e) {
     if (loading) loading.innerHTML = '<p class="text-muted" style="grid-column:1/-1;text-align:center;padding:1rem 0;">Failed to load episodes. <button class="btn btn-ghost btn-sm" onclick="lazyLoadEpisodes()">Retry</button></p>';
   }

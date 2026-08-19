@@ -663,8 +663,62 @@ function switchWatchQuality(b,i){
 function filterEps(q){
   var rows=document.querySelectorAll('.ep-item');
   var s=q.toLowerCase().trim();
-  rows.forEach(function(r){r.style.display=(!s||( r.getAttribute('data-s')||'').includes(s))?'':'none';});
+  if (s) {
+    // Active search overrides the range picker -- search across every
+    // episode, not just the currently selected chunk.
+    rows.forEach(function(r){r.style.display=(r.getAttribute('data-s')||'').includes(s)?'':'none';});
+    return;
+  }
+  // Search cleared -- go back to showing only the active range chunk
+  // (or everything, if this show never needed a range picker).
+  var chunks = window.__epChunks;
+  if (!chunks || !chunks.length) {
+    rows.forEach(function(r){r.style.display='';});
+    return;
+  }
+  var chunk = chunks[window.__epActiveChunk || 0] || chunks[0];
+  var lo = chunk[0], hi = chunk[chunk.length - 1];
+  rows.forEach(function(r){
+    var n = parseInt(r.getAttribute('data-ep-num') || '0', 10);
+    r.style.display = (n >= lo && n <= hi) ? '' : 'none';
+  });
 }
+
+(function initEpRangePicker(){
+  var chunks = window.__epChunks;
+  if (!chunks || !chunks.length) return;
+  var toggle = document.getElementById('ep-range-toggle');
+  var modal  = document.getElementById('ep-range-modal');
+  var close  = document.getElementById('ep-range-close');
+  var label  = document.getElementById('ep-range-label');
+  if (!toggle || !modal) return;
+
+  function closeModal(){ modal.classList.remove('open'); }
+
+  function selectChunk(idx){
+    window.__epActiveChunk = idx;
+    var chunk = chunks[idx];
+    var lo = chunk[0], hi = chunk[chunk.length - 1];
+    document.querySelectorAll('.ep-item').forEach(function(r){
+      var n = parseInt(r.getAttribute('data-ep-num') || '0', 10);
+      r.style.display = (n >= lo && n <= hi) ? '' : 'none';
+    });
+    if (label) label.textContent = 'Episodes ' + lo + '\u2013' + hi;
+    document.querySelectorAll('.ep-range-row').forEach(function(row, i){
+      row.classList.toggle('active', i === idx);
+    });
+    var search = document.getElementById('ep-search');
+    if (search) search.value = '';
+    closeModal();
+  }
+
+  toggle.onclick = function(){ modal.classList.add('open'); };
+  if (close) close.onclick = closeModal;
+  modal.onclick = function(e){ if (e.target === modal) closeModal(); };
+  document.querySelectorAll('.ep-range-row').forEach(function(row){
+    row.onclick = function(){ selectChunk(parseInt(row.getAttribute('data-range-idx'), 10)); };
+  });
+})();
 
 (function(){
   var animeId=${animeId};
