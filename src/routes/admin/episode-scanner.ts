@@ -2,8 +2,17 @@
 // fresh on *currently airing* shows specifically (see src/lib/episode-air.ts
 // for the candidate-selection + scan logic). Two moving parts:
 //   1. A settings form (auto_enabled + interval) read by scheduled.ts's cron.
-//   2. A "Scan Now" button that runs the same scan synchronously, for when
-//      you don't want to wait for the next cron tick.
+//   2. A "Scan Now" button for an immediate run.
+//
+// The manual scan is driven entirely from the browser in small chunks
+// (episode_scanner_run.php scans just the IDs it's handed, nothing more)
+// rather than one long background task. A single request covering all 40
+// candidates risks running into the platform's duration limit for a
+// fetch-handler's background work and getting silently killed mid-run —
+// which leaves no way to tell the difference between "still going" and
+// "quietly died", and the progress bar just freezes forever. Chunking keeps
+// every request short-lived and self-contained: if one fails, the loop can
+// just report it and stop instead of hanging.
 import { Hono } from 'hono';
 import type { Env } from '../../index';
 import { buildAdminCtx } from '../../lib/admin-ctx';
@@ -27,19 +36,8 @@ const INTERVAL_OPTIONS = [
   { value: '720', label: '12 hours' },
 ];
 export const SCANNER_LAST_RUN_KV_KEY = 'episode_scanner_last_run';
-const SCANNER_PROGRESS_KV_KEY = 'episode_scanner_progress';
 const SCAN_LIMIT = 40;
-
-interface ScanProgress {
-  running: boolean;
-  done: number;
-  total: number;
-  updated: number;
-  currentTitle?: string;
-  startedAt: number;
-  finishedAt?: number;
-  error?: string;
-}
+const CHUNK_SIZE = 4; // ~4 * 10s worst-case per item = well under any request timeout
 
 adminEpisodeScannerRoutes.on(['GET', 'POST'], '/admin/episode_scanner.php', async (c) => {
   const ctx = await buildAdminCtx(c);
@@ -68,6 +66,7 @@ adminEpisodeScannerRoutes.on(['GET', 'POST'], '/admin/episode_scanner.php', asyn
   const mal = new MalAPI(c.env, c.env.API_CACHE, db);
   const candidates = await EpisodeAir.getScanCandidates(db, mal);
   const inSeasonCount = candidates.filter((cand) => cand.inSeason).length;
+  const scanTargets = candidates.slice(0, SCAN_LIMIT).map((cand) => ({ id: cand.id, title: cand.title }));
 
   let html = renderAdminHeader({ siteUrl, pageTitle: 'Episode Scanner', adminPage: 'episode_scanner', isOwner, impersonating });
   html += `
@@ -77,7 +76,7 @@ ${message ? `<div class="alert alert-success mb-2">${h(message)}</div>` : ''}
 <div class="grid-2" style="gap:1.5rem;margin-bottom:1.5rem;">
   <div class="card card-body">
     <h2 class="mb-2">⚙️ Auto-Run Settings</h2>
-    <p class="text-muted mb-2" style="font-size:0.9rem;">When enabled, the hourly cron checks this interval and runs a scan on its own — no need to visit this page.</p>
+    <p class="text-muted mb-2" style="font-size:0.9rem;">When enabled, the hourly cron checks this interval and runs a (smaller, 15-item) scan on its own — no need to visit this page.</p>
     <form method="POST">
       <div class="form-group" style="display:flex;align-items:center;gap:12px;margin-bottom:1.25rem;">
         <label class="form-label" style="margin:0;min-width:100px;">Auto-Run</label>
@@ -99,7 +98,7 @@ ${message ? `<div class="alert alert-success mb-2">${h(message)}</div>` : ''}
 
   <div class="card card-body">
     <h2 class="mb-2">🔍 Manual Scan</h2>
-    <p class="text-muted mb-2" style="font-size:0.9rem;">Runs the scan right now, regardless of the auto-run setting or interval.</p>
+    <p class="text-muted mb-2" style="font-size:0.9rem;">Runs right now, in small batches of ${CHUNK_SIZE}, regardless of the auto-run setting or interval.</p>
     <div class="grid-2 mb-2" style="gap:12px;">
       <div class="stat-card"><div class="stat-value">${inSeasonCount}</div><div class="stat-label">In current season</div></div>
       <div class="stat-card"><div class="stat-value">${candidates.length}</div><div class="stat-label">Total candidates</div></div>
@@ -152,62 +151,64 @@ document.querySelectorAll('.interval-radio').forEach(radio => {
     radio.nextElementSibling.classList.add('active');
   });
 });
-const scanBtn = document.getElementById('scan-now-btn');
+
+// Full candidate list (capped at ${SCAN_LIMIT}), in the same priority order the table shows.
+// The scan just walks this in fixed-size chunks — no server-side "where was I" state at all.
+const SCAN_TARGETS = ${JSON.stringify(scanTargets)};
+const CHUNK_SIZE = ${CHUNK_SIZE};
+
+const scanBtn   = document.getElementById('scan-now-btn');
 const progWrap  = document.getElementById('scan-progress-wrap');
 const progLabel = document.getElementById('scan-progress-label');
 const progPct   = document.getElementById('scan-progress-pct');
 const progFill  = document.getElementById('scan-progress-fill');
 const log = document.getElementById('scan-log');
-let pollTimer = null;
 
-function renderProgress(p) {
-  const pct = p.total > 0 ? Math.round((p.done / p.total) * 100) : 0;
+function setProgress(done, total, label) {
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
   progWrap.style.display = 'block';
   progFill.style.width = pct + '%';
   progPct.textContent = pct + '%';
-  progLabel.textContent = p.running
-    ? \`Scanning \${p.done}/\${p.total}\${p.currentTitle ? ' — ' + p.currentTitle : ''}…\`
-    : \`Done — \${p.done}/\${p.total} scanned, \${p.updated} updated\`;
-}
-
-async function pollProgress() {
-  try {
-    const res = await fetch('episode_scanner_progress.php');
-    const p = await res.json();
-    if (!p || !p.startedAt) return;
-    renderProgress(p);
-    if (p.running) {
-      scanBtn.disabled = true; scanBtn.textContent = 'Scanning…';
-    } else {
-      clearInterval(pollTimer); pollTimer = null;
-      scanBtn.disabled = false; scanBtn.textContent = '🔄 Scan Now (up to ${SCAN_LIMIT})';
-      log.style.display = 'block';
-      log.textContent = p.error ? 'Scan failed: ' + p.error : JSON.stringify(p, null, 2);
-      setTimeout(() => location.reload(), 1500);
-    }
-  } catch (e) { /* transient — next poll will retry */ }
+  progLabel.textContent = label;
 }
 
 scanBtn.addEventListener('click', async () => {
-  scanBtn.disabled = true; scanBtn.textContent = 'Starting…';
+  if (SCAN_TARGETS.length === 0) { alert('No candidates to scan.'); return; }
+  scanBtn.disabled = true;
   log.style.display = 'none';
-  try {
-    const res = await fetch('episode_scanner_run.php', { method: 'POST' });
-    const data = await res.json();
-    if (!data.started) { scanBtn.disabled = false; scanBtn.textContent = '🔄 Scan Now (up to ${SCAN_LIMIT})'; alert(data.error || 'Could not start scan.'); return; }
-  } catch (e) {
-    scanBtn.disabled = false; scanBtn.textContent = '🔄 Scan Now (up to ${SCAN_LIMIT})';
-    log.style.display = 'block'; log.textContent = 'Request failed: ' + e;
-    return;
-  }
-  if (!pollTimer) pollTimer = setInterval(pollProgress, 800);
-  pollProgress();
-});
+  let done = 0, updated = 0, failed = false;
+  const total = SCAN_TARGETS.length;
+  setProgress(0, total, 'Starting…');
 
-// Resume polling automatically if a scan was already in flight when this page loaded.
-fetch('episode_scanner_progress.php').then(r => r.json()).then(p => {
-  if (p && p.running) { renderProgress(p); scanBtn.disabled = true; scanBtn.textContent = 'Scanning…'; pollTimer = setInterval(pollProgress, 800); }
-}).catch(() => {});
+  for (let i = 0; i < total; i += CHUNK_SIZE) {
+    const chunk = SCAN_TARGETS.slice(i, i + CHUNK_SIZE);
+    setProgress(done, total, \`Scanning \${done + 1}-\${Math.min(done + chunk.length, total)}/\${total} — \${chunk[0].title}\${chunk.length > 1 ? ' + ' + (chunk.length - 1) + ' more' : ''}…\`);
+    try {
+      const res = await fetch('episode_scanner_run.php', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: chunk.map(t => t.id), last: i + CHUNK_SIZE >= total, totalScanned: total }),
+      });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      updated += data.updated || 0;
+      done += chunk.length;
+      setProgress(done, total, \`Scanned \${done}/\${total} — \${updated} updated so far…\`);
+    } catch (e) {
+      failed = true;
+      log.style.display = 'block';
+      log.textContent = 'Stopped early after ' + done + '/' + total + ' — request failed: ' + e + '\\n\\nYou can just click Scan Now again; already-scanned titles will simply be re-checked.';
+      break;
+    }
+  }
+
+  scanBtn.disabled = false;
+  if (!failed) {
+    setProgress(done, total, \`Done — \${done}/\${total} scanned, \${updated} updated\`);
+    log.style.display = 'block';
+    log.textContent = JSON.stringify({ scanned: done, updated }, null, 2);
+    setTimeout(() => location.reload(), 1500);
+  }
+});
 </script>`;
 
   html += renderAdminFooter(siteUrl);
@@ -222,53 +223,17 @@ adminEpisodeScannerRoutes.post('/admin/episode_scanner_run.php', async (c) => {
   const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
   if (!auth.isAdmin()) { await session.save(c, lifetime); return c.json({ error: 'Forbidden' }, 403); }
 
-  const kv = c.env.API_CACHE;
-  const existingRaw = await kv.get(SCANNER_PROGRESS_KV_KEY, 'json') as ScanProgress | null;
-  if (existingRaw?.running) {
-    await session.save(c, lifetime);
-    return c.json({ started: false, error: 'A scan is already running.' });
+  const body = await c.req.json().catch(() => ({}));
+  const ids = Array.isArray(body.ids) ? body.ids.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n > 0).slice(0, CHUNK_SIZE) : [];
+  if (ids.length === 0) { await session.save(c, lifetime); return c.json({ error: 'No valid ids provided' }, 400); }
+
+  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+  const result = await EpisodeAir.scanIds(db, c.env, mal, ids);
+
+  await c.env.API_CACHE.put(SCANNER_LAST_RUN_KV_KEY, String(Date.now()));
+  if (body.last) {
+    await Logger.log(db, session.user_id ?? 0, 'admin_episode_scanner_run', `Manual scan finished: scanned ${body.totalScanned ?? '?'} candidates in chunks`);
   }
-
-  const initial: ScanProgress = { running: true, done: 0, total: 0, updated: 0, startedAt: Date.now() };
-  await kv.put(SCANNER_PROGRESS_KV_KEY, JSON.stringify(initial));
-
-  const userId = session.user_id ?? 0;
-  // Runs after the response is sent — the button's polling picks up progress via KV.
-  // Optional chaining mirrors watch.ts's usage: executionCtx is always present on Workers,
-  // but this keeps it from throwing in any environment where it isn't.
-  c.executionCtx?.waitUntil?.((async () => {
-    try {
-      const mal = new MalAPI(c.env, kv, db);
-      const result = await EpisodeAir.scanCurrentlyAiring(db, c.env, mal, SCAN_LIMIT, async (done, total, cand) => {
-        await kv.put(SCANNER_PROGRESS_KV_KEY, JSON.stringify({
-          running: true, done, total, updated: 0, currentTitle: cand.title, startedAt: initial.startedAt,
-        } as ScanProgress));
-      });
-      await kv.put(SCANNER_PROGRESS_KV_KEY, JSON.stringify({
-        running: false, done: result.scanned, total: result.scanned, updated: result.updated, startedAt: initial.startedAt, finishedAt: Date.now(),
-      } as ScanProgress));
-      await kv.put(SCANNER_LAST_RUN_KV_KEY, String(Date.now()));
-      await Logger.log(db, userId, 'admin_episode_scanner_run',
-        `Manual scan: ${result.updated}/${result.scanned} updated (of ${result.candidates} candidates)`);
-    } catch (err: any) {
-      await kv.put(SCANNER_PROGRESS_KV_KEY, JSON.stringify({
-        running: false, done: 0, total: 0, updated: 0, startedAt: initial.startedAt, finishedAt: Date.now(), error: String(err?.message ?? err),
-      } as ScanProgress));
-    }
-  })());
-
   await session.save(c, lifetime);
-  return c.json({ started: true });
-});
-
-adminEpisodeScannerRoutes.get('/admin/episode_scanner_progress.php', async (c) => {
-  const db = new Db(c.env.DB);
-  const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
-  const session = await Session.load(c, db, lifetime);
-  const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
-  if (!auth.isAdmin()) { await session.save(c, lifetime); return c.json({ error: 'Forbidden' }, 403); }
-
-  const progress = await c.env.API_CACHE.get(SCANNER_PROGRESS_KV_KEY, 'json');
-  await session.save(c, lifetime);
-  return c.json(progress ?? {});
+  return c.json({ updated: result.updated, scannedIds: ids });
 });
