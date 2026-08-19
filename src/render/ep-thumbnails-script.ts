@@ -93,9 +93,24 @@ async function loadEpisodes() {
         // 2. Fetch episode list from AniList (thumbnails + count fallback)
         const { eps: aniListEps, count: aniListCount } = await fetchAniListEpisodes(_animeId);
 
-        // 3. Fallback: Jikan /anime/{id} for episode count
-        let jikanCount = 0;
+        // 3. Fallback: your own scraper API (episodeCount reflects what's
+        // actually indexed across streaming providers, so this is checked
+        // before falling further back to Jikan). Proxied through your own
+        // site so the private scraper base never touches the browser.
+        let scraperCount = 0;
         if (!totalEps && !aniListCount) {
+            try {
+                const sr = await fetch(\`${siteUrl}/api/anime_info.php?malId=\${_animeId}\`);
+                if (sr.ok) {
+                    const sj = await sr.json();
+                    scraperCount = parseInt(sj?.episodeCount) || 0;
+                }
+            } catch(e) {}
+        }
+
+        // 4. Fallback: Jikan /anime/{id} for episode count
+        let jikanCount = 0;
+        if (!totalEps && !aniListCount && !scraperCount) {
             try {
                 const jr = await fetch(\`https://api.jikan.moe/v4/anime/\${_animeId}\`);
                 if (jr.ok) {
@@ -105,9 +120,9 @@ async function loadEpisodes() {
             } catch(e) {}
         }
 
-        // 4. Fallback: Jikan episodes list — count how many pages exist
+        // 5. Fallback: Jikan episodes list — count how many pages exist
         let jikanListCount = 0;
-        if (!totalEps && !aniListCount && !jikanCount) {
+        if (!totalEps && !aniListCount && !scraperCount && !jikanCount) {
             try {
                 const jr = await fetch(\`https://api.jikan.moe/v4/anime/\${_animeId}/episodes\`);
                 if (jr.ok) {
@@ -117,9 +132,9 @@ async function loadEpisodes() {
             } catch(e) {}
         }
 
-        // 5. Fallback: let admin enter manually
+        // 6. Fallback: let admin enter manually
         const overMapMax = Object.keys(overMap).length ? Math.max(...Object.keys(overMap).map(Number)) : 0;
-        let count = Math.max(totalEps, aniListCount, aniListEps.length, jikanCount, jikanListCount, overMapMax);
+        let count = Math.max(totalEps, aniListCount, aniListEps.length, scraperCount, jikanCount, jikanListCount, overMapMax);
 
         if (count === 0) {
             // Last resort: ask admin

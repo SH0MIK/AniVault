@@ -161,6 +161,11 @@ ${ogBlock}
 <style>
 #av-page-loader{position:fixed;inset:0;z-index:99999;background:#0a0a0f;display:flex;justify-content:center;align-items:center;}
 #av-page-loader.av-loader-hidden{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .4s ease,visibility .4s ease;}
+/* Episode-count skeleton — shown only when we have nothing cached yet to
+   display, while the real count loads in the background (see ep_count.php). */
+.eps-skel{display:inline-block;width:58px;height:11px;border-radius:4px;background:rgba(255,255,255,.09);position:relative;overflow:hidden;vertical-align:middle;}
+.eps-skel::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(124,58,237,.18),transparent);animation:epsSkelShimmer 1.5s ease-in-out infinite;}
+@keyframes epsSkelShimmer{0%{transform:translateX(-120%);}100%{transform:translateX(120%);}}
 </style>
 <script>
 (function(){
