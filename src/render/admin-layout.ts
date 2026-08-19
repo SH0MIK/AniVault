@@ -72,6 +72,7 @@ ${o.impersonating ? `
     <a href="heal_images.php" class="${active('heal_images')}">${icon('heal', 'icon-small')} Heal Images</a>
 
     <div class="nav-group">System</div>
+    <a href="episode_scanner.php" class="${active('episode_scanner')}">${icon('airing', 'icon-small')} Episode Scanner</a>
     <a href="cache.php" class="${active('cache')}">${icon('database', 'icon-small')} Clear Cache</a>
     <div style="margin-top:auto;padding:1rem 1.5rem;border-top:1px solid var(--border);">
       <a href="${o.siteUrl}/">${icon('arrow-left', 'icon-small')} Back to Site</a>
