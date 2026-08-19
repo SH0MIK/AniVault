@@ -36,6 +36,6 @@ export async function handleScheduled(env: Env, cron?: string): Promise<void> {
     await env.API_CACHE.put(DUB_REFRESH_KV_KEY, String(Date.now()));
   }
 
-  const refreshed = await EpisodeAir.refreshStale(db, mal, 20);
+  const refreshed = await EpisodeAir.refreshStale(db, env, mal, 20);
   console.log(`[scheduled] episode_air_cache (cron=${cron ?? 'n/a'}): refreshed ${refreshed} stale entr${refreshed === 1 ? 'y' : 'ies'}`);
 }
