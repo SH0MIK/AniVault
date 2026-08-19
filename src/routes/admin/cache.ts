@@ -379,7 +379,10 @@ adminCacheRoutes.post('/admin/ep_refresh.php', async (c) => {
   if (!auth.isAdmin()) { await session.save(c, lifetime); return c.json({ error: 'Forbidden' }, 403); }
 
   const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-  const refreshed = await EpisodeAir.refreshStale(db, mal, 20);
+  // NOTE: refreshStale takes (db, env, mal, limit) — env was previously
+  // omitted here, which meant it silently skipped the scraper API and fell
+  // straight to the slow Jikan path on every manual refresh.
+  const refreshed = await EpisodeAir.refreshStale(db, c.env, mal, 20);
   await Logger.log(db, session.user_id ?? 0, 'admin_ep_refresh', `Manually refreshed ${refreshed} stale episode-air cache entries`);
   await session.save(c, lifetime);
   return c.json({ success: true, refreshed });
