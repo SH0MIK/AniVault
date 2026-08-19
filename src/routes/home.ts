@@ -84,7 +84,15 @@ homeRoutes.get('/', async (c) => {
 
   const unreadCount = currentUser ? await Notification.unreadCount(db, currentUser.id) : 0;
   const userStatuses = currentUser ? await getUserAnimeStatuses(db, currentUser.id) : {};
-  const cardMeta = await buildCardMetaMap(db, [...watchNowList, ...seasonalList, ...topList, ...upcomingList]);
+
+  // Curated hero banners need their episode counts too (see hero-slide
+  // section below) — fetch just the IDs now so they can go into the same
+  // cache-only cardMeta lookup as everything else, instead of a second
+  // query later that the hero slides were silently missing out on.
+  const curatedRows = await db
+    .fetchAll<any>('SELECT anime_id, banner_image_url, logo_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
+    .catch(() => []);
+  const cardMeta = await buildCardMetaMap(db, [...watchNowList, ...seasonalList, ...topList, ...upcomingList, ...curatedRows.map((r) => r.anime_id)]);
 
   const layoutUser = currentUser
     ? { id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url, role: currentUser.role }
@@ -112,10 +120,6 @@ homeRoutes.get('/', async (c) => {
   let heroPool: NormalisedAnime[] = [];
   let heroBanners: string[] = [];
   let heroLogos: string[] = [];
-
-  const curatedRows = await db
-    .fetchAll<any>('SELECT anime_id, banner_image_url, logo_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
-    .catch(() => []);
 
   if (curatedRows.length > 0) {
     const curatedAnime = await Promise.all(curatedRows.map((r) => mal.getAnime(r.anime_id)));
