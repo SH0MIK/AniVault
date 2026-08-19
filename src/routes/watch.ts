@@ -485,6 +485,27 @@ export function renderWatchBody(p: WatchBodyParams): string {
             ${isAct ? `<span class="ep-live-dot"></span>` : ''}
           </a>`;
     }).join('');
+  } else if (totalEps > 0) {
+    // Neither Jikan nor our own DB has per-episode data (common for very
+    // long-running shows -- Jikan's episode endpoint is frequently empty
+    // past a few hundred episodes, and we may not have scraped every ep
+    // into episode_videos yet). Fall back to numbered stubs 1..totalEps,
+    // same as the ep-strip near the player already does, so the sidebar
+    // list isn't left showing "No episode data" while playback works fine.
+    epListHtml = Array.from({ length: totalEps }, (_, i) => i + 1).map((n) => {
+      const isAct = n === epNum;
+      const isWatched = episodesWatched > 0 && n <= episodesWatched;
+      return `
+          <a href="${siteUrl}/watch?anime=${animeId}&ep=${n}" class="ep-item${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}" data-s="ep ${n} episode ${n}">
+            <div class="ep-thumb-box" data-ep="${n}">
+              <img src="${h(coverSm)}" alt="" class="ep-thumb-img" loading="lazy" onload="this.classList.add('vis')">
+              <div class="ep-play-ov"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
+              <span class="ep-num-fallback">${n}</span>
+            </div>
+            <div class="ep-meta"><div class="ep-num-txt">Episode ${n}</div><div class="ep-title-txt">Episode ${n}</div></div>
+            ${isAct ? `<span class="ep-live-dot"></span>` : ''}
+          </a>`;
+    }).join('');
   } else {
     epListHtml = `<div style="padding:.9rem;color:var(--text-muted);font-size:.85rem;">No episode data available.</div>`;
   }

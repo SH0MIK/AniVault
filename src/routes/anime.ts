@@ -245,10 +245,15 @@ animeRoutes.get('/anime', async (c) => {
   </div>` : ''}
 
   <div class="info-section" id="episodes-section">
-    <h2 class="info-section-title" id="ep-tab-btn">Episodes</h2>
-    <div id="ep-grid-loading" style="text-align:center;padding:2.5rem 0;color:var(--text-muted);">
-      <div class="av-loader" style="margin:0 auto 1rem;transform:scale(.6);"></div>
-      Loading episodes…
+    <h2 class="info-section-title" id="ep-tab-btn">Episodes <span id="ep-tab-count"${epsUnknown ? ' class="eps-skel"' : ''}>${epsUnknown ? '' : `(${totalEps})`}</span></h2>
+    <div class="ep-grid" id="ep-grid-loading" aria-hidden="true">${Array.from({ length: 6 }).map(() => `
+      <div class="ep-card-skel">
+        <div class="ep-skel-thumb"></div>
+        <div class="ep-skel-info">
+          <div class="ep-skel-line"></div>
+          <div class="ep-skel-line short"></div>
+        </div>
+      </div>`).join('')}
     </div>
     <div class="ep-grid" id="ep-grid-js" style="display:none;"></div>
   </div>
@@ -370,6 +375,9 @@ function epsLiveScript(animeId: number): string {
     var infoVal = document.getElementById('info-eps-value');
     if (infoVal) { infoVal.classList.remove('eps-skel'); infoVal.textContent = infoLabel; }
 
+    var tabCount = document.getElementById('ep-tab-count');
+    if (tabCount) { tabCount.classList.remove('eps-skel'); tabCount.textContent = '(' + total + ')'; }
+
     var listBtn = document.getElementById('ih-add-list-btn');
     if (listBtn) listBtn.setAttribute('onclick', "addToList(${animeId}, " + JSON.stringify(window.__animeTitle) + ", " + JSON.stringify(window.__animeCover) + ", " + total + ")");
 
@@ -398,6 +406,8 @@ function epsLiveScript(animeId: number): string {
     if (badge) { badge.classList.remove('eps-skel'); badge.textContent = '? eps'; }
     var infoVal = document.getElementById('info-eps-value');
     if (infoVal) { infoVal.classList.remove('eps-skel'); infoVal.textContent = 'Unknown'; }
+    var tabCount = document.getElementById('ep-tab-count');
+    if (tabCount) { tabCount.classList.remove('eps-skel'); tabCount.textContent = ''; }
   }
 
   // Must stay comfortably above the server's own worst case: ep_count.php
