@@ -449,6 +449,50 @@ export function renderWatchBody(p: WatchBodyParams): string {
 
   // Sidebar episode list -- prefer Jikan's episode list (has real titles),
   // falling back to just the anime_list rows we actually have videos for.
+  //
+  // Long-running shows (Naruto, One Piece...) get an episode-range picker
+  // (like anikura's "Kazekage Rescue · 1-32" chunks, minus the arc names --
+  // no free API exposes those) so the sidebar isn't one giant unusable
+  // scroll. Below EP_CHUNK_SIZE episodes this is a no-op and everything
+  // renders exactly as before. Out-of-range items are hidden with an
+  // inline style at render time (not just via JS after the fact) so there's
+  // no flash of the full unfiltered list before the client script runs.
+  const EP_CHUNK_SIZE = 30;
+  const epNumsForRange = (
+    allEps.length > 0 ? allEps.map((e: any) => Number(e.mal_id ?? 0)).filter((n) => n > 0)
+    : allVideos.length > 0 ? allVideos.map((v) => v.episode_num)
+    : totalEps > 0 ? Array.from({ length: totalEps }, (_, i) => i + 1)
+    : []
+  ).slice().sort((a, b) => a - b);
+  const useRangePicker = epNumsForRange.length > EP_CHUNK_SIZE;
+  const epChunks: number[][] = [];
+  let rangeLo = -Infinity;
+  let rangeHi = Infinity;
+  let activeChunkIdx = 0;
+  if (useRangePicker) {
+    for (let i = 0; i < epNumsForRange.length; i += EP_CHUNK_SIZE) epChunks.push(epNumsForRange.slice(i, i + EP_CHUNK_SIZE));
+    activeChunkIdx = epChunks.findIndex((c) => epNum >= c[0] && epNum <= c[c.length - 1]);
+    if (activeChunkIdx === -1) activeChunkIdx = 0;
+    rangeLo = epChunks[activeChunkIdx][0];
+    rangeHi = epChunks[activeChunkIdx][epChunks[activeChunkIdx].length - 1];
+  }
+  const epRangeWrapHtml = useRangePicker ? `
+        <div class="ep-range-wrap" id="ep-range-wrap">
+          <button type="button" class="ep-range-btn" id="ep-range-toggle">
+            <span id="ep-range-label">Episodes ${rangeLo}\u2013${rangeHi}</span>
+            <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M7 10l5 5 5-5z"/></svg>
+          </button>
+          <div class="modal-overlay" id="ep-range-modal">
+            <div class="modal" style="max-width:420px;">
+              <div class="modal-header"><span style="font-weight:700;">Jump to episodes</span><button type="button" class="modal-close" id="ep-range-close">&times;</button></div>
+              <div class="modal-body" style="padding:.5rem 0;max-height:60vh;overflow-y:auto;">
+                ${epChunks.map((c, idx) => `<button type="button" class="ep-range-row${idx === activeChunkIdx ? ' active' : ''}" data-range-idx="${idx}"><span>Episodes ${c[0]}\u2013${c[c.length - 1]}</span><span class="ep-range-radio"></span></button>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>
+        <script>window.__epChunks = ${JSON.stringify(epChunks)}; window.__epActiveChunk = ${activeChunkIdx};</script>` : '';
+
   let epListHtml: string;
   if (allEps.length > 0) {
     epListHtml = allEps.map((ep) => {
@@ -457,10 +501,12 @@ export function renderWatchBody(p: WatchBodyParams): string {
       const hasVid = videoEpNumSet.has(n);
       const isAct = n === epNum;
       const isWatched = episodesWatched > 0 && n <= episodesWatched;
+      const outOfRange = useRangePicker && (n < rangeLo || n > rangeHi);
       return `
           <a href="${h(`${siteUrl}/watch?anime=${animeId}&ep=${n}`)}"
              class="ep-item${hasVid ? ' playable' : ''}${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}"
-             data-s="${h(`ep ${n} ${ept || 'episode ' + n}`.toLowerCase())}">
+             data-ep-num="${n}"
+             ${outOfRange ? 'style="display:none" ' : ''}data-s="${h(`ep ${n} ${ept || 'episode ' + n}`.toLowerCase())}">
             <div class="ep-thumb-box" data-ep="${n}">
               <img src="${h(coverSm)}" alt="" class="ep-thumb-img" loading="lazy" onload="this.classList.add('vis')">
               <div class="ep-play-ov"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
@@ -475,8 +521,9 @@ export function renderWatchBody(p: WatchBodyParams): string {
       const n = v.episode_num;
       const isAct = n === epNum;
       const isWatched = episodesWatched > 0 && n <= episodesWatched;
+      const outOfRange = useRangePicker && (n < rangeLo || n > rangeHi);
       return `
-          <a href="${siteUrl}/watch?anime=${animeId}&ep=${n}" class="ep-item playable${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}" data-s="ep ${n} ${(v.title || 'episode ' + n).toLowerCase()}">
+          <a href="${siteUrl}/watch?anime=${animeId}&ep=${n}" class="ep-item playable${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}" data-ep-num="${n}"${outOfRange ? ' style="display:none"' : ''} data-s="ep ${n} ${(v.title || 'episode ' + n).toLowerCase()}">
             <div class="ep-thumb-box" data-ep="${n}">
               <img src="${h(coverSm)}" alt="" class="ep-thumb-img" loading="lazy" onload="this.classList.add('vis')">
               <div class="ep-play-ov"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
@@ -495,8 +542,9 @@ export function renderWatchBody(p: WatchBodyParams): string {
     epListHtml = Array.from({ length: totalEps }, (_, i) => i + 1).map((n) => {
       const isAct = n === epNum;
       const isWatched = episodesWatched > 0 && n <= episodesWatched;
+      const outOfRange = useRangePicker && (n < rangeLo || n > rangeHi);
       return `
-          <a href="${siteUrl}/watch?anime=${animeId}&ep=${n}" class="ep-item${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}" data-s="ep ${n} episode ${n}">
+          <a href="${siteUrl}/watch?anime=${animeId}&ep=${n}" class="ep-item${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}" data-ep-num="${n}"${outOfRange ? ' style="display:none"' : ''} data-s="ep ${n} episode ${n}">
             <div class="ep-thumb-box" data-ep="${n}">
               <img src="${h(coverSm)}" alt="" class="ep-thumb-img" loading="lazy" onload="this.classList.add('vis')">
               <div class="ep-play-ov"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
@@ -587,6 +635,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
           <span class="wp-ep-ttl">Episodes</span>
           ${allVideos.length > 0 ? `<span class="wp-ep-count">${allVideos.length} available</span>` : ''}
         </div>
+        ${epRangeWrapHtml}
         <div class="wp-ep-search-wrap">
           <div class="wp-ep-search-ico"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16a6.471 6.471 0 004.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></div>
           <input type="text" class="wp-ep-search" id="ep-search" placeholder="Search episodes…" oninput="filterEps(this.value)">

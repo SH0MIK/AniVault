@@ -246,6 +246,7 @@ animeRoutes.get('/anime', async (c) => {
 
   <div class="info-section" id="episodes-section">
     <h2 class="info-section-title" id="ep-tab-btn">Episodes <span id="ep-tab-count"${epsUnknown ? ' class="eps-skel"' : ''}>${epsUnknown ? '' : `(${totalEps})`}</span></h2>
+    <div id="ep-range-wrap" style="display:none;margin-bottom:.9rem;"></div>
     <div class="ep-grid" id="ep-grid-loading" aria-hidden="true">${Array.from({ length: 6 }).map(() => `
       <div class="ep-card-skel">
         <div class="ep-skel-thumb"></div>
