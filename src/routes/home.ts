@@ -92,7 +92,7 @@ homeRoutes.get('/', async (c) => {
   const curatedRows = await db
     .fetchAll<any>('SELECT anime_id, banner_image_url, logo_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
     .catch(() => []);
-  const cardMeta = await buildCardMetaMap(db, [...watchNowList, ...seasonalList, ...topList, ...upcomingList, ...curatedRows.map((r) => r.anime_id)]);
+  const cardMeta = await buildCardMetaMap(db, [...watchNowList, ...seasonalList, ...topList, ...upcomingList, ...curatedRows.map((r) => ({ mal_id: r.anime_id } as NormalisedAnime))]);
 
   const layoutUser = currentUser
     ? { id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url, role: currentUser.role }
