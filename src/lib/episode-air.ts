@@ -23,6 +23,7 @@ const JIKAN_FALLBACK_BUDGET_MS = 5000; // total cap across all pages, not per-re
 
 export interface AiredInfo { aired: number; total: number | null; updatedAt: string; }
 export interface EpisodeAirEnv { SCRAPER_API_BASE?: string; }
+export interface ScanCandidate { id: number; title: string; image: string; inSeason: boolean; cached: AiredInfo | null; }
 
 // Races a promise against a plain timeout so a slow/hanging source can never
 // hold up the whole lookup — used below because fetchAiredCountFromJikan has
@@ -167,5 +168,69 @@ export const EpisodeAir = {
       }
     }
     return refreshed;
+  },
+
+  // ── Currently-airing scanner (admin/episode_scanner.php) ──────────────────
+  // Unlike refreshStale (which just chases whichever cache rows are oldest,
+  // airing or not), this targets shows that can actually still change: the
+  // current AniList season ∪ anything already sitting in episode_air_cache
+  // (since those are the titles the site has actually served, and a few of
+  // them can be currently-airing entries the season cache missed — sequels
+  // announced mid-season, delayed premieres, etc).
+
+  /** Builds the candidate list — cheap (one cached season read + one D1 query), no scraper/Jikan calls. */
+  async getScanCandidates(db: Db, mal: MalAPI): Promise<ScanCandidate[]> {
+    const season = await mal.getAniListSeasonNow();
+    const seasonal = new Map<number, { title: string; image: string }>();
+    for (const a of season.data ?? []) {
+      if (a.mal_id) seasonal.set(a.mal_id, { title: a.title, image: a.images?.jpg?.image_url ?? '' });
+    }
+
+    const cachedRows = await db.fetchAll<{ anime_id: number; aired_count: number; total_count: number | null; updated_at: string }>(
+      'SELECT anime_id, aired_count, total_count, updated_at FROM episode_air_cache'
+    );
+    const cachedMap = new Map(cachedRows.map((r) => [r.anime_id, r]));
+
+    const ids = new Set<number>([...seasonal.keys(), ...cachedMap.keys()]);
+    const out: ScanCandidate[] = [];
+    for (const id of ids) {
+      const s = seasonal.get(id);
+      const c = cachedMap.get(id);
+      out.push({
+        id,
+        title: s?.title ?? `Anime #${id}`,
+        image: s?.image ?? '',
+        inSeason: !!s,
+        cached: c ? { aired: c.aired_count, total: c.total_count, updatedAt: c.updated_at } : null,
+      });
+    }
+    // Seasonal titles first (these are the ones that matter most), then by staleness.
+    out.sort((a, b) => {
+      if (a.inSeason !== b.inSeason) return a.inSeason ? -1 : 1;
+      const at = a.cached ? new Date(a.cached.updatedAt.replace(' ', 'T') + 'Z').getTime() : 0;
+      const bt = b.cached ? new Date(b.cached.updatedAt.replace(' ', 'T') + 'Z').getTime() : 0;
+      return at - bt;
+    });
+    return out;
+  },
+
+  /** Actually runs the scan: force-refreshes (ignores staleness) up to `limit` candidates,
+   *  prioritizing in-season titles without a fresh look yet. Meant to be called both by the
+   *  cron (gated by the auto-run setting) and the admin page's "Scan Now" button. */
+  async scanCurrentlyAiring(db: Db, env: EpisodeAirEnv, mal: MalAPI, limit = 40): Promise<{ candidates: number; scanned: number; updated: number }> {
+    const candidates = await EpisodeAir.getScanCandidates(db, mal);
+    const toScan = candidates.slice(0, limit);
+    let updated = 0;
+    for (const cand of toScan) {
+      const fetched = await EpisodeAir.fetchAiredCount(env, mal, cand.id);
+      if (!fetched) continue;
+      await db.query(
+        `INSERT INTO episode_air_cache (anime_id, aired_count, total_count, updated_at) VALUES (?, ?, ?, datetime('now'))
+         ON CONFLICT(anime_id) DO UPDATE SET aired_count=excluded.aired_count, total_count=excluded.total_count, updated_at=excluded.updated_at`,
+        [cand.id, fetched.aired, fetched.total]
+      );
+      updated++;
+    }
+    return { candidates: candidates.length, scanned: toScan.length, updated };
   },
 };
