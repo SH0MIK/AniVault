@@ -3,6 +3,8 @@ import { Db } from './lib/db';
 import { MalAPI } from './lib/mal-api';
 import { EpisodeAir } from './lib/episode-air';
 import { DubStatus } from './lib/dub-status';
+import { Settings } from './lib/settings';
+import { SCANNER_LAST_RUN_KV_KEY } from './routes/admin/episode-scanner';
 
 const DUB_REFRESH_KV_KEY = 'dub_status_last_refresh';
 const DUB_REFRESH_INTERVAL_MS = 20 * 60 * 60 * 1000; // ~daily, with slack
@@ -38,4 +40,22 @@ export async function handleScheduled(env: Env, cron?: string): Promise<void> {
 
   const refreshed = await EpisodeAir.refreshStale(db, env, mal, 20);
   console.log(`[scheduled] episode_air_cache (cron=${cron ?? 'n/a'}): refreshed ${refreshed} stale entr${refreshed === 1 ? 'y' : 'ies'}`);
+
+  // Currently-airing scanner — separate from the stale-cache sweep above.
+  // That sweep just chases whatever's oldest (airing or not); this targets
+  // the current season specifically, gated by the toggle/interval set on
+  // admin/episode_scanner.php.
+  const settings = new Settings(db);
+  const scannerEnabled = (await settings.get('episode_scanner_auto_enabled', '1')) === '1';
+  if (scannerEnabled) {
+    const intervalMinutes = parseInt((await settings.get('episode_scanner_interval_minutes', '60')) ?? '60', 10) || 60;
+    const lastRunRaw = await env.API_CACHE.get(SCANNER_LAST_RUN_KV_KEY);
+    const lastRun = lastRunRaw ? parseInt(lastRunRaw, 10) : 0;
+    const due = !lastRun || (Date.now() - lastRun) > intervalMinutes * 60 * 1000;
+    if (due) {
+      const result = await EpisodeAir.scanCurrentlyAiring(db, env, mal, 40);
+      console.log(`[scheduled] episode scanner (cron=${cron ?? 'n/a'}): updated ${result.updated}/${result.scanned} (of ${result.candidates} candidates)`);
+      await env.API_CACHE.put(SCANNER_LAST_RUN_KV_KEY, String(Date.now()));
+    }
+  }
 }
