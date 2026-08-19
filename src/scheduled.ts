@@ -53,7 +53,10 @@ export async function handleScheduled(env: Env, cron?: string): Promise<void> {
     const lastRun = lastRunRaw ? parseInt(lastRunRaw, 10) : 0;
     const due = !lastRun || (Date.now() - lastRun) > intervalMinutes * 60 * 1000;
     if (due) {
-      const result = await EpisodeAir.scanCurrentlyAiring(db, env, mal, 40);
+      // Smaller batch than the manual scanner's 40 — Cron Triggers have their own duration
+      // limits too, and since this reruns every `intervalMinutes`, a smaller batch each tick
+      // still covers the whole candidate list over a few ticks without risking a mid-run kill.
+      const result = await EpisodeAir.scanCurrentlyAiring(db, env, mal, 15);
       console.log(`[scheduled] episode scanner (cron=${cron ?? 'n/a'}): updated ${result.updated}/${result.scanned} (of ${result.candidates} candidates)`);
       await env.API_CACHE.put(SCANNER_LAST_RUN_KV_KEY, String(Date.now()));
     }
