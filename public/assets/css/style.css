@@ -2217,6 +2217,57 @@ textarea.form-control { resize: vertical; min-height: 100px; }
   text-overflow: ellipsis;
 }
 
+/* ── Episode range picker (long-running shows) ────────── */
+.ep-range-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: .55rem 1rem;
+  color: var(--text-primary);
+  font-size: .88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.ep-range-btn:hover { border-color: var(--border-accent); }
+.ep-range-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: .85rem 1.5rem;
+  color: var(--text-primary);
+  font-size: .92rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background .12s;
+}
+.ep-range-row:last-child { border-bottom: none; }
+.ep-range-row:hover { background: var(--bg-hover); }
+.ep-range-radio {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-accent);
+  flex-shrink: 0;
+  position: relative;
+}
+.ep-range-row.active { color: var(--accent); }
+.ep-range-row.active .ep-range-radio { border-color: var(--accent); }
+.ep-range-row.active .ep-range-radio::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
 /* Episode modal thumb */
 #ep-modal-thumb-wrap { display: block; }
 #ep-modal-thumb[src=""] { display: none; }
