@@ -400,11 +400,20 @@ function epsLiveScript(animeId: number): string {
     if (infoVal) { infoVal.classList.remove('eps-skel'); infoVal.textContent = 'Unknown'; }
   }
 
-  fetchWithTimeout(6000).then(function(d){
+  // Must stay comfortably above the server's own worst case: ep_count.php
+  // allows up to 5s for the scraper lookup, then up to another 5s for the
+  // Jikan pagination fallback (~10s total on a cold, currently-airing
+  // title). A shorter client timeout just aborts a request that was about
+  // to succeed -- which still leaves it looking "stuck" until reload,
+  // since the abort doesn't stop the server from finishing the lookup and
+  // writing it to cache anyway. 14s covers the 10s server budget with room
+  // for network overhead.
+  fetchWithTimeout(14000).then(function(d){
     if (apply(d)) return;
-    // One retry after a short delay before giving up.
+    // One retry after a short delay before giving up -- this is now only
+    // for a genuine failure (network drop, 5xx, etc.), not an impatient abort.
     setTimeout(function(){
-      fetchWithTimeout(6000).then(function(d2){
+      fetchWithTimeout(14000).then(function(d2){
         if (!apply(d2)) fail();
       });
     }, 1500);
