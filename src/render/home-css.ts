@@ -283,24 +283,11 @@ export const CONTINUE_WATCHING_CSS = `.cw-header{
   }
 
   .cw-card{
-    flex-direction:row;
-    align-items:center;
-    gap:.85rem;
     background:transparent;
   }
 
-  .cw-thumb{
-    width:145px;
-    min-width:145px;
-    height:82px;
-    padding-bottom:0;
-    border-radius:8px;
-  }
-
   .cw-info{
-    flex:1;
-    min-width:0;
-    padding:0;
+    padding:.5rem .1rem 0;
   }
 
   .cw-anime-name{
@@ -309,7 +296,7 @@ export const CONTINUE_WATCHING_CSS = `.cw-header{
   }
 
   .cw-ep-title{
-    font-size:.98rem;
+    font-size:.82rem;
     white-space:normal;
     overflow:hidden;
     display:-webkit-box;
@@ -350,14 +337,8 @@ export const CONTINUE_WATCHING_CSS = `.cw-header{
 /* SMALL PHONE */
 @media (max-width:480px){
 
-  .cw-thumb{
-    width:132px;
-    min-width:132px;
-    height:74px;
-  }
-
   .cw-ep-title{
-    font-size:.9rem;
+    font-size:.78rem;
   }
 
 }
