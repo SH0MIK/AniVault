@@ -53,6 +53,22 @@ export interface NormalisedAnime {
 export class MalAPI {
   constructor(private env: MalEnv, private kv: KVNamespace | undefined, private db: Db) {}
 
+  // Fire-and-forget cache write. KV's daily put() quota (1,000/day on the
+  // free tier) is easy to exceed with an hourly scanner + Jikan pagination
+  // fallback — when that happens put() throws, and previously that was
+  // unhandled and took the whole request down with it (see incident:
+  // "KV put() limit exceeded for the day" crashing GET /). A cache write is
+  // never worth failing the response over, so this always resolves and just
+  // logs on failure.
+  private async safeKvPut(key: string, value: string, opts?: KVNamespacePutOptions): Promise<void> {
+    if (!this.kv) return;
+    try {
+      await this.kv.put(key, value, opts);
+    } catch (err: any) {
+      console.warn('[mal-api] KV put failed (continuing without cache write):', key, '-', String(err?.message ?? err));
+    }
+  }
+
   private cacheEnabled(): boolean {
     return (this.env.API_CACHE_ENABLED ?? '1') === '1';
   }
@@ -71,7 +87,7 @@ export class MalAPI {
       const res = await fetch(url, { headers: { 'X-MAL-CLIENT-ID': this.env.MAL_CLIENT_ID ?? '', Accept: 'application/json' } });
       if (!res.ok) return { error: 'API request failed' };
       const json = await res.json();
-      await this.kv.put(cacheKey, JSON.stringify(json), { expirationTtl: this.cacheTtl() });
+      await this.safeKvPut(cacheKey, JSON.stringify(json), { expirationTtl: this.cacheTtl() });
       return json;
     }
 
@@ -100,7 +116,7 @@ export class MalAPI {
 
       if (this.kv && this.cacheEnabled()) {
         const cacheKey = 'jikan_' + (await sha1(url));
-        await this.kv.put(cacheKey, JSON.stringify(decoded), { expirationTtl: this.cacheTtl() });
+        await this.safeKvPut(cacheKey, JSON.stringify(decoded), { expirationTtl: this.cacheTtl() });
       }
       return decoded;
     }
@@ -133,7 +149,7 @@ export class MalAPI {
       // Generous TTL as a safety net — the cron is what actually keeps this
       // fresh minute-to-minute; this just stops a cold cache from forcing
       // every single request to call AniList live.
-      await this.kv.put(cacheKey, JSON.stringify(result), { expirationTtl: Math.max(this.cacheTtl(), 7200) });
+      await this.safeKvPut(cacheKey, JSON.stringify(result), { expirationTtl: Math.max(this.cacheTtl(), 7200) });
     }
     return result;
   }
@@ -145,7 +161,7 @@ export class MalAPI {
     const data = await this.fetchAniListSeasonLive();
     if (!data || data.length === 0) return false;
     if (this.kv && this.cacheEnabled()) {
-      await this.kv.put(this.seasonCacheKey(), JSON.stringify({ data }), { expirationTtl: 7200 });
+      await this.safeKvPut(this.seasonCacheKey(), JSON.stringify({ data }), { expirationTtl: 7200 });
     }
     return true;
   }
@@ -374,7 +390,7 @@ export class MalAPI {
       // Logos/backdrops essentially never change — cache for a week either
       // way (even a "not found" result), so a title with neither doesn't
       // get re-searched on every single page load.
-      await this.kv.put(cacheKey, JSON.stringify(images), { expirationTtl: 604800 });
+      await this.safeKvPut(cacheKey, JSON.stringify(images), { expirationTtl: 604800 });
     }
     return images;
   }
