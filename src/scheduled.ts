@@ -35,7 +35,11 @@ export async function handleScheduled(env: Env, cron?: string): Promise<void> {
   if (dubRefreshDue) {
     const results = await DubStatus.refresh(db);
     console.log('[scheduled] dub_status refresh (cron=' + (cron ?? 'n/a') + '): ' + results.map((r) => `${r.lang}=${r.ok ? r.count : 'FAILED'}`).join(', '));
-    await env.API_CACHE.put(DUB_REFRESH_KV_KEY, String(Date.now()));
+    try {
+      await env.API_CACHE.put(DUB_REFRESH_KV_KEY, String(Date.now()));
+    } catch (err: any) {
+      console.warn('[scheduled] failed to write dub refresh timestamp (continuing):', String(err?.message ?? err));
+    }
   }
 
   const refreshed = await EpisodeAir.refreshStale(db, env, mal, 20);
@@ -58,7 +62,11 @@ export async function handleScheduled(env: Env, cron?: string): Promise<void> {
       // still covers the whole candidate list over a few ticks without risking a mid-run kill.
       const result = await EpisodeAir.scanCurrentlyAiring(db, env, mal, 15);
       console.log(`[scheduled] episode scanner (cron=${cron ?? 'n/a'}): updated ${result.updated}/${result.scanned} (of ${result.candidates} candidates)`);
-      await env.API_CACHE.put(SCANNER_LAST_RUN_KV_KEY, String(Date.now()));
+      try {
+        await env.API_CACHE.put(SCANNER_LAST_RUN_KV_KEY, String(Date.now()));
+      } catch (err: any) {
+        console.warn('[scheduled] failed to write scanner last-run timestamp (continuing):', String(err?.message ?? err));
+      }
     }
   }
 }
