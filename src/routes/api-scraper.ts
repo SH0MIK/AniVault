@@ -16,6 +16,7 @@ import { Auth } from '../lib/auth';
 import { h } from '../lib/helpers';
 import { MalAPI } from '../lib/mal-api';
 import { EpisodeAir } from '../lib/episode-air';
+import { AnimeTracker } from '../lib/tracker';
 
 export const scraperRoutes = new Hono<{ Bindings: Env }>();
 
@@ -384,37 +385,29 @@ scraperRoutes.get('/api/embed.php', async (c) => {
   return c.html(html);
 });
 
-// ── api/discord_user.php (internal, bot-secret protected) ─────────────────
+// ── api/discord_user.php — internal, called only by the AniVault Discord
+//    bot's /user command (see anivault-bot's api/interactions.ts). Secret is
+//    read from the x-bot-secret header rather than a query string so it never
+//    ends up in server/proxy access logs. Reuses AnimeTracker.getStats (same
+//    stats the public /u/:username profile page shows) instead of duplicating
+//    the aggregation query here.
 scraperRoutes.get('/api/discord_user.php', async (c) => {
   const db = new Db(c.env.DB);
-  const secret = (c.req.query('secret') ?? '').trim();
+  const secret = c.req.header('x-bot-secret') ?? '';
   if (!c.env.BOT_SECRET || secret !== c.env.BOT_SECRET) return c.json({ error: 'Unauthorized' }, 401);
 
   const username = (c.req.query('username') ?? '').trim();
   if (!username) return c.json({ error: 'Missing username' }, 400);
 
-  const user = await db.fetchOne<any>('SELECT id, username, avatar_url, role, created_at FROM users WHERE username = ?', [username]);
+  const user = await db.fetchOne<any>(
+    'SELECT id, username, avatar_url, role, created_at FROM users WHERE username = ? AND is_active = 1',
+    [username]
+  );
   if (!user) return c.json({ error: 'User not found' }, 404);
 
   const displayIdRow = await db.fetchOne<{ cnt: number }>('SELECT COUNT(*) as cnt FROM users WHERE id <= ?', [user.id]);
   user.display_id = displayIdRow?.cnt ?? user.id;
-
-  const statsRows = await db.fetchAll<{ status: string; cnt: number; ep_sum: number; avg_score: number | null }>(
-    'SELECT status, COUNT(*) as cnt, SUM(episodes_watched) as ep_sum, AVG(score) as avg_score FROM anime_list WHERE user_id=? GROUP BY status',
-    [user.id]
-  );
-  const stats: Record<string, number> = {
-    watching: 0, completed: 0, on_hold: 0, dropped: 0, plan_to_watch: 0, total_episodes: 0, avg_score: 0, total: 0,
-  };
-  let scoreTotal = 0, scoreCount = 0;
-  for (const r of statsRows) {
-    if (r.status in stats) stats[r.status] = r.cnt;
-    stats.total += r.cnt;
-    stats.total_episodes += Number(r.ep_sum ?? 0);
-    if (r.avg_score) { scoreTotal += r.avg_score * r.cnt; scoreCount += r.cnt; }
-  }
-  stats.avg_score = scoreCount ? Math.round((scoreTotal / scoreCount) * 10) / 10 : 0;
-  user.stats = stats;
+  user.stats = await AnimeTracker.getStats(db, user.id);
 
   return c.json({ user });
 });
