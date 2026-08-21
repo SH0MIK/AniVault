@@ -42,6 +42,7 @@ import { legalRoutes } from './routes/legal';
 import { watchNowRoutes } from './routes/watch-now';
 import { legacyRedirectRoutes } from './routes/legacy-redirects';
 import { apiChatRoutes } from './routes/api-chat';
+import { healthRoutes } from './routes/health';
 import { handleScheduled } from './scheduled';
 
 // Env bindings + secrets (set secrets via `wrangler secret put NAME`, see wrangler.toml)
@@ -76,6 +77,7 @@ export interface Env {
 
 const app = new Hono<{ Bindings: Env }>();
 
+app.route('/', healthRoutes);
 app.route('/', authRoutes);
 app.route('/', homeRoutes);
 app.route('/', browseRoutes);
