@@ -46,6 +46,9 @@ GOOGLE_REDIRECT_URI = "https://www.anivault.co/pages/oauth_google.php"
 DISCORD_REDIRECT_URI = "https://www.anivault.co/pages/oauth_discord.php"
 API_CACHE_ENABLED = "1"
 API_CACHE_TIME = "3600"
+# Channel the site posts login/register embeds to directly via DISCORD_BOT_TOKEN.
+# Not sensitive, so it lives as a var rather than a secret.
+DISCORD_LOG_CHANNEL_ID = ""
 
 [observability.logs]
 enabled = true
@@ -59,8 +62,7 @@ invocation_logs = true
 #   wrangler secret put DISCORD_CLIENT_SECRET
 #   wrangler secret put DISCORD_BOT_TOKEN
 #   wrangler secret put DISCORD_SERVER_ID
-#   wrangler secret put BOT_SECRET
-#   wrangler secret put DISCORD_RELAY_URL
+#   wrangler secret put BOT_SECRET        (shared with the Discord bot, see index.ts Env comment)
 #   wrangler secret put MAL_CLIENT_ID
 #   wrangler secret put MAL_CLIENT_SECRET
 #   wrangler secret put TMDB_API_KEY
