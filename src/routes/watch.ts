@@ -57,21 +57,25 @@ export function parseDurationSeconds(durationStr: string | null | undefined): nu
 /** Ports getAnilistIdFromMal(): looks up (and caches in D1) the AniList ID
  * for a MAL id via AniList's GraphQL API, since AniList's streaming-episode
  * thumbnails / episode data key off their own IDs, not MAL's. */
-async function getAnilistIdFromMal(db: Db, malId: number): Promise<number | null> {
+async function getAnilistIdFromMal(db: Db, malId: number, env: { SCRAPER_API_BASE?: string }): Promise<number | null> {
   const row = await db.fetchOne<{ anilist_id: number }>('SELECT anilist_id FROM anime_mal_map WHERE mal_id = ?', [malId]);
   if (row?.anilist_id) return row.anilist_id;
 
+  // Was a direct fetch to graphql.anilist.co — AniList blocks Cloudflare
+  // Workers' IP ranges outright, so this silently failed on every call and
+  // anime_mal_map has likely stayed empty since launch. Routed through the
+  // scraper now (Railway isn't in a blocked range), same pattern as the
+  // season data and episode thumbnails fixes.
+  const base = env.SCRAPER_API_BASE?.replace(/\/+$/, '').replace(/\/api$/i, '');
+  if (!base) return null;
   try {
-    const res = await fetch('https://graphql.anilist.co', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: 'query ($malId: Int) { Media(idMal: $malId, type: ANIME) { id } }',
-        variables: { malId },
-      }),
-    });
-    const data: any = await res.json();
-    const anilistId = data?.data?.Media?.id ?? 0;
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`${base}/api/anilist/id?malId=${malId}`, { headers: { Accept: 'application/json' }, signal: controller.signal });
+    clearTimeout(t);
+    if (!res.ok) return null;
+    const json: any = await res.json().catch(() => null);
+    const anilistId = json?.anilistId ?? 0;
     if (anilistId) {
       await db.query(
         'INSERT INTO anime_mal_map (mal_id, anilist_id) VALUES (?, ?) ON CONFLICT(mal_id) DO UPDATE SET anilist_id = excluded.anilist_id',
@@ -79,7 +83,7 @@ async function getAnilistIdFromMal(db: Db, malId: number): Promise<number | null
       );
       return anilistId;
     }
-  } catch { /* AniList unreachable -- non-fatal, ID mapping just stays empty */ }
+  } catch { /* AniList/scraper unreachable -- non-fatal, ID mapping just stays empty */ }
   return null;
 }
 
@@ -171,7 +175,7 @@ watchRoutes.get('/watch', async (c) => {
   const resumeParam = resumeT >= 30 ? resumeT : 0;
   const hasMegaplayFallback = !video;
 
-  const anilistId = await getAnilistIdFromMal(db, animeId);
+  const anilistId = await getAnilistIdFromMal(db, animeId, c.env);
 
   const allVideos = await db.fetchAll<{ episode_num: number; title: string | null }>(
     'SELECT episode_num, title FROM episode_videos WHERE anime_id=? AND is_active=1 ORDER BY episode_num ASC',
