@@ -155,9 +155,12 @@ export class MalAPI {
     return result;
   }
 
-  // Called by the scheduled cron handler ONLY — always hits AniList live
-  // (ignores whatever's already cached) and overwrites the cache key that
-  // getAniListSeasonNow() reads. Returns true on a successful refresh.
+  // Called by the scheduled cron handler — always hits AniList live (via
+  // our own scraper, see fetchAniListSeasonLive) and overwrites the cache
+  // key that getAniListSeasonNow() reads. Returns true on a successful
+  // refresh. Now callable directly from this Worker's own cron (see
+  // scheduled.ts) since routing through the scraper sidesteps AniList's
+  // block on Cloudflare Workers IPs — no external relay needed.
   async refreshAniListSeasonCache(): Promise<boolean> {
     const data = await this.fetchAniListSeasonLive();
     if (!data || data.length === 0) return false;
@@ -169,13 +172,13 @@ export class MalAPI {
 
   // AniList blocks requests from Cloudflare Workers outright (confirmed via
   // a 403 "manually blocked" response) — there's no live single-anime
-  // lookup available here the way there is for MAL/Jikan. But the season
-  // cache your GitHub Action already populates (see
-  // .github/workflows/anilist-cache.yml) carries AniList's real
-  // bannerImage for every title in the current season "for free" — if the
-  // anime being viewed happens to be currently airing, we can pull its
-  // banner out of that cache with zero extra requests. Anything outside
-  // the current season simply isn't covered (returns '').
+  // lookup available here the way there is for MAL/Jikan. Routed through
+  // our own scraper instead (see fetchAniListSeasonLive), so the season
+  // cache below carries AniList's real bannerImage for every title in the
+  // current season "for free" — if the anime being viewed happens to be
+  // currently airing, we can pull its banner out of that cache with zero
+  // extra requests. Anything outside the current season simply isn't
+  // covered (returns '').
   async getAniListBannerFromSeasonCache(malId: number): Promise<string> {
     if (!malId || !this.kv) return '';
     const cached = await this.kv.get(this.seasonCacheKey(), 'json') as { data: NormalisedAnime[] } | null;
@@ -183,14 +186,29 @@ export class MalAPI {
     return cached.data.find((a) => a.mal_id === malId)?.banner_image || '';
   }
 
-  // Second tier: AniList's all-time top-200-by-popularity banner map (also
-  // written by the same GitHub Action, refreshed roughly daily since it's
-  // effectively static). Covers older/finished popular titles that the
-  // season cache above can never include — Attack on Titan, Naruto, etc.
+  // Second tier: AniList's all-time top-N-by-popularity banner map, also
+  // routed through the scraper (see refreshAniListTopBanners below).
+  // Refreshed roughly daily since it's effectively static. Covers
+  // older/finished popular titles that the season cache above can never
+  // include — Attack on Titan, Naruto, etc.
   async getAniListTopBanner(malId: number): Promise<string> {
     if (!malId || !this.kv) return '';
     const map = await this.kv.get('anilist_top_banners', 'json') as Record<string, string> | null;
     return map?.[malId] || '';
+  }
+
+  // Called by the scheduled cron handler — refreshes the top-N-by-popularity
+  // banner map that getAniListTopBanner() reads. Same "hit the scraper,
+  // write through to KV" shape as refreshAniListSeasonCache. Returns true
+  // on a successful refresh.
+  async refreshAniListTopBanners(): Promise<boolean> {
+    const fromScraper = await this.scraperGet('/api/anilist/top-banners?limit=200');
+    const map = fromScraper?.data;
+    if (!map || typeof map !== 'object' || Object.keys(map).length === 0) return false;
+    if (this.kv && this.cacheEnabled()) {
+      await this.safeKvPut('anilist_top_banners', JSON.stringify(map));
+    }
+    return true;
   }
 
   private seasonCacheKey(): string {
@@ -202,90 +220,59 @@ export class MalAPI {
   }
 
   private async fetchAniListSeasonLive(): Promise<NormalisedAnime[] | null> {
-    const now = new Date();
-    const month = now.getUTCMonth() + 1;
-    const seasonYear = now.getUTCFullYear();
-    const season = month <= 3 ? 'WINTER' : month <= 6 ? 'SPRING' : month <= 9 ? 'SUMMER' : 'FALL';
-
-    const query = `
-      query ($season: MediaSeason, $seasonYear: Int) {
-        Page(page: 1, perPage: 50) {
-          media(season: $season, seasonYear: $seasonYear, type: ANIME, sort: POPULARITY_DESC, isAdult: false) {
-            idMal
-            title { romaji english }
-            description(asHtml: false)
-            bannerImage
-            coverImage { large extraLarge }
-            genres
-            episodes
-            averageScore
-            format
-            status
-          }
-        }
-      }`;
-
-    try {
-      const res = await fetch('https://graphql.anilist.co', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ query, variables: { season, seasonYear } }),
-      });
-      if (!res.ok) {
-        const bodyText = await res.text().catch(() => '');
-        console.error(`[anilist] HTTP ${res.status} ${res.statusText}`, bodyText.slice(0, 500));
-        return null;
-      }
-      const json: any = await res.json();
-      if (json?.errors?.length) {
-        console.error('[anilist] GraphQL errors:', JSON.stringify(json.errors).slice(0, 500));
-        return null;
-      }
-      const media: any[] = json?.data?.Page?.media ?? [];
-      console.log(`[anilist] fetched ${media.length} media for ${season} ${seasonYear}`);
-
-      return media
-        .filter((m) => m.idMal)
-        .map((m) => ({
-          mal_id: m.idMal,
-          title: m.title?.romaji || m.title?.english || 'Unknown',
-          title_english: m.title?.english || '',
-          title_japanese: '',
-          images: {
-            jpg: {
-              image_url: m.coverImage?.large || '',
-              large_image_url: m.coverImage?.extraLarge || m.coverImage?.large || '',
-            },
-          },
-          synopsis: stripAniListHtml(m.description || ''),
-          background: '',
-          score: typeof m.averageScore === 'number' ? m.averageScore / 10 : null,
-          scored_by: null,
-          rank: null,
-          popularity: null,
-          episodes: m.episodes || 0,
-          status: m.status || '',
-          type: m.format || 'TV',
-          rating: '',
-          source: '',
-          duration: null,
-          aired: { string: null },
-          start_date: null,
-          genres: (m.genres || []).map((g: string, i: number) => ({ mal_id: i, name: g })),
-          studios: [],
-          related_anime: [],
-          recommendations: [],
-          trailer: [],
-          themes: [],
-          members: 0,
-          broadcast: { day: null, time: null },
-          duration_mins: null,
-          banner_image: m.bannerImage || undefined,
-        }));
-    } catch (err) {
-      console.error('[anilist] fetch threw:', err instanceof Error ? err.message : String(err));
+    // Routed through our own scraper (Railway) instead of calling
+    // graphql.anilist.co directly -- AniList blocks Cloudflare Workers'
+    // IP ranges outright, but Railway isn't a Workers IP and this is just
+    // an ordinary HTTPS call to our own backend, same "scraperGet" path
+    // every other MalAPI method already uses. See scraper's
+    // src/scrapers/anilist.ts for the actual AniList call.
+    const fromScraper = await this.scraperGet('/api/anilist/season');
+    if (!fromScraper?.media) {
+      console.error('[anilist] scraper API returned nothing for /anilist/season');
       return null;
     }
+
+    const media: any[] = fromScraper.media;
+    console.log(`[anilist] fetched ${media.length} media for ${fromScraper.season} ${fromScraper.seasonYear} (via scraper)`);
+
+    return media
+      .filter((m) => m.idMal)
+      .map((m) => ({
+        mal_id: m.idMal,
+        title: m.title?.romaji || m.title?.english || 'Unknown',
+        title_english: m.title?.english || '',
+        title_japanese: '',
+        images: {
+          jpg: {
+            image_url: m.coverImage?.large || '',
+            large_image_url: m.coverImage?.extraLarge || m.coverImage?.large || '',
+          },
+        },
+        synopsis: stripAniListHtml(m.description || ''),
+        background: '',
+        score: typeof m.averageScore === 'number' ? m.averageScore / 10 : null,
+        scored_by: null,
+        rank: null,
+        popularity: null,
+        episodes: m.episodes || 0,
+        status: m.status || '',
+        type: m.format || 'TV',
+        rating: '',
+        source: '',
+        duration: null,
+        aired: { string: null },
+        start_date: null,
+        genres: (m.genres || []).map((g: string, i: number) => ({ mal_id: i, name: g })),
+        studios: [],
+        related_anime: [],
+        recommendations: [],
+        trailer: [],
+        themes: [],
+        members: 0,
+        broadcast: { day: null, time: null },
+        duration_mins: null,
+        banner_image: m.bannerImage || undefined,
+      }));
   }
 
   // Used when AniList errors, times out, or returns nothing — falls back to
