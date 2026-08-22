@@ -14,6 +14,7 @@ export interface MalEnv {
   API_CACHE_ENABLED?: string; // "1" / "0" via wrangler.toml var
   API_CACHE_TIME?: string; // seconds
   TMDB_API_KEY?: string;
+  SCRAPER_API_BASE?: string; // same secret as api-scraper.ts / episode-air.ts
 }
 
 export interface NormalisedAnime {
@@ -596,28 +597,109 @@ export class MalAPI {
     return { data: await this.normalise(raw) };
   }
 
-  async getCharacter(id: number): Promise<any> {
-    return this.jikanGet(`https://api.jikan.moe/v4/characters/${id}`);
-  }
+  // Replaces getCharacter + getCharacterAnime + getCharacterVoices (3
+  // separate Jikan calls) with one -- MAL's character page has bio,
+  // animeography, and voice roles all on a single page, so one scrape
+  // covers what used to take 3 requests. Falls back to the original 3
+  // parallel Jikan calls if the scraper is unavailable/errors.
+  async getCharacterFull(id: number): Promise<{ character: any; animeography: any; voices: any }> {
+    const fromScraper = await this.scraperGet(`/api/mal/character/${id}`);
+    if (fromScraper) return mapScraperCharacterFull(fromScraper);
 
-  async getCharacterAnime(id: number): Promise<any> {
-    return this.jikanGet(`https://api.jikan.moe/v4/characters/${id}/anime`);
-  }
-
-  async getCharacterVoices(id: number): Promise<any> {
-    return this.jikanGet(`https://api.jikan.moe/v4/characters/${id}/voices`);
+    const [character, animeography, voices] = await Promise.all([
+      this.jikanGet(`https://api.jikan.moe/v4/characters/${id}`),
+      this.jikanGet(`https://api.jikan.moe/v4/characters/${id}/anime`),
+      this.jikanGet(`https://api.jikan.moe/v4/characters/${id}/voices`),
+    ]);
+    return { character, animeography, voices };
   }
 
   async getAnimeCharacters(id: number): Promise<any> {
+    const fromScraper = await this.scraperGet(`/api/mal/anime/${id}/characters`);
+    if (fromScraper) return mapScraperCharacters(fromScraper);
     return this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/characters`);
   }
 
   async getAnimeEpisodes(id: number, page = 1): Promise<any> {
+    const fromScraper = await this.scraperGet(`/api/mal/anime/${id}/episodes?page=${page}`);
+    if (fromScraper) return mapScraperEpisodes(fromScraper);
     return this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/episodes?page=${page}`);
   }
 
   async getAnimeStreaming(id: number): Promise<any> {
     return this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/streaming`);
+  }
+
+  // New endpoints -- no prior site UI consumed these, so no Jikan-shape
+  // reshaping is needed the way episodes/characters had to match existing
+  // callers. Still keep Jikan as a fallback for resilience, same pattern
+  // as everything else here, reshaped from Jikan's actual shape into ours
+  // instead (the reverse direction, since our own shape is what the new
+  // UI below is built against).
+  async getAnimeThemes(id: number): Promise<{ opening: any[]; ending: any[] }> {
+    const fromScraper = await this.scraperGet(`/api/mal/anime/${id}/themes`);
+    if (fromScraper) return fromScraper;
+
+    const jikan = await this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/themes`);
+    return {
+      opening: (jikan?.data?.openings ?? []).map((t: string, i: number) => ({ number: i + 1, title: t, artist: '', episodes: null, spotifyUrl: null })),
+      ending: (jikan?.data?.endings ?? []).map((t: string, i: number) => ({ number: i + 1, title: t, artist: '', episodes: null, spotifyUrl: null })),
+    };
+  }
+
+  async getAnimeVideos(id: number): Promise<{ musicVideos: any[]; trailers: any[] }> {
+    const fromScraper = await this.scraperGet(`/api/mal/anime/${id}/videos`);
+    if (fromScraper) return fromScraper;
+
+    const jikan = await this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/videos`);
+    const trailer = jikan?.data?.promo?.[0]?.trailer;
+    return {
+      musicVideos: [],
+      trailers: trailer?.youtube_id
+        ? [{ label: 'PV 1', youtubeId: trailer.youtube_id, embedUrl: trailer.embed_url, songTitle: null, songArtist: null }]
+        : [],
+    };
+  }
+
+  async getAnimePictures(id: number): Promise<{ data: any[] }> {
+    const fromScraper = await this.scraperGet(`/api/mal/anime/${id}/pictures`);
+    if (fromScraper) return fromScraper;
+
+    const jikan = await this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/pictures`);
+    return { data: (jikan?.data ?? []).map((p: any) => ({ image: p.jpg?.image_url ?? null, thumbnail: p.jpg?.small_image_url ?? null })) };
+  }
+
+  async getCharacterPictures(id: number): Promise<{ data: any[] }> {
+    const fromScraper = await this.scraperGet(`/api/mal/character/${id}/pictures`);
+    if (fromScraper) return fromScraper;
+
+    const jikan = await this.jikanGet(`https://api.jikan.moe/v4/characters/${id}/pictures`);
+    return { data: (jikan?.data ?? []).map((p: any) => ({ image: p.jpg?.image_url ?? null, thumbnail: p.jpg?.small_image_url ?? null })) };
+  }
+
+  // Own scraper (see AniVault-Scraper's src/scrapers/mal.ts) — same base-URL
+  // env var and stripping convention as api-scraper.ts / episode-air.ts.
+  // Returns null (not throw) on any failure/missing config so callers fall
+  // straight through to the Jikan path above, same "scraper first, Jikan as
+  // safety net" shape episode-air.ts already established.
+  private async scraperGet(path: string, timeoutMs = 8000): Promise<any | null> {
+    const base = this.env.SCRAPER_API_BASE?.replace(/\/+$/, '').replace(/\/api$/i, '');
+    if (!base) return null;
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), timeoutMs);
+      const res = await fetch(`${base}${path}`, { headers: { Accept: 'application/json' }, signal: controller.signal });
+      clearTimeout(t);
+      if (!res.ok) {
+        console.warn(`[mal-api] scraper API HTTP ${res.status} for ${path} — falling back to Jikan`);
+        return null;
+      }
+      return await res.json().catch(() => null);
+    } catch (err: any) {
+      const reason = err?.name === 'AbortError' ? `timed out after ${timeoutMs}ms` : String(err?.message ?? err);
+      console.warn(`[mal-api] scraper API call failed for ${path} —`, reason, '— falling back to Jikan');
+      return null;
+    }
   }
 
   async getRecommendations(animeId: number): Promise<{ data: any[] }> {
@@ -711,6 +793,99 @@ export class MalAPI {
     all.sort((a, b) => (a.broadcast.time ?? '99:99').localeCompare(b.broadcast.time ?? '99:99'));
     return { data: all };
   }
+}
+
+// Reshapes AniVault-Scraper's /api/mal/anime/{id}/episodes response into
+// the same { data: [...], pagination: { last_visible_page, has_next_page } }
+// shape Jikan returned, so every existing caller (episode-air.ts,
+// watch.ts, anime-tail.ts's server-rendered path) needs zero changes.
+function mapScraperEpisodes(raw: any): any {
+  const data = (raw?.data ?? []).map((ep: any) => ({
+    mal_id: ep.malId,
+    url: ep.url,
+    title: ep.title,
+    title_japanese: ep.titleJapanese,
+    aired: ep.aired,
+    filler: !!ep.filler,
+    recap: !!ep.recap,
+  }));
+  return {
+    data,
+    pagination: {
+      last_visible_page: raw?.pagination?.currentPage ?? 1,
+      has_next_page: !!raw?.pagination?.hasNextPage,
+    },
+  };
+}
+
+// Same idea for /api/mal/anime/{id}/characters -> Jikan's
+// { data: [{ character, role, voice_actors }] } shape.
+function mapScraperCharacters(raw: any): any {
+  const data = (raw?.data ?? []).map((ch: any) => ({
+    character: {
+      mal_id: ch.characterId,
+      url: ch.url,
+      images: { jpg: { image_url: ch.image } },
+      name: ch.name,
+    },
+    role: ch.role,
+    voice_actors: (ch.voiceActors ?? []).map((va: any) => ({
+      person: {
+        mal_id: va.peopleId,
+        url: va.url,
+        images: { jpg: { image_url: va.image } },
+        name: va.name,
+      },
+      language: va.language,
+    })),
+  }));
+  return { data };
+}
+
+// Reshapes /api/mal/character/{id} into the 3-piece shape getCharacterFull
+// returns, each piece matching what its old separate Jikan call returned
+// ({ data: {...} } for the bio, { data: [...] } for the other two) so
+// character.ts's existing field access (char.name_kanji, entry.role, etc.)
+// needed no changes.
+function mapScraperCharacterFull(raw: any): { character: any; animeography: any; voices: any } {
+  const character = {
+    data: {
+      mal_id: raw.characterId,
+      name: raw.name,
+      name_kanji: raw.nameKanji,
+      nicknames: raw.nicknames ?? [],
+      about: raw.about,
+      note: raw.note ?? null,
+      spoilers: raw.spoilers ?? [],
+      favorites: raw.favorites,
+      images: { jpg: { image_url: raw.image } },
+    },
+  };
+
+  const animeography = {
+    data: (raw.animeography ?? []).map((a: any) => ({
+      anime: {
+        mal_id: a.animeId,
+        title: a.title,
+        images: { jpg: { image_url: a.image } },
+      },
+      role: a.role,
+    })),
+  };
+
+  const voices = {
+    data: (raw.voiceActors ?? []).map((va: any) => ({
+      person: {
+        mal_id: va.peopleId,
+        name: va.name,
+        url: va.url,
+        images: { jpg: { image_url: va.image } },
+      },
+      language: va.language,
+    })),
+  };
+
+  return { character, animeography, voices };
 }
 
 function mapStatus(s: string): string {
