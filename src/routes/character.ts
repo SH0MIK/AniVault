@@ -27,11 +27,8 @@ characterRoutes.get('/character', async (c) => {
   const charId = parseInt(c.req.query('id') ?? '0', 10) || 0;
   if (!charId) return c.redirect(siteUrl + '/');
 
-  const [charData, charAnimeData, charVoicesData] = await Promise.all([
-    mal.getCharacter(charId),
-    mal.getCharacterAnime(charId),
-    mal.getCharacterVoices(charId),
-  ]);
+  const { character: charData, animeography: charAnimeData, voices: charVoicesData } = await mal.getCharacterFull(charId);
+  const picturesData = await mal.getCharacterPictures(charId);
 
   const char = charData?.data;
   if (!char) {
@@ -42,11 +39,14 @@ characterRoutes.get('/character', async (c) => {
   const nameKanji = char.name_kanji ?? null;
   const nicknames: string[] = char.nicknames ?? [];
   const about: string | null = char.about ?? null;
+  const note: string | null = char.note ?? null;
+  const spoilers: string[] = char.spoilers ?? [];
   const favorites: number = char.favorites ?? 0;
   const imageLarge = char.images?.jpg?.image_url ?? '';
 
   const animeList = (charAnimeData?.data ?? []).slice(0, 12);
   const voiceList = charVoicesData?.data ?? [];
+  const pictureList = (picturesData?.data ?? []).slice(0, 24);
 
   const currentUser = auth.check() ? await auth.getCurrentUser() : null;
   const unreadCount = currentUser ? await Notification.unreadCount(db, currentUser.id) : 0;
@@ -105,6 +105,12 @@ characterRoutes.get('/character', async (c) => {
         <div class="char-about" id="char-about-text">${h(about)}</div>
         <div class="char-about-fade" id="char-about-fade"></div>
         <button class="btn-read-more" id="char-read-more-btn" onclick="toggleAbout()" style="margin-bottom:0.75rem;">▾ Read more</button>
+        ${spoilers.length > 0 ? spoilers.map((s) => `
+        <details class="char-spoiler" style="margin:0.5rem 0;">
+          <summary style="cursor:pointer;color:var(--text-muted);font-size:0.85rem;">⚠ Click to show spoiler</summary>
+          <div style="margin-top:0.5rem;">${h(s)}</div>
+        </details>`).join('') : ''}
+        ${note ? `<p style="font-size:0.8rem;color:var(--text-muted);font-style:italic;margin:0.5rem 0 0.75rem;">${h(note)}</p>` : ''}
       </div>` : ''}
     </div>
   </div>
@@ -113,6 +119,7 @@ characterRoutes.get('/character', async (c) => {
     <div class="tabs">
       ${animeList.length > 0 ? `<button class="tab-btn active" data-tab="char-anime">Anime (${animeList.length})</button>` : ''}
       ${voiceList.length > 0 ? `<button class="tab-btn ${animeList.length === 0 ? 'active' : ''}" data-tab="char-voices">Voice Actors (${voiceList.length})</button>` : ''}
+      ${pictureList.length > 0 ? `<button class="tab-btn ${animeList.length === 0 && voiceList.length === 0 ? 'active' : ''}" data-tab="char-pictures">Pictures (${pictureList.length})</button>` : ''}
     </div>
 
     ${animeList.length > 0 ? `
@@ -157,7 +164,17 @@ characterRoutes.get('/character', async (c) => {
       </div>
     </div>` : ''}
 
-    ${animeList.length === 0 && voiceList.length === 0 ? `<p class="text-muted text-center" style="padding:2rem 0;">No additional information available for this character.</p>` : ''}
+    ${pictureList.length > 0 ? `
+    <div id="tab-char-pictures" class="tab-content ${animeList.length === 0 && voiceList.length === 0 ? 'active' : ''}">
+      <div class="char-anime-grid">
+        ${pictureList.map((p: any) => `
+        <a href="${h(p.image)}" target="_blank" rel="noopener" class="char-anime-item">
+          <div class="char-anime-poster"><img src="${h(p.thumbnail || p.image)}" alt="${h(name)}" loading="lazy"></div>
+        </a>`).join('')}
+      </div>
+    </div>` : ''}
+
+    ${animeList.length === 0 && voiceList.length === 0 && pictureList.length === 0 ? `<p class="text-muted text-center" style="padding:2rem 0;">No additional information available for this character.</p>` : ''}
   </div>
 </div>
 

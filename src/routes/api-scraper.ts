@@ -442,3 +442,60 @@ scraperRoutes.get('/api/ep_count.php', async (c) => {
   const airedInfo = await EpisodeAir.get(db, c.env, mal, animeId);
   return c.json({ aired: airedInfo?.aired ?? null, total: airedInfo?.total ?? null });
 });
+
+// ── api/anime_episodes.php ──────────────────────────────────────────────────
+// Same-origin replacement for anime-tail.ts's client-side lazy loader, which
+// used to fetch api.jikan.moe directly from the browser. Routes through
+// MalAPI.getAnimeEpisodes -- own scraper first, Jikan as a fallback -- so the
+// browser never talks to either backend directly and picks up whichever is
+// actually working without a client-side redeploy.
+scraperRoutes.get('/api/anime_episodes.php', async (c) => {
+  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const page = parseInt(c.req.query('page') ?? '1', 10) || 1;
+  if (!animeId) return c.json({ error: 'Missing anime' }, 400);
+  const db = new Db(c.env.DB);
+  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+  const result = await mal.getAnimeEpisodes(animeId, page);
+  return c.json(result);
+});
+
+// ── api/anime_characters.php ────────────────────────────────────────────────
+// Same reasoning as anime_episodes.php above, for the character grid tab.
+scraperRoutes.get('/api/anime_characters.php', async (c) => {
+  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  if (!animeId) return c.json({ error: 'Missing anime' }, 400);
+  const db = new Db(c.env.DB);
+  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+  const result = await mal.getAnimeCharacters(animeId);
+  return c.json(result);
+});
+
+// ── api/anime_themes.php, anime_videos.php, anime_pictures.php ─────────────
+// Same same-origin-proxy reasoning as the two routes above, for the new
+// trailer/theme-song/picture-gallery sections.
+scraperRoutes.get('/api/anime_themes.php', async (c) => {
+  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  if (!animeId) return c.json({ error: 'Missing anime' }, 400);
+  const db = new Db(c.env.DB);
+  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+  const result = await mal.getAnimeThemes(animeId);
+  return c.json(result);
+});
+
+scraperRoutes.get('/api/anime_videos.php', async (c) => {
+  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  if (!animeId) return c.json({ error: 'Missing anime' }, 400);
+  const db = new Db(c.env.DB);
+  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+  const result = await mal.getAnimeVideos(animeId);
+  return c.json(result);
+});
+
+scraperRoutes.get('/api/anime_pictures.php', async (c) => {
+  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  if (!animeId) return c.json({ error: 'Missing anime' }, 400);
+  const db = new Db(c.env.DB);
+  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+  const result = await mal.getAnimePictures(animeId);
+  return c.json(result);
+});

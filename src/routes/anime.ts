@@ -301,6 +301,38 @@ animeRoutes.get('/anime', async (c) => {
     <div class="scroll-row" id="char-grid-js" style="display:none;"></div>
   </div>
 
+  <div class="info-section" id="video-section">
+    <h2 class="info-section-title">Trailer</h2>
+    <div id="video-loading" style="text-align:center;padding:2.5rem 0;color:var(--text-muted);">
+      <div class="av-loader" style="margin:0 auto 1rem;transform:scale(.6);"></div>
+      Loading videos…
+    </div>
+    <div id="video-js" style="display:none;">
+      <div id="video-player-wrap" style="position:relative;width:100%;aspect-ratio:16/9;border-radius:10px;overflow:hidden;background:var(--bg-base);margin-bottom:14px;"></div>
+      <div class="video-tabs" style="display:flex;gap:8px;margin-bottom:12px;">
+        <button class="btn btn-sm video-tab-btn" data-tab="trailers" onclick="switchVideoTab('trailers')">Trailers</button>
+        <button class="btn btn-sm video-tab-btn" data-tab="opening" onclick="switchVideoTab('opening')">Opening</button>
+        <button class="btn btn-sm video-tab-btn" data-tab="ending" onclick="switchVideoTab('ending')">Ending</button>
+      </div>
+      <div class="scroll-row" id="video-list-js"></div>
+    </div>
+  </div>
+
+  <div class="info-section" id="pictures-section">
+    <div class="section-header">
+      <h2 class="info-section-title" style="margin-bottom:0;">Pictures</h2>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <button class="btn btn-ghost btn-sm btn-icon row-nav-btn" data-target="pictures-grid-js" data-dir="prev" aria-label="Previous">${icon('chevron-left', 'icon-small')}</button>
+        <button class="btn btn-ghost btn-sm btn-icon row-nav-btn" data-target="pictures-grid-js" data-dir="next" aria-label="Next">${icon('chevron-right', 'icon-small')}</button>
+      </div>
+    </div>
+    <div id="pictures-grid-loading" style="text-align:center;padding:2.5rem 0;color:var(--text-muted);">
+      <div class="av-loader" style="margin:0 auto 1rem;transform:scale(.6);"></div>
+      Loading pictures…
+    </div>
+    <div class="scroll-row" id="pictures-grid-js" style="display:none;"></div>
+  </div>
+
   <div class="info-section">
     <div class="section-header">
       <h2 class="info-section-title" style="margin-bottom:0;">You Might Also Like</h2>
