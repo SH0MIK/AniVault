@@ -391,7 +391,7 @@ async function lazyLoadEpisodes() {
         let hasNext = true;
         while (hasNext) {
           if (page > 1) await new Promise(r => setTimeout(r, 400));
-          const res  = await fetch(\`https://api.jikan.moe/v4/anime/\${animeId}/episodes?page=\${page}\`);
+          const res  = await fetch(\`\${window.__siteUrl || ''}/api/anime_episodes.php?anime=\${animeId}&page=\${page}\`);
           const data = await res.json();
           const eps  = data.data || [];
           allEps = allEps.concat(eps);
@@ -454,7 +454,7 @@ async function lazyLoadCharacters() {
   const loading = document.getElementById('char-grid-loading');
   if (!grid) return;
   try {
-    const res  = await fetch(\`https://api.jikan.moe/v4/anime/\${animeId}/characters\`);
+    const res  = await fetch(\`\${window.__siteUrl || ''}/api/anime_characters.php?anime=\${animeId}\`);
     const data = await res.json();
     const chars = (data.data || []).slice(0, 12);
     if (loading) loading.style.display = 'none';
@@ -488,6 +488,171 @@ async function lazyLoadCharacters() {
     grid.style.display = '';
   } catch(e) {
     if (loading) loading.innerHTML = '<p class="text-muted">Failed to load characters. <button class="btn btn-ghost btn-sm" onclick="lazyLoadCharacters()">Retry</button></p>';
+  }
+}
+
+// ── Trailer/Opening/Ending video hub ──────────────────────────────
+// Combines trailers.php and themes.php into one tabbed section: Trailers
+// tab lists PVs directly; Opening/Ending tabs list each theme song and,
+// where MAL has a matching official music video (matched by label, e.g.
+// "ED 2 (Artist ver.)" -> ending theme #2), let it play inline -- entries
+// without a matching video still show their Spotify link instead.
+let __videoData = { trailers: [], opening: [], ending: [] };
+
+async function lazyLoadVideos() {
+  const animeId = window.__animeId;
+  const section = document.getElementById('video-section');
+  const wrap    = document.getElementById('video-js');
+  const loading = document.getElementById('video-loading');
+  if (!wrap || !section) return;
+  try {
+    const [videosRes, themesRes] = await Promise.all([
+      fetch(\`\${window.__siteUrl || ''}/api/anime_videos.php?anime=\${animeId}\`),
+      fetch(\`\${window.__siteUrl || ''}/api/anime_themes.php?anime=\${animeId}\`),
+    ]);
+    const videosData = await videosRes.json();
+    const themesData = await themesRes.json();
+
+    const sortByLabelNumber = (arr) => [...arr].sort((a, b) => {
+      const na = parseInt((a.label || '').match(/\d+/)?.[0] || '0', 10);
+      const nb = parseInt((b.label || '').match(/\d+/)?.[0] || '0', 10);
+      return na - nb;
+    });
+    const trailers = sortByLabelNumber(videosData.trailers || []);
+    const musicVideos = videosData.musicVideos || [];
+
+    const videoByKey = {};
+    musicVideos.forEach(v => {
+      const m = (v.label || '').match(/^(OP|ED)\s*(\d+)/i);
+      if (m) videoByKey[m[1].toUpperCase() + m[2]] = v;
+    });
+
+    const mapTheme = (list, prefix) => (list || []).map(t => {
+      const v = videoByKey[prefix + t.number];
+      return {
+        title: t.title,
+        subtitle: [t.artist, t.episodes ? \`eps \${t.episodes}\` : null].filter(Boolean).join(' · '),
+        embedUrl: v ? v.embedUrl : null,
+        youtubeId: v ? v.youtubeId : null,
+        hasVideo: !!v,
+        spotifyUrl: t.spotifyUrl || null,
+      };
+    });
+
+    __videoData = {
+      trailers: trailers.map(v => ({
+        title: v.label,
+        subtitle: null,
+        embedUrl: v.embedUrl,
+        youtubeId: v.youtubeId,
+        hasVideo: !!v.youtubeId,
+        spotifyUrl: null,
+      })),
+      opening: mapTheme(themesData.opening, 'OP'),
+      ending: mapTheme(themesData.ending, 'ED'),
+    };
+
+    if (loading) loading.style.display = 'none';
+
+    const hasAny = __videoData.trailers.length || __videoData.opening.length || __videoData.ending.length;
+    if (!hasAny) {
+      section.style.display = 'none'; // nothing at all available -- hide rather than show an empty player
+      return;
+    }
+
+    document.querySelectorAll('.video-tab-btn').forEach(btn => {
+      const tab = btn.getAttribute('data-tab');
+      btn.style.display = __videoData[tab] && __videoData[tab].length ? '' : 'none';
+    });
+    const defaultTab = ['trailers', 'opening', 'ending'].find(t => __videoData[t].length) || 'trailers';
+    wrap.style.display = '';
+    switchVideoTab(defaultTab);
+  } catch(e) {
+    if (loading) loading.innerHTML = '<p class="text-muted">Failed to load videos. <button class="btn btn-ghost btn-sm" onclick="lazyLoadVideos()">Retry</button></p>';
+  }
+}
+
+function switchVideoTab(tab) {
+  document.querySelectorAll('.video-tab-btn').forEach(btn => {
+    const isActive = btn.getAttribute('data-tab') === tab;
+    btn.classList.toggle('btn-primary', isActive);
+    btn.classList.toggle('btn-ghost', !isActive);
+  });
+  renderVideoList(tab);
+}
+
+function renderVideoList(tab) {
+  const listEl = document.getElementById('video-list-js');
+  if (!listEl) return;
+  const items = __videoData[tab] || [];
+  listEl.innerHTML = '';
+
+  items.forEach((item, i) => {
+    const card = document.createElement('div');
+    card.className = 'anime-card';
+    card.style.cssText = 'flex-shrink:0;width:160px;' + (item.hasVideo ? 'cursor:pointer;' : 'opacity:.55;');
+    const thumb = item.youtubeId ? \`https://img.youtube.com/vi/\${item.youtubeId}/mqdefault.jpg\` : '';
+    card.innerHTML = \`
+      <div class="anime-card-poster" style="aspect-ratio:16/9;">
+        \${thumb ? \`<img src="\${thumb}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;">\` : '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--bg-elevated);color:var(--text-muted);font-size:1.5rem;">♪</div>'}
+      </div>
+      <div style="padding:6px 2px;">
+        <div style="font-weight:600;font-size:0.85rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">\${(item.title||'').replace(/</g,'&lt;')}</div>
+        \${item.subtitle ? \`<div style="color:var(--text-muted);font-size:0.78rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">\${item.subtitle.replace(/</g,'&lt;')}</div>\` : ''}
+        \${!item.hasVideo && item.spotifyUrl ? \`<a href="\${item.spotifyUrl}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm" style="margin-top:4px;padding:2px 8px;font-size:.75rem;" onclick="event.stopPropagation();">Spotify</a>\` : ''}
+      </div>\`;
+    if (item.hasVideo) card.onclick = () => selectVideo(tab, i);
+    listEl.appendChild(card);
+  });
+
+  const firstPlayable = items.findIndex(x => x.hasVideo);
+  const playerWrap = document.getElementById('video-player-wrap');
+  if (firstPlayable !== -1) {
+    selectVideo(tab, firstPlayable);
+  } else if (playerWrap) {
+    playerWrap.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);">No video available</div>';
+  }
+}
+
+function selectVideo(tab, index) {
+  const item = (__videoData[tab] || [])[index];
+  const playerWrap = document.getElementById('video-player-wrap');
+  if (!item || !item.hasVideo || !playerWrap) return;
+  playerWrap.innerHTML = \`<iframe src="\${item.embedUrl}" title="\${(item.title||'Video').replace(/</g,'&lt;')}" style="position:absolute;inset:0;width:100%;height:100%;border:0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>\`;
+  document.querySelectorAll('#video-list-js .anime-card').forEach((el, i) => {
+    el.style.outline = i === index ? '2px solid var(--accent, #8b5cf6)' : '';
+  });
+}
+
+// ── Fetch and render the picture gallery ─────────────────────────
+async function lazyLoadPictures() {
+  const animeId = window.__animeId;
+  const section = document.getElementById('pictures-section');
+  const grid    = document.getElementById('pictures-grid-js');
+  const loading = document.getElementById('pictures-grid-loading');
+  if (!grid || !section) return;
+  try {
+    const res  = await fetch(\`\${window.__siteUrl || ''}/api/anime_pictures.php?anime=\${animeId}\`);
+    const data = await res.json();
+    const pics = (data.data || []).slice(0, 24);
+    if (loading) loading.style.display = 'none';
+    if (!pics.length) {
+      section.style.display = 'none';
+      return;
+    }
+    pics.forEach(p => {
+      const a = document.createElement('a');
+      a.href = p.image;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.className = 'anime-card';
+      a.style.cssText = 'flex-shrink:0;width:140px;';
+      a.innerHTML = \`<div class="anime-card-poster" style="aspect-ratio:2/3;"><img src="\${p.thumbnail || p.image}" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;"></div>\`;
+      grid.appendChild(a);
+    });
+    grid.style.display = '';
+  } catch(e) {
+    if (loading) loading.innerHTML = '<p class="text-muted">Failed to load pictures. <button class="btn btn-ghost btn-sm" onclick="lazyLoadPictures()">Retry</button></p>';
   }
 }
 
@@ -546,6 +711,8 @@ document.addEventListener('DOMContentLoaded', function() {
     lazyLoadEpisodes();
     lazyLoadCharacters();
     lazyLoadRelated();
+    lazyLoadVideos();
+    lazyLoadPictures();
   });
 });
 
