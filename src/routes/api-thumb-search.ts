@@ -6,7 +6,7 @@ import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
-import { findEpisodeThumbnails, episodeThumbCacheKey } from '../lib/episode-thumb';
+import { findEpisodeThumbnails, episodeThumbCacheKey, getCachedRaw, putCachedRaw } from '../lib/episode-thumb';
 
 export const thumbSearchRoutes = new Hono<{ Bindings: Env }>();
 
@@ -39,8 +39,8 @@ thumbSearchRoutes.get('/api/thumb_search.php', async (c) => {
 
   const cacheKey = episodeThumbCacheKey(malId, epNum);
   if (!debug) {
-    const cached = await c.env.API_CACHE.get(cacheKey, 'json');
-    if (cached) { await session.save(c, lifetime); return c.json(cached); }
+    const cachedRaw = await getCachedRaw(db, cacheKey);
+    if (cachedRaw) { await session.save(c, lifetime); return c.json(JSON.parse(cachedRaw)); }
   }
 
   const { thumbs, log, scraperConfigured } = await findEpisodeThumbnails(c.env, epNum, malId, isList);
@@ -54,7 +54,7 @@ thumbSearchRoutes.get('/api/thumb_search.php', async (c) => {
   }
 
   const result = isList ? { success: true, thumbs } : { success: true, thumb: thumbs[0] ?? null };
-  await c.env.API_CACHE.put(cacheKey, JSON.stringify(result), { expirationTtl: 3600 });
+  await putCachedRaw(db, cacheKey, JSON.stringify(result), 3600);
   await session.save(c, lifetime);
   return c.json(result);
 });

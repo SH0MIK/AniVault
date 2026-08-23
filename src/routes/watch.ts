@@ -94,10 +94,10 @@ async function getAnilistIdFromMal(db: Db, malId: number, env: { SCRAPER_API_BAS
  * Priority now: an admin-saved override wins (episode_overrides.image_url,
  * set via the Episode Thumbnails admin panel) -- that lets an admin correct
  * a bad auto-fetched thumbnail. Otherwise, fetch it live from our own
- * scraper API (cached in KV, see getEpisodeThumbnail). Only falls back to
+ * scraper API (cached in D1, see getEpisodeThumbnail). Only falls back to
  * the anime's cover art if neither of those has anything. */
 async function getEpisodeOgImage(
-  db: Db, kv: KVNamespace | undefined, env: { SCRAPER_API_BASE?: string },
+  db: Db, env: { SCRAPER_API_BASE?: string },
   malId: number, epNum: number, fallback: string, animeStatus?: string | null
 ): Promise<string> {
   try {
@@ -108,7 +108,7 @@ async function getEpisodeOgImage(
     if (row?.image_url) return row.image_url;
   } catch { /* fall through to scraper/fallback */ }
 
-  const scraped = await getEpisodeThumbnail(env, kv, malId, epNum, animeStatus);
+  const scraped = await getEpisodeThumbnail(env, db, malId, epNum, animeStatus);
   return scraped ?? fallback;
 }
 
@@ -246,7 +246,7 @@ watchRoutes.get('/watch', async (c) => {
     ? { id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url, role: currentUser.role }
     : null;
 
-  const ogImage = await getEpisodeOgImage(db, c.env.API_CACHE, c.env, animeId, epNum, image, anime.status);
+  const ogImage = await getEpisodeOgImage(db, c.env, animeId, epNum, image, anime.status);
 
   const __banner = await getBannerData(db);
   let html = renderHeader({

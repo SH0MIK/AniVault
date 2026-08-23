@@ -34,13 +34,13 @@ episodeOverrideRoutes.on(['GET', 'POST'], '/api/episode_override.php', async (c)
 
       // Fill in episodes that don't have an admin-saved override with a
       // live lookup against our own scraper API (one HTTP call for the
-      // whole anime, KV-cached -- see getAnimeEpisodeThumbnails). This is
+      // whole anime, D1-cached -- see getAnimeEpisodeThumbnails). This is
       // what both the watch page sidebar and the episode grid on anime
       // detail pages call, so fixing it here covers both. Passing the
       // show's status lets a Finished Airing show get cached permanently
       // instead of re-fetched every 6h.
       const overriddenEps = new Set(rows.map((r) => Number(r.episode_num)));
-      const scraped = await getAnimeEpisodeThumbnails(c.env, c.env.API_CACHE, animeId, animeData.data?.status);
+      const scraped = await getAnimeEpisodeThumbnails(c.env, db, animeId, animeData.data?.status);
       const combined = [...rows];
       for (const [epNumStr, image_url] of Object.entries(scraped)) {
         const epNum = Number(epNumStr);

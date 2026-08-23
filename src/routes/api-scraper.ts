@@ -337,7 +337,7 @@ scraperRoutes.get('/api/embed.php', async (c) => {
 
   // Priority: an admin-saved override wins (episode_overrides.image_url,
   // set via the Episode Thumbnails admin panel), then a live lookup against
-  // our own scraper API (cached in KV), then the anime cover as last resort.
+  // our own scraper API (cached in D1), then the anime cover as last resort.
   let ogImage = image;
   try {
     const db = new Db(c.env.DB);
@@ -348,7 +348,7 @@ scraperRoutes.get('/api/embed.php', async (c) => {
     if (row?.image_url) {
       ogImage = row.image_url;
     } else {
-      const scraped = await getEpisodeThumbnail(c.env, c.env.API_CACHE, animeId, epNum, animeRes.data?.data?.status);
+      const scraped = await getEpisodeThumbnail(c.env, db, animeId, epNum, animeRes.data?.data?.status);
       if (scraped) ogImage = scraped;
     }
   } catch { /* fall back to anime cover */ }

@@ -116,7 +116,7 @@ homeRoutes.get('/', async (c) => {
         }));
 
         const scraped = await Promise.all(
-          missing.map((r) => getEpisodeThumbnail(c.env, c.env.API_CACHE, r.anime_id, r.episode_num, statusMap.get(r.anime_id)))
+          missing.map((r) => getEpisodeThumbnail(c.env, db, r.anime_id, r.episode_num, statusMap.get(r.anime_id)))
         );
         missing.forEach((r, i) => {
           const thumb = scraped[i];
