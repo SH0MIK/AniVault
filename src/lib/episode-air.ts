@@ -217,20 +217,33 @@ export const EpisodeAir = {
   /** Force-refreshes exactly the given anime IDs (ignores staleness). Used by the chunked
    *  client-driven manual scan (see admin/episode-scanner.ts) — each call is small and
    *  short-lived by design, so it never risks hitting a platform background-task time limit
-   *  the way one long scanCurrentlyAiring() call over 40 items could. */
-  async scanIds(db: Db, env: EpisodeAirEnv, mal: MalAPI, ids: number[]): Promise<{ updated: number }> {
+   *  the way one long scanCurrentlyAiring() call over 40 items could.
+   *
+   *  Each id is isolated in its own try/catch: one candidate throwing (a D1 hiccup, an
+   *  unexpected Jikan/scraper shape, a Workers subrequest-limit trip on a long-running
+   *  Jikan pagination fallback, etc.) used to take the *entire* chunk down with an
+   *  uncaught 500 — which looked like "the scanner is broken" when really it was one
+   *  title. Now that one id is skipped and reported; the rest of the chunk still runs. */
+  async scanIds(db: Db, env: EpisodeAirEnv, mal: MalAPI, ids: number[]): Promise<{ updated: number; errors: { id: number; message: string }[] }> {
     let updated = 0;
+    const errors: { id: number; message: string }[] = [];
     for (const id of ids) {
-      const fetched = await EpisodeAir.fetchAiredCount(env, mal, id);
-      if (!fetched) continue;
-      await db.query(
-        `INSERT INTO episode_air_cache (anime_id, aired_count, total_count, updated_at) VALUES (?, ?, ?, datetime('now'))
-         ON CONFLICT(anime_id) DO UPDATE SET aired_count=excluded.aired_count, total_count=excluded.total_count, updated_at=excluded.updated_at`,
-        [id, fetched.aired, fetched.total]
-      );
-      updated++;
+      try {
+        const fetched = await EpisodeAir.fetchAiredCount(env, mal, id);
+        if (!fetched) continue;
+        await db.query(
+          `INSERT INTO episode_air_cache (anime_id, aired_count, total_count, updated_at) VALUES (?, ?, ?, datetime('now'))
+           ON CONFLICT(anime_id) DO UPDATE SET aired_count=excluded.aired_count, total_count=excluded.total_count, updated_at=excluded.updated_at`,
+          [id, fetched.aired, fetched.total]
+        );
+        updated++;
+      } catch (err: any) {
+        const message = String(err?.message ?? err);
+        console.error(`[episode-air] scanIds: anime ${id} failed —`, message);
+        errors.push({ id, message });
+      }
     }
-    return { updated };
+    return { updated, errors };
   },
 
   /** Actually runs the scan: force-refreshes (ignores staleness) up to `limit` candidates,
@@ -251,14 +264,18 @@ export const EpisodeAir = {
     let updated = 0;
     for (let i = 0; i < toScan.length; i++) {
       const cand = toScan[i];
-      const fetched = await EpisodeAir.fetchAiredCount(env, mal, cand.id);
-      if (fetched) {
-        await db.query(
-          `INSERT INTO episode_air_cache (anime_id, aired_count, total_count, updated_at) VALUES (?, ?, ?, datetime('now'))
-           ON CONFLICT(anime_id) DO UPDATE SET aired_count=excluded.aired_count, total_count=excluded.total_count, updated_at=excluded.updated_at`,
-          [cand.id, fetched.aired, fetched.total]
-        );
-        updated++;
+      try {
+        const fetched = await EpisodeAir.fetchAiredCount(env, mal, cand.id);
+        if (fetched) {
+          await db.query(
+            `INSERT INTO episode_air_cache (anime_id, aired_count, total_count, updated_at) VALUES (?, ?, ?, datetime('now'))
+             ON CONFLICT(anime_id) DO UPDATE SET aired_count=excluded.aired_count, total_count=excluded.total_count, updated_at=excluded.updated_at`,
+            [cand.id, fetched.aired, fetched.total]
+          );
+          updated++;
+        }
+      } catch (err: any) {
+        console.error(`[episode-air] scanCurrentlyAiring: anime ${cand.id} failed —`, String(err?.message ?? err));
       }
       if (onProgress) await onProgress(i + 1, toScan.length, cand);
     }
