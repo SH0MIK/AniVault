@@ -8,6 +8,7 @@
 // same multi-source resolution server-side and returns the winning
 // thumbnail plus its own resolution log, so the Worker no longer needs to
 // talk to any third-party API for this at all.
+import type { Db } from './db';
 
 export async function httpGetText(url: string, headers: Record<string, string> = {}, timeoutMs = 10000): Promise<string | null> {
   try {
@@ -23,9 +24,9 @@ export async function httpGetText(url: string, headers: Record<string, string> =
   } catch { return null; }
 }
 
-/** KV cache key shared between the admin thumb-search tool and (formerly)
- * the watch page's og:image lookup, kept as-is so existing cache entries
- * stay valid. */
+/** Cache key shared between the admin thumb-search tool and the live
+ * site-facing lookups below. Was a KV key; now a D1 primary key -- kept the
+ * same string shape so nothing else needs to change. */
 export function episodeThumbCacheKey(malId: number, epNum: number): string {
   return `epthumb_${malId}_${epNum}`;
 }
@@ -103,45 +104,73 @@ export async function findEpisodeThumbnails(
   }
 }
 
-// ── Site-facing helpers (with KV caching) ──────────────────────────────────
+// ── Site-facing helpers (with D1 caching) ───────────────────────────────────
 // The functions above return a full log and are meant for the admin tool.
-// Everything below is what the six live spots (og:image, watch sidebar,
-// Continue Watching, Watch History, episode grid, embed.php) call directly:
-// same scraper endpoint, but cached in KV so a scraper request only happens
-// once per episode (or once per anime for the bulk version) instead of on
-// every page view. A cached "no thumbnail" result is stored too, so a show
-// the scraper can't find doesn't get re-queried on every load either.
+// Everything below is what the live spots (og:image, watch sidebar,
+// Continue Watching, Watch History, episode grid, embed.php, and the admin
+// thumb-search tool's own cache) call: same scraper endpoint, but cached in
+// D1 so a scraper request only happens once per episode (or once per anime
+// for the bulk version) instead of on every page view.
+//
+// This used to be KV. Moved to D1 (a table, `episode_thumb_cache`, see
+// migrations/episode_thumb_cache.sql) because KV's free-tier daily write
+// cap (1,000/day) was getting hit on busy days -- D1's write budget is far
+// higher and it's already the site's primary database, so no new binding
+// was needed.
 const LIVE_CACHE_TTL_SECONDS = 21600; // 6h -- long enough to spare the
 // scraper repeat traffic from popular pages, short enough that a newly
 // aired episode's thumbnail shows up same-day without an admin re-running
 // the tool. Only used for shows that are still airing / not yet aired --
-// see `permanent` below for finished shows.
-
-// KV minimum TTL is 60s; anything under that throws. Not used directly here
-// but documents why LIVE_CACHE_TTL_SECONDS can't be dropped below it.
+// permanent (expires_at = NULL) is used for finished shows instead.
 
 /**
- * Writes a cache entry. `permanent=true` (finished-airing shows, whose
- * episode list and art can no longer change) omits expirationTtl entirely,
- * so the entry is kept in KV indefinitely instead of being re-fetched from
- * the scraper every 6h forever. `permanent=false` keeps the normal 6h TTL
- * so currently-airing / not-yet-aired shows pick up newly released episode
- * thumbnails (and status flipping to "Finished Airing") within the day.
+ * Reads a raw cache entry (still-JSON-encoded string, same as the old KV
+ * `.get(key)`). Returns null on a miss OR an expired row -- an expired row
+ * is opportunistically deleted so the table doesn't grow unbounded with
+ * dead entries (best-effort; failure here doesn't block the read).
  */
-async function safeKvPut(kv: KVNamespace | undefined, key: string, value: string, permanent: boolean): Promise<void> {
-  if (!kv) return;
+export async function getCachedRaw(db: Db, key: string): Promise<string | null> {
   try {
-    if (permanent) {
-      await kv.put(key, value);
-    } else {
-      await kv.put(key, value, { expirationTtl: LIVE_CACHE_TTL_SECONDS });
+    const row = await db.fetchOne<{ value: string; expires_at: number | null }>(
+      'SELECT value, expires_at FROM episode_thumb_cache WHERE cache_key = ?',
+      [key]
+    );
+    if (!row) return null;
+    if (row.expires_at !== null && row.expires_at <= Math.floor(Date.now() / 1000)) {
+      db.query('DELETE FROM episode_thumb_cache WHERE cache_key = ?', [key]).catch(() => {});
+      return null;
     }
     // Visible in `wrangler tail` / the Cloudflare dashboard's live Logs tab
-    // -- lets you confirm at a glance whether a given episode landed in the
-    // permanent tier or the 6h one, without needing to browse KV directly.
-    console.log(`[episode-thumb] KV write ${key} -> ${permanent ? 'PERMANENT (no expiry)' : `TTL ${LIVE_CACHE_TTL_SECONDS}s`}`);
+    // -- lets you confirm a repeat visit is skipping the scraper entirely.
+    console.log(`[episode-thumb] D1 hit ${key} (no scraper call)`);
+    return row.value;
   } catch (err: any) {
-    console.warn('[episode-thumb] KV put failed (continuing without cache write):', key, '-', String(err?.message ?? err));
+    console.warn('[episode-thumb] D1 get failed (continuing without cache):', key, '-', String(err?.message ?? err));
+    return null;
+  }
+}
+
+/**
+ * Writes a raw cache entry. `ttlSeconds=null` (finished-airing shows, whose
+ * episode list and art can no longer change) stores expires_at as NULL, so
+ * the row is kept indefinitely instead of being re-fetched from the scraper
+ * every 6h forever. A number keeps the normal TTL behavior so
+ * currently-airing / not-yet-aired shows pick up newly released episode
+ * thumbnails (and a status flip to "Finished Airing") within the day.
+ */
+export async function putCachedRaw(db: Db, key: string, value: string, ttlSeconds: number | null): Promise<void> {
+  try {
+    const expiresAt = ttlSeconds === null ? null : Math.floor(Date.now() / 1000) + ttlSeconds;
+    await db.query(
+      `INSERT INTO episode_thumb_cache (cache_key, value, expires_at, created_at)
+       VALUES (?, ?, ?, unixepoch())
+       ON CONFLICT(cache_key) DO UPDATE SET
+         value = excluded.value, expires_at = excluded.expires_at, created_at = excluded.created_at`,
+      [key, value, expiresAt]
+    );
+    console.log(`[episode-thumb] D1 write ${key} -> ${ttlSeconds === null ? 'PERMANENT (no expiry)' : `TTL ${ttlSeconds}s`}`);
+  } catch (err: any) {
+    console.warn('[episode-thumb] D1 put failed (continuing without cache write):', key, '-', String(err?.message ?? err));
   }
 }
 
@@ -155,11 +184,11 @@ function isPermanentStatus(status?: string | null): boolean {
 }
 
 /**
- * Single-episode thumbnail, cached in KV. This is the drop-in replacement
+ * Single-episode thumbnail, cached in D1. This is the drop-in replacement
  * for "check episode_overrides, else show the cover" -- callers should try
  * this after an admin override misses and before falling back to cover art.
- * Uses the same KV key/shape the admin thumb-search tool writes, so a hit
- * from either one benefits the other.
+ * Uses the same cache key/shape the admin thumb-search tool writes, so a
+ * hit from either one benefits the other.
  *
  * @param animeStatus Pass the show's MAL/AniList status (e.g. "Finished
  *   Airing") when the caller already has it, so a finished show's thumbnail
@@ -168,34 +197,34 @@ function isPermanentStatus(status?: string | null): boolean {
  */
 export async function getEpisodeThumbnail(
   env: EpisodeThumbEnv,
-  kv: KVNamespace | undefined,
+  db: Db,
   malId: number,
   epNum: number,
   animeStatus?: string | null
 ): Promise<string | null> {
   if (!malId || !epNum) return null;
   const cacheKey = episodeThumbCacheKey(malId, epNum);
-  if (kv) {
-    const cached = await kv.get(cacheKey, 'json').catch(() => null) as { thumb?: string | null } | null;
-    if (cached) {
-      console.log(`[episode-thumb] KV hit ${cacheKey} (no scraper call)`);
+  const cachedRaw = await getCachedRaw(db, cacheKey);
+  if (cachedRaw) {
+    try {
+      const cached = JSON.parse(cachedRaw) as { thumb?: string | null };
       return cached.thumb ?? null;
-    }
+    } catch { /* fall through and re-fetch on a corrupt cache row */ }
   }
   const { thumbs } = await findEpisodeThumbnails(env, epNum, malId);
   const thumb = thumbs[0] ?? null;
-  await safeKvPut(kv, cacheKey, JSON.stringify({ success: true, thumb }), isPermanentStatus(animeStatus));
+  await putCachedRaw(db, cacheKey, JSON.stringify({ success: true, thumb }), isPermanentStatus(animeStatus) ? null : LIVE_CACHE_TTL_SECONDS);
   return thumb;
 }
 
-/** KV cache key for the whole-anime bulk lookup below. */
+/** Cache key for the whole-anime bulk lookup below. */
 function animeEpisodeThumbsCacheKey(malId: number): string {
   return `epthumbs_all_${malId}`;
 }
 
 /**
  * All episode thumbnails for one anime in a single scraper call (GET
- * /api/episode?malId=X, no &ep=), cached as one KV entry. Use this instead
+ * /api/episode?malId=X, no &ep=), cached as one D1 row. Use this instead
  * of getEpisodeThumbnail-per-episode wherever a page can show many episodes
  * at once (episode grid, watch page sidebar) -- one HTTP call covers the
  * whole show instead of one per episode.
@@ -208,18 +237,17 @@ function animeEpisodeThumbsCacheKey(malId: number): string {
  */
 export async function getAnimeEpisodeThumbnails(
   env: EpisodeThumbEnv,
-  kv: KVNamespace | undefined,
+  db: Db,
   malId: number,
   animeStatus?: string | null
 ): Promise<Record<number, string>> {
   if (!malId) return {};
   const cacheKey = animeEpisodeThumbsCacheKey(malId);
-  if (kv) {
-    const cached = await kv.get(cacheKey, 'json').catch(() => null) as Record<number, string> | null;
-    if (cached) {
-      console.log(`[episode-thumb] KV hit ${cacheKey} (no scraper call)`);
-      return cached;
-    }
+  const cachedRaw = await getCachedRaw(db, cacheKey);
+  if (cachedRaw) {
+    try {
+      return JSON.parse(cachedRaw) as Record<number, string>;
+    } catch { /* fall through and re-fetch on a corrupt cache row */ }
   }
 
   const result: Record<number, string> = {};
@@ -237,6 +265,6 @@ export async function getAnimeEpisodeThumbnails(
     }
   }
 
-  await safeKvPut(kv, cacheKey, JSON.stringify(result), isPermanentStatus(animeStatus));
+  await putCachedRaw(db, cacheKey, JSON.stringify(result), isPermanentStatus(animeStatus) ? null : LIVE_CACHE_TTL_SECONDS);
   return result;
 }
