@@ -178,6 +178,7 @@ scanBtn.addEventListener('click', async () => {
   log.style.display = 'none';
   let done = 0, updated = 0, failed = false;
   const total = SCAN_TARGETS.length;
+  const allErrors = [];
   setProgress(0, total, 'Starting…');
 
   for (let i = 0; i < total; i += CHUNK_SIZE) {
@@ -191,8 +192,9 @@ scanBtn.addEventListener('click', async () => {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       updated += data.updated || 0;
+      if (data.errors && data.errors.length) allErrors.push(...data.errors);
       done += chunk.length;
-      setProgress(done, total, \`Scanned \${done}/\${total} — \${updated} updated so far…\`);
+      setProgress(done, total, \`Scanned \${done}/\${total} — \${updated} updated so far\${allErrors.length ? ', ' + allErrors.length + ' failed' : ''}…\`);
     } catch (e) {
       failed = true;
       log.style.display = 'block';
@@ -203,9 +205,9 @@ scanBtn.addEventListener('click', async () => {
 
   scanBtn.disabled = false;
   if (!failed) {
-    setProgress(done, total, \`Done — \${done}/\${total} scanned, \${updated} updated\`);
+    setProgress(done, total, \`Done — \${done}/\${total} scanned, \${updated} updated\${allErrors.length ? ', ' + allErrors.length + ' failed' : ''}\`);
     log.style.display = 'block';
-    log.textContent = JSON.stringify({ scanned: done, updated }, null, 2);
+    log.textContent = JSON.stringify({ scanned: done, updated, errors: allErrors }, null, 2);
     setTimeout(() => location.reload(), 1500);
   }
 });
@@ -230,10 +232,12 @@ adminEpisodeScannerRoutes.post('/admin/episode_scanner_run.php', async (c) => {
   const mal = new MalAPI(c.env, c.env.API_CACHE, db);
   const result = await EpisodeAir.scanIds(db, c.env, mal, ids);
 
-  await c.env.API_CACHE.put(SCANNER_LAST_RUN_KV_KEY, String(Date.now()));
+  await c.env.API_CACHE.put(SCANNER_LAST_RUN_KV_KEY, String(Date.now())).catch((err) => {
+    console.error('[episode-scanner] failed to write last-run KV key —', String((err as any)?.message ?? err));
+  });
   if (body.last) {
     await Logger.log(db, session.user_id ?? 0, 'admin_episode_scanner_run', `Manual scan finished: scanned ${body.totalScanned ?? '?'} candidates in chunks`);
   }
   await session.save(c, lifetime);
-  return c.json({ updated: result.updated, scannedIds: ids });
+  return c.json({ updated: result.updated, scannedIds: ids, errors: result.errors });
 });
