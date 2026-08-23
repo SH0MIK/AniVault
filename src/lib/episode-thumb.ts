@@ -136,6 +136,10 @@ async function safeKvPut(kv: KVNamespace | undefined, key: string, value: string
     } else {
       await kv.put(key, value, { expirationTtl: LIVE_CACHE_TTL_SECONDS });
     }
+    // Visible in `wrangler tail` / the Cloudflare dashboard's live Logs tab
+    // -- lets you confirm at a glance whether a given episode landed in the
+    // permanent tier or the 6h one, without needing to browse KV directly.
+    console.log(`[episode-thumb] KV write ${key} -> ${permanent ? 'PERMANENT (no expiry)' : `TTL ${LIVE_CACHE_TTL_SECONDS}s`}`);
   } catch (err: any) {
     console.warn('[episode-thumb] KV put failed (continuing without cache write):', key, '-', String(err?.message ?? err));
   }
@@ -173,7 +177,10 @@ export async function getEpisodeThumbnail(
   const cacheKey = episodeThumbCacheKey(malId, epNum);
   if (kv) {
     const cached = await kv.get(cacheKey, 'json').catch(() => null) as { thumb?: string | null } | null;
-    if (cached) return cached.thumb ?? null;
+    if (cached) {
+      console.log(`[episode-thumb] KV hit ${cacheKey} (no scraper call)`);
+      return cached.thumb ?? null;
+    }
   }
   const { thumbs } = await findEpisodeThumbnails(env, epNum, malId);
   const thumb = thumbs[0] ?? null;
@@ -209,7 +216,10 @@ export async function getAnimeEpisodeThumbnails(
   const cacheKey = animeEpisodeThumbsCacheKey(malId);
   if (kv) {
     const cached = await kv.get(cacheKey, 'json').catch(() => null) as Record<number, string> | null;
-    if (cached) return cached;
+    if (cached) {
+      console.log(`[episode-thumb] KV hit ${cacheKey} (no scraper call)`);
+      return cached;
+    }
   }
 
   const result: Record<number, string> = {};
