@@ -5,6 +5,7 @@ import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
+import { MalAPI } from '../lib/mal-api';
 import { AnimeTracker, ITEMS_PER_PAGE } from '../lib/tracker';
 import { Notification } from '../lib/notification';
 import { h, timeAgo, statusBadge } from '../lib/helpers';
@@ -297,6 +298,7 @@ listRoutes.get('/history', async (c) => {
   const siteUrl = c.env.SITE_URL;
   if (!ctx) return c.redirect(siteUrl + '/');
   const { db, session, lifetime, auth, userId } = ctx;
+  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
 
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1);
   const limit = 24;
@@ -331,8 +333,18 @@ listRoutes.get('/history', async (c) => {
 
     const missing = history.filter((r: any) => !episodeThumbOverrides[`${r.anime_id}:${r.episode_num}`]);
     if (missing.length > 0) {
+      // Same status-aware caching as home.ts/watch.ts: look up each distinct
+      // show's status (mal.getAnime is itself KV-cached, cheap on a warm
+      // cache) so a finished-airing show lands in the permanent cache tier.
+      const distinctIds = [...new Set(missing.map((r: any) => r.anime_id))];
+      const statusMap = new Map<number, string | undefined>();
+      await Promise.all(distinctIds.map(async (id) => {
+        const res = await mal.getAnime(id).catch(() => null);
+        statusMap.set(id, res?.data?.status);
+      }));
+
       const scraped = await Promise.all(
-        missing.map((r: any) => getEpisodeThumbnail(c.env, c.env.API_CACHE, r.anime_id, r.episode_num))
+        missing.map((r: any) => getEpisodeThumbnail(c.env, c.env.API_CACHE, r.anime_id, r.episode_num, statusMap.get(r.anime_id)))
       );
       missing.forEach((r: any, i: number) => {
         const thumb = scraped[i];

@@ -98,7 +98,7 @@ async function getAnilistIdFromMal(db: Db, malId: number, env: { SCRAPER_API_BAS
  * the anime's cover art if neither of those has anything. */
 async function getEpisodeOgImage(
   db: Db, kv: KVNamespace | undefined, env: { SCRAPER_API_BASE?: string },
-  malId: number, epNum: number, fallback: string
+  malId: number, epNum: number, fallback: string, animeStatus?: string | null
 ): Promise<string> {
   try {
     const row = await db.fetchOne<{ image_url: string | null }>(
@@ -108,7 +108,7 @@ async function getEpisodeOgImage(
     if (row?.image_url) return row.image_url;
   } catch { /* fall through to scraper/fallback */ }
 
-  const scraped = await getEpisodeThumbnail(env, kv, malId, epNum);
+  const scraped = await getEpisodeThumbnail(env, kv, malId, epNum, animeStatus);
   return scraped ?? fallback;
 }
 
@@ -246,7 +246,7 @@ watchRoutes.get('/watch', async (c) => {
     ? { id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url, role: currentUser.role }
     : null;
 
-  const ogImage = await getEpisodeOgImage(db, c.env.API_CACHE, c.env, animeId, epNum, image);
+  const ogImage = await getEpisodeOgImage(db, c.env.API_CACHE, c.env, animeId, epNum, image, anime.status);
 
   const __banner = await getBannerData(db);
   let html = renderHeader({

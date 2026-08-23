@@ -104,8 +104,19 @@ homeRoutes.get('/', async (c) => {
 
       const missing = watchHistory.filter((r) => !episodeThumbOverrides[`${r.anime_id}:${r.episode_num}`]);
       if (missing.length > 0) {
+        // Look up each distinct show's status first (mal.getAnime is itself
+        // KV-cached, so this is cheap on a warm cache) so a finished-airing
+        // show's thumbnail gets written to the permanent cache tier instead
+        // of the 6h one -- same as the anime detail/watch pages.
+        const distinctIds = [...new Set(missing.map((r) => r.anime_id))];
+        const statusMap = new Map<number, string | undefined>();
+        await Promise.all(distinctIds.map(async (id) => {
+          const res = await mal.getAnime(id).catch(() => null);
+          statusMap.set(id, res?.data?.status);
+        }));
+
         const scraped = await Promise.all(
-          missing.map((r) => getEpisodeThumbnail(c.env, c.env.API_CACHE, r.anime_id, r.episode_num))
+          missing.map((r) => getEpisodeThumbnail(c.env, c.env.API_CACHE, r.anime_id, r.episode_num, statusMap.get(r.anime_id)))
         );
         missing.forEach((r, i) => {
           const thumb = scraped[i];

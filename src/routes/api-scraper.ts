@@ -348,7 +348,7 @@ scraperRoutes.get('/api/embed.php', async (c) => {
     if (row?.image_url) {
       ogImage = row.image_url;
     } else {
-      const scraped = await getEpisodeThumbnail(c.env, c.env.API_CACHE, animeId, epNum);
+      const scraped = await getEpisodeThumbnail(c.env, c.env.API_CACHE, animeId, epNum, animeRes.data?.data?.status);
       if (scraped) ogImage = scraped;
     }
   } catch { /* fall back to anime cover */ }
