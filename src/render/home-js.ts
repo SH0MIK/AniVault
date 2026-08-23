@@ -1,57 +1,12 @@
 export function continueWatchingScript(siteUrl: string): string {
   return `<script>
-  (function(){
-    function applyThumb(img, url, epTitle) {
-      var tmp = new Image();
-      tmp.onload = function(){
-        img.src = url;
-        img.style.display = '';
-        img.style.position = '';
-        img.style.inset = '';
-        img.style.width = '';
-        img.style.height = '';
-        img.style.objectFit = '';
-        var phId = img.dataset.phId;
-        if (phId) { var ph = document.getElementById(phId); if (ph) ph.style.display = 'none'; }
-        var prev = img.previousElementSibling;
-        if (prev && prev.classList && prev.classList.contains('cw-placeholder')) prev.style.display = 'none';
-        var payload = { action:'set_ep_info', anime_id:parseInt(img.dataset.animeId), episode_num:parseInt(img.dataset.ep), ep_thumb:url };
-        if (epTitle) payload.ep_title = epTitle;
-        fetch('${siteUrl}/api/watch_history.php', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify(payload)
-        }).catch(function(){});
-      };
-      tmp.src = url;
-    }
-
-    // ── Episode thumbnails: AniVault's own API, single source of truth ──────
-    var pending = {};
-    document.querySelectorAll('.wh-ep-thumb').forEach(function(img) {
-      var rawSrc = img.getAttribute('src') || '';
-      if (rawSrc !== '') return; // already has a stored thumb
-      var aid = img.dataset.animeId;
-      if (!pending[aid]) pending[aid] = [];
-      pending[aid].push(img);
-    });
-
-    Object.keys(pending).forEach(async function(aid) {
-      var imgs = pending[aid];
-      try {
-        var res = await fetch('${siteUrl}/api/episode_thumb.php?malId=' + aid);
-        var data = await res.json();
-        var map  = data && data.episodes || {};
-        imgs.forEach(function(img){
-          var epNum = img.dataset.ep;
-          if (map[epNum]) applyThumb(img, map[epNum], '');
-        });
-      } catch(e) {}
-    });
-  })();
-  </script>
-  </script>
-  <script>
   var __cwSiteUrl = '${siteUrl}';
+
+  // Episode thumbnails on this page are server-rendered: an admin-saved
+  // override (episode_overrides.image_url) wins if one exists, otherwise
+  // the server fetches it live from our own scraper API. No client-side
+  // fetching of any kind happens here. If an episode has no saved override,
+  // its card just shows the placeholder icon.
 
   async function removeFromHistory(animeId, btn) {
     var card = document.getElementById('whcard-' + animeId);
@@ -98,7 +53,7 @@ export function continueWatchingScript(siteUrl: string): string {
       var epNum     = nextItem.episode_num;
       var epTitle   = nextItem.ep_title  || ('Episode ' + epNum);
       var animeName = nextItem.anime_title || ('Anime #' + nextItem.anime_id);
-      var thumb     = nextItem.ep_thumb  || nextItem.anime_image || '';
+      var thumb     = nextItem.anime_image || '';
       var imgHtml   = thumb
         ? '<img src="'+thumb+'" class="wh-ep-thumb" data-anime-id="'+nextItem.anime_id+'" data-ep="'+epNum+'" loading="lazy" alt="">'
         : '<div class="cw-placeholder"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>';
@@ -137,15 +92,24 @@ export function continueWatchingScript(siteUrl: string): string {
 
       grid.appendChild(newCard);
 
-      // Trigger a thumb refresh for the new card if no thumb, from our own API
-      if (!thumb && nextItem.anime_id) {
-        fetch(__cwSiteUrl + '/api/episode_thumb.php?malId=' + nextItem.anime_id + '&ep=' + epNum)
-          .then(function(r){ return r.json(); })
-          .then(function(data) {
-            if (data && data.thumbnail) {
-              var img = newCard.querySelector('.wh-ep-thumb');
-              if (img) img.src = data.thumbnail;
-            }
+      // Pick up an admin-saved thumbnail override for this episode, if any
+      // (this card was built client-side so it didn't go through the
+      // server-side render that normally injects it).
+      if (nextItem.anime_id) {
+        fetch(__cwSiteUrl + '/api/episode_override.php?anime_id=' + nextItem.anime_id + '&ep=' + epNum)
+          .then(function(r){ return r.ok ? r.json() : null; })
+          .then(function(od) {
+            var url = od && od.override && od.override.image_url;
+            if (!url) return;
+            var img = newCard.querySelector('.wh-ep-thumb');
+            if (img) { img.src = url; return; }
+            var thumbWrap = newCard.querySelector('.cw-thumb');
+            if (!thumbWrap) return;
+            var newImg = document.createElement('img');
+            newImg.src = url; newImg.className = 'wh-ep-thumb'; newImg.loading = 'lazy'; newImg.alt = '';
+            thumbWrap.insertBefore(newImg, thumbWrap.firstChild);
+            var ph = thumbWrap.querySelector('.cw-placeholder');
+            if (ph) ph.style.display = 'none';
           }).catch(function(){});
       }
 
