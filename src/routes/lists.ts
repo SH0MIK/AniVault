@@ -333,11 +333,6 @@ listRoutes.get('/history', async (c) => {
 
 <script>
 (function() {
-  var BEARER = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI5MGM2MTA0NGEzODMxYWM1NDQ4Y2ZmYzg5YWU4Nzk0YiIsIm5iZiI6MTc3ODM3NTk5NC45MTI5OTk5LCJzdWIiOiI2OWZmZGQzYWQ5ZTdhZDY1NTIxZTEyYTgiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.NeITU3u5e-9-_YaN_zrQQCUp4u8tKSXpZDOWlouxjps';
-  function tmdbFetch(url) {
-    return fetch(url, { headers: { Authorization: 'Bearer ' + BEARER } })
-      .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
-  }
   function applyThumb(img, url) {
     var tmp = new Image();
     tmp.onload = function(){
@@ -357,69 +352,13 @@ listRoutes.get('/history', async (c) => {
   });
   Object.keys(pending).forEach(async function(aid) {
     var imgs = pending[aid];
-    var tmdbId = null;
-    var extRes = await fetch('https://api.jikan.moe/v4/anime/' + aid + '/external')
-      .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
-    if (extRes && extRes.data) {
-      var entry = extRes.data.find(function(e){ return e.url && e.url.includes('themoviedb.org/tv/'); });
-      if (entry) { var m = entry.url.match(/themoviedb\\.org\\/tv\\/(\\d+)/); if (m) tmdbId = m[1]; }
-    }
-    if (!tmdbId) {
-      var firstImg = imgs[0];
-      var card = firstImg.closest('.hist-card-wrap');
-      var title = card ? (card.querySelector('.hist-anime-title') || {}).textContent || '' : '';
-      if (title) {
-        var sr = await tmdbFetch('https://api.themoviedb.org/3/search/tv?query=' + encodeURIComponent(title.trim()));
-        if (sr && sr.results && sr.results.length) tmdbId = sr.results[0].id;
-      }
-    }
-    if (tmdbId) {
-      var season = await tmdbFetch('https://api.themoviedb.org/3/tv/' + tmdbId + '/season/1');
-      if (season && season.episodes) {
-        var tmdbMap = {};
-        season.episodes.forEach(function(ep){
-          if (ep.still_path && ep.episode_number) tmdbMap[ep.episode_number] = 'https://image.tmdb.org/t/p/w500' + ep.still_path;
-        });
-        var missing = [];
-        imgs.forEach(function(img){
-          var ep = parseInt(img.dataset.ep);
-          if (tmdbMap[ep]) applyThumb(img, tmdbMap[ep]); else missing.push(img);
-        });
-        imgs = missing;
-      }
-    }
-    if (!imgs.length) return;
     try {
-      var res = await fetch('https://graphql.anilist.co', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query: 'query ($malId: Int) { Media(idMal: $malId, type: ANIME) { streamingEpisodes { title thumbnail site } } }',
-          variables: { malId: parseInt(aid) }
-        })
-      });
+      var res = await fetch('${siteUrl}/api/episode_thumb.php?malId=' + aid);
       var data = await res.json();
-      var eps  = data && data.data && data.data.Media && data.data.Media.streamingEpisodes || [];
-      var SKIP = ['netflix','amazon','prime','disney','hulu','apple'];
-      var PREF = ['crunchyroll','funimation','hidive','vrv'];
-      function siteScore(site) {
-        var s = (site||'').toLowerCase();
-        if (SKIP.some(function(x){ return s.indexOf(x)!==-1; })) return -1;
-        if (PREF.some(function(x){ return s.indexOf(x)!==-1; })) return 2;
-        return 1;
-      }
-      var raw = {};
-      eps.forEach(function(ep) {
-        var m = (ep.title||'').match(/Episode\\s+(\\d+)/i);
-        if (!m || !ep.thumbnail) return;
-        var n = parseInt(m[1]), s = siteScore(ep.site);
-        if (s < 0) return;
-        if (!raw[n] || s > raw[n].s) raw[n] = { url: ep.thumbnail, s: s };
-      });
-      imgs.forEach(function(img) {
-        var epNum = parseInt(img.dataset.ep);
-        var entry = raw[epNum];
-        if (!entry) return;
-        applyThumb(img, entry.url);
+      var map  = data && data.episodes || {};
+      imgs.forEach(function(img){
+        var epNum = img.dataset.ep;
+        if (map[epNum]) applyThumb(img, map[epNum]);
       });
     } catch(e) {}
   });

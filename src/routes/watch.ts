@@ -23,7 +23,8 @@ import { PLAYER_CSS } from '../render/player-css';
 import { playerScript } from '../render/player-script';
 import { playerBody } from '../render/player-body';
 import { getBannerData } from '../lib/settings';
-import { findEpisodeThumbnails, episodeThumbCacheKey } from '../lib/episode-thumb';
+import { episodeThumbCacheKey } from '../lib/episode-thumb';
+import { fetchEpisodeThumbnailFromApi } from '../lib/episode-thumb-api';
 import { AnimeTracker } from '../lib/tracker';
 import { EpisodeAir } from '../lib/episode-air';
 import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
@@ -89,13 +90,11 @@ async function getAnilistIdFromMal(db: Db, malId: number, env: { SCRAPER_API_BAS
 
 /** Episode-specific thumbnail for the watch page's og:image, so link previews
  * (Discord, Twitter, etc.) show the actual episode instead of the anime's
- * generic cover. Used to only check AniList's streamingEpisodes with a
- * fragile regex and no fallback -- that's why it so often lost to the
- * Continue Watching thumbnail, which runs the same multi-source chain
- * (Kitsu -> TMDB -> AniList -> Jikan -> AniSearch, see lib/episode-thumb.ts)
- * client-side in home-js.ts. This now runs that same chain server-side, with
- * a KV cache shared with the admin thumb-search tool so repeat views/shares
- * of the same episode don't re-hit every API. */
+ * generic cover. Sourced only from AniVault's own scraper API (see
+ * lib/episode-thumb-api.ts) -- this used to run a Kitsu/TMDB/AniList/Jikan/
+ * AniSearch fallback chain, but that's now consolidated into the scraper API
+ * itself, so every episode-thumbnail lookup site-wide goes through one place.
+ * KV cache is shared (by key) with the admin thumb-search tool's cache. */
 async function getEpisodeOgImage(env: Env, animeTitle: string, malId: number, epNum: number, fallback: string): Promise<string> {
   const cacheKey = episodeThumbCacheKey(malId, epNum);
   try {
@@ -104,8 +103,7 @@ async function getEpisodeOgImage(env: Env, animeTitle: string, malId: number, ep
   } catch { /* cache miss/error -- fall through to a fresh lookup */ }
 
   try {
-    const { thumbs } = await findEpisodeThumbnails(env, animeTitle, epNum, malId, false);
-    const thumb = thumbs[0] ?? null;
+    const thumb = await fetchEpisodeThumbnailFromApi(env, malId, epNum);
     if (thumb) {
       try {
         await env.API_CACHE.put(cacheKey, JSON.stringify({ success: true, thumb }), { expirationTtl: 3600 });
