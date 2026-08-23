@@ -17,7 +17,7 @@ import { h } from '../lib/helpers';
 import { MalAPI } from '../lib/mal-api';
 import { EpisodeAir } from '../lib/episode-air';
 import { AnimeTracker } from '../lib/tracker';
-import { fetchEpisodeThumbnailFromApi, fetchEpisodeThumbnailsFromApi } from '../lib/episode-thumb-api';
+import { getEpisodeThumbnail } from '../lib/episode-thumb';
 
 export const scraperRoutes = new Hono<{ Bindings: Env }>();
 
@@ -335,8 +335,23 @@ scraperRoutes.get('/api/embed.php', async (c) => {
     if (Number(ep.mal_id ?? 0) === epNum && ep.title && ep.title !== 'TBA') { epTitle = ep.title; break; }
   }
 
-  const apiThumb = await fetchEpisodeThumbnailFromApi(c.env, animeId, epNum);
-  const ogImage = apiThumb ?? image;
+  // Priority: an admin-saved override wins (episode_overrides.image_url,
+  // set via the Episode Thumbnails admin panel), then a live lookup against
+  // our own scraper API (cached in KV), then the anime cover as last resort.
+  let ogImage = image;
+  try {
+    const db = new Db(c.env.DB);
+    const row = await db.fetchOne<{ image_url: string | null }>(
+      'SELECT image_url FROM episode_overrides WHERE anime_id = ? AND episode_num = ?',
+      [animeId, epNum]
+    );
+    if (row?.image_url) {
+      ogImage = row.image_url;
+    } else {
+      const scraped = await getEpisodeThumbnail(c.env, c.env.API_CACHE, animeId, epNum);
+      if (scraped) ogImage = scraped;
+    }
+  } catch { /* fall back to anime cover */ }
 
   const watchUrl = `${siteUrl}/watch?anime=${animeId}&ep=${epNum}`;
   const html = `<!DOCTYPE html>
@@ -409,32 +424,6 @@ scraperRoutes.get('/api/anime_info.php', async (c) => {
   const { ok, code, data } = await fetchJson(`${base}/api/info?malId=${malId}`, 8000);
   if (!ok) return c.json({ error: data?.error ?? `Scraper API error HTTP ${code}` }, 502);
   return c.json(data);
-});
-
-// ── api/episode_thumb.php ───────────────────────────────────────────────
-// Same-origin proxy for the scraper's /api/episode (thumbnail source of
-// truth for every episode thumbnail shown anywhere on the site -- Continue
-// Watching, Watch History, the anime detail page's episode grid, and the
-// watch page's og:image). Client-side scripts hit this instead of calling
-// SCRAPER_API_BASE directly, same reasoning as anime_info.php above.
-// (watch.ts's og:image lookup is server-side already, so it calls
-// fetchEpisodeThumbnailFromApi() directly instead of going through here.)
-// Omit &ep= to get every episode's thumbnail back in one call (used by the
-// row/grid scripts, which need many episodes per anime at once); pass &ep=
-// for a single episode.
-scraperRoutes.get('/api/episode_thumb.php', async (c) => {
-  const malId = parseInt(c.req.query('malId') ?? '0', 10) || 0;
-  if (!malId) return c.json({ error: 'Missing malId' }, 400);
-  const epParam = c.req.query('ep');
-
-  if (epParam) {
-    const epNum = parseInt(epParam, 10) || 0;
-    const thumbnail = await fetchEpisodeThumbnailFromApi(c.env, malId, epNum);
-    return c.json({ thumbnail });
-  }
-
-  const episodes = await fetchEpisodeThumbnailsFromApi(c.env, malId);
-  return c.json({ episodes });
 });
 
 // ── api/ep_count.php ────────────────────────────────────────────────────

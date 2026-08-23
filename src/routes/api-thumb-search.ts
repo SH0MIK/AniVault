@@ -1,6 +1,6 @@
 // Ports api/thumb_search.php. curl -> fetch, file-cache -> KV.
-// The actual multi-source lookup now lives in ../lib/episode-thumb.ts, shared
-// with the watch page's og:image generation (see routes/watch.ts).
+// The actual lookup now lives in ../lib/episode-thumb.ts, which just calls
+// our own scraper API (SCRAPER_API_BASE) -- no third-party APIs anymore.
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { Db } from '../lib/db';
@@ -29,9 +29,12 @@ thumbSearchRoutes.get('/api/thumb_search.php', async (c) => {
   if (debug) mode = 'list';
   const isList = mode === 'list';
 
-  if (!animeTitle || !epNum) {
+  // animeTitle no longer drives the lookup (the scraper keys off malId
+  // alone) but is still required in the query so the admin UI's mismatched
+  // requests surface the same "Missing anime or ep" error as before.
+  if (!animeTitle || !epNum || !malId) {
     await session.save(c, lifetime);
-    return c.json({ success: false, error: 'Missing anime or ep' });
+    return c.json({ success: false, error: !malId ? 'Missing mal_id' : 'Missing anime or ep' });
   }
 
   const cacheKey = episodeThumbCacheKey(malId, epNum);
@@ -40,13 +43,13 @@ thumbSearchRoutes.get('/api/thumb_search.php', async (c) => {
     if (cached) { await session.save(c, lifetime); return c.json(cached); }
   }
 
-  const { thumbs, log, kitsuAnimeId, tmdbKeySet } = await findEpisodeThumbnails(c.env, animeTitle, epNum, malId, isList);
+  const { thumbs, log, scraperConfigured } = await findEpisodeThumbnails(c.env, epNum, malId, isList);
 
   if (debug) {
     await session.save(c, lifetime);
     return c.json({
       success: true, thumbs, debug_log: log,
-      inputs: { animeTitle, epNum, malId }, kitsuId: kitsuAnimeId, tmdb_key_set: tmdbKeySet,
+      inputs: { animeTitle, epNum, malId }, scraper_configured: scraperConfigured,
     });
   }
 

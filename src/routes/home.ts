@@ -19,6 +19,7 @@ import { CONTINUE_WATCHING_CSS } from '../render/home-css';
 import { continueWatchingScript, heroSliderScript, rowNavScript } from '../render/home-js';
 import type { NormalisedAnime } from '../lib/mal-api';
 import { getBannerData } from '../lib/settings';
+import { getEpisodeThumbnail } from '../lib/episode-thumb';
 
 export const homeRoutes = new Hono<{ Bindings: Env }>();
 
@@ -69,6 +70,7 @@ homeRoutes.get('/', async (c) => {
   // migration dance isn't needed here since watch_history already exists
   // with the right shape from the D1 migration.
   let watchHistory: WatchHistoryRow[] = [];
+  let episodeThumbOverrides: Record<string, string> = {};
   const currentUser = auth.check() ? await auth.getCurrentUser() : null;
   if (currentUser) {
     try {
@@ -79,6 +81,37 @@ homeRoutes.get('/', async (c) => {
       );
     } catch {
       watchHistory = [];
+    }
+    // Continue Watching thumbnails: an admin-saved override wins where one
+    // exists (episode_overrides.image_url, set via the Episode Thumbnails
+    // admin panel). Batch look these up for the episodes on this page in
+    // one query, then live-fetch (via our scraper API, KV-cached) whatever
+    // episodes are still missing one -- only a handful of cards per page
+    // load, so this stays cheap. Cards fall back to a placeholder only if
+    // both miss.
+    if (watchHistory.length > 0) {
+      try {
+        const pairs = watchHistory.map(() => '(?, ?)').join(', ');
+        const params = watchHistory.flatMap((r) => [r.anime_id, r.episode_num]);
+        const rows = await db.fetchAll<{ anime_id: number; episode_num: number; image_url: string | null }>(
+          `SELECT anime_id, episode_num, image_url FROM episode_overrides WHERE (anime_id, episode_num) IN (${pairs})`,
+          params
+        );
+        for (const row of rows) {
+          if (row.image_url) episodeThumbOverrides[`${row.anime_id}:${row.episode_num}`] = row.image_url;
+        }
+      } catch { /* best-effort -- cards fall back to scraper/placeholder */ }
+
+      const missing = watchHistory.filter((r) => !episodeThumbOverrides[`${r.anime_id}:${r.episode_num}`]);
+      if (missing.length > 0) {
+        const scraped = await Promise.all(
+          missing.map((r) => getEpisodeThumbnail(c.env, c.env.API_CACHE, r.anime_id, r.episode_num))
+        );
+        missing.forEach((r, i) => {
+          const thumb = scraped[i];
+          if (thumb) episodeThumbOverrides[`${r.anime_id}:${r.episode_num}`] = thumb;
+        });
+      }
     }
   }
 
@@ -205,7 +238,7 @@ ${heroSliderScript(heroPool.length)}
           </div>
         </div>
         <div class="scroll-row" id="row-history">
-          ${watchHistory.map((hRow) => renderContinueWatchingCard(hRow, siteUrl)).join('')}
+          ${watchHistory.map((hRow) => renderContinueWatchingCard(hRow, siteUrl, episodeThumbOverrides)).join('')}
         </div>
       </section>
       ${continueWatchingScript(siteUrl)}`;
@@ -263,9 +296,11 @@ ${heroSliderScript(heroPool.length)}
   return c.html(html);
 });
 
-function renderContinueWatchingCard(hRow: WatchHistoryRow, siteUrl: string): string {
+function renderContinueWatchingCard(hRow: WatchHistoryRow, siteUrl: string, episodeThumbOverrides: Record<string, string>): string {
   const watchUrl = `${siteUrl}/watch?anime=${hRow.anime_id}&ep=${hRow.episode_num}`;
-  const thumbSrc = hRow.ep_thumb || '';
+  // Only an admin-saved override shows here now -- the legacy ep_thumb
+  // column (populated by old client-side auto-fetch code) is ignored.
+  const thumbSrc = episodeThumbOverrides[`${hRow.anime_id}:${hRow.episode_num}`] || '';
   const epNum = hRow.episode_num;
   const animeTitle = h(hRow.anime_title || `Anime #${hRow.anime_id}`);
   const epTitle = hRow.ep_title ? h(hRow.ep_title) : `Episode ${epNum}`;

@@ -13,6 +13,7 @@ import { renderAnimeCard, buildCardMetaMap, LANG_CODE } from '../lib/anime-card'
 import { renderHeader, renderFooter, CurrentUser } from '../render/layout';
 import { HISTORY_CSS } from '../render/history-css';
 import { getBannerData } from '../lib/settings';
+import { getEpisodeThumbnail } from '../lib/episode-thumb';
 
 export const listRoutes = new Hono<{ Bindings: Env }>();
 
@@ -309,6 +310,37 @@ listRoutes.get('/history', async (c) => {
   );
   const totalPages = total ? Math.ceil(total / limit) : 1;
 
+  // History thumbnails: an admin-saved override wins where one exists
+  // (episode_overrides.image_url, set via the Episode Thumbnails admin
+  // panel). Batch-lookup for this page, then live-fetch (via our scraper
+  // API, KV-cached) whatever's still missing -- capped at 24/page so this
+  // stays cheap. Cards fall back to a placeholder only if both miss.
+  const episodeThumbOverrides: Record<string, string> = {};
+  if (history.length > 0) {
+    try {
+      const pairs = history.map(() => '(?, ?)').join(', ');
+      const params = history.flatMap((r: any) => [r.anime_id, r.episode_num]);
+      const rows = await db.fetchAll<{ anime_id: number; episode_num: number; image_url: string | null }>(
+        `SELECT anime_id, episode_num, image_url FROM episode_overrides WHERE (anime_id, episode_num) IN (${pairs})`,
+        params
+      );
+      for (const row of rows) {
+        if (row.image_url) episodeThumbOverrides[`${row.anime_id}:${row.episode_num}`] = row.image_url;
+      }
+    } catch { /* best-effort -- cards fall back to scraper/placeholder */ }
+
+    const missing = history.filter((r: any) => !episodeThumbOverrides[`${r.anime_id}:${r.episode_num}`]);
+    if (missing.length > 0) {
+      const scraped = await Promise.all(
+        missing.map((r: any) => getEpisodeThumbnail(c.env, c.env.API_CACHE, r.anime_id, r.episode_num))
+      );
+      missing.forEach((r: any, i: number) => {
+        const thumb = scraped[i];
+        if (thumb) episodeThumbOverrides[`${r.anime_id}:${r.episode_num}`] = thumb;
+      });
+    }
+  }
+
   const { unreadCount, layoutUser } = await commonLayoutData(db, auth);
   const __banner = await getBannerData(db);
   let html = renderHeader({ ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: 'Watch History', currentPage: 'history', currentUser: layoutUser, unreadCount, requestUrl: c.req.url });
@@ -325,45 +357,16 @@ listRoutes.get('/history', async (c) => {
       <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       <p>No watch history yet.</p>
       <a href="${siteUrl}/browse" style="color:var(--accent,#e00);font-weight:600;text-decoration:none;">Browse Anime →</a>
-    </div>` : history.map((hRow) => renderHistoryCard(hRow, siteUrl)).join('')}
+    </div>` : history.map((hRow) => renderHistoryCard(hRow, siteUrl, episodeThumbOverrides)).join('')}
   </div>
 
   ${totalPages > 1 ? renderHistPagination(page, totalPages) : ''}
 </div>
 
 <script>
-(function() {
-  function applyThumb(img, url) {
-    var tmp = new Image();
-    tmp.onload = function(){
-      img.src = url;
-      fetch('${siteUrl}/api/watch_history.php', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'set_ep_info', anime_id: parseInt(img.dataset.animeId), episode_num: parseInt(img.dataset.ep), ep_thumb: url })
-      }).catch(function(){});
-    };
-    tmp.src = url;
-  }
-  var pending = {};
-  document.querySelectorAll('.hist-ep-img').forEach(function(img) {
-    var aid = img.dataset.animeId;
-    if (!pending[aid]) pending[aid] = [];
-    pending[aid].push(img);
-  });
-  Object.keys(pending).forEach(async function(aid) {
-    var imgs = pending[aid];
-    try {
-      var res = await fetch('${siteUrl}/api/episode_thumb.php?malId=' + aid);
-      var data = await res.json();
-      var map  = data && data.episodes || {};
-      imgs.forEach(function(img){
-        var epNum = img.dataset.ep;
-        if (map[epNum]) applyThumb(img, map[epNum]);
-      });
-    } catch(e) {}
-  });
-})();
-
+// History thumbnails are server-rendered straight from an admin-saved
+// override (episode_overrides.image_url) -- no client-side auto-fetching
+// from TMDB/AniList/Jikan happens here anymore.
 async function removeEntry(animeId, btn) {
   var wrap = btn.closest('.hist-card-wrap');
   if (!wrap) return;
@@ -403,12 +406,14 @@ async function clearAll(btn) {
   return c.html(html);
 });
 
-export function renderHistoryCard(hRow: any, siteUrl: string): string {
+export function renderHistoryCard(hRow: any, siteUrl: string, episodeThumbOverrides: Record<string, string> = {}): string {
   const watchUrl = `${siteUrl}/watch?anime=${hRow.anime_id}&ep=${hRow.episode_num}`;
   const epNum = hRow.episode_num;
   const animeTitle = h(hRow.anime_title || `Anime #${hRow.anime_id}`);
   const epTitle = hRow.ep_title ? h(hRow.ep_title) : `Episode ${epNum}`;
-  const thumb = hRow.ep_thumb ?? '';
+  // Only an admin-saved override shows here now -- the legacy ep_thumb
+  // column (populated by old client-side auto-fetch code) is ignored.
+  const thumb = episodeThumbOverrides[`${hRow.anime_id}:${epNum}`] || '';
   const cover = hRow.anime_image ?? '';
   const date = hRow.watched_at ? new Date(hRow.watched_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '';
 

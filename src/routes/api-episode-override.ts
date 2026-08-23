@@ -6,6 +6,7 @@ import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
 import { MalAPI } from '../lib/mal-api';
 import { Logger } from '../lib/logger';
+import { getAnimeEpisodeThumbnails } from '../lib/episode-thumb';
 
 export const episodeOverrideRoutes = new Hono<{ Bindings: Env }>();
 
@@ -26,12 +27,26 @@ episodeOverrideRoutes.on(['GET', 'POST'], '/api/episode_override.php', async (c)
 
   if (c.req.method === 'GET') {
     if (animeId && c.req.query('all') !== undefined) {
-      const rows = await db.fetchAll('SELECT * FROM episode_overrides WHERE anime_id = ?', [animeId]);
+      const rows: any[] = await db.fetchAll('SELECT * FROM episode_overrides WHERE anime_id = ?', [animeId]);
       const mal = new MalAPI(c.env, c.env.API_CACHE, db);
       const animeData = await mal.getAnime(animeId);
       const totalEps = animeData.data?.episodes ?? 0;
+
+      // Fill in episodes that don't have an admin-saved override with a
+      // live lookup against our own scraper API (one HTTP call for the
+      // whole anime, KV-cached -- see getAnimeEpisodeThumbnails). This is
+      // what both the watch page sidebar and the episode grid on anime
+      // detail pages call, so fixing it here covers both.
+      const overriddenEps = new Set(rows.map((r) => Number(r.episode_num)));
+      const scraped = await getAnimeEpisodeThumbnails(c.env, c.env.API_CACHE, animeId);
+      const combined = [...rows];
+      for (const [epNumStr, image_url] of Object.entries(scraped)) {
+        const epNum = Number(epNumStr);
+        if (!overriddenEps.has(epNum)) combined.push({ anime_id: animeId, episode_num: epNum, image_url });
+      }
+
       await session.save(c, lifetime);
-      return c.json({ success: true, overrides: rows, total_eps: totalEps });
+      return c.json({ success: true, overrides: combined, total_eps: totalEps });
     }
 
     if (!animeId || !epNum) {
