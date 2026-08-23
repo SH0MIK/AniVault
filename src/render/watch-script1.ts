@@ -731,11 +731,11 @@ function filterEps(q){
   }
   async function loadThumbs(){
     try{
-      var r=await fetch('https://graphql.anilist.co',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:'query ($malId: Int) { Media(idMal: $malId, type: ANIME) { streamingEpisodes { title thumbnail site } } }',variables:{malId:animeId}})});
+      var r=await fetch('${siteUrl}/api/episode_thumb.php?malId='+animeId);
       var data=await r.json();
-      var eps=(data&&data.data&&data.data.Media&&data.data.Media.streamingEpisodes)||[];
+      var eps=(data&&data.episodes)||{};
       ${isLoggedIn ? 'var cur=null;' : ''}
-      eps.forEach(function(ep){var m=(ep.title||'').match(/Episode\\s+(\\d+)/i);if(!m||!ep.thumbnail)return;var n=parseInt(m[1]);applyThumb(n,ep.thumbnail);${isLoggedIn ? `if(n===${epNum})cur=ep.thumbnail;` : ''}});
+      Object.keys(eps).forEach(function(nStr){var n=parseInt(nStr);var url=eps[nStr];if(!url)return;applyThumb(n,url);${isLoggedIn ? `if(n===${epNum})cur=url;` : ''}});
       ${isLoggedIn ? `if(cur)fetch('${siteUrl}/api/watch_history.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'set_ep_info',anime_id:${animeId},episode_num:${epNum},ep_thumb:cur})}).catch(function(){});` : ''}
     }catch(e){}
     try{var ov=await fetch('/api/episode_override.php?anime_id='+animeId+'&all=1');if(ov.ok){var od=await ov.json();(od.overrides||[]).forEach(function(o){if(o.image_url)applyThumb(o.episode_num,o.image_url);});}}catch(e){}

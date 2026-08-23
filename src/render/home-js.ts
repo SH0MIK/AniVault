@@ -1,13 +1,6 @@
 export function continueWatchingScript(siteUrl: string): string {
   return `<script>
   (function(){
-    var BEARER = 'eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiI5MGM2MTA0NGEzODMxYWM1NDQ4Y2ZmYzg5YWU4Nzk0YiIsIm5iZiI6MTc3ODM3NTk5NC45MTI5OTk5LCJzdWIiOiI2OWZmZGQzYWQ5ZTdhZDY1NTIxZTEyYTgiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.NeITU3u5e-9-_YaN_zrQQCUp4u8tKSXpZDOWlouxjps';
-
-    function tmdbFetch(url) {
-      return fetch(url, { headers: { Authorization: 'Bearer ' + BEARER } })
-        .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
-    }
-
     function applyThumb(img, url, epTitle) {
       var tmp = new Image();
       tmp.onload = function(){
@@ -32,7 +25,7 @@ export function continueWatchingScript(siteUrl: string): string {
       tmp.src = url;
     }
 
-    // ── Episode thumbnails: TMDB primary, AniList fallback ────────────────────
+    // ── Episode thumbnails: AniVault's own API, single source of truth ──────
     var pending = {};
     document.querySelectorAll('.wh-ep-thumb').forEach(function(img) {
       var rawSrc = img.getAttribute('src') || '';
@@ -44,73 +37,13 @@ export function continueWatchingScript(siteUrl: string): string {
 
     Object.keys(pending).forEach(async function(aid) {
       var imgs = pending[aid];
-
-      // ── Step 1: Try TMDB ───────────────────────────────────────────────
-      var tmdbId = null;
-      var extRes = await fetch('https://api.jikan.moe/v4/anime/' + aid + '/external')
-        .then(function(r){ return r.ok ? r.json() : null; }).catch(function(){ return null; });
-      if (extRes && extRes.data) {
-        var entry = extRes.data.find(function(e){ return e.url && e.url.includes('themoviedb.org/tv/'); });
-        if (entry) { var m = entry.url.match(/themoviedb\\.org\\/tv\\/(\\d+)/); if (m) tmdbId = m[1]; }
-      }
-      if (!tmdbId) {
-        var title = imgs[0].dataset.animeTitle || '';
-        if (title) {
-          var sr = await tmdbFetch('https://api.themoviedb.org/3/search/tv?query=' + encodeURIComponent(title));
-          if (sr && sr.results && sr.results.length) tmdbId = sr.results[0].id;
-        }
-      }
-
-      if (tmdbId) {
-        var season = await tmdbFetch('https://api.themoviedb.org/3/tv/' + tmdbId + '/season/1');
-        if (season && season.episodes) {
-          var tmdbMap = {};
-          season.episodes.forEach(function(ep){
-            if (ep.still_path && ep.episode_number)
-              tmdbMap[ep.episode_number] = { thumb: 'https://image.tmdb.org/t/p/w500' + ep.still_path, title: ep.name || '' };
-          });
-          var missing = [];
-          imgs.forEach(function(img){
-            var ep = parseInt(img.dataset.ep);
-            if (tmdbMap[ep]) applyThumb(img, tmdbMap[ep].thumb, tmdbMap[ep].title);
-            else missing.push(img);
-          });
-          imgs = missing; // only fall through to AniList for episodes TMDB didn't cover
-        }
-      }
-
-      // ── Step 2: AniList fallback for any remaining images ────────────
-      if (!imgs.length) return;
       try {
-        var res = await fetch('https://graphql.anilist.co', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            query: 'query ($malId: Int) { Media(idMal: $malId, type: ANIME) { streamingEpisodes { title thumbnail site } } }',
-            variables: { malId: parseInt(aid) }
-          })
-        });
+        var res = await fetch('${siteUrl}/api/episode_thumb.php?malId=' + aid);
         var data = await res.json();
-        var eps  = data && data.data && data.data.Media && data.data.Media.streamingEpisodes || [];
-        var SKIP = ['netflix','amazon','prime','disney','hulu','apple'];
-        var PREF = ['crunchyroll','funimation','hidive','vrv'];
-        function siteScore(site) {
-          var s = (site||'').toLowerCase();
-          if (SKIP.some(function(x){ return s.indexOf(x)!==-1; })) return -1;
-          if (PREF.some(function(x){ return s.indexOf(x)!==-1; })) return 2;
-          return 1;
-        }
-        var rawMap = {};
-        eps.forEach(function(ep){
-          var match = (ep.title||'').match(/Episode\\s+(\\d+)/i);
-          if (!match || !ep.thumbnail) return;
-          var n = parseInt(match[1]), s = siteScore(ep.site);
-          if (s < 0) return;
-          if (!rawMap[n] || s > rawMap[n].score) rawMap[n] = { url: ep.thumbnail, score: s };
-        });
+        var map  = data && data.episodes || {};
         imgs.forEach(function(img){
-          var epNum = parseInt(img.dataset.ep);
-          if (rawMap[epNum]) applyThumb(img, rawMap[epNum].url, '');
+          var epNum = img.dataset.ep;
+          if (map[epNum]) applyThumb(img, map[epNum], '');
         });
       } catch(e) {}
     });
@@ -204,27 +137,16 @@ export function continueWatchingScript(siteUrl: string): string {
 
       grid.appendChild(newCard);
 
-      // Trigger AniList thumb refresh for the new card if no thumb
+      // Trigger a thumb refresh for the new card if no thumb, from our own API
       if (!thumb && nextItem.anime_id) {
-        fetch('https://graphql.anilist.co', {
-          method:'POST', headers:{'Content-Type':'application/json'},
-          body: JSON.stringify({
-            query: 'query ($malId: Int) { Media(idMal: $malId, type: ANIME) { streamingEpisodes { title thumbnail site } } }',
-            variables: { malId: parseInt(nextItem.anime_id) }
-          })
-        }).then(function(r){ return r.json(); }).then(function(data) {
-          var eps = data && data.data && data.data.Media && data.data.Media.streamingEpisodes || [];
-          var SKIP = ['netflix','amazon','prime','disney','hulu','apple'];
-          eps.forEach(function(ep) {
-            var m = (ep.title||'').match(/Episode\\s+(\\d+)/i);
-            if (!m || !ep.thumbnail) return;
-            if (SKIP.some(function(x){ return (ep.site||'').toLowerCase().indexOf(x)!==-1; })) return;
-            if (parseInt(m[1]) === parseInt(epNum)) {
+        fetch(__cwSiteUrl + '/api/episode_thumb.php?malId=' + nextItem.anime_id + '&ep=' + epNum)
+          .then(function(r){ return r.json(); })
+          .then(function(data) {
+            if (data && data.thumbnail) {
               var img = newCard.querySelector('.wh-ep-thumb');
-              if (img) img.src = ep.thumbnail;
+              if (img) img.src = data.thumbnail;
             }
-          });
-        }).catch(function(){});
+          }).catch(function(){});
       }
 
       // Animate in
