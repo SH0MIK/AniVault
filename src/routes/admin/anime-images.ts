@@ -4,6 +4,7 @@ import type { Env } from '../../index';
 import { buildAdminCtx } from '../../lib/admin-ctx';
 import { h } from '../../lib/helpers';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
+import { Settings } from '../../lib/settings';
 
 export const adminAnimeImagesRoutes = new Hono<{ Bindings: Env }>();
 
@@ -58,6 +59,14 @@ adminAnimeImagesRoutes.on(['GET', 'POST'], '/admin/anime_images.php', async (c) 
         }
         await db.query('DELETE FROM anime_images WHERE anime_id=?', [animeId]);
         session.setFlash('success', 'Image removed from library.');
+      } else if (action === 'set_priority') {
+        // Global switch (not per-anime) — see MalAPI.getImagePriority(),
+        // which every poster/cover/logo lookup site-wide reads from. Only
+        // controls which of the two sources is *preferred*; the other one
+        // still acts as a fallback when the preferred one is empty.
+        const priority = (formData.get('priority') as string) === 'api' ? 'api' : 'saved';
+        await new Settings(db).set('image_source_priority', priority);
+        session.setFlash('success', `Image priority set to "${priority === 'api' ? 'API first' : 'Saved first'}".`);
       }
     } catch (e: any) {
       session.setFlash('error', e.message ?? 'An error occurred.');
@@ -75,6 +84,7 @@ adminAnimeImagesRoutes.on(['GET', 'POST'], '/admin/anime_images.php', async (c) 
   }
   const images = await db.fetchAll<any>(`SELECT * FROM anime_images ${where} ORDER BY updated_at DESC LIMIT 80`, params);
   const total = await db.count('SELECT COUNT(*) as cnt FROM anime_images');
+  const priority = await new Settings(db).get('image_source_priority', 'saved');
 
   const flash = session.takeFlash();
   const err = flash?.type === 'error' ? flash.message : null;
@@ -94,12 +104,31 @@ adminAnimeImagesRoutes.on(['GET', 'POST'], '/admin/anime_images.php', async (c) 
 </style>
 
 <div class="admin-header">
-  <div><h1>Anime Image Library</h1><p class="text-muted" style="font-size:0.9rem;">Local image source used during XML/JSON imports before any API fallback.</p></div>
+  <div><h1>Anime Image Library</h1><p class="text-muted" style="font-size:0.9rem;">Saved poster overrides, blended site-wide with the live scraper API per the priority setting below.</p></div>
   <span class="badge badge-default">${total.toLocaleString('en-US')} images</span>
 </div>
 
 ${suc ? `<div class="alert alert-success mb-2">${h(suc)}</div>` : ''}
 ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
+
+<div class="card card-body mb-3">
+  <h2 class="mb-2">Image Source Priority</h2>
+  <p class="text-muted" style="font-size:0.85rem;margin-top:-4px;margin-bottom:12px;">
+    Applies site-wide to every poster, cover, and logo. Whichever source you pick here is tried first;
+    the other one is still used as a fallback if it's empty for a given title. Use this to compare
+    which source loads faster for your site.
+  </p>
+  <form method="POST" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+    <input type="hidden" name="action" value="set_priority">
+    <label class="form-control" style="display:flex;align-items:center;gap:6px;width:auto;cursor:pointer;">
+      <input type="radio" name="priority" value="saved" ${priority !== 'api' ? 'checked' : ''}> Saved images first (API as fallback)
+    </label>
+    <label class="form-control" style="display:flex;align-items:center;gap:6px;width:auto;cursor:pointer;">
+      <input type="radio" name="priority" value="api" ${priority === 'api' ? 'checked' : ''}> API first (saved images as fallback)
+    </label>
+    <button class="btn btn-primary btn-sm" type="submit">Save Priority</button>
+  </form>
+</div>
 
 <div class="image-admin-grid">
   <div class="card card-body">

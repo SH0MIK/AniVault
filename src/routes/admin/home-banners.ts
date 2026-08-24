@@ -89,7 +89,8 @@ adminHomeBannersRoutes.on(['GET', 'POST'], '/admin/home_banners.php', async (c) 
         // it lands at the bottom of the order with placeholder slots for
         // Banner/Logo to be filled in on the row itself. Title and logo
         // are auto-filled if left blank: title from the MAL API, logo from
-        // TMDB's clear-logo search (same source home.ts's auto pool uses).
+        // getAnimeArt() (scraper clear-logo, same source home.ts's auto
+        // pool uses).
         const animeId = parseInt((formData.get('anime_id') as string) ?? '0', 10) || 0;
         let title = ((formData.get('anime_title') as string) ?? '').trim();
         if (!animeId) throw new Error('Enter a valid Anime ID.');
@@ -98,15 +99,10 @@ adminHomeBannersRoutes.on(['GET', 'POST'], '/admin/home_banners.php', async (c) 
         if (existing) throw new Error('That anime is already in the hero carousel.');
 
         const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-        let logoUrl = '';
-        if (!title) {
-          const fetched = await mal.getAnime(animeId);
-          if (!fetched.data) throw new Error(`No anime found for ID ${animeId}.`);
-          title = fetched.data.title_english || fetched.data.title || '';
-        }
-        if (title) {
-          logoUrl = await mal.getTitleLogo(title).catch(() => '');
-        }
+        const fetched = await mal.getAnime(animeId);
+        if (!fetched.data) throw new Error(`No anime found for ID ${animeId}.`);
+        if (!title) title = fetched.data.title_english || fetched.data.title || '';
+        const logoUrl = fetched.data.logo_image || '';
 
         const order = await nextDisplayOrder(db);
         await db.query(
