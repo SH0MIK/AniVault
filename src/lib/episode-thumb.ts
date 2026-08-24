@@ -193,6 +193,13 @@ function isPermanentStatus(status?: string | null): boolean {
  * Uses the same cache key/shape the admin thumb-search tool writes, so a
  * hit from either one benefits the other.
  *
+ * Lookup order: 1) this episode's own cache row, 2) the per-anime bulk row
+ * (`epthumbs_all_{malId}`) in case an admin import or an earlier
+ * getAnimeEpisodeThumbnails call already resolved this episode without ever
+ * writing an individual row for it -- promoting it to its own row on the
+ * way out so the next single-episode read for THIS episode doesn't need to
+ * fetch/parse the whole bulk blob again, 3) the scraper, as a last resort.
+ *
  * A resolved thumbnail is always cached permanently, regardless of the
  * show's airing status -- a released episode's still doesn't change just
  * because the show as a whole is still airing. Only a MISS (episode hasn't
@@ -221,6 +228,27 @@ export async function getEpisodeThumbnail(
       return cached.thumb ?? null;
     } catch { /* fall through and re-fetch on a corrupt cache row */ }
   }
+
+  // Not cached individually -- check the per-anime bulk row before ever
+  // touching the scraper. A large admin import (see importAnimeEpisodeThumbnails)
+  // or a prior getAnimeEpisodeThumbnails call may already have this
+  // episode's thumbnail sitting in there without an individual row existing
+  // for it yet (writing one row per episode for a 1000+ episode show in a
+  // single request blows Workers' per-invocation subrequest limit -- see
+  // importAnimeEpisodeThumbnails for the full story). Promotion here spreads
+  // those individual writes out one-at-a-time across normal page views instead.
+  const bulkRaw = await getCachedRaw(db, animeEpisodeThumbsCacheKey(malId));
+  if (bulkRaw) {
+    try {
+      const bulk = JSON.parse(bulkRaw) as AnimeThumbCacheValue;
+      const thumb = bulk.episodes?.[epNum];
+      if (thumb) {
+        await putCachedRaw(db, cacheKey, JSON.stringify({ success: true, thumb }), null);
+        return thumb;
+      }
+    } catch { /* corrupt bulk row -- fall through to the scraper */ }
+  }
+
   const { thumbs } = await findEpisodeThumbnails(env, epNum, malId);
   const thumb = thumbs[0] ?? null;
   const ttl = thumb ? null : (isPermanentStatus(animeStatus) ? null : LIVE_CACHE_TTL_SECONDS);
@@ -338,11 +366,13 @@ export async function getAnimeEpisodeThumbnails(
   }
 
   await putCachedRaw(db, cacheKey, JSON.stringify({ episodes: result, checkedAt: now } as AnimeThumbCacheValue), null);
-  // Seed the individual per-episode rows too, so getEpisodeThumbnail hits
-  // (og:image, single lookups) share this data instead of re-resolving it.
-  for (const [epStr, thumb] of Object.entries(result)) {
-    await putCachedRaw(db, episodeThumbCacheKey(malId, Number(epStr)), JSON.stringify({ success: true, thumb }), null);
-  }
+  // Individual per-episode rows are NOT seeded here -- for a long-running
+  // show (Naruto Shippuden, One Piece) that would mean hundreds/thousands
+  // of D1 writes in this one request, which blows Workers' per-invocation
+  // subrequest limit outright (see importAnimeEpisodeThumbnails for the
+  // full story -- this hit that exact wall). getEpisodeThumbnail promotes
+  // an episode from this bulk row to its own permanent row lazily, one at a
+  // time, the first time that specific episode is actually looked up.
   return result;
 }
 
@@ -368,19 +398,29 @@ export interface BulkImportResult {
 }
 
 /**
- * Writes both cache shapes at once from a parsed episode list:
- * - `epthumbs_all_{malId}` (bulk, read by the episode grid / watch sidebar)
- * - `epthumb_{malId}_{epNum}` per episode (read by og:image / single lookups)
- * Episodes with no thumbnail are skipped (nothing to cache), so a later
- * live scraper lookup can still fill them in rather than the import baking
- * in a null forever.
+ * Writes the bulk cache row (`epthumbs_all_{malId}`, read by the episode
+ * grid / watch sidebar / home / lists) from a parsed episode list. Episodes
+ * with no thumbnail are skipped (nothing to cache), so a later live scraper
+ * lookup can still fill them in rather than the import baking in a null
+ * forever.
  *
- * Both cache shapes are always written permanently -- an imported
- * thumbnail is a resolved thumbnail either way, same as a live lookup hit.
- * `permanent` only affects the bulk row's `checkedAt`: an ongoing show gets
- * `checkedAt = now`, so getAnimeEpisodeThumbnails treats this import as a
- * fresh check and won't probe for a new episode again for another 6h. A
- * finished show is marked as never needing to check again at all.
+ * Deliberately does NOT also write an individual `epthumb_{malId}_{epNum}`
+ * row per episode here. Earlier versions did (either one-at-a-time, or
+ * batched via db.batch()) -- both blow Workers' per-invocation subrequest
+ * limit for a long-running show (One Piece's 1000+ episodes hit this
+ * exactly: even chunked batches of 200 still counted every statement inside
+ * them toward the limit, so the whole import died mid-request). Individual
+ * rows are instead promoted lazily, one at a time, by getEpisodeThumbnail
+ * the first time each specific episode is actually looked up -- it checks
+ * this bulk row as a fallback before ever hitting the scraper. So a single
+ * import here is always exactly ONE D1 write, regardless of episode count.
+ *
+ * The bulk row is always written permanently -- an imported thumbnail is a
+ * resolved thumbnail either way, same as a live lookup hit. `permanent`
+ * only affects `checkedAt`: an ongoing show gets `checkedAt = now`, so
+ * getAnimeEpisodeThumbnails treats this import as a fresh check and won't
+ * probe for a new episode again for another 6h. A finished show is marked
+ * as never needing to check again at all.
  */
 export async function importAnimeEpisodeThumbnails(
   db: Db,
@@ -397,7 +437,6 @@ export async function importAnimeEpisodeThumbnails(
     const thumb = ep.thumbnail ?? null;
     if (!epNum || !thumb) { skipped++; continue; }
     bulk[epNum] = thumb;
-    await putCachedRaw(db, episodeThumbCacheKey(malId, epNum), JSON.stringify({ success: true, thumb }), null);
     imported++;
   }
 
