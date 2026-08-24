@@ -109,20 +109,20 @@ export async function findEpisodeThumbnails(
 // Everything below is what the live spots (og:image, watch sidebar,
 // Continue Watching, Watch History, episode grid, embed.php, and the admin
 // thumb-search tool's own cache) call: same scraper endpoint, but cached in
-// D1 so an aired episode's thumbnail is fetched from the scraper exactly
-// once, ever -- getAnimeEpisodeThumbnails only re-hits the scraper to
-// check for a newly-aired episode on an ongoing show, at most once per 6h.
+// D1 so a scraper request only happens once per episode (or once per anime
+// for the bulk version) instead of on every page view.
 //
 // This used to be KV. Moved to D1 (a table, `episode_thumb_cache`, see
 // migrations/episode_thumb_cache.sql) because KV's free-tier daily write
 // cap (1,000/day) was getting hit on busy days -- D1's write budget is far
 // higher and it's already the site's primary database, so no new binding
 // was needed.
-const LIVE_CACHE_TTL_SECONDS = 21600; // 6h -- long enough to spare the
-// scraper repeat traffic from popular pages, short enough that a newly
-// aired episode's thumbnail shows up same-day without an admin re-running
-// the tool. Only used for shows that are still airing / not yet aired --
-// permanent (expires_at = NULL) is used for finished shows instead.
+const LIVE_CACHE_TTL_SECONDS = 21600; // 6h -- how often an ongoing show gets
+// re-checked for a newly released episode. Does NOT mean "wipe everything
+// and refetch every 6h" -- see getAnimeEpisodeThumbnails below: episodes
+// already resolved are cached permanently (their stills don't change just
+// because the show is still airing), and only the *next* unseen episode
+// number gets probed once this window has passed.
 
 /**
  * Reads a raw cache entry (still-JSON-encoded string, same as the old KV
@@ -152,12 +152,14 @@ export async function getCachedRaw(db: Db, key: string): Promise<string | null> 
 }
 
 /**
- * Writes a raw cache entry. `ttlSeconds=null` (finished-airing shows, whose
- * episode list and art can no longer change) stores expires_at as NULL, so
- * the row is kept indefinitely instead of being re-fetched from the scraper
- * every 6h forever. A number keeps the normal TTL behavior so
- * currently-airing / not-yet-aired shows pick up newly released episode
- * thumbnails (and a status flip to "Finished Airing") within the day.
+ * Writes a raw cache entry. `ttlSeconds=null` stores expires_at as NULL, so
+ * the row is kept indefinitely instead of expiring. A number keeps normal
+ * TTL behavior. See getEpisodeThumbnail/getAnimeEpisodeThumbnails below for
+ * when each is used -- as of this cache redesign, ttlSeconds is only ever
+ * non-null for a *miss* on a still-airing show (retry later); anything
+ * that's actually been resolved is written permanent, since a released
+ * episode's thumbnail doesn't change regardless of whether the show itself
+ * is still airing.
  */
 export async function putCachedRaw(db: Db, key: string, value: string, ttlSeconds: number | null): Promise<void> {
   try {
@@ -176,10 +178,10 @@ export async function putCachedRaw(db: Db, key: string, value: string, ttlSecond
 }
 
 /** MAL/AniList status strings (see mal-api.ts mapStatus) that mean an
- * anime's episode count and art are locked in for good -- safe to cache
- * forever instead of on the usual 6h TTL. Everything else (Currently
- * Airing, Not yet aired, or unknown/missing status) uses the normal TTL so
- * newly released episodes keep showing up. */
+ * anime's episode count is locked in for good -- once every episode is
+ * cached, there's nothing left to ever check again. Everything else
+ * (Currently Airing, Not yet aired, or unknown/missing status) keeps
+ * checking for a new episode every LIVE_CACHE_TTL_SECONDS. */
 function isPermanentStatus(status?: string | null): boolean {
   return status === 'Finished Airing';
 }
@@ -191,10 +193,17 @@ function isPermanentStatus(status?: string | null): boolean {
  * Uses the same cache key/shape the admin thumb-search tool writes, so a
  * hit from either one benefits the other.
  *
+ * A resolved thumbnail is always cached permanently, regardless of the
+ * show's airing status -- a released episode's still doesn't change just
+ * because the show as a whole is still airing. Only a MISS (episode hasn't
+ * aired yet / no source has a still for it yet) gets a TTL, and only if the
+ * show isn't finished -- so a still-airing show's not-yet-released episode
+ * gets retried, while a finished show's permanent miss means no source
+ * ever got one for it.
+ *
  * @param animeStatus Pass the show's MAL/AniList status (e.g. "Finished
- *   Airing") when the caller already has it, so a finished show's thumbnail
- *   is cached permanently instead of on the 6h TTL. Omit if unknown --
- *   falls back to the normal TTL, same as before.
+ *   Airing") when the caller already has it, so a miss on a finished show
+ *   is cached permanently instead of retried forever. Omit if unknown.
  */
 export async function getEpisodeThumbnail(
   env: EpisodeThumbEnv,
@@ -214,121 +223,126 @@ export async function getEpisodeThumbnail(
   }
   const { thumbs } = await findEpisodeThumbnails(env, epNum, malId);
   const thumb = thumbs[0] ?? null;
-  await putCachedRaw(db, cacheKey, JSON.stringify({ success: true, thumb }), isPermanentStatus(animeStatus) ? null : LIVE_CACHE_TTL_SECONDS);
+  const ttl = thumb ? null : (isPermanentStatus(animeStatus) ? null : LIVE_CACHE_TTL_SECONDS);
+  await putCachedRaw(db, cacheKey, JSON.stringify({ success: true, thumb }), ttl);
   return thumb;
 }
 
-/** Marker key: "when did we last probe the scraper for a new episode of
- * this ongoing anime". A tiny 6h-TTL row, separate from the per-episode
- * rows, so aired episodes can stay cached forever while the "is there a
- * new one yet" check still only happens once per 6h. */
-function animeCheckMarkerKey(malId: number): string {
-  return `epcheck_${malId}`;
+/** Cache key for the whole-anime bulk lookup below. */
+function animeEpisodeThumbsCacheKey(malId: number): string {
+  return `epthumbs_all_${malId}`;
 }
 
-/** Reads every already-cached, non-expired per-episode row for one anime
- * (cache_key LIKE 'epthumb_{malId}_%') in a single query, and returns both
- * the {epNum: thumb} map and the highest episode number seen. This is what
- * lets an ongoing show's already-aired episodes be served without ever
- * touching the scraper again. */
-async function getCachedEpisodesForAnime(db: Db, malId: number): Promise<{ thumbs: Record<number, string>; maxEp: number }> {
-  const thumbs: Record<number, string> = {};
-  let maxEp = 0;
-  try {
-    const rows = await db.fetchAll<{ cache_key: string; value: string }>(
-      `SELECT cache_key, value FROM episode_thumb_cache
-       WHERE cache_key LIKE ? AND (expires_at IS NULL OR expires_at > unixepoch())`,
-      [`epthumb_${malId}_%`]
-    );
-    for (const row of rows) {
-      const n = Number(row.cache_key.slice(`epthumb_${malId}_`.length));
-      if (!n) continue;
-      maxEp = Math.max(maxEp, n);
-      try {
-        const thumb = (JSON.parse(row.value) as { thumb?: string | null }).thumb;
-        if (thumb) thumbs[n] = thumb;
-      } catch { /* skip corrupt row */ }
-    }
-  } catch (err: any) {
-    console.warn('[episode-thumb] D1 anime-prefix read failed:', malId, '-', String(err?.message ?? err));
-  }
-  return { thumbs, maxEp };
+/** Stored shape for the bulk cache row. `checkedAt` (unix ms) tracks the
+ * last time we asked "has a new episode aired?" -- separate from the row's
+ * own D1 expiry, which is always NULL (permanent) now. Freshness for an
+ * ongoing show is driven entirely by checkedAt, not by the row expiring. */
+interface AnimeThumbCacheValue {
+  episodes: Record<number, string>;
+  checkedAt: number;
 }
+
+// Upper bound on how many NEW episode numbers get probed in a single check,
+// so a show that hasn't been visited in a long time (weeks) doesn't trigger
+// a burst of scraper calls all at once -- it just catches up a bit more on
+// each subsequent visit instead. Weekly-airing shows will basically never
+// hit this; it's a safety cap, not the expected case.
+const MAX_NEW_EPISODES_PER_CHECK = 15;
 
 /**
- * All episode thumbnails for one anime, backed by permanent per-episode D1
- * rows instead of one whole-anime blob. Once an episode is cached it's
- * never re-fetched or evicted (an aired episode's thumbnail doesn't
- * change) -- only checking for a *new* episode on an ongoing show is rate
- * limited, via the epcheck_{malId} marker, to once per 6h.
+ * All episode thumbnails for one anime, cached as one D1 row shaped like
+ * { episodes: {1: url, 2: url, ...}, checkedAt: <ms> }. Use this instead of
+ * getEpisodeThumbnail-per-episode wherever a page can show many episodes at
+ * once (episode grid, watch page sidebar).
  *
- * - First time seeing this anime (nothing cached yet): does the old
- *   whole-show scraper call once, but writes each episode as its own
- *   permanent row instead of a single blob.
- * - Finished Airing: returns whatever's cached, no scraper call, ever.
- * - Ongoing, marker still fresh: returns whatever's cached, no scraper call.
- * - Ongoing, marker expired: single lightweight call to
- *   /api/episode?malId=X&ep=(maxKnownEp+1) to check for a new episode, then
- *   resets the marker for another 6h regardless of hit or miss.
+ * First-ever lookup for a show does one bulk scraper call (GET
+ * /api/episode?malId=X, no &ep=) to seed everything at once. After that:
+ * - Finished shows: just return the cached episodes. Nothing new will ever
+ *   air, so there's nothing left to check, ever.
+ * - Ongoing shows, within the 6h window since the last check: return the
+ *   cached episodes as-is. No scraper call at all.
+ * - Ongoing shows, past the 6h window: do NOT refetch the whole show.
+ *   Already-cached episodes are left untouched (their stills don't change).
+ *   Only probe forward from the highest episode number already cached,
+ *   one at a time via the single-episode endpoint (GET
+ *   /api/episode?malId=X&ep=N), stopping at the first miss (that episode
+ *   isn't out yet) or after MAX_NEW_EPISODES_PER_CHECK, whichever comes
+ *   first. Each hit gets written as its own permanent per-episode row too.
  *
- * @param animeStatus Pass the show's MAL/AniList status so a Finished
- *   Airing show stops being probed entirely once it's cached.
+ * @param animeStatus Pass the show's MAL/AniList status (e.g. "Finished
+ *   Airing") so a finished show stops checking entirely.
+ * @param totalEpisodesKnown Pass MAL's total episode count when the caller
+ *   already has it (e.g. api-episode-override.ts's `totalEps`), so probing
+ *   never goes past a show's actual last episode. Optional -- without it,
+ *   probing is still capped by MAX_NEW_EPISODES_PER_CHECK.
  */
 export async function getAnimeEpisodeThumbnails(
   env: EpisodeThumbEnv,
   db: Db,
   malId: number,
-  animeStatus?: string | null
+  animeStatus?: string | null,
+  totalEpisodesKnown?: number | null
 ): Promise<Record<number, string>> {
   if (!malId) return {};
-  const finished = isPermanentStatus(animeStatus);
-  const { thumbs: result, maxEp } = await getCachedEpisodesForAnime(db, malId);
+  const cacheKey = animeEpisodeThumbsCacheKey(malId);
+  const cachedRaw = await getCachedRaw(db, cacheKey);
+  const permanent = isPermanentStatus(animeStatus);
+  const now = Date.now();
 
-  // Nothing cached yet -- do the one-time whole-show fetch, same as before,
-  // but persist each episode permanently instead of as one expiring blob.
-  if (maxEp === 0) {
-    const base = getScraperBase(env);
-    if (base) {
-      const body = await httpGetText(`${base}/api/episode?malId=${malId}`);
-      if (body) {
-        try {
-          const json: any = JSON.parse(body);
-          for (const ep of json.episodes ?? []) {
-            const n = Number(ep?.episode ?? 0);
-            if (!n || !ep?.thumbnail) continue;
-            result[n] = ep.thumbnail;
-            // Already-aired episodes never change -- always permanent,
-            // regardless of the show's current airing status.
-            await putCachedRaw(db, episodeThumbCacheKey(malId, n), JSON.stringify({ success: true, thumb: ep.thumbnail }), null);
-          }
-        } catch { /* return whatever we parsed before the error, if anything */ }
-      }
+  let cached: AnimeThumbCacheValue | null = null;
+  if (cachedRaw) {
+    try { cached = JSON.parse(cachedRaw) as AnimeThumbCacheValue; } catch { cached = null; }
+  }
+
+  if (cached) {
+    if (permanent) return cached.episodes; // finished -- nothing new will ever air, never check again
+
+    const due = now - cached.checkedAt >= LIVE_CACHE_TTL_SECONDS * 1000;
+    if (!due) return cached.episodes; // still within the window -- no scraper call
+
+    // Past the window: probe forward from the highest known episode only.
+    // Already-cached episodes below this are never touched or re-requested.
+    const known = Object.keys(cached.episodes).map(Number);
+    const highest = known.length > 0 ? Math.max(...known) : 0;
+    const ceiling = totalEpisodesKnown && totalEpisodesKnown > 0
+      ? Math.min(totalEpisodesKnown, highest + MAX_NEW_EPISODES_PER_CHECK)
+      : highest + MAX_NEW_EPISODES_PER_CHECK;
+
+    for (let ep = highest + 1; ep <= ceiling; ep++) {
+      const { thumbs } = await findEpisodeThumbnails(env, ep, malId);
+      const thumb = thumbs[0] ?? null;
+      if (!thumb) break; // that episode isn't out yet (or nothing has a still for it yet) -- stop, try again next check
+      cached.episodes[ep] = thumb;
+      await putCachedRaw(db, episodeThumbCacheKey(malId, ep), JSON.stringify({ success: true, thumb }), null); // permanent
     }
-    if (!finished) await putCachedRaw(db, animeCheckMarkerKey(malId), '1', LIVE_CACHE_TTL_SECONDS);
-    return result;
+
+    cached.checkedAt = now;
+    await putCachedRaw(db, cacheKey, JSON.stringify(cached), null); // row itself is always permanent -- freshness lives in checkedAt
+    return cached.episodes;
   }
 
-  // Already have episodes cached and the show is done airing -- nothing
-  // will ever change, so never touch the scraper for this anime again.
-  if (finished) return result;
-
-  // Ongoing, and we already checked for a new episode within the last 6h.
-  const marker = await getCachedRaw(db, animeCheckMarkerKey(malId));
-  if (marker) return result;
-
-  // Marker expired -- single cheap probe for just the next episode number,
-  // instead of re-fetching the whole show.
-  const nextEp = maxEp + 1;
-  const { thumbs: probed } = await findEpisodeThumbnails(env, nextEp, malId);
-  const nextThumb = probed[0] ?? null;
-  if (nextThumb) {
-    result[nextEp] = nextThumb;
-    await putCachedRaw(db, episodeThumbCacheKey(malId, nextEp), JSON.stringify({ success: true, thumb: nextThumb }), null);
+  // No cache yet at all -- first-ever lookup for this anime, one full bulk fetch to seed everything.
+  const result: Record<number, string> = {};
+  const base = getScraperBase(env);
+  if (base) {
+    const body = await httpGetText(`${base}/api/episode?malId=${malId}`);
+    if (body) {
+      try {
+        const json: any = JSON.parse(body);
+        for (const ep of json.episodes ?? []) {
+          const n = Number(ep?.episode ?? 0);
+          if (n && ep?.thumbnail) result[n] = ep.thumbnail;
+        }
+      } catch { /* return whatever we parsed before the error, if anything */ }
+    }
   }
-  // Reset the marker either way -- a miss just means "not aired/no thumb
-  // yet", try again in another 6h; a hit means we're now looking for the
-  // episode after that.
-  await putCachedRaw(db, animeCheckMarkerKey(malId), '1', LIVE_CACHE_TTL_SECONDS);
+
+  await putCachedRaw(db, cacheKey, JSON.stringify({ episodes: result, checkedAt: now } as AnimeThumbCacheValue), null);
+  // Seed the individual per-episode rows too, so getEpisodeThumbnail hits
+  // (og:image, single lookups) share this data instead of re-resolving it.
+  for (const [epStr, thumb] of Object.entries(result)) {
+    await putCachedRaw(db, episodeThumbCacheKey(malId, Number(epStr)), JSON.stringify({ success: true, thumb }), null);
+  }
   return result;
 }
 
@@ -354,22 +368,19 @@ export interface BulkImportResult {
 }
 
 /**
- * Writes `epthumb_{malId}_{epNum}` per episode (read by og:image, single
- * lookups, and getAnimeEpisodeThumbnails's per-anime prefix scan).
- *
- * Every imported episode is stored PERMANENT (expires_at = NULL) regardless
- * of the `permanent` flag -- an aired episode's thumbnail doesn't change
- * just because the show it belongs to is still airing, so there's no
- * reason to let an admin-curated thumbnail expire and force a live
- * re-scrape 6h later. `permanent` (i.e. Finished vs Ongoing in the admin
- * UI) instead controls the epcheck_{malId} marker: Finished sets none, so
- * getAnimeEpisodeThumbnails never probes this show again; Ongoing leaves it
- * unset, so the very next read is free to probe for a new episode right
- * away instead of waiting out a stale 6h window.
- *
+ * Writes both cache shapes at once from a parsed episode list:
+ * - `epthumbs_all_{malId}` (bulk, read by the episode grid / watch sidebar)
+ * - `epthumb_{malId}_{epNum}` per episode (read by og:image / single lookups)
  * Episodes with no thumbnail are skipped (nothing to cache), so a later
  * live scraper lookup can still fill them in rather than the import baking
  * in a null forever.
+ *
+ * Both cache shapes are always written permanently -- an imported
+ * thumbnail is a resolved thumbnail either way, same as a live lookup hit.
+ * `permanent` only affects the bulk row's `checkedAt`: an ongoing show gets
+ * `checkedAt = now`, so getAnimeEpisodeThumbnails treats this import as a
+ * fresh check and won't probe for a new episode again for another 6h. A
+ * finished show is marked as never needing to check again at all.
  */
 export async function importAnimeEpisodeThumbnails(
   db: Db,
@@ -377,6 +388,7 @@ export async function importAnimeEpisodeThumbnails(
   episodes: RawEpisodeThumbEntry[],
   permanent: boolean
 ): Promise<BulkImportResult> {
+  const bulk: Record<number, string> = {};
   let imported = 0;
   let skipped = 0;
 
@@ -384,18 +396,12 @@ export async function importAnimeEpisodeThumbnails(
     const epNum = Number(ep.episode);
     const thumb = ep.thumbnail ?? null;
     if (!epNum || !thumb) { skipped++; continue; }
+    bulk[epNum] = thumb;
     await putCachedRaw(db, episodeThumbCacheKey(malId, epNum), JSON.stringify({ success: true, thumb }), null);
     imported++;
   }
 
-  // Finished shows never read the marker at all (see
-  // getAnimeEpisodeThumbnails), so nothing to write for that case. Ongoing:
-  // clear any existing marker so the next page view is free to probe for a
-  // newer episode immediately, instead of possibly waiting out a check
-  // window that predates this import.
-  if (!permanent) {
-    await db.query('DELETE FROM episode_thumb_cache WHERE cache_key = ?', [animeCheckMarkerKey(malId)]).catch(() => {});
-  }
-
+  const value: AnimeThumbCacheValue = { episodes: bulk, checkedAt: Date.now() };
+  await putCachedRaw(db, animeEpisodeThumbsCacheKey(malId), JSON.stringify(value), null);
   return { malId, imported, skipped, permanent };
 }
