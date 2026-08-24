@@ -74,7 +74,7 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
 
   <label style="font-size:.85rem;font-weight:600;color:var(--text-muted);display:block;margin:1rem 0 6px;">Airing Status</label>
   <div style="display:flex;gap:1.25rem;">
-    <label style="font-size:.9rem;display:flex;align-items:center;gap:.4rem;cursor:pointer;"><input type="radio" name="eci-status" value="ongoing" checked> Ongoing / Not yet aired <span class="text-muted" style="font-size:.8rem;">(6h refresh)</span></label>
+    <label style="font-size:.9rem;display:flex;align-items:center;gap:.4rem;cursor:pointer;"><input type="radio" name="eci-status" value="ongoing" checked> Ongoing / Not yet aired <span class="text-muted" style="font-size:.8rem;">(these episodes cached forever; site checks for a new one on next view)</span></label>
     <label style="font-size:.9rem;display:flex;align-items:center;gap:.4rem;cursor:pointer;"><input type="radio" name="eci-status" value="finished"> Finished Airing <span class="text-muted" style="font-size:.8rem;">(cached forever)</span></label>
   </div>
 
