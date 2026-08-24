@@ -40,7 +40,7 @@ episodeOverrideRoutes.on(['GET', 'POST'], '/api/episode_override.php', async (c)
       // show's status lets a Finished Airing show get cached permanently
       // instead of re-fetched every 6h.
       const overriddenEps = new Set(rows.map((r) => Number(r.episode_num)));
-      const scraped = await getAnimeEpisodeThumbnails(c.env, db, animeId, animeData.data?.status);
+      const scraped = await getAnimeEpisodeThumbnails(c.env, db, animeId, animeData.data?.status, totalEps);
       const combined = [...rows];
       for (const [epNumStr, image_url] of Object.entries(scraped)) {
         const epNum = Number(epNumStr);
