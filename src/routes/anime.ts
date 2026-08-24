@@ -91,30 +91,18 @@ animeRoutes.get('/anime', async (c) => {
   const epsNeedsRefresh = !airedInfoFresh;
   const dubbedLangs = await DubStatus.getFor(db, id);
 
-  // Same TMDB clear-logo lookup the home hero uses, plus a simple sub/dub
-  // yes-no readout for the meta row -- replaces the old "Watch on" list of
-  // every streaming provider with just the two badges that actually matter.
-  const titleLogo = await mal.getTitleLogo(id, title).catch(() => '');
+  // Logo + cover both come pre-resolved on `anime` itself -- getAnime()
+  // already ran them through getAnimeArt() (scraper poster/cover/logo,
+  // blended with your admin-saved overrides per the Image Source Priority
+  // setting on admin/anime_images.php). Plus a simple sub/dub yes-no
+  // readout for the meta row -- replaces the old "Watch on" list of every
+  // streaming provider with just the two badges that actually matter.
+  const titleLogo = anime.logo_image ?? '';
   const hasSub = videoEpRows.length > 0;
   const hasDub = animeDubConfirmed || dubbedLangs.length > 0 || Object.values(videoEpSet).some((v) => v.dub);
 
-  // Backdrop priority: your own admin-saved banner (admin/anime_banners.php)
-  // > TMDB's textless backdrop (shares the same cached /images lookup as
-  // the logo above, so this is a free KV read, not a second API call)
-  // > AniList's real banner from the current-season cache (currently
-  // airing titles only) > AniList's real banner from the all-time top-200
-  // cache (covers older/finished popular titles) > blurred poster.
-  const bannerInfo = await mal.getLocalAnimeBannerInfo(id);
-  let tmdbBackdrop = '';
-  let aniListBanner = '';
-  if (!bannerInfo?.image_url) {
-    tmdbBackdrop = await mal.getTitleBackdrop(id, title).catch(() => '');
-    if (!tmdbBackdrop) {
-      aniListBanner = (await mal.getAniListBannerFromSeasonCache(id)) || (await mal.getAniListTopBanner(id));
-    }
-  }
-  const backdrop = bannerInfo?.image_url || tmdbBackdrop || aniListBanner || image;
-  const hasBanner = !!(bannerInfo?.image_url || tmdbBackdrop || aniListBanner);
+  const backdrop = anime.cover_image || image;
+  const hasBanner = !!anime.cover_image;
 
   const currentUser = auth.check() ? await auth.getCurrentUser() : null;
   let userEntry: any = null;

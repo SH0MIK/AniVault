@@ -172,32 +172,31 @@ homeRoutes.get('/', async (c) => {
       const anime = curatedAnime[i].data;
       if (!anime) continue; // skip slides whose Anime ID no longer resolves
       heroPool.push(anime);
-      heroBanners.push(r.banner_image_url || '');
-      // No manually-saved logo on this slide — fall back to the same TMDB
-      // clear-logo lookup the auto pool uses, rather than showing nothing.
-      const logo = r.logo_image_url || (await mal.getTitleLogo(anime.title_english || anime.title).catch(() => ''));
-      heroLogos.push(logo);
+      // getAnime() already ran this title through getAnimeArt() (scraper
+      // cover/logo blended with your admin-saved overrides), so a slide
+      // with no manual override here still isn't left blank.
+      heroBanners.push(r.banner_image_url || anime.cover_image || '');
+      heroLogos.push(r.logo_image_url || anime.logo_image || '');
     }
   }
 
   if (heroPool.length === 0) {
     heroPool = (seasonalList.length > 0 ? seasonalList : topList).slice(0, 6);
-    // Desktop shows the wide banner (your own curated upload if you've
-    // saved one for that title, else AniList's, else the poster). Mobile
-    // shows the portrait cover instead — your own saved local cover if
-    // there is one, matching Anivexa's mobile behaviour — via a <picture>
-    // breakpoint swap, no JS needed.
+    // Desktop shows the wide banner, mobile shows the portrait cover
+    // instead via a <picture> breakpoint swap (no JS needed). topList
+    // entries already carry cover_image/logo_image from getAnimeArt() at
+    // zero extra cost; seasonalList entries are AniList-sourced and don't
+    // go through that pipeline, so they fall back to your saved
+    // banner/logo library instead (never to a live scraper call here).
     [heroBanners, heroLogos] = await Promise.all([
-      Promise.all(heroPool.map((a) => mal.getLocalAnimeBanner(a.mal_id))),
-      Promise.all(heroPool.map((a) => mal.getTitleLogo(a.title_english || a.title))),
+      Promise.all(heroPool.map(async (a) => a.cover_image || (await mal.getLocalAnimeBannerInfo(a.mal_id))?.image_url || '')),
+      Promise.all(heroPool.map(async (a) => a.logo_image || (await mal.getLocalAnimeLogo(a.mal_id)))),
     ]);
   }
-  const heroCovers = await Promise.all(heroPool.map((a) => mal.getLocalAnimeImage(a.mal_id)));
-
   html += `
 <section id="hero">
   <div id="hero-slides">
-    ${heroPool.map((a, i) => renderHeroSlide(a, i, siteUrl, heroBanners[i] || a.banner_image, heroCovers[i], heroLogos[i], cardMeta.get(a.mal_id))).join('')}
+    ${heroPool.map((a, i) => renderHeroSlide(a, i, siteUrl, heroBanners[i] || a.banner_image, a.images?.jpg?.image_url, heroLogos[i], cardMeta.get(a.mal_id))).join('')}
   </div>
   <div class="hero-indicators" id="hero-dots">
     ${heroPool.map((_, i) => `<button class="hero-dot ${i === 0 ? 'active' : ''}" data-idx="${i}" aria-label="Slide ${i + 1}"></button>`).join('')}
