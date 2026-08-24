@@ -11,8 +11,6 @@ const DUB_REFRESH_INTERVAL_MS = 20 * 60 * 60 * 1000; // ~daily, with slack
 
 const ANILIST_SEASON_REFRESH_KV_KEY = 'anilist_season_last_refresh';
 const ANILIST_SEASON_REFRESH_INTERVAL_MS = 55 * 60 * 1000; // just under the season cache's own 2h KV TTL, with slack for a missed tick
-const ANILIST_BANNERS_REFRESH_KV_KEY = 'anilist_banners_last_refresh';
-const ANILIST_BANNERS_REFRESH_INTERVAL_MS = 20 * 60 * 60 * 1000; // ~daily — the top-popularity list barely moves day to day
 
 // Runs on Cloudflare Cron Triggers (see [triggers] in wrangler.toml) —
 // hourly "0 * * * *" and daily "0 3 * * *" both point at this handler.
@@ -62,22 +60,6 @@ export async function handleScheduled(env: Env, cron?: string): Promise<void> {
         await env.API_CACHE.put(ANILIST_SEASON_REFRESH_KV_KEY, String(Date.now()));
       } catch (err: any) {
         console.warn('[scheduled] failed to write anilist season refresh timestamp (continuing):', String(err?.message ?? err));
-      }
-    }
-  }
-
-  const lastBannersRefreshRaw = await env.API_CACHE.get(ANILIST_BANNERS_REFRESH_KV_KEY);
-  const lastBannersRefresh = lastBannersRefreshRaw ? parseInt(lastBannersRefreshRaw, 10) : 0;
-  const bannersRefreshDue = !lastBannersRefresh || (Date.now() - lastBannersRefresh) > ANILIST_BANNERS_REFRESH_INTERVAL_MS;
-
-  if (bannersRefreshDue) {
-    const ok = await mal.refreshAniListTopBanners();
-    console.log(`[scheduled] anilist top-banners refresh (cron=${cron ?? 'n/a'}): ${ok ? 'ok' : 'FAILED'}`);
-    if (ok) {
-      try {
-        await env.API_CACHE.put(ANILIST_BANNERS_REFRESH_KV_KEY, String(Date.now()));
-      } catch (err: any) {
-        console.warn('[scheduled] failed to write anilist banners refresh timestamp (continuing):', String(err?.message ?? err));
       }
     }
   }
