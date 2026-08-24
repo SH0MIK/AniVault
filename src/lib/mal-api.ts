@@ -4,6 +4,7 @@
 // MAL v2 doesn't expose -- exactly like the PHP version. File-based caching
 // (CACHE_DIR/mal_*.json) is replaced with Workers KV.
 import { Db } from './db';
+import { Settings } from './settings';
 
 const MAL_API_BASE = 'https://api.myanimelist.net/v2';
 const LIST_FIELDS = 'id,title,alternative_titles,main_picture,synopsis,mean,rank,popularity,num_episodes,status,genres,start_date,rating,media_type,nsfw,num_list_users,broadcast,average_episode_duration';
@@ -49,6 +50,12 @@ export interface NormalisedAnime {
   // Only populated for AniList-sourced entries (see getAniListSeasonNow) —
   // MAL/Jikan has no equivalent field. A real wide banner image, not a poster.
   banner_image?: string;
+  // Resolved via getAnimeArt() (see below) -- the scraper's /api/anime
+  // poster/cover/logo, blended with your admin-saved overrides per the
+  // Image Source Priority setting. Populated for every MAL/Jikan-sourced
+  // entry (i.e. everywhere except the AniList season path above).
+  cover_image?: string;
+  logo_image?: string;
 }
 
 export class MalAPI {
@@ -166,47 +173,6 @@ export class MalAPI {
     if (!data || data.length === 0) return false;
     if (this.kv && this.cacheEnabled()) {
       await this.safeKvPut(this.seasonCacheKey(), JSON.stringify({ data }), { expirationTtl: 7200 });
-    }
-    return true;
-  }
-
-  // AniList blocks requests from Cloudflare Workers outright (confirmed via
-  // a 403 "manually blocked" response) — there's no live single-anime
-  // lookup available here the way there is for MAL/Jikan. Routed through
-  // our own scraper instead (see fetchAniListSeasonLive), so the season
-  // cache below carries AniList's real bannerImage for every title in the
-  // current season "for free" — if the anime being viewed happens to be
-  // currently airing, we can pull its banner out of that cache with zero
-  // extra requests. Anything outside the current season simply isn't
-  // covered (returns '').
-  async getAniListBannerFromSeasonCache(malId: number): Promise<string> {
-    if (!malId || !this.kv) return '';
-    const cached = await this.kv.get(this.seasonCacheKey(), 'json') as { data: NormalisedAnime[] } | null;
-    if (!cached?.data) return '';
-    return cached.data.find((a) => a.mal_id === malId)?.banner_image || '';
-  }
-
-  // Second tier: AniList's all-time top-N-by-popularity banner map, also
-  // routed through the scraper (see refreshAniListTopBanners below).
-  // Refreshed roughly daily since it's effectively static. Covers
-  // older/finished popular titles that the season cache above can never
-  // include — Attack on Titan, Naruto, etc.
-  async getAniListTopBanner(malId: number): Promise<string> {
-    if (!malId || !this.kv) return '';
-    const map = await this.kv.get('anilist_top_banners', 'json') as Record<string, string> | null;
-    return map?.[malId] || '';
-  }
-
-  // Called by the scheduled cron handler — refreshes the top-N-by-popularity
-  // banner map that getAniListTopBanner() reads. Same "hit the scraper,
-  // write through to KV" shape as refreshAniListSeasonCache. Returns true
-  // on a successful refresh.
-  async refreshAniListTopBanners(): Promise<boolean> {
-    const fromScraper = await this.scraperGet('/api/anilist/top-banners?limit=200');
-    const map = fromScraper?.data;
-    if (!map || typeof map !== 'object' || Object.keys(map).length === 0) return false;
-    if (this.kv && this.cacheEnabled()) {
-      await this.safeKvPut('anilist_top_banners', JSON.stringify(map));
     }
     return true;
   }
@@ -336,144 +302,85 @@ export class MalAPI {
     return heroRow?.logo_image_url ?? '';
   }
 
-  // TMDB stores a "clear logo" per title — transparent-background title art,
-  // which is what Anivexa overlays on the mobile cover instead of plain
-  // text. Checks your manually-saved local logo library first (instant,
-  // always correct); only falls back to a live TMDB title search (best-
-  // effort, first result — good enough for a hero row of a handful of
-  // titles) if you haven't saved one. Silently returns '' on any failure
-  // (missing key, no match, no logo for that title, network error) since
-  // this is purely a visual enhancement, never something that should break
-  // the page.
-  async getTitleLogo(animeId: number, title: string): Promise<string> {
-    const local = await this.getLocalAnimeLogo(animeId);
-    if (local) return local;
-    const { logo } = await this.getTmdbImages(animeId, title);
-    return logo;
+  // ── Image Source Priority (admin/anime_images.php) ───────────────────────
+  // One global setting: whether the scraper's live API art (poster/cover/
+  // logo, resolved via its own TMDB -> Kitsu -> AniList chain) or your
+  // admin-saved art wins when both exist for a title. The loser still acts
+  // as a fallback either way -- this only controls which one is *preferred*,
+  // for comparing load speed between the two sources.
+  async getImagePriority(): Promise<'api' | 'saved'> {
+    const settings = new Settings(this.db);
+    const val = await settings.get('image_source_priority', 'saved');
+    return val === 'api' ? 'api' : 'saved';
   }
 
-  // Textless/clean backdrop from TMDB, used as the first-choice hero
-  // background before falling back to AniList banners. Shares the same
-  // cached /images lookup as the logo, so this costs nothing extra when
-  // getTitleLogo has already been called for the same anime.
-  async getTitleBackdrop(animeId: number, title: string): Promise<string> {
-    const { backdrop } = await this.getTmdbImages(animeId, title);
-    return backdrop;
-  }
+  // Calls our own scraper's combined GET /api/anime?malId=X endpoint (see
+  // AniVault-Scraper's src/routes.ts), which resolves poster, cover
+  // (backdrop), and logo art itself via TMDB -> Kitsu -> AniList, each tier
+  // independently. This replaces every direct MAL main_picture / TMDB call
+  // this file used to make -- the scraper is now the single source of live
+  // (non-admin-saved) art for the whole site.
+  // `isList` mirrors the scraper's own ?list=1 flag: pass true for grid/card
+  // contexts (search, browse, top anime, etc.) to get a smaller image, false
+  // for a single anime's detail page to get the full-size version. Cached in
+  // KV for a week per (malId, size) pair since this art essentially never
+  // changes, so only the first-ever request for a given title pays the
+  // scraper's own TMDB/Kitsu/AniList round trip.
+  async getScraperArt(malId: number, isList = false): Promise<{ poster: string; cover: string; logo: string }> {
+    const empty = { poster: '', cover: '', logo: '' };
+    if (!malId) return empty;
 
-  private async getTmdbImages(animeId: number, title: string): Promise<{ logo: string; backdrop: string }> {
-    const empty = { logo: '', backdrop: '' };
-    if (!this.env.TMDB_API_KEY || !title) return empty;
-
-    const cacheKey = `tmdb_images_${animeId || (await sha1(title.toLowerCase()))}`;
+    const cacheKey = `scraper_art_${malId}_${isList ? 'list' : 'full'}`;
     if (this.kv && this.cacheEnabled()) {
-      const cached = await this.kv.get(cacheKey);
-      if (cached !== null) {
-        try { return JSON.parse(cached); } catch { /* stale/corrupt entry, refetch below */ }
-      }
+      const cached = await this.kv.get(cacheKey, 'json') as typeof empty | null;
+      if (cached) return cached;
     }
 
-    const images = await this.fetchTmdbImages(title);
+    const fromScraper = await this.scraperGet(`/api/anime?malId=${malId}${isList ? '&list=1' : ''}`, 10000);
+    const d = fromScraper?.data;
+    const art = { poster: d?.poster || '', cover: d?.cover || '', logo: d?.logo || '' };
+
     if (this.kv && this.cacheEnabled()) {
-      // Logos/backdrops essentially never change — cache for a week either
-      // way (even a "not found" result), so a title with neither doesn't
-      // get re-searched on every single page load.
-      await this.safeKvPut(cacheKey, JSON.stringify(images), { expirationTtl: 604800 });
+      await this.safeKvPut(cacheKey, JSON.stringify(art), { expirationTtl: 604800 });
     }
-    return images;
+    return art;
   }
 
-  // Strips a trailing season marker from a title so a season-2+ entry can
-  // fall back to searching for its base/season-1 title. Returns null if no
-  // recognisable season suffix is present (nothing to strip).
-  private stripSeasonSuffix(title: string): string | null {
-    const patterns = [
-      /\s+(?:the\s+)?\d+(?:st|nd|rd|th)\s+season$/i,   // "... 2nd Season"
-      /\s+season\s+\d+$/i,                              // "... Season 2"
-      /\s+cour\s+\d+$/i,                                 // "... Cour 2"
-      /\s+part\s+\d+$/i,                                 // "... Part 2"
-      /\s+s\d+$/i,                                       // "... S2"
-      /\s+(?:ii|iii|iv|v)$/i,                            // "... II" / "III" etc
-      /\s+\d+$/,                                         // "... 2" (plain trailing number)
-    ];
-    for (const re of patterns) {
-      if (re.test(title)) {
-        const stripped = title.replace(re, '').trim();
-        if (stripped && stripped.toLowerCase() !== title.toLowerCase()) return stripped;
-      }
-    }
-    return null;
+  // The single choke point every poster/cover/logo on the site should go
+  // through. Merges the scraper's live art with your admin-saved overrides
+  // (anime_images for poster, anime_banners/home_hero_banners for cover,
+  // anime_logos/home_hero_banners for logo), ordered by whichever source
+  // getImagePriority() says should be tried first -- the other one is still
+  // used as a fallback if the preferred source came back empty for that
+  // piece. Silently returns empty strings on failure since art is always a
+  // visual enhancement, never something that should break a page.
+  async getAnimeArt(animeId: number, isList = false): Promise<{ poster: string; cover: string; logo: string }> {
+    const empty = { poster: '', cover: '', logo: '' };
+    if (!animeId) return empty;
+
+    const [priority, scraperArt, savedPoster, savedBanner, savedLogo] = await Promise.all([
+      this.getImagePriority(),
+      this.getScraperArt(animeId, isList),
+      this.getLocalAnimeImage(animeId),
+      this.getLocalAnimeBannerInfo(animeId),
+      this.getLocalAnimeLogo(animeId),
+    ]);
+    const savedCover = savedBanner?.image_url || '';
+
+    const pick = (api: string, saved: string) => (priority === 'api' ? (api || saved) : (saved || api));
+
+    return {
+      poster: pick(scraperArt.poster, savedPoster),
+      cover: pick(scraperArt.cover, savedCover),
+      logo: pick(scraperArt.logo, savedLogo),
+    };
   }
 
-  private async fetchTmdbImages(title: string, isFallback = false): Promise<{ logo: string; backdrop: string }> {
-    const empty = { logo: '', backdrop: '' };
-    try {
-      const key = this.env.TMDB_API_KEY!;
-      const searchUrl = (kind: 'tv' | 'movie') =>
-        `https://api.themoviedb.org/3/search/${kind}?api_key=${key}&query=${encodeURIComponent(title)}`;
-
-      let id: number | null = null;
-      let kind: 'tv' | 'movie' = 'tv';
-      for (const k of ['tv', 'movie'] as const) {
-        const res = await fetch(searchUrl(k));
-        if (!res.ok) continue;
-        const json: any = await res.json();
-        const first = json?.results?.[0];
-        if (first?.id) { id = first.id; kind = k; break; }
-      }
-      if (!id) {
-        // No TMDB entry matched this exact title (common for season 2+
-        // entries) — retry once with the season suffix stripped so we land
-        // on the season 1 / base show entry instead.
-        if (!isFallback) {
-          const stripped = this.stripSeasonSuffix(title);
-          if (stripped) return await this.fetchTmdbImages(stripped, true);
-        }
-        return empty;
-      }
-
-      const imgRes = await fetch(`https://api.themoviedb.org/3/${kind}/${id}/images?api_key=${key}&include_image_language=en,ja,null`);
-      if (!imgRes.ok) return empty;
-      const imgJson: any = await imgRes.json();
-      const logos: any[] = imgJson?.logos ?? [];
-      const backdrops: any[] = imgJson?.backdrops ?? [];
-
-      let logo = '';
-      if (logos.length > 0) {
-        const best = logos.find((l) => l.iso_639_1 === 'en') || logos[0];
-        logo = best?.file_path ? `https://image.tmdb.org/t/p/w500${best.file_path}` : '';
-      }
-
-      let backdrop = '';
-      if (backdrops.length > 0) {
-        // Prefer textless backdrops (no language tag) over ones with a
-        // logo/text baked in.
-        const best = backdrops.find((b) => b.iso_639_1 === null) || backdrops[0];
-        backdrop = best?.file_path ? `https://image.tmdb.org/t/p/original${best.file_path}` : '';
-      }
-
-      // If either piece is still missing, fill the gap from the season 1 /
-      // base title instead of overwriting what we already found.
-      if ((!logo || !backdrop) && !isFallback) {
-        const stripped = this.stripSeasonSuffix(title);
-        if (stripped) {
-          const fallback = await this.fetchTmdbImages(stripped, true);
-          logo = logo || fallback.logo;
-          backdrop = backdrop || fallback.backdrop;
-        }
-      }
-
-      return { logo, backdrop };
-    } catch {
-      return empty;
-    }
-  }
-
-  private async normalise(node: any): Promise<NormalisedAnime> {
+  private async normalise(node: any, isList = false): Promise<NormalisedAnime> {
     const animeId = Number(node.id ?? 0);
-    const localImage = animeId ? await this.getLocalAnimeImage(animeId) : '';
-    const mediumImage = localImage || node.main_picture?.medium || '';
-    const largeImage = localImage || node.main_picture?.large || node.main_picture?.medium || '';
+    const art = animeId ? await this.getAnimeArt(animeId, isList) : { poster: '', cover: '', logo: '' };
+    const mediumImage = art.poster;
+    const largeImage = art.poster;
 
     const genres = (node.genres ?? []).filter(Boolean).map((g: any) => ({ mal_id: g?.id ?? 0, name: g?.name ?? '' }));
     const studios = (node.studios ?? []).filter(Boolean).map((s: any) => ({ mal_id: s?.id ?? 0, name: s?.name ?? '' }));
@@ -520,6 +427,8 @@ export class MalAPI {
       title_english: altTitles.en ?? '',
       title_japanese: altTitles.ja ?? '',
       images: { jpg: { image_url: mediumImage, large_image_url: largeImage } },
+      cover_image: art.cover,
+      logo_image: art.logo,
       synopsis: node.synopsis ?? '',
       background: node.background ?? '',
       score: node.mean ?? null,
@@ -574,14 +483,14 @@ export class MalAPI {
     if (type) params.media_type = type.toLowerCase();
     if (status) params.status = status;
     const raw = await this.get('/anime', params);
-    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node)));
+    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
     return { data, pagination: { last_visible_page: Math.max(1, raw.paging?.next ? page + 5 : page), items: { total: data.length } } };
   }
 
   async getAnime(id: number): Promise<{ data: NormalisedAnime | null }> {
     const raw = await this.get(`/anime/${id}`, { fields: DETAIL_FIELDS });
     if (raw.error) return { data: null };
-    return { data: await this.normalise(raw) };
+    return { data: await this.normalise(raw, false) };
   }
 
   // Replaces getCharacter + getCharacterAnime + getCharacterVoices (3
@@ -699,14 +608,14 @@ export class MalAPI {
     const season = this.currentSeason();
     const offset = (page - 1) * 20;
     const raw = await this.get(`/anime/season/${year}/${season}`, { limit: 20, offset, fields: LIST_FIELDS, sort: 'anime_score', nsfw: 'false' });
-    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node)));
+    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
     return { data, pagination: { last_visible_page: raw.paging?.next ? page + 1 : page } };
   }
 
   async getSeasonUpcoming(): Promise<{ data: NormalisedAnime[] }> {
     const [year, season] = this.nextSeason();
     const raw = await this.get(`/anime/season/${year}/${season}`, { limit: 20, fields: LIST_FIELDS, nsfw: 'false' });
-    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node)));
+    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
     return { data };
   }
 
@@ -715,7 +624,7 @@ export class MalAPI {
     const rankingType = rankingMap[filter] ?? 'bypopularity';
     const offset = (page - 1) * 25;
     const raw = await this.get('/anime/ranking', { ranking_type: rankingType, limit: 25, offset, fields: LIST_FIELDS, nsfw: 'false' });
-    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node)));
+    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
     return { data, pagination: { last_visible_page: raw.paging?.next ? page + 5 : page } };
   }
 
@@ -748,10 +657,14 @@ export class MalAPI {
       apiPage++;
 
       for (const n of raw.data ?? []) {
-        const anime = await this.normalise(n.node);
-        const animeGenreIds = anime.genres.map((g) => g.mal_id);
-        if (genreIds.some((g) => !animeGenreIds.includes(g))) continue;
+        // Check genres straight off the raw node before normalising --
+        // normalise() now resolves art via the scraper API, which isn't
+        // worth paying for on the ~80% of each 100-item page that gets
+        // discarded by the genre filter below.
+        const nodeGenreIds = (n.node?.genres ?? []).map((g: any) => g?.id ?? -1);
+        if (genreIds.some((g) => !nodeGenreIds.includes(g))) continue;
         if (skipped < skip) { skipped++; continue; }
+        const anime = await this.normalise(n.node, true);
         collected.push(anime);
         if (collected.length >= perPage) break;
       }
@@ -770,7 +683,7 @@ export class MalAPI {
     for (let page = 1; page <= 3; page++) {
       const offset = (page - 1) * 50;
       const raw = await this.get(`/anime/season/${year}/${season}`, { limit: 50, offset, fields: LIST_FIELDS, sort: 'anime_score', nsfw: 'false' });
-      const batch = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node)));
+      const batch = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
       all = all.concat(batch);
       if (!raw.paging?.next) break;
     }
