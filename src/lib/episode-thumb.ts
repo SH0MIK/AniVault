@@ -268,3 +268,56 @@ export async function getAnimeEpisodeThumbnails(
   await putCachedRaw(db, cacheKey, JSON.stringify(result), isPermanentStatus(animeStatus) ? null : LIVE_CACHE_TTL_SECONDS);
   return result;
 }
+
+// ── Admin bulk import ────────────────────────────────────────────────────
+// Backs the "Episode Cache Import" admin page: an admin pastes the raw JSON
+// the scraper's own /api/episode?malId=X endpoint returns (title, aired,
+// filler/recap flags, thumbnail, thumbnailSource per episode) and picks
+// ongoing/finished by hand. This writes straight into the same cache
+// getEpisodeThumbnail/getAnimeEpisodeThumbnails read from, so every page
+// (anime detail, watch, home, lists, embed) picks it up immediately with no
+// scraper round trip at all -- useful for backfilling a show in one shot,
+// or for shows the scraper's auto-resolution keeps getting wrong.
+export interface RawEpisodeThumbEntry {
+  episode: number;
+  thumbnail?: string | null;
+}
+
+export interface BulkImportResult {
+  malId: number;
+  imported: number;
+  skipped: number;
+  permanent: boolean;
+}
+
+/**
+ * Writes both cache shapes at once from a parsed episode list:
+ * - `epthumbs_all_{malId}` (bulk, read by the episode grid / watch sidebar)
+ * - `epthumb_{malId}_{epNum}` per episode (read by og:image / single lookups)
+ * Episodes with no thumbnail are skipped (nothing to cache), so a later
+ * live scraper lookup can still fill them in rather than the import baking
+ * in a null forever.
+ */
+export async function importAnimeEpisodeThumbnails(
+  db: Db,
+  malId: number,
+  episodes: RawEpisodeThumbEntry[],
+  permanent: boolean
+): Promise<BulkImportResult> {
+  const ttl = permanent ? null : LIVE_CACHE_TTL_SECONDS;
+  const bulk: Record<number, string> = {};
+  let imported = 0;
+  let skipped = 0;
+
+  for (const ep of episodes) {
+    const epNum = Number(ep.episode);
+    const thumb = ep.thumbnail ?? null;
+    if (!epNum || !thumb) { skipped++; continue; }
+    bulk[epNum] = thumb;
+    await putCachedRaw(db, episodeThumbCacheKey(malId, epNum), JSON.stringify({ success: true, thumb }), ttl);
+    imported++;
+  }
+
+  await putCachedRaw(db, animeEpisodeThumbsCacheKey(malId), JSON.stringify(bulk), ttl);
+  return { malId, imported, skipped, permanent };
+}
