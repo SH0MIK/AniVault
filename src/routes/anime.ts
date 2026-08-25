@@ -133,7 +133,7 @@ animeRoutes.get('/anime', async (c) => {
 <section class="ih-hero${hasBanner ? '' : ' ih-hero-no-banner'}">
   <div class="ih-bg${hasBanner ? '' : ' ih-bg-fallback'}" style="background-image:url('${h(backdrop)}')"></div>
   <div class="ih-bg-scrim"></div>
-  ${titleLogo ? `<img class="ih-logo-bg" src="${h(titleLogo)}" alt="" aria-hidden="true">` : ''}
+  ${(titleLogo && hasBanner) ? `<img class="ih-logo-bg" src="${h(titleLogo)}" alt="" aria-hidden="true">` : ''}
 
   <div class="container ih-inner">
     <div class="ih-thumb">
