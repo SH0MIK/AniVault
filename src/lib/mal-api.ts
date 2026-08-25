@@ -320,26 +320,29 @@ export class MalAPI {
   // independently. This replaces every direct MAL main_picture / TMDB call
   // this file used to make -- the scraper is now the single source of live
   // (non-admin-saved) art for the whole site.
-  // `isList` mirrors the scraper's own ?list=1 flag: pass true for grid/card
-  // contexts (search, browse, top anime, etc.) to get a smaller image, false
-  // for a single anime's detail page to get the full-size version. A result
-  // with at least one non-empty field is cached for a week, since this art
-  // essentially never changes. A fully-empty result (scraper timeout/error,
-  // or a title it genuinely has no art for) is only cached for 5 minutes --
-  // long enough to absorb a burst of page loads, short enough that a
-  // transient failure (e.g. the scraper's host cold-starting) heals itself
-  // on its own instead of getting stuck showing no art for a week.
-  async getScraperArt(malId: number, isList = false): Promise<{ poster: string; cover: string; logo: string }> {
+  // Always requests the scraper's full-size art, deliberately NOT its
+  // ?list=1 (smaller) variant -- that variant turned out to resolve
+  // inconsistently (empty for some titles that resolve fine without it),
+  // which showed up as the same anime having different art on a grid card
+  // vs. its own detail page. One size, one cache key, used everywhere, so
+  // every page always agrees. A result with at least one non-empty field is
+  // cached for a week, since this art essentially never changes. A
+  // fully-empty result (scraper timeout/error, or a title it genuinely has
+  // no art for) is only cached for 5 minutes -- long enough to absorb a
+  // burst of page loads, short enough that a transient failure (e.g. the
+  // scraper's host cold-starting) heals itself on its own instead of
+  // getting stuck showing no art for a week.
+  async getScraperArt(malId: number): Promise<{ poster: string; cover: string; logo: string }> {
     const empty = { poster: '', cover: '', logo: '' };
     if (!malId) return empty;
 
-    const cacheKey = `scraper_art_${malId}_${isList ? 'list' : 'full'}`;
+    const cacheKey = `scraper_art_${malId}_full`;
     if (this.kv && this.cacheEnabled()) {
       const cached = await this.kv.get(cacheKey, 'json') as typeof empty | null;
       if (cached) return cached;
     }
 
-    const fromScraper = await this.scraperGet(`/api/anime?malId=${malId}${isList ? '&list=1' : ''}`, 10000);
+    const fromScraper = await this.scraperGet(`/api/anime?malId=${malId}`, 10000);
     const d = fromScraper?.data;
     const art = { poster: d?.poster || '', cover: d?.cover || '', logo: d?.logo || '' };
     const hasAnyArt = !!(art.poster || art.cover || art.logo);
@@ -350,10 +353,12 @@ export class MalAPI {
     return art;
   }
 
-  // Deletes the cached scraper art (both list and full sizes) for a title,
-  // so the next page load re-fetches from the scraper instead of serving a
-  // stale/empty cached result. Exposed on admin/anime_images.php as a
-  // manual "Refresh Art Cache" action for exactly that kind of stuck entry.
+  // Deletes the cached scraper art for a title, so the next page load
+  // re-fetches from the scraper instead of serving a stale/empty cached
+  // result. Also clears the old (now-unused) ?list=1 cache key from before
+  // that variant was dropped, so a stale entry there can't linger and
+  // confuse things. Exposed on admin/anime_images.php as a manual
+  // "Refresh Art Cache" action for exactly that kind of stuck entry.
   async clearScraperArtCache(malId: number): Promise<void> {
     if (!malId || !this.kv) return;
     await Promise.all([
@@ -370,13 +375,13 @@ export class MalAPI {
   // used as a fallback if the preferred source came back empty for that
   // piece. Silently returns empty strings on failure since art is always a
   // visual enhancement, never something that should break a page.
-  async getAnimeArt(animeId: number, isList = false): Promise<{ poster: string; cover: string; logo: string }> {
+  async getAnimeArt(animeId: number): Promise<{ poster: string; cover: string; logo: string }> {
     const empty = { poster: '', cover: '', logo: '' };
     if (!animeId) return empty;
 
     const [priority, scraperArt, savedPoster, savedBanner, savedLogo] = await Promise.all([
       this.getImagePriority(),
-      this.getScraperArt(animeId, isList),
+      this.getScraperArt(animeId),
       this.getLocalAnimeImage(animeId),
       this.getLocalAnimeBannerInfo(animeId),
       this.getLocalAnimeLogo(animeId),
@@ -392,11 +397,12 @@ export class MalAPI {
     };
   }
 
-  private async normalise(node: any, isList = false): Promise<NormalisedAnime> {
+  private async normalise(node: any): Promise<NormalisedAnime> {
     const animeId = Number(node.id ?? 0);
-    const art = animeId ? await this.getAnimeArt(animeId, isList) : { poster: '', cover: '', logo: '' };
+    const art = animeId ? await this.getAnimeArt(animeId) : { poster: '', cover: '', logo: '' };
     const mediumImage = art.poster;
     const largeImage = art.poster;
+
 
     const genres = (node.genres ?? []).filter(Boolean).map((g: any) => ({ mal_id: g?.id ?? 0, name: g?.name ?? '' }));
     const studios = (node.studios ?? []).filter(Boolean).map((s: any) => ({ mal_id: s?.id ?? 0, name: s?.name ?? '' }));
@@ -499,14 +505,14 @@ export class MalAPI {
     if (type) params.media_type = type.toLowerCase();
     if (status) params.status = status;
     const raw = await this.get('/anime', params);
-    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
+    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node)));
     return { data, pagination: { last_visible_page: Math.max(1, raw.paging?.next ? page + 5 : page), items: { total: data.length } } };
   }
 
   async getAnime(id: number): Promise<{ data: NormalisedAnime | null }> {
     const raw = await this.get(`/anime/${id}`, { fields: DETAIL_FIELDS });
     if (raw.error) return { data: null };
-    return { data: await this.normalise(raw, false) };
+    return { data: await this.normalise(raw) };
   }
 
   // Replaces getCharacter + getCharacterAnime + getCharacterVoices (3
@@ -624,14 +630,14 @@ export class MalAPI {
     const season = this.currentSeason();
     const offset = (page - 1) * 20;
     const raw = await this.get(`/anime/season/${year}/${season}`, { limit: 20, offset, fields: LIST_FIELDS, sort: 'anime_score', nsfw: 'false' });
-    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
+    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node)));
     return { data, pagination: { last_visible_page: raw.paging?.next ? page + 1 : page } };
   }
 
   async getSeasonUpcoming(): Promise<{ data: NormalisedAnime[] }> {
     const [year, season] = this.nextSeason();
     const raw = await this.get(`/anime/season/${year}/${season}`, { limit: 20, fields: LIST_FIELDS, nsfw: 'false' });
-    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
+    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node)));
     return { data };
   }
 
@@ -640,7 +646,7 @@ export class MalAPI {
     const rankingType = rankingMap[filter] ?? 'bypopularity';
     const offset = (page - 1) * 25;
     const raw = await this.get('/anime/ranking', { ranking_type: rankingType, limit: 25, offset, fields: LIST_FIELDS, nsfw: 'false' });
-    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
+    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node)));
     return { data, pagination: { last_visible_page: raw.paging?.next ? page + 5 : page } };
   }
 
@@ -680,7 +686,7 @@ export class MalAPI {
         const nodeGenreIds = (n.node?.genres ?? []).map((g: any) => g?.id ?? -1);
         if (genreIds.some((g) => !nodeGenreIds.includes(g))) continue;
         if (skipped < skip) { skipped++; continue; }
-        const anime = await this.normalise(n.node, true);
+        const anime = await this.normalise(n.node);
         collected.push(anime);
         if (collected.length >= perPage) break;
       }
@@ -699,7 +705,7 @@ export class MalAPI {
     for (let page = 1; page <= 3; page++) {
       const offset = (page - 1) * 50;
       const raw = await this.get(`/anime/season/${year}/${season}`, { limit: 50, offset, fields: LIST_FIELDS, sort: 'anime_score', nsfw: 'false' });
-      const batch = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
+      const batch = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node)));
       all = all.concat(batch);
       if (!raw.paging?.next) break;
     }
