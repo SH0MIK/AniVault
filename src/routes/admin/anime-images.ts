@@ -5,6 +5,7 @@ import { buildAdminCtx } from '../../lib/admin-ctx';
 import { h } from '../../lib/helpers';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
 import { Settings } from '../../lib/settings';
+import { MalAPI } from '../../lib/mal-api';
 
 export const adminAnimeImagesRoutes = new Hono<{ Bindings: Env }>();
 
@@ -67,6 +68,16 @@ adminAnimeImagesRoutes.on(['GET', 'POST'], '/admin/anime_images.php', async (c) 
         const priority = (formData.get('priority') as string) === 'api' ? 'api' : 'saved';
         await new Settings(db).set('image_source_priority', priority);
         session.setFlash('success', `Image priority set to "${priority === 'api' ? 'API first' : 'Saved first'}".`);
+      } else if (action === 'refresh_art') {
+        // Manual escape hatch for a stuck cache entry — e.g. the scraper
+        // timed out once (cold start, etc.), that empty result got cached,
+        // and the title now shows no art until the negative-cache TTL
+        // (5 min) or the KV entry (up to a week) expires on its own. This
+        // deletes it immediately so the next page load re-fetches fresh.
+        if (!animeId) throw new Error('Enter a valid Anime ID to refresh.');
+        const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+        await mal.clearScraperArtCache(animeId);
+        session.setFlash('success', `Art cache cleared for Anime ID ${animeId} — it'll re-fetch from the API on next load.`);
       }
     } catch (e: any) {
       session.setFlash('error', e.message ?? 'An error occurred.');
@@ -127,6 +138,12 @@ ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
       <input type="radio" name="priority" value="api" ${priority === 'api' ? 'checked' : ''}> API first (saved images as fallback)
     </label>
     <button class="btn btn-primary btn-sm" type="submit">Save Priority</button>
+  </form>
+  <form method="POST" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border,#333);">
+    <input type="hidden" name="action" value="refresh_art">
+    <label style="font-size:0.85rem;color:var(--text-muted,#999);">Art stuck/wrong for a title?</label>
+    <input class="form-control" style="width:140px;" type="number" name="anime_id" placeholder="Anime ID" required>
+    <button class="btn btn-secondary btn-sm" type="submit">Refresh Art Cache</button>
   </form>
 </div>
 
