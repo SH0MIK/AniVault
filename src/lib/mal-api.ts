@@ -320,26 +320,31 @@ export class MalAPI {
   // independently. This replaces every direct MAL main_picture / TMDB call
   // this file used to make -- the scraper is now the single source of live
   // (non-admin-saved) art for the whole site.
-  // `isList` mirrors the scraper's own ?list=1 flag: pass true for grid/card
-  // contexts (search, browse, top anime, etc.) to get a smaller image, false
-  // for a single anime's detail page to get the full-size version. A result
-  // with at least one non-empty field is cached for a week, since this art
-  // essentially never changes. A fully-empty result (scraper timeout/error,
-  // or a title it genuinely has no art for) is only cached for 5 minutes --
-  // long enough to absorb a burst of page loads, short enough that a
-  // transient failure (e.g. the scraper's host cold-starting) heals itself
-  // on its own instead of getting stuck showing no art for a week.
-  async getScraperArt(malId: number, isList = false): Promise<{ poster: string; cover: string; logo: string }> {
+  // One cache entry per malId, always resolved at full size -- there used
+  // to be a separate `list`-sized variant (smaller image, own cache key)
+  // for grid/card contexts, but that let the two entries drift out of sync:
+  // if the list-sized fetch failed while the full-sized one succeeded (or
+  // vice versa), a title could show different art -- or art vs. no art --
+  // on the home grid vs. its detail page, for up to a week (the success
+  // TTL) until both happened to refresh in step. Not worth the bandwidth
+  // savings of a smaller grid image. A result with at least one non-empty
+  // field is cached for a week, since this art essentially never changes.
+  // A fully-empty result (scraper timeout/error, or a title it genuinely
+  // has no art for) is only cached for 5 minutes -- long enough to absorb
+  // a burst of page loads, short enough that a transient failure (e.g. the
+  // scraper's host cold-starting) heals itself on its own instead of
+  // getting stuck showing no art for a week.
+  async getScraperArt(malId: number): Promise<{ poster: string; cover: string; logo: string }> {
     const empty = { poster: '', cover: '', logo: '' };
     if (!malId) return empty;
 
-    const cacheKey = `scraper_art_${malId}_${isList ? 'list' : 'full'}`;
+    const cacheKey = `scraper_art_${malId}`;
     if (this.kv && this.cacheEnabled()) {
       const cached = await this.kv.get(cacheKey, 'json') as typeof empty | null;
       if (cached) return cached;
     }
 
-    const fromScraper = await this.scraperGet(`/api/anime?malId=${malId}${isList ? '&list=1' : ''}`, 10000);
+    const fromScraper = await this.scraperGet(`/api/anime?malId=${malId}`, 10000);
     const d = fromScraper?.data;
     const art = { poster: d?.poster || '', cover: d?.cover || '', logo: d?.logo || '' };
     const hasAnyArt = !!(art.poster || art.cover || art.logo);
@@ -350,13 +355,17 @@ export class MalAPI {
     return art;
   }
 
-  // Deletes the cached scraper art (both list and full sizes) for a title,
-  // so the next page load re-fetches from the scraper instead of serving a
-  // stale/empty cached result. Exposed on admin/anime_images.php as a
-  // manual "Refresh Art Cache" action for exactly that kind of stuck entry.
+  // Deletes the cached scraper art for a title, so the next page load
+  // re-fetches from the scraper instead of serving a stale/empty cached
+  // result. Exposed on admin/anime_images.php as a manual "Refresh Art
+  // Cache" action for exactly that kind of stuck entry. Also clears the
+  // old pre-merge `_list`/`_full` keys in case either is still lingering
+  // from before the cache was unified, so a re-run of this action fully
+  // resets a title even if it was last touched by the old code path.
   async clearScraperArtCache(malId: number): Promise<void> {
     if (!malId || !this.kv) return;
     await Promise.all([
+      this.kv.delete(`scraper_art_${malId}`).catch(() => {}),
       this.kv.delete(`scraper_art_${malId}_list`).catch(() => {}),
       this.kv.delete(`scraper_art_${malId}_full`).catch(() => {}),
     ]);
@@ -370,13 +379,13 @@ export class MalAPI {
   // used as a fallback if the preferred source came back empty for that
   // piece. Silently returns empty strings on failure since art is always a
   // visual enhancement, never something that should break a page.
-  async getAnimeArt(animeId: number, isList = false): Promise<{ poster: string; cover: string; logo: string }> {
+  async getAnimeArt(animeId: number): Promise<{ poster: string; cover: string; logo: string }> {
     const empty = { poster: '', cover: '', logo: '' };
     if (!animeId) return empty;
 
     const [priority, scraperArt, savedPoster, savedBanner, savedLogo] = await Promise.all([
       this.getImagePriority(),
-      this.getScraperArt(animeId, isList),
+      this.getScraperArt(animeId),
       this.getLocalAnimeImage(animeId),
       this.getLocalAnimeBannerInfo(animeId),
       this.getLocalAnimeLogo(animeId),
@@ -394,7 +403,11 @@ export class MalAPI {
 
   private async normalise(node: any, isList = false): Promise<NormalisedAnime> {
     const animeId = Number(node.id ?? 0);
-    const art = animeId ? await this.getAnimeArt(animeId, isList) : { poster: '', cover: '', logo: '' };
+    // isList no longer changes art resolution -- getAnimeArt() now always
+    // resolves full-size art off a single cache entry (see getScraperArt).
+    // Kept as a param since callers below still pass it and it may be
+    // useful again for non-art list-vs-detail differences later.
+    const art = animeId ? await this.getAnimeArt(animeId) : { poster: '', cover: '', logo: '' };
     const mediumImage = art.poster;
     const largeImage = art.poster;
 
