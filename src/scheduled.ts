@@ -12,8 +12,8 @@ const DUB_REFRESH_INTERVAL_MS = 20 * 60 * 60 * 1000; // ~daily, with slack
 const ANILIST_SEASON_REFRESH_KV_KEY = 'anilist_season_last_refresh';
 const ANILIST_SEASON_REFRESH_INTERVAL_MS = 55 * 60 * 1000; // just under the season cache's own 2h KV TTL, with slack for a missed tick
 
-const ART_CACHE_WARM_INTERVAL_MS = 20 * 60 * 1000; // every ~20 min
-const ART_CACHE_WARM_BATCH = 15; // stays well inside a single invocation's subrequest budget alongside everything else in this file
+const ART_CACHE_WARM_INTERVAL_MS = 12 * 60 * 1000; // just under the new 15-min cron, with slack for a missed tick
+const ART_CACHE_WARM_BATCH = 20; // stays well inside a single invocation's subrequest budget alongside everything else in this file
 const ART_CACHE_WARM_KV_KEY = 'art_cache_last_warm';
 
 // Home/grid rows (top, upcoming, watch-now, curated hero banners) resolve
@@ -24,7 +24,12 @@ const ART_CACHE_WARM_KV_KEY = 'art_cache_last_warm';
 // every art cache entry at once). This warms those same entries in the
 // background instead, a small batch at a time, so blank posters fill in
 // within a tick or two of a cache miss rather than staying blank forever.
-async function warmArtCache(db: Db, mal: MalAPI, env: Env, limit: number): Promise<number> {
+// Exported so the admin panel's "Warm Art Cache Now" button (see
+// src/routes/admin/anime-images.ts) can trigger this on demand instead of
+// waiting on the next cron tick — useful right after a "Reset All Art
+// Cache" action, which otherwise leaves the home grid blank until cron
+// catches up in batches.
+export async function warmArtCache(db: Db, mal: MalAPI, env: Env, limit: number): Promise<number> {
   const ids = new Set<number>();
 
   try {
