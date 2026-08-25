@@ -413,6 +413,26 @@ export class MalAPI {
     ]);
   }
 
+  // Bulk version of clearScraperArtCache, exposed on admin/anime_images.php
+  // as "Reset All Art Cache" -- wipes every scraper_art_* entry (unified
+  // key and any leftover legacy `_list`/`_full` ones) instead of one title
+  // at a time. Deliberately batched and cursor-based rather than deleting
+  // everything in one call: a KV `list` + a `delete` per key are each a
+  // subrequest, and a library with hundreds of cached titles could easily
+  // rack up more than the Worker's 50-subrequest/request limit in one
+  // invocation -- the exact class of bug that took the home page down
+  // earlier. Deletes up to `limit` keys per call and returns the cursor to
+  // resume from; the admin page renders a "Continue" button when more
+  // remain instead of trying to do it all in one click.
+  async resetAllScraperArtCache(limit = 40, cursor?: string): Promise<{ deleted: number; done: boolean; cursor?: string }> {
+    if (!this.kv) return { deleted: 0, done: true };
+    const listed = await this.kv.list({ prefix: 'scraper_art_', limit, cursor });
+    const keys: string[] = (listed.keys ?? []).map((k: any) => k.name);
+    await Promise.all(keys.map((k) => this.kv!.delete(k).catch(() => {})));
+    const done = !!listed.list_complete;
+    return { deleted: keys.length, done, cursor: done ? undefined : listed.cursor };
+  }
+
   // The single choke point every poster/cover/logo on the site should go
   // through. Merges the scraper's live art with your admin-saved overrides
   // (anime_images for poster, anime_banners/home_hero_banners for cover,
