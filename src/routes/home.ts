@@ -161,9 +161,15 @@ homeRoutes.get('/', async (c) => {
   // (sourced from AniList since MAL/Jikan's season/now data is frequently
   // stale), matching Anivexa's "spotlight" behaviour rather than the
   // all-time popular list.
+  // This entire hero section is saved-only, by design -- it never calls the
+  // scraper API for banner/logo/cover, even though getAnimeArt() would
+  // technically have those values available. Only home_hero_banners
+  // (curated) and the anime_banners/anime_logos/anime_images libraries
+  // (auto pool) are ever used here.
   let heroPool: NormalisedAnime[] = [];
   let heroBanners: string[] = [];
   let heroLogos: string[] = [];
+  let heroCovers: string[] = [];
 
   if (curatedRows.length > 0) {
     const curatedAnime = await Promise.all(curatedRows.map((r) => mal.getAnime(r.anime_id)));
@@ -172,31 +178,27 @@ homeRoutes.get('/', async (c) => {
       const anime = curatedAnime[i].data;
       if (!anime) continue; // skip slides whose Anime ID no longer resolves
       heroPool.push(anime);
-      // getAnime() already ran this title through getAnimeArt() (scraper
-      // cover/logo blended with your admin-saved overrides), so a slide
-      // with no manual override here still isn't left blank.
-      heroBanners.push(r.banner_image_url || anime.cover_image || '');
-      heroLogos.push(r.logo_image_url || anime.logo_image || '');
+      heroBanners.push(r.banner_image_url || '');
+      heroLogos.push(r.logo_image_url || '');
+      heroCovers.push(await mal.getLocalAnimeImage(anime.mal_id));
     }
   }
 
   if (heroPool.length === 0) {
     heroPool = (seasonalList.length > 0 ? seasonalList : topList).slice(0, 6);
-    // Desktop shows the wide banner, mobile shows the portrait cover
-    // instead via a <picture> breakpoint swap (no JS needed). topList
-    // entries already carry cover_image/logo_image from getAnimeArt() at
-    // zero extra cost; seasonalList entries are AniList-sourced and don't
-    // go through that pipeline, so they fall back to your saved
-    // banner/logo library instead (never to a live scraper call here).
-    [heroBanners, heroLogos] = await Promise.all([
-      Promise.all(heroPool.map(async (a) => a.cover_image || (await mal.getLocalAnimeBannerInfo(a.mal_id))?.image_url || '')),
-      Promise.all(heroPool.map(async (a) => a.logo_image || (await mal.getLocalAnimeLogo(a.mal_id)))),
+    // Desktop shows the wide banner (your own saved override if there is
+    // one), mobile shows the portrait cover instead via a <picture>
+    // breakpoint swap (no JS needed).
+    [heroBanners, heroLogos, heroCovers] = await Promise.all([
+      Promise.all(heroPool.map(async (a) => (await mal.getLocalAnimeBannerInfo(a.mal_id))?.image_url || '')),
+      Promise.all(heroPool.map((a) => mal.getLocalAnimeLogo(a.mal_id))),
+      Promise.all(heroPool.map((a) => mal.getLocalAnimeImage(a.mal_id))),
     ]);
   }
   html += `
 <section id="hero">
   <div id="hero-slides">
-    ${heroPool.map((a, i) => renderHeroSlide(a, i, siteUrl, heroBanners[i] || a.banner_image, a.images?.jpg?.image_url, heroLogos[i], cardMeta.get(a.mal_id))).join('')}
+    ${heroPool.map((a, i) => renderHeroSlide(a, i, siteUrl, heroBanners[i] || a.banner_image, heroCovers[i], heroLogos[i], cardMeta.get(a.mal_id))).join('')}
   </div>
   <div class="hero-indicators" id="hero-dots">
     ${heroPool.map((_, i) => `<button class="hero-dot ${i === 0 ? 'active' : ''}" data-idx="${i}" aria-label="Slide ${i + 1}"></button>`).join('')}
