@@ -339,7 +339,7 @@ listRoutes.get('/history', async (c) => {
       const distinctIds = [...new Set(missing.map((r: any) => r.anime_id))];
       const statusMap = new Map<number, string | undefined>();
       await Promise.all(distinctIds.map(async (id) => {
-        const res = await mal.getAnime(id).catch(() => null);
+        const res = await mal.getAnime(id, true).catch(() => null);
         statusMap.set(id, res?.data?.status);
       }));
 

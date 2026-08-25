@@ -35,7 +35,7 @@ watchNowRoutes.get('/watch-now', async (c) => {
     'SELECT DISTINCT anime_id FROM episode_videos WHERE is_active = 1 ORDER BY updated_at DESC LIMIT ? OFFSET ?',
     [perPage, offset]
   );
-  const results = await Promise.all(rows.map((r) => mal.getAnime(r.anime_id)));
+  const results = await Promise.all(rows.map((r) => mal.getAnime(r.anime_id, true)));
   const animeList = results.map((r) => r.data).filter(Boolean) as any[];
   const cardMeta = await buildCardMetaMap(db, animeList);
 
