@@ -6,6 +6,7 @@ import { h } from '../../lib/helpers';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
 import { Settings } from '../../lib/settings';
 import { MalAPI } from '../../lib/mal-api';
+import { warmArtCache } from '../../scheduled';
 
 export const adminAnimeImagesRoutes = new Hono<{ Bindings: Env }>();
 
@@ -94,6 +95,17 @@ adminAnimeImagesRoutes.on(['GET', 'POST'], '/admin/anime_images.php', async (c) 
           await session.save(c, lifetime);
           return c.redirect(`${siteUrl}/admin/anime_images.php?reset_cursor=${encodeURIComponent(result.cursor ?? '')}&reset_progress=${totalProgress}`);
         }
+      } else if (action === 'warm_now') {
+        // On-demand version of the cron warmer (see warmArtCache in
+        // scheduled.ts) -- lets an admin force cache entries to fill in
+        // right away instead of waiting on the next 15-min tick. Safe to
+        // click repeatedly: it skips anything already warm and only
+        // live-fetches up to `limit` genuinely-missing titles per click.
+        const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+        const warmed = await warmArtCache(db, mal, c.env, 30);
+        session.setFlash('success', warmed > 0
+          ? `Warmed ${warmed} art cache entr${warmed === 1 ? 'y' : 'ies'}. Click again if the home page still looks incomplete.`
+          : 'Nothing to warm right now — the seasonal/top/upcoming/watch-now titles this checks are all already cached.');
       }
     } catch (e: any) {
       session.setFlash('error', e.message ?? 'An error occurred.');
@@ -162,6 +174,11 @@ ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
     <label style="font-size:0.85rem;color:var(--text-muted,#999);">Art stuck/wrong for a title?</label>
     <input class="form-control" style="width:140px;" type="number" name="anime_id" placeholder="Anime ID" required>
     <button class="btn btn-secondary btn-sm" type="submit">Refresh Art Cache</button>
+  </form>
+  <form method="POST" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border,#333);">
+    <input type="hidden" name="action" value="warm_now">
+    <label style="font-size:0.85rem;color:var(--text-muted,#999);">Home page missing art right now?</label>
+    <button class="btn btn-secondary btn-sm" type="submit">Warm Art Cache Now</button>
   </form>
   <form method="POST" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border,#333);"
         ${resetCursor ? '' : `onsubmit="return confirm('Clear the ENTIRE art cache? Every poster/cover/logo site-wide re-fetches from the API on next load — could mean a lot of blank art for a bit until pages are visited again or the cron warmer catches up.')"`}>
