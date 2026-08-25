@@ -78,6 +78,22 @@ adminAnimeImagesRoutes.on(['GET', 'POST'], '/admin/anime_images.php', async (c) 
         const mal = new MalAPI(c.env, c.env.API_CACHE, db);
         await mal.clearScraperArtCache(animeId);
         session.setFlash('success', `Art cache cleared for Anime ID ${animeId} — it'll re-fetch from the API on next load.`);
+      } else if (action === 'reset_all_art') {
+        // Bulk version of refresh_art — batched (see resetAllScraperArtCache)
+        // so one click can't stack up enough KV deletes to hit the Worker's
+        // subrequest limit on a large library. Resumes from the cursor the
+        // previous batch left off at, carried through as a hidden field.
+        const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+        const cursor = ((formData.get('cursor') as string) || undefined) || undefined;
+        const priorProgress = parseInt((formData.get('progress') as string) ?? '0', 10) || 0;
+        const result = await mal.resetAllScraperArtCache(40, cursor);
+        const totalProgress = priorProgress + result.deleted;
+        if (result.done) {
+          session.setFlash('success', `Art cache fully reset (${totalProgress.toLocaleString('en-US')} entr${totalProgress === 1 ? 'y' : 'ies'} cleared total). Every title re-fetches from the API on next load.`);
+        } else {
+          await session.save(c, lifetime);
+          return c.redirect(`${siteUrl}/admin/anime_images.php?reset_cursor=${encodeURIComponent(result.cursor ?? '')}&reset_progress=${totalProgress}`);
+        }
       }
     } catch (e: any) {
       session.setFlash('error', e.message ?? 'An error occurred.');
@@ -100,6 +116,8 @@ adminAnimeImagesRoutes.on(['GET', 'POST'], '/admin/anime_images.php', async (c) 
   const flash = session.takeFlash();
   const err = flash?.type === 'error' ? flash.message : null;
   const suc = flash?.type === 'success' ? flash.message : null;
+  const resetCursor = c.req.query('reset_cursor') ?? '';
+  const resetProgress = parseInt(c.req.query('reset_progress') ?? '0', 10) || 0;
 
   let html = renderAdminHeader({ siteUrl, pageTitle: 'Anime Image Library', adminPage: 'anime_images', isOwner, impersonating });
   html += `
@@ -144,6 +162,14 @@ ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
     <label style="font-size:0.85rem;color:var(--text-muted,#999);">Art stuck/wrong for a title?</label>
     <input class="form-control" style="width:140px;" type="number" name="anime_id" placeholder="Anime ID" required>
     <button class="btn btn-secondary btn-sm" type="submit">Refresh Art Cache</button>
+  </form>
+  <form method="POST" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border,#333);"
+        ${resetCursor ? '' : `onsubmit="return confirm('Clear the ENTIRE art cache? Every poster/cover/logo site-wide re-fetches from the API on next load — could mean a lot of blank art for a bit until pages are visited again or the cron warmer catches up.')"`}>
+    <input type="hidden" name="action" value="reset_all_art">
+    <input type="hidden" name="cursor" value="${h(resetCursor)}">
+    <input type="hidden" name="progress" value="${resetProgress}">
+    <label style="font-size:0.85rem;color:var(--text-muted,#999);">${resetCursor ? `Cleared ${resetProgress.toLocaleString('en-US')} so far —` : 'Nuclear option:'}</label>
+    <button class="btn btn-danger btn-sm" type="submit">${resetCursor ? 'Continue Reset' : 'Reset All Art Cache'}</button>
   </form>
 </div>
 
