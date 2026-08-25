@@ -322,10 +322,13 @@ export class MalAPI {
   // (non-admin-saved) art for the whole site.
   // `isList` mirrors the scraper's own ?list=1 flag: pass true for grid/card
   // contexts (search, browse, top anime, etc.) to get a smaller image, false
-  // for a single anime's detail page to get the full-size version. Cached in
-  // KV for a week per (malId, size) pair since this art essentially never
-  // changes, so only the first-ever request for a given title pays the
-  // scraper's own TMDB/Kitsu/AniList round trip.
+  // for a single anime's detail page to get the full-size version. A result
+  // with at least one non-empty field is cached for a week, since this art
+  // essentially never changes. A fully-empty result (scraper timeout/error,
+  // or a title it genuinely has no art for) is only cached for 5 minutes --
+  // long enough to absorb a burst of page loads, short enough that a
+  // transient failure (e.g. the scraper's host cold-starting) heals itself
+  // on its own instead of getting stuck showing no art for a week.
   async getScraperArt(malId: number, isList = false): Promise<{ poster: string; cover: string; logo: string }> {
     const empty = { poster: '', cover: '', logo: '' };
     if (!malId) return empty;
@@ -339,11 +342,24 @@ export class MalAPI {
     const fromScraper = await this.scraperGet(`/api/anime?malId=${malId}${isList ? '&list=1' : ''}`, 10000);
     const d = fromScraper?.data;
     const art = { poster: d?.poster || '', cover: d?.cover || '', logo: d?.logo || '' };
+    const hasAnyArt = !!(art.poster || art.cover || art.logo);
 
     if (this.kv && this.cacheEnabled()) {
-      await this.safeKvPut(cacheKey, JSON.stringify(art), { expirationTtl: 604800 });
+      await this.safeKvPut(cacheKey, JSON.stringify(art), { expirationTtl: hasAnyArt ? 604800 : 300 });
     }
     return art;
+  }
+
+  // Deletes the cached scraper art (both list and full sizes) for a title,
+  // so the next page load re-fetches from the scraper instead of serving a
+  // stale/empty cached result. Exposed on admin/anime_images.php as a
+  // manual "Refresh Art Cache" action for exactly that kind of stuck entry.
+  async clearScraperArtCache(malId: number): Promise<void> {
+    if (!malId || !this.kv) return;
+    await Promise.all([
+      this.kv.delete(`scraper_art_${malId}_list`).catch(() => {}),
+      this.kv.delete(`scraper_art_${malId}_full`).catch(() => {}),
+    ]);
   }
 
   // The single choke point every poster/cover/logo on the site should go
