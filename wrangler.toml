@@ -32,11 +32,16 @@ bucket_name = "anivault"
 # API_CACHE KV namespace below over Cloudflare's REST API. The Worker only
 # ever reads that cache — see getAniListSeasonNow() in src/lib/mal-api.ts.
 #
-# The two crons below are unrelated to AniList — Jikan and
+# The three crons below are unrelated to AniList — Jikan and
 # raw.githubusercontent.com (used by src/scheduled.ts) are both reachable
-# fine from Workers.
+# fine from Workers. The 15-min one exists specifically so the art-cache
+# warmer (see ART_CACHE_WARM_INTERVAL_MS in scheduled.ts) actually gets a
+# chance to run that often -- without it, that job's own due-check was
+# pointless since the *only* trigger that could ever fire it was hourly,
+# meaning a full "Reset All Art Cache" admin action took hours to recover
+# from (15 titles/tick x 1 tick/hour) instead of the ~15-20 min intended.
 [triggers]
-crons = ["0 * * * *", "0 3 * * *"]
+crons = ["*/15 * * * *", "0 * * * *", "0 3 * * *"]
 
 [vars]
 SITE_NAME = "AniVault"
