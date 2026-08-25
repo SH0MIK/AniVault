@@ -177,7 +177,7 @@ body { font-family: var(--font-body); }
    mirrors the reference Anivexa anime-info layout rather than the old
    full-bleed poster-on-the-left hero. */
 .ih-hero { position: relative; width: 100%; overflow: hidden; padding-top: var(--header-h); }
-.ih-bg { position: absolute; inset: 0; background-position: center; background-size: cover; background-repeat: no-repeat; filter: brightness(.65); transform: scale(1.02); }
+.ih-bg { position: absolute; inset: 0; background-position: center; background-size: cover; background-repeat: no-repeat; filter: brightness(.8); transform: scale(1.02); }
 .ih-bg.ih-bg-fallback { filter: brightness(.32) blur(6px); }
 .ih-bg-scrim { position: absolute; inset: 0; background: radial-gradient(120% 90% at 50% 20%, rgba(0,0,0,.35), rgba(0,0,0,.88) 65%, var(--bg-base) 100%); pointer-events: none; }
 
