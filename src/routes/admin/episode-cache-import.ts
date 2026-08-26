@@ -1,13 +1,18 @@
-// Admin page for bulk-importing episode thumbnails straight into the D1
-// cache (episode_thumb_cache -- see lib/episode-thumb.ts) from raw JSON,
-// instead of waiting on a live scraper lookup per episode. Paste (or upload
-// a .json file containing) the exact shape the scraper's own
-// GET /api/episode?malId=X returns:
+// Admin page for bulk-importing episode thumbnails AND metadata (title,
+// aired, filler/recap) straight into D1 -- episode_thumb_cache for
+// thumbnails (lib/episode-thumb.ts) and the same table's epinfo_all_* rows
+// for metadata (lib/episode-info.ts) -- from raw JSON, instead of waiting
+// on a live scraper lookup. Paste (or upload a .json file containing) the
+// exact shape the scraper's own GET /api/episode?malId=X returns:
 //
-//   { "malId": 1, "episodes": [ { "episode": 1, "thumbnail": "https://…" }, … ] }
+//   { "malId": 1, "episodes": [ { "episode": 1, "title": "...",
+//     "aired": "...", "filler": false, "recap": false,
+//     "thumbnail": "https://…" }, … ] }
 //
-// (extra fields like title/aired/filler are ignored -- only episode +
-// thumbnail are used). The uploaded file isn't stored anywhere separately --
+// The info half is only cached if EVERY pasted episode has both a title and
+// an aired date (same all-or-nothing rule the live fetch path uses) --
+// otherwise the info cache is left untouched so a later live fetch can fill
+// it in properly instead of baking in a partial import. The uploaded file isn't stored anywhere separately --
 // it's just read client-side and dropped into the same raw-JSON field the
 // paste box uses, so it goes through the exact same save path and the exact
 // same episode_thumb_cache table as a manual paste. Pick Finished/Ongoing
@@ -24,6 +29,7 @@ import { buildAdminCtx } from '../../lib/admin-ctx';
 import { icon } from '../../lib/icons';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
 import { importAnimeEpisodeThumbnails } from '../../lib/episode-thumb';
+import { importAnimeEpisodeInfo } from '../../lib/episode-info';
 
 export const adminEpisodeCacheImportRoutes = new Hono<{ Bindings: Env }>();
 
@@ -47,8 +53,8 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
       }
       try {
         await db.query(
-          `DELETE FROM episode_thumb_cache WHERE cache_key = ? OR cache_key LIKE ? ESCAPE '\\'`,
-          [`epthumbs_all_${malId}`, `epthumb\\_${malId}\\_%`]
+          `DELETE FROM episode_thumb_cache WHERE cache_key = ? OR cache_key = ? OR cache_key LIKE ? ESCAPE '\\'`,
+          [`epthumbs_all_${malId}`, `epinfo_all_${malId}`, `epthumb\\_${malId}\\_%`]
         );
         await session.save(c, lifetime);
         return c.json({ success: true, malId });
@@ -84,8 +90,9 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
 
     try {
       const result = await importAnimeEpisodeThumbnails(db, malId, episodes, permanent);
+      const infoResult = await importAnimeEpisodeInfo(db, malId, episodes);
       await session.save(c, lifetime);
-      return c.json({ success: true, ...result });
+      return c.json({ success: true, ...result, infoCached: infoResult.cached, infoCount: infoResult.count });
     } catch (e: any) {
       await session.save(c, lifetime);
       return c.json({ success: false, error: e?.message ?? 'Import failed.' });
@@ -207,7 +214,7 @@ document.getElementById('eci-save').addEventListener('click', async () => {
       statusEl.textContent = data.error || 'Save failed.';
     } else {
       statusEl.style.color = '#22c55e';
-      statusEl.textContent = \`✓ Saved malId \${data.malId} — \${data.imported} episode(s) cached\${data.skipped ? \`, \${data.skipped} skipped (no thumbnail)\` : ''} — \${data.permanent ? 'permanent' : '6h check cycle'}.\`;
+      statusEl.textContent = \`✓ Saved malId \${data.malId} — \${data.imported} episode(s) cached\${data.skipped ? \`, \${data.skipped} skipped (no thumbnail)\` : ''} — \${data.permanent ? 'permanent' : '6h check cycle'}. Info cache: \${data.infoCached ? \`✓ \${data.infoCount} episode(s)\` : 'skipped (incomplete title/aired data)'}.\`;
       setTimeout(() => location.reload(), 900);
     }
   } catch (e) {
