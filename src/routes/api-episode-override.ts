@@ -6,7 +6,7 @@ import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
 import { MalAPI } from '../lib/mal-api';
 import { Logger } from '../lib/logger';
-import { getAnimeEpisodeThumbnails } from '../lib/episode-thumb';
+import { getAnimeEpisodeThumbnails, getEpisodeThumbnail } from '../lib/episode-thumb';
 
 export const episodeOverrideRoutes = new Hono<{ Bindings: Env }>();
 
@@ -58,8 +58,23 @@ episodeOverrideRoutes.on(['GET', 'POST'], '/api/episode_override.php', async (c)
     const row = await db.fetchOne<any>('SELECT * FROM episode_overrides WHERE anime_id = ? AND episode_num = ?', [animeId, epNum]);
     let watchLinks: any[] = [];
     if (row?.watch_links) { try { watchLinks = JSON.parse(row.watch_links); } catch { /* ignore */ } }
+
+    // Same fallback as the ?all=1 branch above, just for one episode: an
+    // admin override wins, otherwise fall back to our own scraper's D1
+    // cache (getEpisodeThumbnail already checks the per-episode row, then
+    // the per-anime bulk row, before ever hitting the scraper live). This
+    // used to be missing entirely here, which is why the episode modal on
+    // the anime detail page had its own separate direct-to-AniList call --
+    // that's no longer needed now that this endpoint resolves it too.
+    let thumbnail: string | null = row?.image_url ?? null;
+    if (!thumbnail) {
+      const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+      const animeData = await mal.getAnime(animeId).catch(() => null);
+      thumbnail = await getEpisodeThumbnail(c.env, db, animeId, epNum, animeData?.data?.status);
+    }
+
     await session.save(c, lifetime);
-    return c.json({ success: true, override: row ?? null, watch_links: watchLinks });
+    return c.json({ success: true, override: row ?? null, watch_links: watchLinks, thumbnail });
   }
 
   // ── DELETE via POST ?action=delete ──────────────────────
