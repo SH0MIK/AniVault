@@ -1518,78 +1518,14 @@ document.addEventListener('DOMContentLoaded', () => {
   initMobileSearchPopup();
   initAdminSidebar();
 });
-// ── Episode Card Thumbnails (AniList) ───────────────────────
-const _anilistThumbCache = {}; // malId → { epNum: url }
-
-async function fetchAniListThumbs(malId) {
-  if (_anilistThumbCache[malId]) return _anilistThumbCache[malId];
-  try {
-    const res = await fetch('https://graphql.anilist.co', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        query: `query ($malId: Int) { Media(idMal: $malId, type: ANIME) { streamingEpisodes { title thumbnail site } } }`,
-        variables: { malId: parseInt(malId) }
-      })
-    });
-    const data = await res.json();
-    const eps  = data?.data?.Media?.streamingEpisodes || [];
-    const SKIP = ['netflix','amazon','prime','disney','hulu','apple'];
-    const PREF = ['crunchyroll','funimation','hidive','vrv'];
-    const score = site => {
-      const s = (site||'').toLowerCase();
-      if (SKIP.some(x => s.includes(x))) return -1;
-      if (PREF.some(x => s.includes(x))) return 2;
-      return 1;
-    };
-    const raw = {};
-    eps.forEach(ep => {
-      const m = (ep.title||'').match(/Episode\s+(\d+)/i);
-      if (!m || !ep.thumbnail) return;
-      const n = parseInt(m[1]), s = score(ep.site);
-      if (s < 0) return;
-      if (!raw[n] || s > raw[n].s) raw[n] = { url: ep.thumbnail, s };
-    });
-    const map = {};
-    Object.keys(raw).forEach(n => { map[n] = raw[n].url; });
-    _anilistThumbCache[malId] = map;
-    return map;
-  } catch(e) { return {}; }
-}
-
-async function loadEpCardThumbnails() {
-  const cards = document.querySelectorAll('.ep-card');
-  if (!cards.length) return;
-  const animeId = cards[0].dataset.animeid;
-  if (!animeId) return;
-
-  const [overrideMap, thumbMap] = await Promise.all([
-    fetch(`/api/episode_override.php?anime_id=${animeId}&all=1`)
-      .then(r => r.ok ? r.json() : null)
-      .then(data => { const m = {}; (data?.overrides||[]).forEach(o => { m[o.episode_num]=o; }); return m; })
-      .catch(() => ({})),
-    fetchAniListThumbs(animeId),
-  ]);
-
-  cards.forEach(card => {
-    const epNum    = parseInt(card.dataset.epnum);
-    const override = overrideMap[epNum];
-    const imgUrl   = override?.image_url || thumbMap[epNum] || '';
-    if (!imgUrl) return;
-    const thumb       = card.querySelector('.ep-thumb');
-    const placeholder = card.querySelector('.ep-thumb-placeholder');
-    thumb.style.backgroundImage      = `url('${imgUrl}')`;
-    thumb.style.backgroundSize       = 'cover';
-    thumb.style.backdropFilter       = 'none';
-    thumb.style.webkitBackdropFilter = 'none';
-    if (placeholder) placeholder.style.display = 'none';
-    const cacheKey = `${animeId}-${epNum}`;
-    if (!_epCache[cacheKey]) _epCache[cacheKey] = {};
-    _epCache[cacheKey].thumb = imgUrl;
-    if (override?.synopsis)    _epCache[cacheKey].synopsis   = override.synopsis;
-    if (override?.watch_links) _epCache[cacheKey].watchLinks = JSON.parse(override.watch_links||'[]');
-  });
-}
+// ── Episode Card Thumbnails ───────────────────────
+// Was: a direct graphql.anilist.co call from the browser (fetchAniListThumbs)
+// plus loadEpCardThumbnails() to paint it onto .ep-card elements. Removed --
+// the grid on the anime detail page (anime-tail.ts) already paints from
+// our own scraper-backed D1 cache (getAnimeEpisodeThumbnails, which itself
+// tries TMDB -> Kitsu -> AniList server-side), so a second direct AniList
+// call from the client was pure duplicate work chasing a source the
+// scraper already covers.
 
 // ── Episode Modal ────────────────────────────────────────
 const _epCache = {};   // "malId-epNum" → { synopsis, thumb }
@@ -1681,10 +1617,12 @@ document.addEventListener('click', async function(e) {
   }
 
   try {
-    // Fetch streaming info + overrides + synopsis + AniList thumbs in parallel
-    const [animeInfo, thumbMap, overrideRes, jikanRes] = await Promise.all([
+    // Fetch streaming info + override/scraper-cached thumb + synopsis in parallel.
+    // episode_override.php now resolves the thumbnail itself (admin override,
+    // else our scraper's D1 cache -- see api-episode-override.ts), so there's
+    // no separate direct-to-AniList call needed here anymore.
+    const [animeInfo, overrideRes, jikanRes] = await Promise.all([
       getAnimeInfo(animeId),
-      fetchAniListThumbs(animeId),
       fetch(`/api/episode_override.php?anime_id=${animeId}&ep=${epNum}`).then(r => r.ok ? r.json() : null),
       fetch(`https://api.jikan.moe/v4/anime/${animeId}/episodes/${epNum}`).then(r => r.ok ? r.json() : null),
     ]);
@@ -1694,8 +1632,8 @@ document.addEventListener('click', async function(e) {
     const overrideSynop = override?.synopsis || '';
     const synopsis      = overrideSynop || jikanSynop;
 
-    // Thumbnail: admin override > AniList > cached > anime cover fallback
-    const thumb = override?.image_url || thumbMap[parseInt(epNum)] || _epCache[cacheKey]?.thumb || '';
+    // Thumbnail: admin override > scraper-cached (via episode_override.php) > cached > anime cover fallback
+    const thumb = override?.image_url || overrideRes?.thumbnail || _epCache[cacheKey]?.thumb || '';
 
     // Watch links: override takes priority, then Jikan streaming
     const overrideLinks = override ? (JSON.parse(override.watch_links || '[]') || []) : [];
