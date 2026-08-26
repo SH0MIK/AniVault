@@ -342,6 +342,7 @@ ${rowNavScript()}
 <script>window.__siteUrl   = ${JSON.stringify(siteUrl)};</script>
 <script>window.__totalEps  = ${JSON.stringify(totalEps)};</script>
 <script>window.__animeCover = ${JSON.stringify(image)};</script>
+<script>window.__animeBanner = ${JSON.stringify(backdrop)};</script>
 <script>window.__tmdbKey    = ${JSON.stringify(c.env.TMDB_API_KEY ?? '')};</script>
 <script>window.__videoEps  = ${JSON.stringify(videoEpSet)};</script>
 ${epsNeedsRefresh ? epsLiveScript(id) : ''}
