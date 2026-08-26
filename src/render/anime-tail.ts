@@ -203,7 +203,7 @@ async function fetchAniListThumbnails(malId) {
 }
 
 // ── Build an ep-card element from Jikan episode data ─────────────────────────
-function buildEpCard(ep, animeId, cover, thumbMap) {
+function buildEpCard(ep, animeId, cover, thumbMap, banner) {
   const epNum   = ep.mal_id ?? '?';
   const epTitle = ep.title  ?? 'TBA';
   const aired   = ep.aired  ? new Date(ep.aired).toLocaleDateString('en-US', {month:'short', day:'numeric', year:'numeric'}) : null;
@@ -216,8 +216,10 @@ function buildEpCard(ep, animeId, cover, thumbMap) {
   const hasVid  = !!vidInfo;
   const hasDub  = __animeDubConfirmed || !!(vidInfo && vidInfo.dub);
 
-  // Use admin-saved override thumbnail if available, fall back to anime cover
-  const thumb = (thumbMap && thumbMap[parseInt(epNum)]) || cover;
+  // Use admin-saved override thumbnail if available; fall back to the anime's
+  // wide banner (landscape, matches the 16:9 card) before the portrait cover,
+  // which only gets used if there's no banner either.
+  const thumb = (thumbMap && thumbMap[parseInt(epNum)]) || banner || cover;
 
   const div = document.createElement('a');
   div.href      = (window.__siteUrl || '') + '/watch?anime=' + animeId + '&ep=' + epNum;
@@ -238,7 +240,7 @@ function buildEpCard(ep, animeId, cover, thumbMap) {
 
   div.innerHTML = \`
     <div class="ep-thumb" style="background-image:url('\${thumb}');background-size:cover;background-position:center;">
-      <div class="ep-thumb-placeholder">\${epNum}</div>
+      \${!thumb ? \`<div class="ep-thumb-placeholder">\${epNum}</div>\` : ''}
       \${filler ? '<span class="ep-badge ep-badge-filler">Filler</span>' : ''}
       \${recap  ? '<span class="ep-badge ep-badge-recap">Recap</span>'   : ''}
       \${badgesHtml}
@@ -275,7 +277,7 @@ function updateEpTabCount(actualCount) {
 // before -- no picker, no chunking.
 const EP_CHUNK_SIZE = 30;
 
-function renderEpisodeGrid(fullEps, animeId, cover, thumbMap) {
+function renderEpisodeGrid(fullEps, animeId, cover, thumbMap, banner) {
   const grid     = document.getElementById('ep-grid-js');
   const rangeWrap = document.getElementById('ep-range-wrap');
   if (!grid) return;
@@ -283,7 +285,7 @@ function renderEpisodeGrid(fullEps, animeId, cover, thumbMap) {
 
   function paint(list) {
     grid.innerHTML = '';
-    list.forEach(ep => grid.appendChild(buildEpCard(ep, animeId, cover, thumbMap)));
+    list.forEach(ep => grid.appendChild(buildEpCard(ep, animeId, cover, thumbMap, banner)));
     grid.style.display = '';
     // Previously also called loadEpCardThumbnails() here, which re-fetched
     // every thumbnail directly from graphql.anilist.co (uncached) and
@@ -355,6 +357,7 @@ function renderEpisodeGrid(fullEps, animeId, cover, thumbMap) {
 async function lazyLoadEpisodes() {
   const animeId = window.__animeId;
   const cover   = window.__animeCover || '';
+  const banner  = window.__animeBanner || '';
   const grid    = document.getElementById('ep-grid-js');
   const loading = document.getElementById('ep-grid-loading');
   if (!grid) return;
@@ -398,7 +401,7 @@ async function lazyLoadEpisodes() {
         mal_id: n, title: null, aired: null, score: null, filler: false, recap: false
       }));
       updateEpTabCount(stubEps.length);
-      renderEpisodeGrid(stubEps, animeId, cover, thumbMap);
+      renderEpisodeGrid(stubEps, animeId, cover, thumbMap, banner);
       return;
     }
     updateEpTabCount(jikanEps.length);
@@ -418,7 +421,7 @@ async function lazyLoadEpisodes() {
         }
       }
     }
-    renderEpisodeGrid(fullEps, animeId, cover, thumbMap);
+    renderEpisodeGrid(fullEps, animeId, cover, thumbMap, banner);
   } catch(e) {
     if (loading) loading.innerHTML = '<p class="text-muted" style="grid-column:1/-1;text-align:center;padding:1rem 0;">Failed to load episodes. <button class="btn btn-ghost btn-sm" onclick="lazyLoadEpisodes()">Retry</button></p>';
   }
