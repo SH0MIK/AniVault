@@ -589,7 +589,11 @@ function selectVideo(tab, index) {
   const item = (__videoData[tab] || [])[index];
   const playerWrap = document.getElementById('video-player-wrap');
   if (!item || !item.hasVideo || !playerWrap) return;
-  playerWrap.innerHTML = \`<iframe src="\${item.embedUrl}" title="\${(item.title||'Video').replace(/</g,'&lt;')}" style="position:absolute;inset:0;width:100%;height:100%;border:0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>\`;
+  // MAL/Jikan's embed_url comes with autoplay=1 baked in, which auto-plays
+  // the trailer the moment the page/tab loads (before any user click).
+  // Force it off here so playback only starts when the user presses play.
+  const src = (item.embedUrl || '').replace(/([?&])autoplay=1\\b/i, '$1autoplay=0');
+  playerWrap.innerHTML = \`<iframe src="\${src}" title="\${(item.title||'Video').replace(/</g,'&lt;')}" style="position:absolute;inset:0;width:100%;height:100%;border:0;" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen loading="lazy"></iframe>\`;
   document.querySelectorAll('#video-list-js .anime-card').forEach((el, i) => {
     el.style.outline = i === index ? '2px solid var(--accent, #8b5cf6)' : '';
   });
