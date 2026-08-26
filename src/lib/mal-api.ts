@@ -5,6 +5,7 @@
 // (CACHE_DIR/mal_*.json) is replaced with Workers KV.
 import { Db } from './db';
 import { Settings } from './settings';
+import { getAnimeEpisodeInfo } from './episode-info';
 
 const MAL_API_BASE = 'https://api.myanimelist.net/v2';
 const LIST_FIELDS = 'id,title,alternative_titles,main_picture,synopsis,mean,rank,popularity,num_episodes,status,genres,start_date,rating,media_type,nsfw,num_list_users,broadcast,average_episode_duration';
@@ -612,7 +613,23 @@ export class MalAPI {
     return this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/characters`);
   }
 
+  // Sourced from the unified /api/episode?malId=X scraper endpoint (see
+  // getAnimeEpisodeInfo in episode-info.ts) -- one bulk call/cache instead
+  // of the old separate paginated MAL-scrape route. That endpoint returns
+  // every episode at once, so everything comes back on "page 1" and later
+  // pages report no more data -- the client's page-looping fetch in
+  // anime-tail.ts still works unchanged, it just stops after one round trip.
   async getAnimeEpisodes(id: number, page = 1): Promise<any> {
+    const episodes = await getAnimeEpisodeInfo(this.env, this.db, id);
+    if (episodes.length > 0) {
+      return page > 1
+        ? { data: [], pagination: { last_visible_page: 1, has_next_page: false } }
+        : { data: episodes, pagination: { last_visible_page: 1, has_next_page: false } };
+    }
+
+    // Nothing resolved/cached yet (cold cache, scraper unreachable, or the
+    // show has no complete episodes yet) -- fall back to the old paths so a
+    // page still shows something instead of nothing.
     const fromScraper = await this.scraperGet(`/api/mal/anime/${id}/episodes?page=${page}`);
     if (fromScraper) return mapScraperEpisodes(fromScraper);
     return this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/episodes?page=${page}`);
