@@ -285,7 +285,13 @@ function renderEpisodeGrid(fullEps, animeId, cover, thumbMap) {
     grid.innerHTML = '';
     list.forEach(ep => grid.appendChild(buildEpCard(ep, animeId, cover, thumbMap)));
     grid.style.display = '';
-    if (typeof loadEpCardThumbnails === 'function') loadEpCardThumbnails();
+    // Previously also called loadEpCardThumbnails() here, which re-fetched
+    // every thumbnail directly from graphql.anilist.co (uncached) and
+    // overwrote what buildEpCard() had just painted from thumbMap -- the
+    // exact same D1-cached data from getAnimeEpisodeThumbnails (permanent
+    // for aired/finished episodes, TTL-gated re-checks for ongoing shows).
+    // That overwrite was pure redundant work with no benefit, so it's
+    // removed: the grid now shows the cache-backed thumbnail as painted.
   }
 
   if (fullEps.length <= EP_CHUNK_SIZE) {
