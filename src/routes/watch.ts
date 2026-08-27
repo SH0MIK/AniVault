@@ -24,7 +24,7 @@ import { playerScript } from '../render/player-script';
 import { playerBody } from '../render/player-body';
 import { getBannerData } from '../lib/settings';
 import { AnimeTracker } from '../lib/tracker';
-import { EpisodeAir } from '../lib/episode-air';
+import { EpisodeAir, AiredInfo } from '../lib/episode-air';
 import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
 import { getEpisodeThumbnail } from '../lib/episode-thumb';
 
@@ -152,11 +152,19 @@ watchRoutes.get('/watch', async (c) => {
   // age) and, if that cache is missing/stale, kicks off a background
   // refresh via waitUntil so the scraper/Jikan lookup never holds up this
   // page load; the next visit (or the detail page) picks up the fresh value.
-  const { info: airedInfo, isFresh: airedInfoFresh } = await EpisodeAir.getCachedAny(db, animeId);
-  if (!airedInfoFresh) {
-    c.executionCtx?.waitUntil?.(EpisodeAir.get(db, c.env, mal, animeId).catch(() => {}));
+  // Finished and not-yet-aired shows skip all of that and use anime.episodes
+  // straight from MAL — that field is already accurate once a show isn't
+  // actively airing, so there's nothing for the cache to correct.
+  const isAiring = anime.status === 'Currently Airing';
+  let airedInfo: AiredInfo | null = null;
+  if (isAiring) {
+    const cached = await EpisodeAir.getCachedAny(db, animeId);
+    airedInfo = cached.info;
+    if (!cached.isFresh) {
+      c.executionCtx?.waitUntil?.(EpisodeAir.get(db, c.env, mal, animeId).catch(() => {}));
+    }
   }
-  const totalEps = airedInfo?.total ?? anime.episodes ?? 0;
+  const totalEps = isAiring ? (airedInfo?.total ?? anime.episodes ?? 0) : (anime.episodes ?? 0);
   const dubbedLangs = await DubStatus.getFor(db, animeId);
 
   let epDurationSec = parseDurationSeconds(anime.duration);

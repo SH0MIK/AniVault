@@ -432,11 +432,24 @@ scraperRoutes.get('/api/anime_info.php', async (c) => {
 // anime.ts renders instantly off the cache (see EpisodeAir.getCachedAny)
 // and calls this from the client, in the background, only when that cache
 // was missing or stale, so a slow scraper response never blocks the page.
+// In practice anime.ts only ever triggers this for a currently-airing show
+// (see epsNeedsRefresh there) — finished/not-yet-aired shows already have
+// their final count straight from MAL and never need it. The status check
+// below is just a second line of defense (direct hits, stale clients, etc.)
+// so a finished/upcoming show can never end up writing to the cache either.
 scraperRoutes.get('/api/ep_count.php', async (c) => {
   const animeId = parseInt(c.req.query('anime_id') ?? '0', 10) || 0;
   if (!animeId) return c.json({ error: 'Missing anime_id' }, 400);
   const db = new Db(c.env.DB);
   const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+
+  const animeRes = await mal.getAnime(animeId).catch(() => null);
+  const status = animeRes?.data?.status;
+  if (status && status !== 'Currently Airing') {
+    const eps = animeRes?.data?.episodes ?? 0;
+    return c.json({ aired: eps || null, total: eps || null });
+  }
+
   const airedInfo = await EpisodeAir.get(db, c.env, mal, animeId);
   return c.json({ aired: airedInfo?.aired ?? null, total: airedInfo?.total ?? null });
 });

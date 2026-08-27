@@ -153,7 +153,13 @@ export const EpisodeAir = {
     return map;
   },
 
-  /** Cron entry point — refreshes the stalest cached entries so card grids stay reasonably current without any page view ever blocking on the scraper API or Jikan. */
+  /** Cron entry point — refreshes the stalest cached entries so card grids stay reasonably current without any page view ever blocking on the scraper API or Jikan.
+   *  This cache is airing-only now (see anime.ts / watch.ts / ep_count.php — finished/not-yet-aired
+   *  shows read straight from MAL's own `episodes` field and never write here). Any row that's
+   *  gone stale AND has since finished/not started airing is therefore leftover from before that
+   *  split (or a show that finished mid-cache-lifetime) — prune it instead of refreshing it, so the
+   *  cache converges to airing-only on its own instead of burning scraper/Jikan calls on titles
+   *  nothing reads the cache for anymore. */
   async refreshStale(db: Db, env: EpisodeAirEnv, mal: MalAPI, limit = 20): Promise<number> {
     const cutoff = new Date(Date.now() - STALE_AFTER_MS).toISOString().replace('T', ' ').substring(0, 19);
     const stale = await db.fetchAll<{ anime_id: number }>(
@@ -161,6 +167,17 @@ export const EpisodeAir = {
     );
     let refreshed = 0;
     for (const row of stale) {
+      let status: string | undefined;
+      try {
+        const animeRes = await mal.getAnime(row.anime_id);
+        status = animeRes?.data?.status;
+      } catch { /* couldn't tell — leave it, try again next sweep rather than risk pruning a still-airing show */ }
+
+      if (status && status !== 'Currently Airing') {
+        await db.query('DELETE FROM episode_air_cache WHERE anime_id = ?', [row.anime_id]);
+        continue;
+      }
+
       const fetched = await EpisodeAir.fetchAiredCount(env, mal, row.anime_id);
       if (fetched) {
         await db.query('UPDATE episode_air_cache SET aired_count=?, total_count=?, updated_at=datetime(\'now\') WHERE anime_id=?', [fetched.aired, fetched.total, row.anime_id]);

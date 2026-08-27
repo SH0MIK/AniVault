@@ -17,7 +17,7 @@ import { renderHeader, renderFooter, CurrentUser } from '../render/layout';
 import { animeTailScript } from '../render/anime-tail';
 import { getBannerData } from '../lib/settings';
 import { rowNavScript } from '../render/home-js';
-import { EpisodeAir } from '../lib/episode-air';
+import { EpisodeAir, AiredInfo } from '../lib/episode-air';
 import { DubStatus } from '../lib/dub-status';
 
 export const animeRoutes = new Hono<{ Bindings: Env }>();
@@ -74,21 +74,32 @@ animeRoutes.get('/anime', async (c) => {
   const jpTitle = anime.title_japanese || null;
   const image = anime.images?.jpg?.large_image_url ?? '';
 
-  // MAL's own episode count only firms up once a show finishes airing —
-  // prefer the Jikan-derived "aired so far" count when we have it. This is
-  // the one page where the extra round trip on a cache miss is worth it
-  // (single anime, not a grid), so it's a live refresh-if-stale rather
-  // than a cache-only lookup.
-  const { info: airedInfo, isFresh: airedInfoFresh } = await EpisodeAir.getCachedAny(db, id);
-  const totalEps = airedInfo?.total ?? anime.episodes ?? 0;
-  const airedSoFar = airedInfo?.aired ?? null;
+  // MAL's own episode count only firms up once a show finishes airing, so
+  // the scraper/Jikan-backed episode_air_cache exists purely to correct it
+  // *while a show is still airing*. Finished and not-yet-aired shows skip
+  // that cache entirely and read anime.episodes straight off the mal.getAnime()
+  // call above — that's the "direct from MAL" number and it's already correct
+  // for those two statuses, so there's nothing to cache or refresh.
+  const isAiring = anime.status === 'Currently Airing';
+  let airedInfo: AiredInfo | null = null;
+  let airedInfoFresh = true;
+  if (isAiring) {
+    // This is the one page where the extra round trip on a cache miss is
+    // worth it (single anime, not a grid), so it's a live refresh-if-stale
+    // rather than a cache-only lookup.
+    ({ info: airedInfo, isFresh: airedInfoFresh } = await EpisodeAir.getCachedAny(db, id));
+  }
+  const totalEps = isAiring ? (airedInfo?.total ?? anime.episodes ?? 0) : (anime.episodes ?? 0);
+  const airedSoFar = isAiring ? (airedInfo?.aired ?? null) : null;
   // Nothing cached (or nothing from MAL) to show at all -- render a
   // skeleton for the ep count and fill it in client-side once
   // /api/ep_count.php resolves, instead of blocking this page on the
   // scraper API. If we DO have a number (even a stale one), show it
-  // immediately and just quietly refresh it in the background.
+  // immediately and just quietly refresh it in the background. Only
+  // airing shows ever need this refresh — finished/upcoming already have
+  // their final number straight from MAL above.
   const epsUnknown = totalEps === 0;
-  const epsNeedsRefresh = !airedInfoFresh;
+  const epsNeedsRefresh = isAiring && !airedInfoFresh;
   const dubbedLangs = await DubStatus.getFor(db, id);
 
   // Logo + cover both come pre-resolved on `anime` itself -- getAnime()
