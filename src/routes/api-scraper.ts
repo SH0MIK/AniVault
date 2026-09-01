@@ -102,6 +102,39 @@ scraperRoutes.get('/api/anikoto_stream.php', async (c) => {
   return c.json({ error: 'No stream URL in response' });
 });
 
+// ── api/desidub_stream.php ──────────────────────────────────────────────────
+// DesiDubAnime (Hindi dub + regional multi-audio) source, added alongside
+// AnimeHeaven/Anikoto. Shares the same read-only-proxy reasoning as the two
+// above (no session writes). `audio` here is 'dub' (HLS/MP4-capable Hindi
+// dub servers — VidMoly, StreamRuby, GDMirrorBot mirrors, etc.) or 'raw'
+// (embed-only hosts the scraper couldn't resolve to a direct stream, e.g.
+// Abyss/CLOUD — surfaced on the watch page with an "Embed" badge and played
+// back in a plain iframe instead of the custom player).
+scraperRoutes.get('/api/desidub_stream.php', async (c) => {
+  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
+  const audio = ['dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'dub';
+  const server = (c.req.query('server') ?? '').trim();
+  if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
+  const base = getScraperBase(c.env);
+  if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
+
+  let watchUrl = `${base}/api/watch/desidub/mal-${animeId}/${epNum}/${audio}`;
+  if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
+
+  const { ok, code, data } = await fetchJson(watchUrl, 20000);
+  if (!ok) return c.json({ error: data?.error ?? `DesiDub fetch failed HTTP ${code}` });
+
+  const servers = (data?.availableServers ?? []).map((s: string) => ({ name: s, type: audio }));
+  const m3u8 = data?.hlsProxyUrl ?? data?.m3u8 ?? null;
+  const mp4 = data?.mp4ProxyUrl ?? data?.mp4 ?? null;
+
+  if (data?.iframeOnly) return c.json({ servers, embedUrl: data.embedUrl ?? '', iframeOnly: true, server: data.server ?? server });
+  if (m3u8) return c.json({ servers, m3u8, server: data.server ?? server, subtitles: data.subtitles ?? [] });
+  if (mp4) return c.json({ servers, mp4, server: data.server ?? server });
+  return c.json({ error: 'No stream URL in response' });
+});
+
 // ── api/server_check.php ───────────────────────────────────────────────────
 const ERROR_PHRASES = ['episode not found', 'video not found', '404 not found', 'page not found', 'no video found', 'no sources found', 'no servers found', 'this episode is not available', 'something went wrong'];
 
