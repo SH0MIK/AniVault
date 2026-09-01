@@ -348,6 +348,52 @@ export const WATCH_CSS = `/* ═════════════════
 }
 .server-btn[data-server^="anikoto-"].active { background:rgba(192,132,252,.14); border-color:rgba(192,132,252,.55); color:#c084fc; box-shadow:0 0 16px rgba(192,132,252,.2),inset 0 1px 0 rgba(192,132,252,.12); }
 
+/* DesiDub (Hindi Dub / raw embed sources) — kept visually distinct from the
+   English dub servers above via its own accent color + a labeled group. */
+.server-btn[data-server^="desidub:"]::before { background:#f97316; box-shadow:0 0 5px rgba(249,115,22,.6); }
+.server-btn[data-server^="desidub:"].active { background:rgba(249,115,22,.14); border-color:rgba(249,115,22,.55); color:#f97316; box-shadow:0 0 16px rgba(249,115,22,.2),inset 0 1px 0 rgba(249,115,22,.12); }
+
+.server-group {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: .45rem;
+  margin-top: .35rem;
+  padding-top: .6rem;
+  border-top: 1px dashed rgba(255,255,255,.08);
+}
+.server-group-label {
+  font-size: .62rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--text-muted);
+  opacity: .55;
+}
+.server-group-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .5rem;
+  align-items: center;
+}
+
+/* Small inline pill used inside a .server-btn — e.g. the "Embed" badge on
+   raw/iframe-only sources that couldn't be resolved to a direct stream. */
+.ad-badge {
+  font-size: .56rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  padding: .1rem .35rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,.08);
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+.server-btn[data-server^="desidub:raw:"] .ad-badge {
+  background: rgba(249,115,22,.14);
+  color: #f97316;
+}
 
 /* "No servers found" placeholder (class name kept as-is; used for both
    audio tabs regardless of which provider was being probed) */

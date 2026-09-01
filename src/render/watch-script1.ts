@@ -360,6 +360,111 @@ function switchToAnikoto(providerName, audio) {
         });
 }
 
+// ── DesiDub (Hindi Dub HLS/MP4, or raw embed-only sources) ────────────────
+// realType is 'dub' (VidMoly/StreamRuby/Mirror/other HLS-capable hosts) or
+// 'raw' (embed-only hosts like Abyss/CLOUD the scraper couldn't resolve to
+// a direct stream — those get dropped straight into a plain iframe below
+// instead of the custom SenshiPlayer).
+function switchToDesidub(providerName, realType) {
+    const pw = document.getElementById('watch-player-wrap');
+    if (!pw) return;
+
+    stopCurrentVideo();
+
+    const sp = document.getElementById('senshi-player-root');
+    if (sp && sp.parentNode) sp.parentNode.removeChild(sp);
+
+    pw.style.opacity = '0';
+    pw.style.aspectRatio  = 'unset';
+    pw.style.overflow     = 'visible';
+    pw.style.background   = 'transparent';
+    pw.style.borderRadius = '14px';
+    pw.innerHTML = '';
+
+    if (sp) {
+        sp.style.cssText = 'display:block;width:100%;';
+        pw.appendChild(sp);
+    }
+    pw.style.opacity = '1';
+
+    if (window.SenshiPlayer) window.SenshiPlayer.destroy();
+    const spinEl = document.getElementById('sp-spinner');
+    if (spinEl) spinEl.classList.remove('hide');
+    const errEl = document.getElementById('sp-error');
+    if (errEl) errEl.classList.remove('show');
+    const preplay = document.getElementById('sp-preplay');
+    if (preplay) preplay.classList.add('hide');
+
+    function fail(msg) {
+        const errMsg = document.getElementById('sp-err-msg');
+        if (errMsg) errMsg.textContent = msg;
+        if (errEl) errEl.classList.add('show');
+        if (spinEl) spinEl.classList.add('hide');
+    }
+
+    function applyDesidubResult(d) {
+        if (d.error) { fail(\`DesiDub (\${providerName}): \${d.error}\`); return; }
+
+        // Raw/embed-only source — no direct stream was extracted, so this
+        // one plays back as a real iframe instead of the custom player.
+        if (d.iframeOnly && d.embedUrl) {
+            pw.innerHTML = \`<iframe id="main-player-iframe" src="\${d.embedUrl}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen loading="lazy"></iframe>\`;
+            pw.style.opacity = '1';
+            return;
+        }
+
+        const badge = document.getElementById('sp-hls-badge');
+        if (d.m3u8) {
+            if (badge) badge.textContent = 'HLS';
+            if (window.SenshiPlayer && window.SenshiPlayer.loadWithSubs) {
+                window.SenshiPlayer.loadWithSubs(d.m3u8, d.subtitles || []);
+            } else if (window.SenshiPlayer) {
+                window.SenshiPlayer.load(d.m3u8);
+            } else {
+                const vid = document.getElementById('sp-video');
+                if (vid) { vid.src = d.m3u8; vid.load(); vid.play().catch(() => {}); }
+            }
+            return;
+        }
+        if (d.mp4) {
+            if (badge) badge.textContent = 'MP4';
+            const vid = document.getElementById('sp-video');
+            if (!vid) { fail('Player element missing (sp-video not found).'); return; }
+            vid.src = d.mp4;
+            vid.load();
+            vid.play().catch(err => {
+                if (err && err.name === 'NotAllowedError') {
+                    if (spinEl) spinEl.classList.add('hide');
+                    const preplayEl = document.getElementById('sp-preplay');
+                    const ppBtn = document.getElementById('sp-pp-btn');
+                    if (preplayEl) {
+                        preplayEl.classList.remove('hide');
+                        (ppBtn || preplayEl).addEventListener('click', () => vid.play().catch(() => {}), { once: true });
+                    }
+                }
+            });
+            return;
+        }
+        fail('No stream URL returned.');
+    }
+
+    // Same reuse-the-probe-response pattern as Anikoto — avoids requesting
+    // the same provider twice back-to-back right after the probe found it.
+    window._desidubCache = window._desidubCache || {};
+    const cacheKey = realType + '::' + providerName.toLowerCase().trim();
+    const cached = window._desidubCache[cacheKey];
+    if (cached && (Date.now() - cached.ts) < 8000) {
+        delete window._desidubCache[cacheKey];
+        applyDesidubResult(cached.data);
+        return;
+    }
+
+    fetch(\`${siteUrl}/api/desidub_stream.php?anime=${animeId}&ep=${epNum}&audio=\${realType}&server=\${encodeURIComponent(providerName)}\`)
+        .then(r => r.json())
+        .then(applyDesidubResult)
+        .catch(() => fail('Could not reach stream server.'));
+}
+
 function switchToServer(serverName, audio = currentAudio) {
     const pw = document.getElementById('watch-player-wrap');
     if (!pw) return;
@@ -377,6 +482,21 @@ function switchToServer(serverName, audio = currentAudio) {
     if (serverName.startsWith('anikoto-')) {
         const providerName = serverName.slice('anikoto-'.length);
         switchToAnikoto(providerName, audio);
+        currentServer = serverName;
+        currentAudio  = audio;
+        updateActiveServerButton(serverName, audio);
+        return;
+    }
+
+    // ── DesiDub Hindi Dub / raw sources ────────────────────────────────────
+    // Key shape: "desidub:<dub|raw>:<provider name>" — the middle segment is
+    // the real type sent to the scraper API, independent of which UI tab
+    // ("dub") the button lives under.
+    if (serverName.startsWith('desidub:')) {
+        const parts = serverName.split(':');
+        const realType = parts[1];
+        const providerName = parts.slice(2).join(':');
+        switchToDesidub(providerName, realType);
         currentServer = serverName;
         currentAudio  = audio;
         updateActiveServerButton(serverName, audio);
@@ -638,6 +758,96 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             });
         });
         dubTaskDone();
+    });
+
+    // ── DesiDub Hindi Dub + raw sources ────────────────────────────────────
+    // Kept entirely separate from the sub/dub autoplay bookkeeping above —
+    // it renders into its own labeled group under the Dub tab (see
+    // watch.ts markup) and never auto-activates; English sub/dub still wins
+    // autoplay, Hindi Dub is opt-in via click. Priority within the group:
+    // VidMoly, then StreamRuby, then any Mirror variant(s), then any other
+    // HLS/MP4-capable host, and raw (embed-only) sources always last.
+    let hindiPending = 2;
+    let hindiHasAny  = false;
+
+    function hindiTaskDone() {
+        hindiPending--;
+        if (hindiPending === 0) {
+            const loading = document.getElementById('servers-dub-hindi-loading');
+            if (hindiHasAny) {
+                if (loading) loading.remove();
+            } else {
+                const grp = document.getElementById('dub-hindi-group');
+                if (grp) grp.remove();
+            }
+        }
+    }
+
+    function fetchDesidubList(audio, attempt = 1) {
+        return fetch(\`\${SITE}/api/desidub_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${audio}\`)
+            .then(r => r.json())
+            .then(d => { console.log('[AniVault player] desidub list', audio, 'attempt', attempt, d); return (d.servers || []).filter(s => s.type === audio); })
+            .catch(e => { console.error('[AniVault player] desidub list fetch threw', audio, e); return []; })
+            .then(list => {
+                if (list.length > 0 || attempt >= 2) return list;
+                return new Promise(res => setTimeout(res, 1200)).then(() => fetchDesidubList(audio, attempt + 1));
+            });
+    }
+    function checkDesidubProvider(provider, audio) {
+        return fetch(\`\${SITE}/api/desidub_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${audio}&server=\${encodeURIComponent(provider)}\`)
+            .then(r => r.json()).then(d => {
+                const ok = !d.error && !!(d.m3u8 || d.mp4 || d.iframeOnly);
+                console.log('[AniVault player] desidub', provider, audio, ok ? 'OK' : 'FAILED', d);
+                if (ok) {
+                    window._desidubCache = window._desidubCache || {};
+                    window._desidubCache[audio + '::' + provider.toLowerCase().trim()] = { data: d, ts: Date.now() };
+                }
+                return ok;
+            }).catch(() => false);
+    }
+    // VidMoly > StreamRuby > Mirror > MuseMirror > any other HLS/MP4-capable
+    // host > raw/embed-only sources (always last, badged "Embed" in the UI).
+    // "muse" is checked before the generic "mirror" match since MuseMirror's
+    // name also contains the substring "mirror".
+    function desidubMeta(name, type) {
+        const n = (name || '').toLowerCase();
+        if (type === 'raw') return { badge: 'Embed', priority: 100 };
+        if (n.includes('vidmoly') || n.includes('vmoly')) return { badge: null, priority: 1 };
+        if (n.includes('ruby')) return { badge: null, priority: 2 };
+        if (n.includes('muse')) return { badge: null, priority: 4 };
+        if (n.includes('mirror')) return { badge: null, priority: 3 };
+        return { badge: null, priority: 5 };
+    }
+    function insertDesidubBtn(key, label, badge, priority) {
+        const body = document.getElementById('servers-dub-hindi-body');
+        const loading = document.getElementById('servers-dub-hindi-loading');
+        if (!body || body.querySelector(\`.server-btn[data-server="\${key}"]\`)) return;
+        const grp = document.getElementById('dub-hindi-group');
+        if (grp) grp.style.display = '';
+        const btn = makeBtn(key, label, badge);
+        btn.dataset.priority = priority;
+        const siblings = Array.from(body.querySelectorAll('.server-btn'));
+        const next = siblings.find(b => parseInt(b.dataset.priority, 10) > priority);
+        if (next) body.insertBefore(btn, next);
+        else if (loading) body.insertBefore(btn, loading);
+        else body.appendChild(btn);
+        hindiHasAny = true;
+    }
+
+    ['dub', 'raw'].forEach(function(realType) {
+        fetchDesidubList(realType).then(list => {
+            list.forEach(s => {
+                hindiPending++;
+                checkDesidubProvider(s.name, realType).then(ok => {
+                    if (ok) {
+                        const meta = desidubMeta(s.name, realType);
+                        insertDesidubBtn('desidub:' + realType + ':' + s.name, s.name, meta.badge, meta.priority);
+                    }
+                    hindiTaskDone();
+                });
+            });
+            hindiTaskDone();
+        });
     });
   } catch (e) {
     _showFatalClientError('probeAndRenderServers crashed: ' + (e && e.message ? e.message : e));
