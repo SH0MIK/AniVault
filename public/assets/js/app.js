@@ -901,6 +901,7 @@ let __chatOldestId    = null;
 let __chatLoadedOnce  = false;
 let __chatPolling     = null;
 let __chatLastTypingPing = 0;
+let __chatLastCountCheck = 0;
 let __mentionMatches = [];
 let __mentionIndex   = -1;
 let __mentionStart   = -1; // index of the "@" the current suggestions are for
@@ -987,7 +988,7 @@ function initChat() {
   });
 
   loadChatMessages();
-  __chatPolling = setInterval(chatPollTick, 4000);
+  __chatPolling = setInterval(chatPollTick, 4000); // fast tick, but chatPollTick itself now throttles the count check when closed
 }
 
 function openChat() {
@@ -1079,6 +1080,12 @@ async function chatPollTick() {
     } catch (e) {}
     updateChatPresence();
   } else if (window.__loggedIn) {
+    // Badge doesn't need second-by-second freshness — only hit the DB every
+    // ~30s while the panel is closed instead of on every 4s tick. This is
+    // what was blowing through the D1 free-tier daily row-read cap.
+    const now = Date.now();
+    if (now - __chatLastCountCheck < 30000) return;
+    __chatLastCountCheck = now;
     try {
       const res  = await fetch('/api/chat?action=count');
       const data = await res.json();
