@@ -517,14 +517,29 @@ function loadHLS(m3u8){
       }
       updateInfoPanel();
     });
+    let _fatalRetries=0;
     hls.on(Hls.Events.ERROR,(_,data)=>{
-      // Any fatal error means playback has actually stopped, regardless
-      // of how much (if anything) had already buffered — the previous
-      // readyState===0/currentTime===0 check missed fatal errors that
-      // happen mid-stream and just left the spinner stuck.
-      if(data.fatal){ _clearWatchdog(); showError('Stream error — try another server.'); }
+      if(!data.fatal) return;
+      // Not every fatal error means playback actually died — network and
+      // media fatal errors are recoverable per hls.js's own contract, and
+      // it often keeps playing from buffer while we recover underneath.
+      // Blindly showing the error here caused it to get stuck even after
+      // the stream carried on running (you'd still hear audio).
+      if(_fatalRetries<3 && (data.type===Hls.ErrorTypes.NETWORK_ERROR || data.type===Hls.ErrorTypes.MEDIA_ERROR)){
+        _fatalRetries++;
+        if(data.type===Hls.ErrorTypes.NETWORK_ERROR) hls.startLoad();
+        else hls.recoverMediaError();
+        return;
+      }
+      _clearWatchdog();
+      showError('Stream error — try another server.');
     });
-    vid.addEventListener('playing',()=>{_clearWatchdog();spin(false)});
+    vid.addEventListener('playing',()=>{_clearWatchdog();spin(false);hideError();_fatalRetries=0});
+    vid.addEventListener('timeupdate',()=>{
+      // Belt-and-suspenders: if the video is demonstrably advancing,
+      // any stale error overlay is wrong — clear it.
+      if(!vid.paused && vid.currentTime>0) hideError();
+    });
   }else if(vid.canPlayType('application/vnd.apple.mpegurl')){
     vid.src=m3u8;
     vid.addEventListener('loadedmetadata',()=>{enableDefaultSubtitles();attemptAutoplay()},{once:true});
