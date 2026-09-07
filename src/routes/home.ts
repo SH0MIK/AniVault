@@ -173,6 +173,7 @@ homeRoutes.get('/', async (c) => {
 
   if (curatedRows.length > 0) {
     const curatedAnime = await Promise.all(curatedRows.map((r) => mal.getAnime(r.anime_id, true)));
+    const curatedImageMap = await mal.getLocalAnimeImagesMany(curatedRows.map((r) => r.anime_id));
     for (let i = 0; i < curatedRows.length; i++) {
       const r = curatedRows[i];
       const anime = curatedAnime[i].data;
@@ -180,7 +181,7 @@ homeRoutes.get('/', async (c) => {
       heroPool.push(anime);
       heroBanners.push(r.banner_image_url || '');
       heroLogos.push(r.logo_image_url || '');
-      heroCovers.push(await mal.getLocalAnimeImage(anime.mal_id));
+      heroCovers.push(curatedImageMap.get(anime.mal_id) || '');
     }
   }
 
@@ -188,12 +189,19 @@ homeRoutes.get('/', async (c) => {
     heroPool = (seasonalList.length > 0 ? seasonalList : topList).slice(0, 6);
     // Desktop shows the wide banner (your own saved override if there is
     // one), mobile shows the portrait cover instead via a <picture>
-    // breakpoint swap (no JS needed).
-    [heroBanners, heroLogos, heroCovers] = await Promise.all([
-      Promise.all(heroPool.map(async (a) => (await mal.getLocalAnimeBannerInfo(a.mal_id))?.image_url || '')),
-      Promise.all(heroPool.map((a) => mal.getLocalAnimeLogo(a.mal_id))),
-      Promise.all(heroPool.map((a) => mal.getLocalAnimeImage(a.mal_id))),
+    // breakpoint swap (no JS needed). Batched into 3 IN(...) queries total
+    // instead of one query per anime per field (was ~18 queries for a
+    // 6-item pool; anime_banners/anime_logos misses each also fell through
+    // to a second home_hero_banners query, so it was closer to ~24-30).
+    const heroIds = heroPool.map((a) => a.mal_id);
+    const [bannerMap, logoMap, imageMap] = await Promise.all([
+      mal.getLocalAnimeBannerInfoMany(heroIds),
+      mal.getLocalAnimeLogosMany(heroIds),
+      mal.getLocalAnimeImagesMany(heroIds),
     ]);
+    heroBanners = heroPool.map((a) => bannerMap.get(a.mal_id)?.image_url || '');
+    heroLogos = heroPool.map((a) => logoMap.get(a.mal_id) || '');
+    heroCovers = heroPool.map((a) => imageMap.get(a.mal_id) || '');
   }
   html += `
 <section id="hero">
