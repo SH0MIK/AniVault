@@ -25,29 +25,51 @@ export const DUB_LANGUAGES: Record<string, string> = {
 const RAW_BASE = 'https://raw.githubusercontent.com/Joelis57/MyDubList/main/dubs/counts';
 
 export const DubStatus = {
-  /** Pulls every tracked language's dataset and replaces `dub_status` with it. Best-effort per language — one failing doesn't block the rest. */
-  async refresh(db: Db): Promise<{ lang: string; count: number; ok: boolean }[]> {
-    const results: { lang: string; count: number; ok: boolean }[] = [];
+  /**
+   * Pulls every tracked language's dataset and reconciles it into
+   * `dub_status`. Used to be a full DELETE-then-reinsert of the entire
+   * dataset every single day (~85-105k row writes/day across 8 languages
+   * -- basically the whole of D1's free-tier 100k-row/day write quota by
+   * itself, before any real traffic). MyDubList's data barely changes day
+   * to day, so instead we diff against what's already stored and only
+   * write the ids that were actually added or removed for each language.
+   * Best-effort per language — one failing doesn't block the rest.
+   */
+  async refresh(db: Db): Promise<{ lang: string; count: number; added: number; removed: number; ok: boolean }[]> {
+    const results: { lang: string; count: number; added: number; removed: number; ok: boolean }[] = [];
 
     for (const lang of Object.keys(DUB_LANGUAGES)) {
       try {
         const res = await fetch(`${RAW_BASE}/dubbed_${lang}.json`);
-        if (!res.ok) { results.push({ lang, count: 0, ok: false }); continue; }
+        if (!res.ok) { results.push({ lang, count: 0, added: 0, removed: 0, ok: false }); continue; }
         const data = await res.json<Record<string, number>>();
-        const ids = Object.keys(data).map((id) => parseInt(id, 10)).filter((id) => Number.isFinite(id));
+        const freshIds = new Set(
+          Object.keys(data).map((id) => parseInt(id, 10)).filter((id) => Number.isFinite(id))
+        );
 
-        await db.query('DELETE FROM dub_status WHERE lang = ?', [lang]);
+        const existingRows = await db.fetchAll<{ anime_id: number }>('SELECT anime_id FROM dub_status WHERE lang = ?', [lang]);
+        const existingIds = new Set(existingRows.map((r) => r.anime_id));
+
+        const toAdd = [...freshIds].filter((id) => !existingIds.has(id));
+        const toRemove = [...existingIds].filter((id) => !freshIds.has(id));
+
         // D1 batch caps out well before thousands of statements in one
-        // call, so chunk the upsert into reasonably sized batches.
+        // call, so chunk both directions into reasonably sized batches.
         const CHUNK = 400;
-        for (let i = 0; i < ids.length; i += CHUNK) {
-          const chunk = ids.slice(i, i + CHUNK);
+        for (let i = 0; i < toAdd.length; i += CHUNK) {
+          const chunk = toAdd.slice(i, i + CHUNK);
           const stmts = chunk.map((id) => db.prepare('INSERT OR IGNORE INTO dub_status (anime_id, lang) VALUES (?, ?)').bind(id, lang));
           await db.batch(stmts);
         }
-        results.push({ lang, count: ids.length, ok: true });
+        for (let i = 0; i < toRemove.length; i += CHUNK) {
+          const chunk = toRemove.slice(i, i + CHUNK);
+          const stmts = chunk.map((id) => db.prepare('DELETE FROM dub_status WHERE anime_id = ? AND lang = ?').bind(id, lang));
+          await db.batch(stmts);
+        }
+
+        results.push({ lang, count: freshIds.size, added: toAdd.length, removed: toRemove.length, ok: true });
       } catch {
-        results.push({ lang, count: 0, ok: false });
+        results.push({ lang, count: 0, added: 0, removed: 0, ok: false });
       }
     }
     return results;

@@ -60,6 +60,12 @@ export interface NormalisedAnime {
 }
 
 export class MalAPI {
+  // Per-instance art cache -- see getAnimeArt()/prefetchAnimeArt(). A fresh
+  // MalAPI is constructed per request, so this never leaks stale art across
+  // requests; it just stops the same request from re-querying the same
+  // anime_id's art more than once.
+  private artCache = new Map<number, { poster: string; cover: string; logo: string }>();
+
   constructor(private env: MalEnv, private kv: KVNamespace | undefined, private db: Db) {}
 
   // Fire-and-forget cache write. KV's daily put() quota (1,000/day on the
@@ -303,6 +309,78 @@ export class MalAPI {
     return heroRow?.logo_image_url ?? '';
   }
 
+  // ── Batched variants of the three lookups above ───────────────────────────
+  // One IN(...) query per table instead of one query per anime_id. These are
+  // what prefetchAnimeArt() (below) and the home page's hero pool use to
+  // avoid the classic N+1 pattern that was blowing through D1's rate limit
+  // -- a 20-item grid used to fire up to ~5 queries per row (100 queries)
+  // for art alone; these turn that into a fixed 3-4 queries for the whole
+  // page regardless of how many rows are on it.
+  async getLocalAnimeImagesMany(animeIds: number[]): Promise<Map<number, string>> {
+    const map = new Map<number, string>();
+    const ids = [...new Set(animeIds.filter(Boolean))];
+    if (!ids.length) return map;
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = await this.db.fetchAll<{ anime_id: number; image_url: string }>(
+      `SELECT anime_id, image_url FROM anime_images WHERE anime_id IN (${placeholders})`,
+      ids
+    );
+    for (const row of rows) map.set(row.anime_id, row.image_url);
+    return map;
+  }
+
+  async getLocalAnimeBannerInfoMany(animeIds: number[]): Promise<Map<number, { image_url: string; order_index: number }>> {
+    const map = new Map<number, { image_url: string; order_index: number }>();
+    const ids = [...new Set(animeIds.filter(Boolean))];
+    if (!ids.length) return map;
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = await this.db.fetchAll<{ anime_id: number; image_url: string; order_index: number | null }>(
+      `SELECT anime_id, image_url, order_index FROM anime_banners WHERE anime_id IN (${placeholders})`,
+      ids
+    );
+    for (const row of rows) map.set(row.anime_id, { image_url: row.image_url, order_index: row.order_index ?? 0 });
+
+    // Same home_hero_banners fallback as the single-item version, but only
+    // for the ids that came back empty from anime_banners.
+    const missing = ids.filter((id) => !map.has(id));
+    if (missing.length) {
+      const ph2 = missing.map(() => '?').join(',');
+      const heroRows = await this.db.fetchAll<{ anime_id: number; banner_image_url: string | null; display_order: number | null }>(
+        `SELECT anime_id, banner_image_url, display_order FROM home_hero_banners WHERE anime_id IN (${ph2})`,
+        missing
+      );
+      for (const row of heroRows) {
+        if (row.banner_image_url) map.set(row.anime_id, { image_url: row.banner_image_url, order_index: row.display_order ?? 0 });
+      }
+    }
+    return map;
+  }
+
+  async getLocalAnimeLogosMany(animeIds: number[]): Promise<Map<number, string>> {
+    const map = new Map<number, string>();
+    const ids = [...new Set(animeIds.filter(Boolean))];
+    if (!ids.length) return map;
+    const placeholders = ids.map(() => '?').join(',');
+    const rows = await this.db.fetchAll<{ anime_id: number; image_url: string }>(
+      `SELECT anime_id, image_url FROM anime_logos WHERE anime_id IN (${placeholders})`,
+      ids
+    );
+    for (const row of rows) map.set(row.anime_id, row.image_url);
+
+    const missing = ids.filter((id) => !map.has(id));
+    if (missing.length) {
+      const ph2 = missing.map(() => '?').join(',');
+      const heroRows = await this.db.fetchAll<{ anime_id: number; logo_image_url: string | null }>(
+        `SELECT anime_id, logo_image_url FROM home_hero_banners WHERE anime_id IN (${ph2})`,
+        missing
+      );
+      for (const row of heroRows) {
+        if (row.logo_image_url) map.set(row.anime_id, row.logo_image_url);
+      }
+    }
+    return map;
+  }
+
   // ── Image Source Priority (admin/anime_images.php) ───────────────────────
   // One global setting: whether the scraper's live API art (poster/cover/
   // logo, resolved via its own TMDB -> Kitsu -> AniList chain) or your
@@ -446,6 +524,13 @@ export class MalAPI {
     const empty = { poster: '', cover: '', logo: '' };
     if (!animeId) return empty;
 
+    // Warmed by prefetchAnimeArt() for list/grid contexts -- covers the
+    // common case where normalise() is called once per row in a
+    // Promise.all(map(...)) and would otherwise each independently query
+    // anime_images/anime_banners/anime_logos/home_hero_banners/settings.
+    const cached = this.artCache.get(animeId);
+    if (cached) return cached;
+
     const [priority, scraperArt, savedPoster, savedBanner, savedLogo] = await Promise.all([
       this.getImagePriority(),
       this.getScraperArt(animeId, liveFetch),
@@ -457,11 +542,49 @@ export class MalAPI {
 
     const pick = (api: string, saved: string) => (priority === 'api' ? (api || saved) : (saved || api));
 
-    return {
+    const result = {
       poster: pick(scraperArt.poster, savedPoster),
       cover: pick(scraperArt.cover, savedCover),
       logo: pick(scraperArt.logo, savedLogo),
     };
+    this.artCache.set(animeId, result);
+    return result;
+  }
+
+  // Call this with every anime_id you're about to normalise() as a batch
+  // (a search page, a season/top/upcoming grid, a genre page, a schedule
+  // day) BEFORE calling normalise() on them. It does the saved-art lookups
+  // for the whole batch in 3-4 IN(...) queries total, and warms the cache
+  // that getAnimeArt() (called internally by normalise()) checks first --
+  // so per-row calls become a cache hit instead of 5 more queries each.
+  // Ids already cached (e.g. from an earlier prefetch this request) are
+  // skipped. Scraper art is still fetched per-id (KV + a subrequest, not
+  // D1) since there's no batched endpoint for that.
+  async prefetchAnimeArt(animeIds: number[], liveFetch = true): Promise<void> {
+    const ids = [...new Set(animeIds.filter(Boolean))].filter((id) => !this.artCache.has(id));
+    if (!ids.length) return;
+
+    const [priority, posterMap, bannerMap, logoMap, scraperArts] = await Promise.all([
+      this.getImagePriority(),
+      this.getLocalAnimeImagesMany(ids),
+      this.getLocalAnimeBannerInfoMany(ids),
+      this.getLocalAnimeLogosMany(ids),
+      Promise.all(ids.map((id) => this.getScraperArt(id, liveFetch))),
+    ]);
+
+    const pick = (api: string, saved: string) => (priority === 'api' ? (api || saved) : (saved || api));
+
+    ids.forEach((id, i) => {
+      const scraperArt = scraperArts[i];
+      const savedPoster = posterMap.get(id) || '';
+      const savedCover = bannerMap.get(id)?.image_url || '';
+      const savedLogo = logoMap.get(id) || '';
+      this.artCache.set(id, {
+        poster: pick(scraperArt.poster, savedPoster),
+        cover: pick(scraperArt.cover, savedCover),
+        logo: pick(scraperArt.logo, savedLogo),
+      });
+    });
   }
 
   private async normalise(node: any, isList = false): Promise<NormalisedAnime> {
@@ -576,6 +699,7 @@ export class MalAPI {
     if (type) params.media_type = type.toLowerCase();
     if (status) params.status = status;
     const raw = await this.get('/anime', params);
+    await this.prefetchAnimeArt((raw.data ?? []).map((n: any) => Number(n.node?.id ?? 0)), false);
     const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
     return { data, pagination: { last_visible_page: Math.max(1, raw.paging?.next ? page + 5 : page), items: { total: data.length } } };
   }
@@ -721,6 +845,7 @@ export class MalAPI {
     const season = this.currentSeason();
     const offset = (page - 1) * 20;
     const raw = await this.get(`/anime/season/${year}/${season}`, { limit: 20, offset, fields: LIST_FIELDS, sort: 'anime_score', nsfw: 'false' });
+    await this.prefetchAnimeArt((raw.data ?? []).map((n: any) => Number(n.node?.id ?? 0)), false);
     const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
     return { data, pagination: { last_visible_page: raw.paging?.next ? page + 1 : page } };
   }
@@ -728,6 +853,7 @@ export class MalAPI {
   async getSeasonUpcoming(): Promise<{ data: NormalisedAnime[] }> {
     const [year, season] = this.nextSeason();
     const raw = await this.get(`/anime/season/${year}/${season}`, { limit: 20, fields: LIST_FIELDS, nsfw: 'false' });
+    await this.prefetchAnimeArt((raw.data ?? []).map((n: any) => Number(n.node?.id ?? 0)), false);
     const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
     return { data };
   }
@@ -737,6 +863,7 @@ export class MalAPI {
     const rankingType = rankingMap[filter] ?? 'bypopularity';
     const offset = (page - 1) * 25;
     const raw = await this.get('/anime/ranking', { ranking_type: rankingType, limit: 25, offset, fields: LIST_FIELDS, nsfw: 'false' });
+    await this.prefetchAnimeArt((raw.data ?? []).map((n: any) => Number(n.node?.id ?? 0)), false);
     const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
     return { data, pagination: { last_visible_page: raw.paging?.next ? page + 5 : page } };
   }
@@ -769,6 +896,11 @@ export class MalAPI {
       hasMore = !!raw.paging?.next;
       apiPage++;
 
+      // Prefetch art for the whole 100-item raw page up front -- cheaper
+      // than letting each of the ~20 items that survive the genre filter
+      // below independently trigger normalise()'s per-item queries.
+      await this.prefetchAnimeArt((raw.data ?? []).map((n: any) => Number(n.node?.id ?? 0)), false);
+
       for (const n of raw.data ?? []) {
         // Check genres straight off the raw node before normalising --
         // normalise() now resolves art via the scraper API, which isn't
@@ -796,6 +928,7 @@ export class MalAPI {
     for (let page = 1; page <= 3; page++) {
       const offset = (page - 1) * 50;
       const raw = await this.get(`/anime/season/${year}/${season}`, { limit: 50, offset, fields: LIST_FIELDS, sort: 'anime_score', nsfw: 'false' });
+      await this.prefetchAnimeArt((raw.data ?? []).map((n: any) => Number(n.node?.id ?? 0)), false);
       const batch = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
       all = all.concat(batch);
       if (!raw.paging?.next) break;
