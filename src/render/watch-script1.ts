@@ -1089,8 +1089,13 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 const pKey = s.name.toLowerCase().trim();
                 subPending++;
                 checkSourceProvider(source, s.name, 'sub', null).then(ok => {
-                    if (ok) markServerFound('sub', \`\${source}:sub::\${pKey}\`, \`\${SOURCE_LABELS[source]}-\${s.name}\`, null, source);
-                    subTaskDone();
+                    try {
+                        if (ok) markServerFound('sub', \`\${source}:sub::\${pKey}\`, \`\${SOURCE_LABELS[source]}-\${s.name}\`, null, source);
+                    } catch (e) {
+                        console.error('[AniVault player] markServerFound threw for', source, 'sub', s.name, e);
+                    } finally {
+                        subTaskDone();
+                    }
                 });
             });
             subTaskDone();
@@ -1109,33 +1114,48 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 if (bucket === 'en') {
                     dubPending++;
                     checkSourceProvider(source, s.name, 'dub', langKey).then(ok => {
-                        if (ok) markServerFound('dub', \`\${source}:dub:\${langKey}:\${pKey}\`, \`\${SOURCE_LABELS[source]}-\${s.name}\`, null, source);
-                        dubTaskDone();
+                        try {
+                            if (ok) markServerFound('dub', \`\${source}:dub:\${langKey}:\${pKey}\`, \`\${SOURCE_LABELS[source]}-\${s.name}\`, null, source);
+                        } catch (e) {
+                            console.error('[AniVault player] markServerFound threw for', source, 'dub(en)', s.name, e);
+                        } finally {
+                            dubTaskDone();
+                        }
                     });
                 } else if (bucket === 'hindi') {
                     hindiPending++;
                     checkSourceProvider(source, s.name, 'dub', langKey).then(ok => {
-                        if (ok) {
-                            const body = document.getElementById('servers-dub-hindi-body');
-                            const loading = document.getElementById('servers-dub-hindi-loading');
-                            const grp = document.getElementById('dub-hindi-group');
-                            const inserted = insertPriorityBtn(body, loading, grp, \`\${source}:dub:\${langKey}:\${pKey}\`, \`\${SOURCE_LABELS[source]}-\${s.name}\`, null, priorityOf(HINDI_PRIORITY, source));
-                            if (inserted) hindiHasAny = true;
+                        try {
+                            if (ok) {
+                                const body = document.getElementById('servers-dub-hindi-body');
+                                const loading = document.getElementById('servers-dub-hindi-loading');
+                                const grp = document.getElementById('dub-hindi-group');
+                                const inserted = insertPriorityBtn(body, loading, grp, \`\${source}:dub:\${langKey}:\${pKey}\`, \`\${SOURCE_LABELS[source]}-\${s.name}\`, null, priorityOf(HINDI_PRIORITY, source));
+                                if (inserted) hindiHasAny = true;
+                            }
+                        } catch (e) {
+                            console.error('[AniVault player] insertPriorityBtn threw for', source, 'dub(hindi)', s.name, e);
+                        } finally {
+                            hindiTaskDone();
                         }
-                        hindiTaskDone();
                     });
                 } else {
                     multiPending++;
                     checkSourceProvider(source, s.name, 'dub', langKey).then(ok => {
-                        if (ok) {
-                            const body = document.getElementById('servers-dub-multi-body');
-                            const loading = document.getElementById('servers-dub-multi-loading');
-                            const grp = document.getElementById('dub-multi-group');
-                            const label = \`\${SOURCE_LABELS[source]}-\${s.name} (\${prettyLang(s.lang)})\`;
-                            const inserted = insertPriorityBtn(body, loading, grp, \`\${source}:dub:\${langKey}:\${pKey}\`, label, prettyLang(s.lang), priorityOf(MULTI_PRIORITY, source));
-                            if (inserted) multiHasAny = true;
+                        try {
+                            if (ok) {
+                                const body = document.getElementById('servers-dub-multi-body');
+                                const loading = document.getElementById('servers-dub-multi-loading');
+                                const grp = document.getElementById('dub-multi-group');
+                                const label = \`\${SOURCE_LABELS[source]}-\${s.name} (\${prettyLang(s.lang)})\`;
+                                const inserted = insertPriorityBtn(body, loading, grp, \`\${source}:dub:\${langKey}:\${pKey}\`, label, prettyLang(s.lang), priorityOf(MULTI_PRIORITY, source));
+                                if (inserted) multiHasAny = true;
+                            }
+                        } catch (e) {
+                            console.error('[AniVault player] insertPriorityBtn threw for', source, 'dub(multi)', s.name, e);
+                        } finally {
+                            multiTaskDone();
                         }
-                        multiTaskDone();
                     });
                 }
             });
@@ -1143,6 +1163,11 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             dubTaskDone();
         });
     });
+
+    // Debug hook — lets you inspect the live pending counters from the
+    // console (they're closure-local otherwise) when a loading skeleton
+    // seems stuck. Call window._debugPending() at any time.
+    window._debugPending = () => ({ subPending, dubPending, hindiPending, multiPending, subHasAny, dubHasAny, hindiHasAny, multiHasAny, playbackStarted });
 
     // ── DesiDub Hindi Dub + raw sources ────────────────────────────────────
     // Kept entirely separate from the sub/dub autoplay bookkeeping above —
