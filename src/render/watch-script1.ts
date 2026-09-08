@@ -1032,28 +1032,53 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         return known[l] || (lang ? lang.charAt(0).toUpperCase() + lang.slice(1) : 'Dub');
     }
 
-    function fetchSourceList(source, type, attempt = 1) {
-        return fetch(\`\${SITE}/api/source_list.php?source=\${source}&anime=\${ANIME}&ep=\${EP}&type=\${type}\`)
+    // Plain fetch() has no timeout: if the scraper backend hangs on one
+    // particular source (cold start, a broken upstream host, etc.) instead
+    // of erroring, that fetch's promise never settles — and since every
+    // pending counter above only decrements from inside a .then(), a single
+    // hung request permanently blocks that bucket's loading skeleton from
+    // ever being removed, even after every other source has already found
+    // and displayed servers. Force a hard ceiling so "never responds" is
+    // treated the same as "responded with an error".
+    function fetchJsonTimeout(url, ms = 12000) {
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(), ms);
+        return fetch(url, { signal: controller.signal })
             .then(r => r.json())
+            .finally(() => clearTimeout(timer));
+    }
+    function fetchSourceList(source, type, attempt = 1) {
+        return fetchJsonTimeout(\`\${SITE}/api/source_list.php?source=\${source}&anime=\${ANIME}&ep=\${EP}&type=\${type}\`)
             .then(d => { console.log('[AniVault player]', source, 'list', type, 'attempt', attempt, d); return d.servers || []; })
-            .catch(e => { console.error('[AniVault player]', source, 'list fetch threw', type, e); return []; })
+            .catch(e => { console.error('[AniVault player]', source, 'list fetch failed/timed out', type, e); return []; })
             .then(list => {
                 if (list.length > 0 || attempt >= 3) return list;
                 return new Promise(res => setTimeout(res, attempt * 1500)).then(() => fetchSourceList(source, type, attempt + 1));
             });
     }
-    function checkSourceProvider(source, providerName, type, lang) {
+    function checkSourceProvider(source, providerName, type, lang, attempt = 1) {
         let url = \`\${SITE}/api/source_stream.php?source=\${source}&anime=\${ANIME}&ep=\${EP}&type=\${type}&server=\${encodeURIComponent(providerName)}\`;
         if (lang) url += \`&lang=\${encodeURIComponent(lang)}\`;
-        return fetch(url).then(r => r.json()).then(d => {
+        // 25s, not 12s — this is resolving an actual embed (sometimes a
+        // cold Railway function, sometimes a slow host), not just listing
+        // servers, and a couple of these are legitimately slow rather than
+        // hung. One retry on top of that so a single flaky attempt doesn't
+        // permanently hide a server that works fine a moment later.
+        return fetchJsonTimeout(url, 25000).then(d => {
             const ok = !d.error && !!(d.m3u8 || d.mp4 || d.iframeOnly);
-            console.log('[AniVault player]', source, providerName, type, lang || '', ok ? 'OK' : 'FAILED', d);
+            console.log('[AniVault player]', source, providerName, type, lang || '', 'attempt', attempt, ok ? 'OK' : 'FAILED', d);
             if (ok) {
                 window._genericSourceCache = window._genericSourceCache || {};
                 window._genericSourceCache[[source, type, lang || '', providerName.toLowerCase().trim()].join('::')] = { data: d, ts: Date.now() };
+                return true;
             }
-            return ok;
-        }).catch(() => false);
+            if (attempt >= 2) return false;
+            return checkSourceProvider(source, providerName, type, lang, attempt + 1);
+        }).catch(e => {
+            console.error('[AniVault player]', source, providerName, type, lang || '', 'attempt', attempt, 'threw/timed out', e);
+            if (attempt >= 2) return false;
+            return checkSourceProvider(source, providerName, type, lang, attempt + 1);
+        });
     }
 
     MULTI_SOURCES.forEach(function(source) {
