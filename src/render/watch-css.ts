@@ -353,6 +353,23 @@ export const WATCH_CSS = `/* ═════════════════
 .server-btn[data-server^="desidub:"]::before { background:#f97316; box-shadow:0 0 5px rgba(249,115,22,.6); }
 .server-btn[data-server^="desidub:"].active { background:rgba(249,115,22,.14); border-color:rgba(249,115,22,.55); color:#f97316; box-shadow:0 0 16px rgba(249,115,22,.2),inset 0 1px 0 rgba(249,115,22,.12); }
 
+/* ReAnime / AnimeNoSub / AniWaves / AniZone / WatchAnimeWorld — the 5
+   sources added once the scraper backend had all 8 providers working. Each
+   gets its own accent color, same active/hover treatment as the originals. */
+.server-btn[data-server^="reanime:"]::before          { background:#38bdf8; box-shadow:0 0 5px rgba(56,189,248,.6); }
+.server-btn[data-server^="reanime:"].active           { background:rgba(56,189,248,.14); border-color:rgba(56,189,248,.55); color:#38bdf8; box-shadow:0 0 16px rgba(56,189,248,.2),inset 0 1px 0 rgba(56,189,248,.12); }
+.server-btn[data-server^="animenosub:"]::before       { background:#facc15; box-shadow:0 0 5px rgba(250,204,21,.6); }
+.server-btn[data-server^="animenosub:"].active        { background:rgba(250,204,21,.14); border-color:rgba(250,204,21,.55); color:#facc15; box-shadow:0 0 16px rgba(250,204,21,.2),inset 0 1px 0 rgba(250,204,21,.12); }
+.server-btn[data-server^="aniwaves:"]::before         { background:#f472b6; box-shadow:0 0 5px rgba(244,114,182,.6); }
+.server-btn[data-server^="aniwaves:"].active          { background:rgba(244,114,182,.14); border-color:rgba(244,114,182,.55); color:#f472b6; box-shadow:0 0 16px rgba(244,114,182,.2),inset 0 1px 0 rgba(244,114,182,.12); }
+.server-btn[data-server^="anizone:"]::before          { background:#818cf8; box-shadow:0 0 5px rgba(129,140,248,.6); }
+.server-btn[data-server^="anizone:"].active           { background:rgba(129,140,248,.14); border-color:rgba(129,140,248,.55); color:#818cf8; box-shadow:0 0 16px rgba(129,140,248,.2),inset 0 1px 0 rgba(129,140,248,.12); }
+.server-btn[data-server^="watchanimeworld:"]::before  { background:#2dd4bf; box-shadow:0 0 5px rgba(45,212,191,.6); }
+.server-btn[data-server^="watchanimeworld:"].active   { background:rgba(45,212,191,.14); border-color:rgba(45,212,191,.55); color:#2dd4bf; box-shadow:0 0 16px rgba(45,212,191,.2),inset 0 1px 0 rgba(45,212,191,.12); }
+
+/* Multi Dub group — same nested-group treatment as Hindi Dub above it. */
+#dub-multi-group { border-top: 1px dashed rgba(255,255,255,.08); }
+
 .server-group {
   flex-basis: 100%;
   display: flex;

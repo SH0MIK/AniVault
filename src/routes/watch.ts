@@ -425,6 +425,15 @@ export function renderWatchBody(p: WatchBodyParams): string {
                     </div>
                   </div>
                 </div>
+                <div class="server-group" id="dub-multi-group" style="display:none">
+                  <div class="server-group-label">Multi Dub</div>
+                  <div class="server-group-body" id="servers-dub-multi-body">
+                    <div class="server-skel-group" id="servers-dub-multi-loading">
+                      <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:64px"></span></span>
+                      <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:50px"></span></span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

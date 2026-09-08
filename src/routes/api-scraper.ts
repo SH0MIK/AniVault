@@ -135,6 +135,87 @@ scraperRoutes.get('/api/desidub_stream.php', async (c) => {
   return c.json({ error: 'No stream URL in response' });
 });
 
+// ── api/source_list.php + api/source_stream.php ─────────────────────────────
+// Generic pair covering the 5 sources added alongside AnimeHeaven/Anikoto/
+// DesiDub once the scraper backend had all 8 providers working: ReAnime,
+// AnimeNoSub, AniWaves, AniZone, and WatchAnimeWorld. Unlike those first
+// three (which each got a bespoke *_stream.php early on, before the scraper
+// settled on one consistent response shape per source), these five all come
+// back from the scraper's /watch/:source/:id/:ep/:type route using the same
+// field names (m3u8/hlsProxyUrl, mp4/mp4ProxyUrl, embedUrl, iframeOnly,
+// subtitles, qualities) — so one generic proxy pair handles all of them
+// instead of five near-identical copy-pasted handlers.
+//
+// AniZone and WatchAnimeWorld are the two multi-dub-language sources (see
+// dub-status.ts / the watch page's Sub / Dub / Hindi Dub / Multi Dub split):
+// a single `type=dub` fetch on either can return English, Hindi, Tamil,
+// Telugu, Spanish, etc. all mixed together, distinguished only by each
+// server's `lang` field. source_list.php passes that field through so the
+// client can bucket servers by language; source_stream.php forwards an
+// optional `lang` back to the scraper (which now supports it — see
+// routes.ts's `preferredLang` filter) so picking a specific-language server
+// by name can't accidentally resolve a same-named server in the wrong
+// language.
+const MULTI_SOURCES = ['reanime', 'animenosub', 'aniwaves', 'anizone', 'watchanimeworld'] as const;
+type MultiSource = typeof MULTI_SOURCES[number];
+
+scraperRoutes.get('/api/source_list.php', async (c) => {
+  const source = (c.req.query('source') ?? '').trim() as MultiSource;
+  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
+  const type = ['sub', 'dub', 'raw', 'all'].includes(c.req.query('type') ?? '') ? c.req.query('type')! : 'dub';
+  if (!MULTI_SOURCES.includes(source)) return c.json({ error: `source must be one of: ${MULTI_SOURCES.join(', ')}` }, 400);
+  if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
+  const base = getScraperBase(c.env);
+  if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
+
+  const listUrl = `${base}/api/servers?malId=${animeId}&ep=${epNum}&type=${type}&source=${source}`;
+  const { ok, code, data } = await fetchJson(listUrl, 20000);
+  if (!ok) return c.json({ error: data?.error ?? `${source} list failed HTTP ${code}` });
+
+  const servers = (data?.servers ?? []).map((s: any) => ({
+    name: s.name,
+    type: s.type,
+    lang: String(s.lang ?? '').toLowerCase(),
+  }));
+  return c.json({ servers });
+});
+
+scraperRoutes.get('/api/source_stream.php', async (c) => {
+  const source = (c.req.query('source') ?? '').trim() as MultiSource;
+  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
+  const type = ['sub', 'dub', 'raw'].includes(c.req.query('type') ?? '') ? c.req.query('type')! : 'dub';
+  const server = (c.req.query('server') ?? '').trim();
+  const lang = (c.req.query('lang') ?? '').trim();
+  if (!MULTI_SOURCES.includes(source)) return c.json({ error: `source must be one of: ${MULTI_SOURCES.join(', ')}` }, 400);
+  if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
+  const base = getScraperBase(c.env);
+  if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
+
+  let watchUrl = `${base}/api/watch/${source}/mal-${animeId}/${epNum}/${type}`;
+  const params: string[] = [];
+  if (server !== '') params.push(`server=${encodeURIComponent(server)}`);
+  if (lang !== '') params.push(`lang=${encodeURIComponent(lang)}`);
+  if (params.length) watchUrl += `?${params.join('&')}`;
+
+  const { ok, code, data } = await fetchJson(watchUrl, 20000);
+  if (!ok) return c.json({ error: data?.error ?? `${source} fetch failed HTTP ${code}` });
+
+  if (data?.iframeOnly) return c.json({ embedUrl: data.embedUrl ?? '', iframeOnly: true, server: data.server ?? server, source });
+
+  const m3u8 = data?.hlsProxyUrl ?? data?.m3u8 ?? null;
+  const mp4 = data?.mp4ProxyUrl ?? data?.mp4 ?? null;
+  // Highest-quality-first (already sorted by the scraper's sortQualitiesDesc)
+  // — [0] is the "top quality as top priority" default the player should
+  // load, the rest stay available for a manual quality switch.
+  const qualities = Array.isArray(data?.qualities) ? data.qualities : [];
+
+  if (m3u8) return c.json({ m3u8, server: data.server ?? server, source, subtitles: data.subtitles ?? [], qualities });
+  if (mp4) return c.json({ mp4, server: data.server ?? server, source, qualities });
+  return c.json({ error: 'No stream URL in response' });
+});
+
 // ── api/server_check.php ───────────────────────────────────────────────────
 const ERROR_PHRASES = ['episode not found', 'video not found', '404 not found', 'page not found', 'no video found', 'no sources found', 'no servers found', 'this episode is not available', 'something went wrong'];
 
