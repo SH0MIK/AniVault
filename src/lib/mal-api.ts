@@ -84,6 +84,23 @@ export class MalAPI {
     }
   }
 
+  // Same reasoning as safeKvPut, mirrored for reads: KV's daily get() quota
+  // (100,000/day on the free tier) is just as easy to blow through as the
+  // put() quota was, and get() throws on that exactly like put() does. That
+  // throw was unhandled everywhere below — see incident: "KV get() limit
+  // exceeded for the day" crashing GET /. A cache read is never worth
+  // failing the response over either; treat it as a miss and fall through
+  // to a live fetch instead.
+  private async safeKvGet<T = any>(key: string, type: 'json' = 'json'): Promise<T | null> {
+    if (!this.kv) return null;
+    try {
+      return (await this.kv.get(key, type)) as T | null;
+    } catch (err: any) {
+      console.warn('[mal-api] KV get failed (treating as cache miss):', key, '-', String(err?.message ?? err));
+      return null;
+    }
+  }
+
   private cacheEnabled(): boolean {
     return (this.env.API_CACHE_ENABLED ?? '1') === '1';
   }
@@ -96,7 +113,7 @@ export class MalAPI {
 
     if (this.kv && this.cacheEnabled()) {
       const cacheKey = 'mal_' + (await sha1(url));
-      const cached = await this.kv.get(cacheKey, 'json');
+      const cached = await this.safeKvGet(cacheKey, 'json');
       if (cached) return cached;
 
       const res = await fetch(url, { headers: { 'X-MAL-CLIENT-ID': this.env.MAL_CLIENT_ID ?? '', Accept: 'application/json' } });
@@ -114,7 +131,7 @@ export class MalAPI {
   async jikanGet(url: string): Promise<any> {
     if (this.kv && this.cacheEnabled()) {
       const cacheKey = 'jikan_' + (await sha1(url));
-      const cached = await this.kv.get(cacheKey, 'json') as any;
+      const cached = await this.safeKvGet(cacheKey, 'json') as any;
       if (cached && cached.data !== undefined) return cached;
     }
 
@@ -152,7 +169,7 @@ export class MalAPI {
   async getAniListSeasonNow(): Promise<{ data: NormalisedAnime[] }> {
     const cacheKey = this.seasonCacheKey();
     if (this.kv && this.cacheEnabled()) {
-      const cached = await this.kv.get(cacheKey, 'json') as { data: NormalisedAnime[] } | null;
+      const cached = await this.safeKvGet(cacheKey, 'json') as { data: NormalisedAnime[] } | null;
       if (cached) return cached;
     }
 
@@ -430,7 +447,7 @@ export class MalAPI {
 
     const cacheKey = `scraper_art_${malId}`;
     if (this.kv && this.cacheEnabled()) {
-      const cached = await this.kv.get(cacheKey, 'json') as typeof empty | null;
+      const cached = await this.safeKvGet(cacheKey, 'json') as typeof empty | null;
       if (cached) return cached;
 
       // Migration fallback: this key used to be split into `_full`/`_list`
@@ -453,9 +470,9 @@ export class MalAPI {
       // data right now. Ignore an empty legacy entry and fall through to a
       // live fetch instead (still gated by liveFetch below, same as a
       // normal cache miss).
-      let legacy = await this.kv.get(`scraper_art_${malId}_full`, 'json') as typeof empty | null;
+      let legacy = await this.safeKvGet(`scraper_art_${malId}_full`, 'json') as typeof empty | null;
       if (!legacy || !(legacy.poster || legacy.cover || legacy.logo)) {
-        legacy = await this.kv.get(`scraper_art_${malId}_list`, 'json') as typeof empty | null;
+        legacy = await this.safeKvGet(`scraper_art_${malId}_list`, 'json') as typeof empty | null;
       }
       if (legacy && (legacy.poster || legacy.cover || legacy.logo)) {
         await this.safeKvPut(cacheKey, JSON.stringify(legacy), { expirationTtl: 604800 });
