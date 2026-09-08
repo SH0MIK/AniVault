@@ -1032,18 +1032,8 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         return known[l] || (lang ? lang.charAt(0).toUpperCase() + lang.slice(1) : 'Dub');
     }
 
-    // Wraps fetch with a hard timeout via AbortController. Without this, a
-    // single slow/stuck provider on the scraper (e.g. one blocking the whole
-    // process) leaves the caller's promise pending forever, which is exactly
-    // what makes a stalled server show "just a loader" with no way out.
-    function fetchWithTimeout(url, timeoutMs) {
-        const controller = new AbortController();
-        const timer = setTimeout(() => controller.abort(), timeoutMs);
-        return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
-    }
-
     function fetchSourceList(source, type, attempt = 1) {
-        return fetchWithTimeout(\`\${SITE}/api/source_list.php?source=\${source}&anime=\${ANIME}&ep=\${EP}&type=\${type}\`, 15000)
+        return fetch(\`\${SITE}/api/source_list.php?source=\${source}&anime=\${ANIME}&ep=\${EP}&type=\${type}\`)
             .then(r => r.json())
             .then(d => { console.log('[AniVault player]', source, 'list', type, 'attempt', attempt, d); return d.servers || []; })
             .catch(e => { console.error('[AniVault player]', source, 'list fetch threw', type, e); return []; })
@@ -1055,7 +1045,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     function checkSourceProvider(source, providerName, type, lang) {
         let url = \`\${SITE}/api/source_stream.php?source=\${source}&anime=\${ANIME}&ep=\${EP}&type=\${type}&server=\${encodeURIComponent(providerName)}\`;
         if (lang) url += \`&lang=\${encodeURIComponent(lang)}\`;
-        return fetchWithTimeout(url, 15000).then(r => r.json()).then(d => {
+        return fetch(url).then(r => r.json()).then(d => {
             const ok = !d.error && !!(d.m3u8 || d.mp4 || d.iframeOnly);
             console.log('[AniVault player]', source, providerName, type, lang || '', ok ? 'OK' : 'FAILED', d);
             if (ok) {
@@ -1063,7 +1053,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 window._genericSourceCache[[source, type, lang || '', providerName.toLowerCase().trim()].join('::')] = { data: d, ts: Date.now() };
             }
             return ok;
-        }).catch(e => { console.warn('[AniVault player]', source, providerName, type, lang || '', 'fetch failed/timed out', e); return false; });
+        }).catch(() => false);
     }
 
     MULTI_SOURCES.forEach(function(source) {
