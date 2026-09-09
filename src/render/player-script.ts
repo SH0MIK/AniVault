@@ -437,9 +437,19 @@ function applyVolume(vol, muted, isAutoFallback) {
   // that doesn't explicitly pass isAutoFallback=true (i.e. every real
   // user interaction) clears the tag.
   vid.dataset.autoMuted = (muted && isAutoFallback) ? '1' : '';
-  settings.volume = vol;
-  settings.muted = muted;
-  saveSettings();
+
+  // Only persist real, deliberate choices. A mute forced by a blocked
+  // autoplay attempt is not something the user asked for — saving it
+  // here previously meant every autoplay-block permanently wrote
+  // muted:true to localStorage, silently overriding the user's next
+  // manual unmute the moment the next switch also got autoplay-blocked
+  // (which is most of them, since a switch's play() call happens after
+  // an async fetch and often no longer counts as a fresh user gesture).
+  if (!isAutoFallback) {
+    settings.volume = vol;
+    settings.muted = muted;
+    saveSettings();
+  }
 
   if (volSlider) volSlider.value = muted ? 0 : Math.round(vol * 100);
   const isZero = muted || vol === 0;
