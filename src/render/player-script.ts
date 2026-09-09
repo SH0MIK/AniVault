@@ -427,9 +427,16 @@ function updateBands() {
 }
 
 /* Volume Controls */
-function applyVolume(vol, muted) {
+function applyVolume(vol, muted, isAutoFallback) {
   vid.volume = vol;
   vid.muted = muted;
+  // Tags a mute that was forced by the autoplay-blocked fallback (as
+  // opposed to one the user actually chose via the mute button/slider/
+  // keyboard) so a server switch can safely clear it — see
+  // stopCurrentVideo() in watch-script1.ts. Any call to applyVolume()
+  // that doesn't explicitly pass isAutoFallback=true (i.e. every real
+  // user interaction) clears the tag.
+  vid.dataset.autoMuted = (muted && isAutoFallback) ? '1' : '';
   settings.volume = vol;
   settings.muted = muted;
   saveSettings();
@@ -1117,7 +1124,7 @@ function loadHLS(m3u8Url) {
       if (spinner) spinner.classList.add('hide');
       buildQualityMenu();
       if (settings.autoplay) {
-        vid.play().catch(() => { applyVolume(vid.volume, true); vid.play().catch(() => {}); });
+        vid.play().catch(() => { applyVolume(vid.volume, true, true); vid.play().catch(() => {}); });
       }
     });
 
@@ -1190,7 +1197,7 @@ window.SenshiPlayer = {
         const p = vid.play();
         if (p && p.catch) {
           p.catch(() => {
-            applyVolume(vid.volume, true);
+            applyVolume(vid.volume, true, true);
             vid.play().catch(() => {});
           });
         }
@@ -1235,7 +1242,7 @@ window.SenshiPlayer = {
         const p = vid.play();
         if (p && p.catch) {
           p.catch(() => {
-            applyVolume(vid.volume, true);
+            applyVolume(vid.volume, true, true);
             vid.play().catch(() => {});
           });
         }
