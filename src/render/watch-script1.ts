@@ -750,9 +750,11 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     });
 });
 
-// ── Probe every server live and only show ones that actually work ───────
-// Hits the real stream endpoints for this anime/episode (not just a
-// provider listing) so broken/404 servers never show up as clickable.
+// ── Probe every server live (buttons are pre-shown) ─────────────────────
+// All known server buttons are shown up-front. Each source is searched
+// individually in the background (even before the user clicks). If a
+// server has no stream for this anime/ep, the button stays and the load
+// path can fall back to another streaming URL instead of showing an error.
 (function probeAndRenderServers() {
     // The server tab panels only exist for logged-in users with a video
     // (see the Auth::check() && ($video || $megaplayEmbed) guard above).
@@ -926,6 +928,13 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         }
     }
 
+    // Pre-show default buttons immediately (anizone first as requested).
+    // Individual search still runs below; if a source has no stream the
+    // button stays and load path can fall back to another URL.
+    markServerFound('sub', 'anizone:sub::default', 'Zone', null, 'anizone');
+    markServerFound('dub', 'anizone:dub::default', 'Zone', null, 'anizone');
+    markServerFound('sub', 'animeheaven', 'Eden', null, 'animeheaven');
+
     function subTaskDone() {
         subPending--;
         if (subPending === 0) {
@@ -979,14 +988,26 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         animedunya:   'Dune',
     };
 
-    checkAnimeHeaven('sub').then(ok => { if (ok) markServerFound('sub', 'animeheaven', SERVER_NAMES.animeheaven, null, 'animeheaven'); subTaskDone(); });
+    // Always show buttons (pre-existing). Search runs in background; if a
+    // server has no stream we still keep the button and fall back later on
+    // click / autoplay instead of hiding it.
+    checkAnimeHeaven('sub').then(ok => {
+        markServerFound('sub', 'animeheaven', SERVER_NAMES.animeheaven, null, 'animeheaven');
+        subTaskDone();
+    });
 
     fetchAnikotoList('sub').then(list => {
+        if (!list || list.length === 0) {
+            // No providers returned — still show a default Anikoto button
+            markServerFound('sub', 'anikoto-default', 'AK-Default', null, 'anikoto');
+            subTaskDone();
+            return;
+        }
         list.map(s => s.name).forEach(p => {
             const pKey = p.toLowerCase().trim();
             subPending++;
             checkAnikotoProvider(p, 'sub').then(ok => {
-                if (ok) markServerFound('sub', \`anikoto-\${pKey}\`, SERVER_NAMES[pKey] ?? ('AK-' + (pKey.charAt(0).toUpperCase() + pKey.slice(1))), null, 'anikoto');
+                markServerFound('sub', \`anikoto-\${pKey}\`, SERVER_NAMES[pKey] ?? ('AK-' + (pKey.charAt(0).toUpperCase() + pKey.slice(1))), null, 'anikoto');
                 subTaskDone();
             });
         });
@@ -994,11 +1015,16 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     });
 
     fetchAnikotoList('dub').then(list => {
+        if (!list || list.length === 0) {
+            markServerFound('dub', 'anikoto-default', 'AK-Default', null, 'anikoto');
+            dubTaskDone();
+            return;
+        }
         list.map(s => s.name).forEach(p => {
             const pKey = p.toLowerCase().trim();
             dubPending++;
             checkAnikotoProvider(p, 'dub').then(ok => {
-                if (ok) markServerFound('dub', \`anikoto-\${pKey}\`, SERVER_NAMES[pKey] ?? ('AK-' + (pKey.charAt(0).toUpperCase() + pKey.slice(1))), null, 'anikoto');
+                markServerFound('dub', \`anikoto-\${pKey}\`, SERVER_NAMES[pKey] ?? ('AK-' + (pKey.charAt(0).toUpperCase() + pKey.slice(1))), null, 'anikoto');
                 dubTaskDone();
             });
         });
@@ -1123,7 +1149,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             subPending++;
             checkReanimeProvider(s.name, 'sub').then(ok => {
                 try {
-                    if (ok) markServerFound('sub', \`reanime:sub::\${pKey}\`, \`ReAnime-\${s.name}\`, null, 'reanime');
+                    markServerFound('sub', \`reanime:sub::\${pKey}\`, \`ReAnime-\${s.name}\`, null, 'reanime');
                 } catch (e) {
                     console.error('[AniVault player] markServerFound threw for reanime sub', s.name, e);
                 } finally {
@@ -1140,7 +1166,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             dubPending++;
             checkReanimeProvider(s.name, 'dub').then(ok => {
                 try {
-                    if (ok) markServerFound('dub', \`reanime:dub::\${pKey}\`, \`ReAnime-\${s.name}\`, null, 'reanime');
+                    markServerFound('dub', \`reanime:dub::\${pKey}\`, \`ReAnime-\${s.name}\`, null, 'reanime');
                 } catch (e) {
                     console.error('[AniVault player] markServerFound threw for reanime dub', s.name, e);
                 } finally {
@@ -1186,7 +1212,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             subPending++;
             checkAnimenosubProvider(s.name, 'sub').then(ok => {
                 try {
-                    if (ok) markServerFound('sub', \`animenosub:sub::\${pKey}\`, \`NoSub-\${s.name}\`, null, 'animenosub');
+                    markServerFound('sub', \`animenosub:sub::\${pKey}\`, \`NoSub-\${s.name}\`, null, 'animenosub');
                 } catch (e) {
                     console.error('[AniVault player] markServerFound threw for animenosub sub', s.name, e);
                 } finally {
@@ -1203,7 +1229,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             dubPending++;
             checkAnimenosubProvider(s.name, 'dub').then(ok => {
                 try {
-                    if (ok) markServerFound('dub', \`animenosub:dub::\${pKey}\`, \`NoSub-\${s.name}\`, null, 'animenosub');
+                    markServerFound('dub', \`animenosub:dub::\${pKey}\`, \`NoSub-\${s.name}\`, null, 'animenosub');
                 } catch (e) {
                     console.error('[AniVault player] markServerFound threw for animenosub dub', s.name, e);
                 } finally {
@@ -1249,7 +1275,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             subPending++;
             checkAniwavesProvider(s.name, 'sub').then(ok => {
                 try {
-                    if (ok) markServerFound('sub', \`aniwaves:sub::\${pKey}\`, \`Waves-\${s.name}\`, null, 'aniwaves');
+                    markServerFound('sub', \`aniwaves:sub::\${pKey}\`, \`Waves-\${s.name}\`, null, 'aniwaves');
                 } catch (e) {
                     console.error('[AniVault player] markServerFound threw for aniwaves sub', s.name, e);
                 } finally {
@@ -1266,7 +1292,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             dubPending++;
             checkAniwavesProvider(s.name, 'dub').then(ok => {
                 try {
-                    if (ok) markServerFound('dub', \`aniwaves:dub::\${pKey}\`, \`Waves-\${s.name}\`, null, 'aniwaves');
+                    markServerFound('dub', \`aniwaves:dub::\${pKey}\`, \`Waves-\${s.name}\`, null, 'aniwaves');
                 } catch (e) {
                     console.error('[AniVault player] markServerFound threw for aniwaves dub', s.name, e);
                 } finally {
@@ -1316,7 +1342,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             subPending++;
             checkAnizoneProvider(s.name, 'sub', null).then(ok => {
                 try {
-                    if (ok) markServerFound('sub', \`anizone:sub::\${pKey}\`, \`Zone-\${s.name}\`, null, 'anizone');
+                    markServerFound('sub', \`anizone:sub::\${pKey}\`, \`Zone-\${s.name}\`, null, 'anizone');
                 } catch (e) {
                     console.error('[AniVault player] markServerFound threw for anizone sub', s.name, e);
                 } finally {
@@ -1338,7 +1364,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 dubPending++;
                 checkAnizoneProvider(s.name, 'dub', langKey).then(ok => {
                     try {
-                        if (ok) markServerFound('dub', \`anizone:dub:\${langKey}:\${pKey}\`, \`Zone-\${s.name}\`, null, 'anizone');
+                        markServerFound('dub', \`anizone:dub:\${langKey}:\${pKey}\`, \`Zone-\${s.name}\`, null, 'anizone');
                     } catch (e) {
                         console.error('[AniVault player] markServerFound threw for anizone dub(en)', s.name, e);
                     } finally {
@@ -1349,13 +1375,11 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 hindiPending++;
                 checkAnizoneProvider(s.name, 'dub', langKey).then(ok => {
                     try {
-                        if (ok) {
-                            const body = document.getElementById('servers-dub-hindi-body');
-                            const loading = document.getElementById('servers-dub-hindi-loading');
-                            const grp = document.getElementById('dub-hindi-group');
-                            const inserted = insertPriorityBtn(body, loading, grp, \`anizone:dub:\${langKey}:\${pKey}\`, \`Zone-\${s.name}\`, null, priorityOf(HINDI_PRIORITY, 'anizone'));
-                            if (inserted) hindiHasAny = true;
-                        }
+                        const body = document.getElementById('servers-dub-hindi-body');
+                        const loading = document.getElementById('servers-dub-hindi-loading');
+                        const grp = document.getElementById('dub-hindi-group');
+                        const inserted = insertPriorityBtn(body, loading, grp, \`anizone:dub:\${langKey}:\${pKey}\`, \`Zone-\${s.name}\`, null, priorityOf(HINDI_PRIORITY, 'anizone'));
+                        if (inserted) hindiHasAny = true;
                     } catch (e) {
                         console.error('[AniVault player] insertPriorityBtn threw for anizone dub(hindi)', s.name, e);
                     } finally {
@@ -1366,14 +1390,12 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 multiPending++;
                 checkAnizoneProvider(s.name, 'dub', langKey).then(ok => {
                     try {
-                        if (ok) {
-                            const body = document.getElementById('servers-dub-multi-body');
-                            const loading = document.getElementById('servers-dub-multi-loading');
-                            const grp = document.getElementById('dub-multi-group');
-                            const label = \`Zone-\${s.name} (\${prettyLang(s.lang)})\`;
-                            const inserted = insertPriorityBtn(body, loading, grp, \`anizone:dub:\${langKey}:\${pKey}\`, label, prettyLang(s.lang), priorityOf(MULTI_PRIORITY, 'anizone'));
-                            if (inserted) multiHasAny = true;
-                        }
+                        const body = document.getElementById('servers-dub-multi-body');
+                        const loading = document.getElementById('servers-dub-multi-loading');
+                        const grp = document.getElementById('dub-multi-group');
+                        const label = \`Zone-\${s.name} (\${prettyLang(s.lang)})\`;
+                        const inserted = insertPriorityBtn(body, loading, grp, \`anizone:dub:\${langKey}:\${pKey}\`, label, prettyLang(s.lang), priorityOf(MULTI_PRIORITY, 'anizone'));
+                        if (inserted) multiHasAny = true;
                     } catch (e) {
                         console.error('[AniVault player] insertPriorityBtn threw for anizone dub(multi)', s.name, e);
                     } finally {
@@ -1425,7 +1447,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             subPending++;
             checkWatchAnimeWorldProvider(s.name, 'sub', null).then(ok => {
                 try {
-                    if (ok) markServerFound('sub', \`watchanimeworld:sub::\${pKey}\`, \`World-\${s.name}\`, null, 'watchanimeworld');
+                    markServerFound('sub', \`watchanimeworld:sub::\${pKey}\`, \`World-\${s.name}\`, null, 'watchanimeworld');
                 } catch (e) {
                     console.error('[AniVault player] markServerFound threw for watchanimeworld sub', s.name, e);
                 } finally {
@@ -1447,7 +1469,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 dubPending++;
                 checkWatchAnimeWorldProvider(s.name, 'dub', langKey).then(ok => {
                     try {
-                        if (ok) markServerFound('dub', \`watchanimeworld:dub:\${langKey}:\${pKey}\`, \`World-\${s.name}\`, null, 'watchanimeworld');
+                        markServerFound('dub', \`watchanimeworld:dub:\${langKey}:\${pKey}\`, \`World-\${s.name}\`, null, 'watchanimeworld');
                     } catch (e) {
                         console.error('[AniVault player] markServerFound threw for watchanimeworld dub(en)', s.name, e);
                     } finally {
@@ -1458,13 +1480,11 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 hindiPending++;
                 checkWatchAnimeWorldProvider(s.name, 'dub', langKey).then(ok => {
                     try {
-                        if (ok) {
-                            const body = document.getElementById('servers-dub-hindi-body');
-                            const loading = document.getElementById('servers-dub-hindi-loading');
-                            const grp = document.getElementById('dub-hindi-group');
-                            const inserted = insertPriorityBtn(body, loading, grp, \`watchanimeworld:dub:\${langKey}:\${pKey}\`, \`World-\${s.name}\`, null, priorityOf(HINDI_PRIORITY, 'watchanimeworld'));
-                            if (inserted) hindiHasAny = true;
-                        }
+                        const body = document.getElementById('servers-dub-hindi-body');
+                        const loading = document.getElementById('servers-dub-hindi-loading');
+                        const grp = document.getElementById('dub-hindi-group');
+                        const inserted = insertPriorityBtn(body, loading, grp, \`watchanimeworld:dub:\${langKey}:\${pKey}\`, \`World-\${s.name}\`, null, priorityOf(HINDI_PRIORITY, 'watchanimeworld'));
+                        if (inserted) hindiHasAny = true;
                     } catch (e) {
                         console.error('[AniVault player] insertPriorityBtn threw for watchanimeworld dub(hindi)', s.name, e);
                     } finally {
@@ -1475,14 +1495,12 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 multiPending++;
                 checkWatchAnimeWorldProvider(s.name, 'dub', langKey).then(ok => {
                     try {
-                        if (ok) {
-                            const body = document.getElementById('servers-dub-multi-body');
-                            const loading = document.getElementById('servers-dub-multi-loading');
-                            const grp = document.getElementById('dub-multi-group');
-                            const label = \`World-\${s.name} (\${prettyLang(s.lang)})\`;
-                            const inserted = insertPriorityBtn(body, loading, grp, \`watchanimeworld:dub:\${langKey}:\${pKey}\`, label, prettyLang(s.lang), priorityOf(MULTI_PRIORITY, 'watchanimeworld'));
-                            if (inserted) multiHasAny = true;
-                        }
+                        const body = document.getElementById('servers-dub-multi-body');
+                        const loading = document.getElementById('servers-dub-multi-loading');
+                        const grp = document.getElementById('dub-multi-group');
+                        const label = \`World-\${s.name} (\${prettyLang(s.lang)})\`;
+                        const inserted = insertPriorityBtn(body, loading, grp, \`watchanimeworld:dub:\${langKey}:\${pKey}\`, label, prettyLang(s.lang), priorityOf(MULTI_PRIORITY, 'watchanimeworld'));
+                        if (inserted) multiHasAny = true;
                     } catch (e) {
                         console.error('[AniVault player] insertPriorityBtn threw for watchanimeworld dub(multi)', s.name, e);
                     } finally {
@@ -1569,10 +1587,9 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             list.forEach(s => {
                 hindiPending++;
                 checkDesidubProvider(s.name, realType).then(ok => {
-                    if (ok) {
-                        const badge = realType === 'raw' ? 'Embed' : null;
-                        insertDesidubBtn('desidub:' + realType + ':' + s.name, s.name, badge, desidubInternalRank(s.name, realType));
-                    }
+                    // Always show Hindi Dub buttons (pre-existing). Fallback on load if needed.
+                    const badge = realType === 'raw' ? 'Embed' : null;
+                    insertDesidubBtn('desidub:' + realType + ':' + s.name, s.name, badge, desidubInternalRank(s.name, realType));
                     hindiTaskDone();
                 });
             });
