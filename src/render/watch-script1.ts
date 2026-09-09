@@ -1022,7 +1022,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         }
     }
 
-    const MULTI_SOURCES = ['reanime', 'animenosub', 'aniwaves', 'anizone', 'watchanimeworld'];
+    const MULTI_SOURCES = ['anizone', 'watchanimeworld'];
     const MULTI_LANG_SOURCES = ['anizone', 'watchanimeworld']; // these carry >1 dub language
     const SOURCE_LABELS = { reanime: 'ReAnime', animenosub: 'NoSub', aniwaves: 'Waves', anizone: 'Zone', watchanimeworld: 'World' };
 
@@ -1086,6 +1086,51 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             return checkSourceProvider(source, providerName, type, lang, attempt + 1);
         });
     }
+
+    // ── ReAnime / AnimeNoSub / AniWaves ────────────────────────────────────
+    // English-dub-only sources — no language bucketing needed, so these run
+    // as flat, isolated blocks exactly like AnimeHeaven/Anikoto above,
+    // rather than through the AniZone/WatchAnimeWorld multi-language loop
+    // below. Same source_list.php/source_stream.php endpoints, same
+    // retry/caching behavior — just without the extra bucket-branching that
+    // only AniZone/WatchAnimeWorld actually need.
+    ['reanime', 'animenosub', 'aniwaves'].forEach(function(source) {
+        subPending++;
+        fetchSourceList(source, 'sub').then(list => {
+            list.forEach(s => {
+                const pKey = s.name.toLowerCase().trim();
+                subPending++;
+                checkSourceProvider(source, s.name, 'sub', null).then(ok => {
+                    try {
+                        if (ok) markServerFound('sub', \`\${source}:sub::\${pKey}\`, \`\${SOURCE_LABELS[source]}-\${s.name}\`, null, source);
+                    } catch (e) {
+                        console.error('[AniVault player] markServerFound threw for', source, 'sub', s.name, e);
+                    } finally {
+                        subTaskDone();
+                    }
+                });
+            });
+            subTaskDone();
+        });
+
+        dubPending++;
+        fetchSourceList(source, 'dub').then(list => {
+            list.forEach(s => {
+                const pKey = s.name.toLowerCase().trim();
+                dubPending++;
+                checkSourceProvider(source, s.name, 'dub', null).then(ok => {
+                    try {
+                        if (ok) markServerFound('dub', \`\${source}:dub::\${pKey}\`, \`\${SOURCE_LABELS[source]}-\${s.name}\`, null, source);
+                    } catch (e) {
+                        console.error('[AniVault player] markServerFound threw for', source, 'dub', s.name, e);
+                    } finally {
+                        dubTaskDone();
+                    }
+                });
+            });
+            dubTaskDone();
+        });
+    });
 
     MULTI_SOURCES.forEach(function(source) {
         // Sub — every one of these 5 sources has Japanese sub.
