@@ -276,21 +276,27 @@ watchRoutes.get('/watch', async (c) => {
     videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched, dubbedLangs,
   });
 
+  // Server-probing/switching script (always present)
+  // NOTE: watchScript1() already returns its own <script>...</script>-wrapped
+  // string — do NOT wrap it again here. Doing so produces nested <script>
+  // tags, which the browser's HTML parser can't handle (it just scans for
+  // the first literal </script>, closing the tag early and handing the JS
+  // engine a stray leftover "<script>" as its first token — an immediate
+  // syntax error that silently kills this entire block before anything,
+  // including the server probe, ever runs).
+  html += watchScript1({
+    anilistId, epNum, resumeParam, animeId, siteUrl, qSub, qDub, isLoggedIn: auth.check(),
+  });
+
+  // Wall-clock progress tracker (logged-in users only, matches the PHP Auth::check() gate)
+  if (auth.check()) {
+    html += watchScript2(animeId, epNum, siteUrl, epDurationSec, totalEps);
+  }
+
+  html += renderFooter({ siteUrl, currentUser: layoutUser });
+
   // Senshi player -- pre-rendered hidden, moved into #watch-player-wrap by
   // the server-switching script on demand (same DOM-move pattern as the PHP version).
-  //
-  // IMPORTANT: this MUST be emitted before watchScript1 below. watchScript1's
-  // probeAndRenderServers() IIFE runs the instant its <script> tag is parsed
-  // (it isn't gated on DOMContentLoaded), and its async fetch callbacks call
-  // document.getElementById('senshi-player-root') as soon as a probe
-  // resolves. If this holder still hasn't been parsed into the DOM yet
-  // (e.g. a fast/cached probe response racing ahead of the parser on a slow
-  // phone), that lookup returns null — the switch function still clears
-  // #watch-player-wrap's innerHTML and (via the megaplay-fallback branch's
-  // inline aspect-ratio:unset/background:transparent/border:none styling)
-  // leaves it fully collapsed and invisible, with nothing ever appended
-  // back in. Rendering the holder first guarantees the element already
-  // exists no matter how fast the probe comes back.
   const watchBase = `${siteUrl}/watch?anime=${animeId}&ep=`;
   let epNums: number[] = [];
   if (allVideos.length > 0) epNums = allVideos.map((v) => v.episode_num);
@@ -315,29 +321,10 @@ watchRoutes.get('/watch', async (c) => {
     watchBase, epNums, curEp: epNum, totalEpsN: totalEps, episodesWatched,
   });
   html += `<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>`;
-  // Same double-wrap issue as watchScript1/2 below — playerScript() already
+  // Same double-wrap issue as watchScript1/2 above — playerScript() already
   // returns its own <script> tags.
   html += playerScript(animeId, epNum, siteUrl);
   html += `</div>`;
-
-  // Server-probing/switching script (always present)
-  // NOTE: watchScript1() already returns its own <script>...</script>-wrapped
-  // string — do NOT wrap it again here. Doing so produces nested <script>
-  // tags, which the browser's HTML parser can't handle (it just scans for
-  // the first literal </script>, closing the tag early and handing the JS
-  // engine a stray leftover "<script>" as its first token — an immediate
-  // syntax error that silently kills this entire block before anything,
-  // including the server probe, ever runs).
-  html += watchScript1({
-    anilistId, epNum, resumeParam, animeId, siteUrl, qSub, qDub, isLoggedIn: auth.check(),
-  });
-
-  // Wall-clock progress tracker (logged-in users only, matches the PHP Auth::check() gate)
-  if (auth.check()) {
-    html += watchScript2(animeId, epNum, siteUrl, epDurationSec, totalEps);
-  }
-
-  html += renderFooter({ siteUrl, currentUser: layoutUser });
 
   if (justAutoCreated) {
     // One-time toast (handled in app.js) so the visitor sees their generated
@@ -417,25 +404,26 @@ export function renderWatchBody(p: WatchBodyParams): string {
             <div class="server-panel-body">
               <div class="server-tabs"><button class="server-tab active" data-tab="sub">Sub</button><button class="server-tab" data-tab="dub">Dub</button></div>
               <div class="server-tab-panel active" id="tab-panel-sub" data-audio="sub">
-                <div class="server-skel-group" id="servers-sub-loading">
-                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:72px"></span></span>
-                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:46px"></span></span>
-                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:58px"></span></span>
-                </div>
+                <button class="server-btn active" data-server="sub:anizone" data-source="anizone">Zone</button>
+                <button class="server-btn" data-server="sub:anikoto" data-source="anikoto">Anikoto</button>
+                <button class="server-btn" data-server="sub:animeheaven" data-source="animeheaven">AnimeHeaven</button>
+                <button class="server-btn" data-server="sub:reanime" data-source="reanime">ReAnime</button>
+                <button class="server-btn" data-server="sub:aniwaves" data-source="aniwaves">Waves</button>
+                <button class="server-btn" data-server="sub:watchanimeworld" data-source="watchanimeworld">World</button>
+                <button class="server-btn" data-server="sub:animenosub" data-source="animenosub">NoSub</button>
               </div>
               <div class="server-tab-panel" id="tab-panel-dub" data-audio="dub">
-                <div class="server-skel-group" id="servers-dub-loading">
-                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:72px"></span></span>
-                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:46px"></span></span>
-                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:58px"></span></span>
-                </div>
-                <div class="server-group" id="dub-hindi-group" style="display:none">
+                <button class="server-btn" data-server="dubEn:anizone" data-source="anizone">Zone</button>
+                <button class="server-btn" data-server="dubEn:anikoto" data-source="anikoto">Anikoto</button>
+                <button class="server-btn" data-server="dubEn:reanime" data-source="reanime">ReAnime</button>
+                <button class="server-btn" data-server="dubEn:aniwaves" data-source="aniwaves">Waves</button>
+                <button class="server-btn" data-server="dubEn:watchanimeworld" data-source="watchanimeworld">World</button>
+                <button class="server-btn" data-server="dubEn:animenosub" data-source="animenosub">NoSub</button>
+                <div class="server-group" id="dub-hindi-group">
                   <div class="server-group-label">Hindi Dub</div>
                   <div class="server-group-body" id="servers-dub-hindi-body">
-                    <div class="server-skel-group" id="servers-dub-hindi-loading">
-                      <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:64px"></span></span>
-                      <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:50px"></span></span>
-                    </div>
+                    <button class="server-btn" data-server="hindi:watchanimeworld" data-source="watchanimeworld">World</button>
+                    <button class="server-btn" data-server="hindi:desidub" data-source="desidub">DesiDub</button>
                   </div>
                 </div>
                 <div class="server-group" id="dub-multi-group" style="display:none">
