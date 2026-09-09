@@ -1117,7 +1117,7 @@ function loadHLS(m3u8Url) {
       if (spinner) spinner.classList.add('hide');
       buildQualityMenu();
       if (settings.autoplay) {
-        vid.play().catch(() => { vid.muted = true; vid.play().catch(() => {}); });
+        vid.play().catch(() => { applyVolume(vid.volume, true); vid.play().catch(() => {}); });
       }
     });
 
@@ -1190,7 +1190,7 @@ window.SenshiPlayer = {
         const p = vid.play();
         if (p && p.catch) {
           p.catch(() => {
-            vid.muted = true;
+            applyVolume(vid.volume, true);
             vid.play().catch(() => {});
           });
         }
@@ -1235,7 +1235,7 @@ window.SenshiPlayer = {
         const p = vid.play();
         if (p && p.catch) {
           p.catch(() => {
-            vid.muted = true;
+            applyVolume(vid.volume, true);
             vid.play().catch(() => {});
           });
         }
