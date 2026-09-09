@@ -10,7 +10,7 @@ const epNum = ${epNum};
 const resumeTime = ${resumeParam};
 const ANIME_ID = ${animeId};
 const SITE_URL = '${siteUrl}';
-let currentServer = 'animeheaven';
+let currentServer = 'sub:anizone';
 let currentAudio  = 'sub';
 
 // If the browser restores this page from the back/forward cache (bfcache),
@@ -349,13 +349,7 @@ function switchToAnikoto(providerName, audio) {
         return;
     }
 
-    // Omit &server= when provider is empty/default so scraper returns best available.
-    let anikotoUrl = \`${siteUrl}/api/anikoto_stream.php?anime=${animeId}&ep=${epNum}&audio=\${audio}\`;
-    const akProv = (providerName || '').trim();
-    if (akProv && akProv.toLowerCase() !== 'default') {
-        anikotoUrl += \`&server=\${encodeURIComponent(akProv)}\`;
-    }
-    fetch(anikotoUrl)
+    fetch(\`${siteUrl}/api/anikoto_stream.php?anime=${animeId}&ep=${epNum}&audio=\${audio}&server=\${encodeURIComponent(providerName)}\`)
         .then(r => r.json())
         .then(applyAnikotoResult)
         .catch(() => {
@@ -636,12 +630,7 @@ function switchToGenericSource(source, providerName, realType, langKey) {
     }
 
     const endpoint = STREAM_ENDPOINT[source];
-    // If provider is empty / "default" omit &server= so the scraper returns its best/default stream.
-    let url = \`${siteUrl}/api/\${endpoint}?anime=${animeId}&ep=${epNum}&audio=\${realType}\`;
-    const prov = (providerName || '').trim();
-    if (prov && prov.toLowerCase() !== 'default') {
-        url += \`&server=\${encodeURIComponent(prov)}\`;
-    }
+    let url = \`${siteUrl}/api/\${endpoint}?anime=${animeId}&ep=${epNum}&audio=\${realType}&server=\${encodeURIComponent(providerName)}\`;
     if (langKey) url += \`&lang=\${encodeURIComponent(langKey)}\`;
     fetch(url)
         .then(r => r.json())
@@ -652,6 +641,21 @@ function switchToGenericSource(source, providerName, realType, langKey) {
 function switchToServer(serverName, audio = currentAudio) {
     const pw = document.getElementById('watch-player-wrap');
     if (!pw) return;
+
+    // ── Static Sub / Dub / Hindi Dub buttons ───────────────────────────────
+    // Key shape: "<bucket>:<source>" where bucket is 'sub', 'dubEn', or
+    // 'hindi'. These buttons pre-exist in the markup (see watch.ts) rather
+    // than being inserted once found, and activateBucketButton handles the
+    // "try this source, then fall back through the rest of the bucket's
+    // priority list" behavior itself — including setting currentServer/
+    // currentAudio and the active button class.
+    if (serverName.startsWith('sub:') || serverName.startsWith('dubEn:') || serverName.startsWith('hindi:')) {
+        const parts = serverName.split(':');
+        if (typeof window.activateBucketButton === 'function') {
+            window.activateBucketButton(parts[0], parts.slice(1).join(':'));
+        }
+        return;
+    }
 
     // ── AnimeHeaven (MP4) ────────────────────────────────────────────────
     if (serverName === 'animeheaven') {
@@ -761,11 +765,9 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     });
 });
 
-// ── Probe every server live (buttons are pre-shown) ─────────────────────
-// All known server buttons are shown up-front. Each source is searched
-// individually in the background (even before the user clicks). If a
-// server has no stream for this anime/ep, the button stays and the load
-// path can fall back to another streaming URL instead of showing an error.
+// ── Probe every server live and only show ones that actually work ───────
+// Hits the real stream endpoints for this anime/episode (not just a
+// provider listing) so broken/404 servers never show up as clickable.
 (function probeAndRenderServers() {
     // The server tab panels only exist for logged-in users with a video
     // (see the Auth::check() && ($video || $megaplayEmbed) guard above).
@@ -819,14 +821,12 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     function checkAnikotoProvider(provider, audio) {
         return fetch(\`\${SITE}/api/anikoto_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${audio}&server=\${encodeURIComponent(provider)}\`)
             .then(r => r.json()).then(d => {
-                const ok = !d.error && !!d.m3u8;
+                const ok = !d.error && !!(d.m3u8 || d.mp4 || d.iframeOnly);
                 console.log('[AniVault player] anikoto', provider, audio, ok ? 'OK' : 'FAILED', d);
-                // Stash the response so the auto-activated first play
-                // (triggered right below in markServerFound) can reuse it
-                // instead of firing a second identical request at the
-                // scraper for the same provider — some embed hosts hand
-                // out session/token-locked links that don't survive being
-                // requested twice in a row.
+                // Stash the response so playback can reuse it instead of
+                // firing a second identical request at the scraper for the
+                // same provider — some embed hosts hand out session/token-
+                // locked links that don't survive being requested twice.
                 if (ok) {
                     window._anikotoCache = window._anikotoCache || {};
                     window._anikotoCache[audio + '::' + provider.toLowerCase().trim()] = { data: d, ts: Date.now() };
@@ -834,57 +834,6 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 return ok;
             }).catch(() => false);
     }
-
-    // ── Incremental probing ───────────────────────────────────────────────
-    // Every server check below runs independently (no Promise.all gate).
-    // The instant ANY server for the active "sub" tab is confirmed, its
-    // button is rendered AND playback starts immediately — everything else
-    // keeps probing in the background and just slots its button in next to
-    // it whenever it finishes. If sub comes up completely empty, we fall
-    // back to whatever's already working (or shows up next) on dub.
-    let playbackStarted = false;
-    let subPending = 0, dubPending = 0;
-    let subHasAny  = false, dubHasAny  = false;
-
-    function setSearching(audio, stillSearching) {
-        const loading = document.getElementById('servers-' + audio + '-loading');
-        if (!loading) return;
-        if (stillSearching) {
-            // Collapse the 3-bar skeleton down to a single "still looking"
-            // pill once real buttons are already showing next to it.
-            loading.innerHTML = '<span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:80px"></span></span>';
-        } else {
-            const hasAny = audio === 'sub' ? subHasAny : dubHasAny;
-            if (hasAny) loading.remove();
-            else { loading.className = 'no-servers-msg'; loading.textContent = 'No working servers found'; }
-        }
-    }
-
-    function activateButton(audio, key) {
-        playbackStarted = true;
-        _clearOverallWatchdog();
-        document.querySelectorAll('.server-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === audio));
-        document.querySelectorAll('.server-tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-panel-' + audio));
-        const btn = document.querySelector(\`#tab-panel-\${audio} .server-btn[data-server="\${key}"]\`);
-        if (btn) btn.classList.add('active');
-        switchToServer(key, audio);
-    }
-
-    function showNoServersAtAll(msg) {
-        const pw = document.getElementById('watch-player-wrap');
-        if (pw) pw.innerHTML = \`<div style="display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;height:100%;min-height:240px;color:var(--text-muted);font-family:var(--font-body);text-align:center;padding:1rem;"><div>\${msg || 'No working servers found for this episode.'}</div><button onclick="location.reload()" style="padding:8px 16px;border-radius:8px;border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer;font:inherit;">Try Again</button></div>\`;
-    }
-
-    // Hard overall cap — the individual probes (especially fetchAnikotoList's
-    // retry/backoff loop) have no client-side timeout of their own and can
-    // legitimately take a while if the scraper backend is slow, but the
-    // "Finding the best server..." screen should never sit there forever
-    // with no feedback. If nothing has started playing within 25s, give up
-    // and show a clear message + retry button instead of an endless spinner.
-    const _overallWatchdog = setTimeout(() => {
-        if (!playbackStarted) showNoServersAtAll('Servers are taking longer than usual to respond. The stream backend may be slow or down right now.');
-    }, 25000);
-    const _clearOverallWatchdog = () => clearTimeout(_overallWatchdog);
 
     // ── Source priority ──────────────────────────────────────────────────
     // Fixed provider ordering per bucket, independent of which probe
@@ -898,9 +847,13 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         const i = list.indexOf(source);
         return i === -1 ? list.length : i;
     }
-    // Generic priority-ordered insert, shared by the Sub tab, the main
-    // (English) Dub tab, and the Hindi Dub / Multi Dub sub-groups nested
-    // inside it. groupEl (if given) is revealed once it has 1+ server.
+
+    // Sub / Dub / Hindi Dub buttons are now pre-rendered in watch.ts in
+    // fixed priority order (see activateBucketButton below) — they no
+    // longer need runtime insertion. Multi Dub is the one group that still
+    // discovers and inserts buttons dynamically, since falling back to a
+    // DIFFERENT language would defeat the point of picking one, so it keeps
+    // its own priority-ordered insert.
     function insertPriorityBtn(bodyEl, loadingEl, groupEl, key, label, badge, priority) {
         if (!bodyEl || bodyEl.querySelector(\`.server-btn[data-server="\${key}"]\`)) return null;
         if (groupEl) groupEl.style.display = '';
@@ -908,197 +861,19 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         btn.dataset.priority = priority;
         const siblings = Array.from(bodyEl.querySelectorAll('.server-btn'));
         const next = siblings.find(b => parseFloat(b.dataset.priority) > priority);
-        // loadingEl is captured by the caller (markServerFound) once, before
-        // this runs — it's possible for a *different* item's completion to
-        // remove the loading skeleton (setSearching→loading.remove(), once
-        // the pending counter hits 0) in between that capture and this call.
-        // insertBefore throws NotFoundError if the reference node isn't
-        // actually a child of bodyEl anymore, so re-verify before using it.
+        // loadingEl is captured by the caller once, before this runs — it's
+        // possible for a different item's completion to remove the loading
+        // skeleton in between that capture and this call, and insertBefore
+        // throws NotFoundError if the reference node isn't actually a child
+        // of bodyEl anymore, so re-verify before using it.
         if (next) bodyEl.insertBefore(btn, next);
         else if (loadingEl && loadingEl.parentNode === bodyEl) bodyEl.insertBefore(btn, loadingEl);
         else bodyEl.appendChild(btn);
         return btn;
     }
 
-    function markServerFound(audio, key, label, badge, source) {
-        const panel   = document.getElementById('tab-panel-' + audio);
-        const loading = document.getElementById('servers-' + audio + '-loading');
-        if (!panel) return;
-        const priority = priorityOf(audio === 'sub' ? SUB_PRIORITY : ENDUB_PRIORITY, source);
-        const inserted = insertPriorityBtn(panel, loading, null, key, label, badge, priority);
-        if (!inserted) return;
-
-        if (audio === 'sub') {
-            subHasAny = true;
-            if (!playbackStarted) activateButton('sub', key);
-        } else {
-            dubHasAny = true;
-            // Sub already came up empty by the time this dub result landed
-            // (or never had a chance) — play this one instead of waiting.
-            if (!playbackStarted && subPending === 0 && !subHasAny) activateButton('dub', key);
-        }
-    }
-
-    // Pre-show ALL main source buttons immediately so nothing appears one-by-one.
-    // Keys use empty provider → switchToGenericSource omits &server= and the
-    // scraper returns its best/default stream for that source. Background
-    // probes still run and can add extra provider-specific buttons later.
-    // Default / first = anizone (Zone).
-    const PRESET_SUB = [
-        ['anizone:sub::', 'Zone', 'anizone'],
-        ['animeheaven', 'Eden', 'animeheaven'],
-        ['anikoto-default', 'AK', 'anikoto'],
-        ['reanime:sub::', 'ReAnime', 'reanime'],
-        ['aniwaves:sub::', 'Waves', 'aniwaves'],
-        ['watchanimeworld:sub::', 'World', 'watchanimeworld'],
-        ['animenosub:sub::', 'NoSub', 'animenosub'],
-    ];
-    const PRESET_DUB = [
-        ['anizone:dub::', 'Zone', 'anizone'],
-        ['anikoto-default', 'AK', 'anikoto'],
-        ['reanime:dub::', 'ReAnime', 'reanime'],
-        ['aniwaves:dub::', 'Waves', 'aniwaves'],
-        ['watchanimeworld:dub::', 'World', 'watchanimeworld'],
-        ['animenosub:dub::', 'NoSub', 'animenosub'],
-    ];
-    PRESET_SUB.forEach(([key, label, src]) => markServerFound('sub', key, label, null, src));
-    PRESET_DUB.forEach(([key, label, src]) => markServerFound('dub', key, label, null, src));
-
-    // Remove loading skeletons right away — buttons already exist.
-    ['servers-sub-loading', 'servers-dub-loading'].forEach(id => {
-        const el = document.getElementById(id);
-        if (el) el.remove();
-    });
-
-    function subTaskDone() {
-        subPending--;
-        if (subPending === 0) {
-            setSearching('sub', false);
-            // Sub fully exhausted with nothing working — fall back to a
-            // dub server that's already been found, if any.
-            if (!playbackStarted && !subHasAny && dubHasAny) {
-                const firstBtn = document.querySelector('#tab-panel-dub .server-btn');
-                if (firstBtn) activateButton('dub', firstBtn.dataset.server);
-            }
-            if (dubPending === 0 && !subHasAny && !dubHasAny && !playbackStarted) { _clearOverallWatchdog(); showNoServersAtAll(); }
-        } else if (subHasAny) {
-            setSearching('sub', true);
-        }
-    }
-    function dubTaskDone() {
-        dubPending--;
-        if (dubPending === 0) {
-            setSearching('dub', false);
-            if (subPending === 0 && !subHasAny && !dubHasAny && !playbackStarted) { _clearOverallWatchdog(); showNoServersAtAll(); }
-        } else if (dubHasAny) {
-            setSearching('dub', true);
-        }
-    }
-
-    // AnimeHeaven(sub) + Anikoto-list(sub) = 2 sub tasks.
-    // Anikoto-list(dub) = 1 dub task. AnimeHeaven is sub-only
-    // (api/animeheaven_stream.php ignores the audio param), so it never
-    // contributes a dub task.
-    // Senshi and Miruro have been removed — only AnimeHeaven and Anikoto
-    // are probed and shown on the watch page now.
-    subPending = 2;
-    dubPending = 1;
-
-    // ── SERVER DISPLAY NAMES ─────────────────────────────────────────────────
-    // Change any value here to rename that button on the watch page.
-    const SERVER_NAMES = {
-        animeheaven:  'Eden',
-        kiwi:         'Jade',
-        bonk:         'Bash',
-        bee:          'Hex',
-        bun:          'Puff',
-        twin:         'Echo',
-        ally:         'Pact',
-        moo:          'Haze',
-        cog:          'Gear',
-        pewe:         'Wren',
-        nun:          'Veil',
-        telli:        'Flux',
-        hop:          'Dart',
-        animedunya:   'Dune',
-    };
-
-    // Always show buttons (pre-existing). Search runs in background; if a
-    // server has no stream we still keep the button and fall back later on
-    // click / autoplay instead of hiding it.
-    checkAnimeHeaven('sub').then(ok => {
-        markServerFound('sub', 'animeheaven', SERVER_NAMES.animeheaven, null, 'animeheaven');
-        subTaskDone();
-    });
-
-    fetchAnikotoList('sub').then(list => {
-        if (!list || list.length === 0) {
-            // No providers returned — still show a default Anikoto button
-            markServerFound('sub', 'anikoto-default', 'AK-Default', null, 'anikoto');
-            subTaskDone();
-            return;
-        }
-        list.map(s => s.name).forEach(p => {
-            const pKey = p.toLowerCase().trim();
-            subPending++;
-            checkAnikotoProvider(p, 'sub').then(ok => {
-                markServerFound('sub', \`anikoto-\${pKey}\`, SERVER_NAMES[pKey] ?? ('AK-' + (pKey.charAt(0).toUpperCase() + pKey.slice(1))), null, 'anikoto');
-                subTaskDone();
-            });
-        });
-        subTaskDone();
-    });
-
-    fetchAnikotoList('dub').then(list => {
-        if (!list || list.length === 0) {
-            markServerFound('dub', 'anikoto-default', 'AK-Default', null, 'anikoto');
-            dubTaskDone();
-            return;
-        }
-        list.map(s => s.name).forEach(p => {
-            const pKey = p.toLowerCase().trim();
-            dubPending++;
-            checkAnikotoProvider(p, 'dub').then(ok => {
-                markServerFound('dub', \`anikoto-\${pKey}\`, SERVER_NAMES[pKey] ?? ('AK-' + (pKey.charAt(0).toUpperCase() + pKey.slice(1))), null, 'anikoto');
-                dubTaskDone();
-            });
-        });
-        dubTaskDone();
-    });
-
-    // ── ReAnime, AnimeNoSub, AniWaves, AniZone, WatchAnimeWorld ────────────
-    // Generic probing for the 5 sources added once the scraper backend had
-    // all 8 providers confirmed working. AniZone and WatchAnimeWorld are
-    // multi-dub-language: a single type=dub list can contain English,
-    // Hindi, Tamil, Telugu, Spanish, German, etc. all at once, so their dub
-    // servers get split by \`lang\` into the English Dub tab, the Hindi Dub
-    // group, or the Multi Dub group (everything else, labeled with its
-    // actual language). ReAnime/AnimeNoSub/AniWaves only ever have English
-    // dub, so their dub servers always go straight to the main Dub tab.
-    // Hindi Dub / Multi Dub pending counters — declared here (rather than
-    // down by DesiDub's own probing further below) because AniZone's and
-    // WatchAnimeWorld's dub blocks right below touch them synchronously,
-    // not just from inside an async .then(), so they need to already exist
-    // by now.
-    let hindiPending = 2; // DesiDub's fixed ['dub','raw'] chains further down
-    let hindiHasAny  = false;
-    function hindiTaskDone() {
-        hindiPending--;
-        if (hindiPending === 0) {
-            const loading = document.getElementById('servers-dub-hindi-loading');
-            if (hindiHasAny) {
-                if (loading) loading.remove();
-            } else {
-                const grp = document.getElementById('dub-hindi-group');
-                if (grp) grp.remove();
-            }
-        }
-    }
-    // Multi Dub (Tamil/Telugu/Spanish/German/... — everything that isn't
-    // English or Hindi). Baseline starts at 0, unlike Hindi's baseline of 2,
-    // because every contribution comes from the dynamic AniZone/
-    // WatchAnimeWorld dub list below, each already paired with its own
-    // ++/-- around the list fetch itself.
+    // Multi Dub's own pending counter — the only bucket that still uses
+    // this loading-skeleton-removal pattern.
     let multiPending = 0;
     let multiHasAny  = false;
     function multiTaskDone() {
@@ -1114,8 +889,6 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         }
     }
 
-    const SOURCE_LABELS = { reanime: 'ReAnime', animenosub: 'NoSub', aniwaves: 'Waves', anizone: 'Zone', watchanimeworld: 'World' };
-
     function langBucket(lang) {
         const l = (lang || '').toLowerCase();
         if (/^en|eng|english/.test(l)) return 'en';
@@ -1130,16 +903,8 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
 
     // Plain fetch() has no timeout: if the scraper backend hangs on one
     // particular source (cold start, a broken upstream host, etc.) instead
-    // of erroring, that fetch's promise never settles — and since every
-    // pending counter above only decrements from inside a .then(), a single
-    // hung request permanently blocks that bucket's loading skeleton from
-    // ever being removed, even after every other source has already found
-    // and displayed servers. Force a hard ceiling so "never responds" is
-    // treated the same as "responded with an error". Shared as a low-level
-    // utility (like fetch itself) — this carries no per-source state, so
-    // using it from each source's own dedicated functions below doesn't
-    // reintroduce the cross-source coupling that source_list.php/
-    // source_stream.php had.
+    // of erroring, that fetch's promise never settles. Force a hard ceiling
+    // so "never responds" is treated the same as "responded with an error".
     function fetchJsonTimeout(url, ms = 12000) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), ms);
@@ -1177,40 +942,6 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             return checkReanimeProvider(provider, audio, attempt + 1);
         });
     }
-    subPending++;
-    fetchReanimeList('sub').then(list => {
-        list.forEach(s => {
-            const pKey = s.name.toLowerCase().trim();
-            subPending++;
-            checkReanimeProvider(s.name, 'sub').then(ok => {
-                try {
-                    markServerFound('sub', \`reanime:sub::\${pKey}\`, \`ReAnime-\${s.name}\`, null, 'reanime');
-                } catch (e) {
-                    console.error('[AniVault player] markServerFound threw for reanime sub', s.name, e);
-                } finally {
-                    subTaskDone();
-                }
-            });
-        });
-        subTaskDone();
-    });
-    dubPending++;
-    fetchReanimeList('dub').then(list => {
-        list.forEach(s => {
-            const pKey = s.name.toLowerCase().trim();
-            dubPending++;
-            checkReanimeProvider(s.name, 'dub').then(ok => {
-                try {
-                    markServerFound('dub', \`reanime:dub::\${pKey}\`, \`ReAnime-\${s.name}\`, null, 'reanime');
-                } catch (e) {
-                    console.error('[AniVault player] markServerFound threw for reanime dub', s.name, e);
-                } finally {
-                    dubTaskDone();
-                }
-            });
-        });
-        dubTaskDone();
-    });
 
     // ── AnimeNoSub ────────────────────────────────────────────────────────
     // Own dedicated endpoint (animenosub_stream.php), own cache.
@@ -1240,40 +971,6 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             return checkAnimenosubProvider(provider, audio, attempt + 1);
         });
     }
-    subPending++;
-    fetchAnimenosubList('sub').then(list => {
-        list.forEach(s => {
-            const pKey = s.name.toLowerCase().trim();
-            subPending++;
-            checkAnimenosubProvider(s.name, 'sub').then(ok => {
-                try {
-                    markServerFound('sub', \`animenosub:sub::\${pKey}\`, \`NoSub-\${s.name}\`, null, 'animenosub');
-                } catch (e) {
-                    console.error('[AniVault player] markServerFound threw for animenosub sub', s.name, e);
-                } finally {
-                    subTaskDone();
-                }
-            });
-        });
-        subTaskDone();
-    });
-    dubPending++;
-    fetchAnimenosubList('dub').then(list => {
-        list.forEach(s => {
-            const pKey = s.name.toLowerCase().trim();
-            dubPending++;
-            checkAnimenosubProvider(s.name, 'dub').then(ok => {
-                try {
-                    markServerFound('dub', \`animenosub:dub::\${pKey}\`, \`NoSub-\${s.name}\`, null, 'animenosub');
-                } catch (e) {
-                    console.error('[AniVault player] markServerFound threw for animenosub dub', s.name, e);
-                } finally {
-                    dubTaskDone();
-                }
-            });
-        });
-        dubTaskDone();
-    });
 
     // ── AniWaves ──────────────────────────────────────────────────────────
     // Own dedicated endpoint (aniwaves_stream.php), own cache.
@@ -1303,45 +1000,12 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             return checkAniwavesProvider(provider, audio, attempt + 1);
         });
     }
-    subPending++;
-    fetchAniwavesList('sub').then(list => {
-        list.forEach(s => {
-            const pKey = s.name.toLowerCase().trim();
-            subPending++;
-            checkAniwavesProvider(s.name, 'sub').then(ok => {
-                try {
-                    markServerFound('sub', \`aniwaves:sub::\${pKey}\`, \`Waves-\${s.name}\`, null, 'aniwaves');
-                } catch (e) {
-                    console.error('[AniVault player] markServerFound threw for aniwaves sub', s.name, e);
-                } finally {
-                    subTaskDone();
-                }
-            });
-        });
-        subTaskDone();
-    });
-    dubPending++;
-    fetchAniwavesList('dub').then(list => {
-        list.forEach(s => {
-            const pKey = s.name.toLowerCase().trim();
-            dubPending++;
-            checkAniwavesProvider(s.name, 'dub').then(ok => {
-                try {
-                    markServerFound('dub', \`aniwaves:dub::\${pKey}\`, \`Waves-\${s.name}\`, null, 'aniwaves');
-                } catch (e) {
-                    console.error('[AniVault player] markServerFound threw for aniwaves dub', s.name, e);
-                } finally {
-                    dubTaskDone();
-                }
-            });
-        });
-        dubTaskDone();
-    });
 
     // ── AniZone ───────────────────────────────────────────────────────────
     // Own dedicated endpoint (anizone_stream.php), own cache. Multi-dub-
-    // language, so dub servers are split by lang into English / Hindi /
-    // Multi Dub.
+    // language, so dub servers get split by \`lang\` — English feeds the
+    // static Dub button below, everything else feeds the still-dynamic
+    // Multi Dub group further down (AniZone has no Hindi track).
     function fetchAnizoneList(audio, attempt = 1) {
         return fetchJsonTimeout(\`\${SITE}/api/anizone_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${audio}\`)
             .then(d => { console.log('[AniVault player] anizone list', audio, 'attempt', attempt, d); return d.servers || []; })
@@ -1370,83 +1034,11 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             return checkAnizoneProvider(provider, audio, lang, attempt + 1);
         });
     }
-    subPending++;
-    fetchAnizoneList('sub').then(list => {
-        list.forEach(s => {
-            const pKey = s.name.toLowerCase().trim();
-            subPending++;
-            checkAnizoneProvider(s.name, 'sub', null).then(ok => {
-                try {
-                    markServerFound('sub', \`anizone:sub::\${pKey}\`, \`Zone-\${s.name}\`, null, 'anizone');
-                } catch (e) {
-                    console.error('[AniVault player] markServerFound threw for anizone sub', s.name, e);
-                } finally {
-                    subTaskDone();
-                }
-            });
-        });
-        subTaskDone();
-    });
-    dubPending++;
-    hindiPending++;
-    multiPending++;
-    fetchAnizoneList('dub').then(list => {
-        list.forEach(s => {
-            const pKey = s.name.toLowerCase().trim();
-            const bucket = langBucket(s.lang);
-            const langKey = s.lang;
-            if (bucket === 'en') {
-                dubPending++;
-                checkAnizoneProvider(s.name, 'dub', langKey).then(ok => {
-                    try {
-                        markServerFound('dub', \`anizone:dub:\${langKey}:\${pKey}\`, \`Zone-\${s.name}\`, null, 'anizone');
-                    } catch (e) {
-                        console.error('[AniVault player] markServerFound threw for anizone dub(en)', s.name, e);
-                    } finally {
-                        dubTaskDone();
-                    }
-                });
-            } else if (bucket === 'hindi') {
-                hindiPending++;
-                checkAnizoneProvider(s.name, 'dub', langKey).then(ok => {
-                    try {
-                        const body = document.getElementById('servers-dub-hindi-body');
-                        const loading = document.getElementById('servers-dub-hindi-loading');
-                        const grp = document.getElementById('dub-hindi-group');
-                        const inserted = insertPriorityBtn(body, loading, grp, \`anizone:dub:\${langKey}:\${pKey}\`, \`Zone-\${s.name}\`, null, priorityOf(HINDI_PRIORITY, 'anizone'));
-                        if (inserted) hindiHasAny = true;
-                    } catch (e) {
-                        console.error('[AniVault player] insertPriorityBtn threw for anizone dub(hindi)', s.name, e);
-                    } finally {
-                        hindiTaskDone();
-                    }
-                });
-            } else {
-                multiPending++;
-                checkAnizoneProvider(s.name, 'dub', langKey).then(ok => {
-                    try {
-                        const body = document.getElementById('servers-dub-multi-body');
-                        const loading = document.getElementById('servers-dub-multi-loading');
-                        const grp = document.getElementById('dub-multi-group');
-                        const label = \`Zone-\${s.name} (\${prettyLang(s.lang)})\`;
-                        const inserted = insertPriorityBtn(body, loading, grp, \`anizone:dub:\${langKey}:\${pKey}\`, label, prettyLang(s.lang), priorityOf(MULTI_PRIORITY, 'anizone'));
-                        if (inserted) multiHasAny = true;
-                    } catch (e) {
-                        console.error('[AniVault player] insertPriorityBtn threw for anizone dub(multi)', s.name, e);
-                    } finally {
-                        multiTaskDone();
-                    }
-                });
-            }
-        });
-        hindiTaskDone();
-        multiTaskDone();
-        dubTaskDone();
-    });
 
     // ── WatchAnimeWorld ───────────────────────────────────────────────────
     // Own dedicated endpoint (watchanimeworld_stream.php), own cache.
-    // Multi-dub-language, same bucketing as AniZone above.
+    // Multi-dub-language, same bucketing as AniZone above — but this one
+    // DOES have a Hindi track, feeding the static Hindi Dub button below.
     function fetchWatchAnimeWorldList(audio, attempt = 1) {
         return fetchJsonTimeout(\`\${SITE}/api/watchanimeworld_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${audio}\`)
             .then(d => { console.log('[AniVault player] watchanimeworld list', audio, 'attempt', attempt, d); return d.servers || []; })
@@ -1475,96 +1067,11 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             return checkWatchAnimeWorldProvider(provider, audio, lang, attempt + 1);
         });
     }
-    subPending++;
-    fetchWatchAnimeWorldList('sub').then(list => {
-        list.forEach(s => {
-            const pKey = s.name.toLowerCase().trim();
-            subPending++;
-            checkWatchAnimeWorldProvider(s.name, 'sub', null).then(ok => {
-                try {
-                    markServerFound('sub', \`watchanimeworld:sub::\${pKey}\`, \`World-\${s.name}\`, null, 'watchanimeworld');
-                } catch (e) {
-                    console.error('[AniVault player] markServerFound threw for watchanimeworld sub', s.name, e);
-                } finally {
-                    subTaskDone();
-                }
-            });
-        });
-        subTaskDone();
-    });
-    dubPending++;
-    hindiPending++;
-    multiPending++;
-    fetchWatchAnimeWorldList('dub').then(list => {
-        list.forEach(s => {
-            const pKey = s.name.toLowerCase().trim();
-            const bucket = langBucket(s.lang);
-            const langKey = s.lang;
-            if (bucket === 'en') {
-                dubPending++;
-                checkWatchAnimeWorldProvider(s.name, 'dub', langKey).then(ok => {
-                    try {
-                        markServerFound('dub', \`watchanimeworld:dub:\${langKey}:\${pKey}\`, \`World-\${s.name}\`, null, 'watchanimeworld');
-                    } catch (e) {
-                        console.error('[AniVault player] markServerFound threw for watchanimeworld dub(en)', s.name, e);
-                    } finally {
-                        dubTaskDone();
-                    }
-                });
-            } else if (bucket === 'hindi') {
-                hindiPending++;
-                checkWatchAnimeWorldProvider(s.name, 'dub', langKey).then(ok => {
-                    try {
-                        const body = document.getElementById('servers-dub-hindi-body');
-                        const loading = document.getElementById('servers-dub-hindi-loading');
-                        const grp = document.getElementById('dub-hindi-group');
-                        const inserted = insertPriorityBtn(body, loading, grp, \`watchanimeworld:dub:\${langKey}:\${pKey}\`, \`World-\${s.name}\`, null, priorityOf(HINDI_PRIORITY, 'watchanimeworld'));
-                        if (inserted) hindiHasAny = true;
-                    } catch (e) {
-                        console.error('[AniVault player] insertPriorityBtn threw for watchanimeworld dub(hindi)', s.name, e);
-                    } finally {
-                        hindiTaskDone();
-                    }
-                });
-            } else {
-                multiPending++;
-                checkWatchAnimeWorldProvider(s.name, 'dub', langKey).then(ok => {
-                    try {
-                        const body = document.getElementById('servers-dub-multi-body');
-                        const loading = document.getElementById('servers-dub-multi-loading');
-                        const grp = document.getElementById('dub-multi-group');
-                        const label = \`World-\${s.name} (\${prettyLang(s.lang)})\`;
-                        const inserted = insertPriorityBtn(body, loading, grp, \`watchanimeworld:dub:\${langKey}:\${pKey}\`, label, prettyLang(s.lang), priorityOf(MULTI_PRIORITY, 'watchanimeworld'));
-                        if (inserted) multiHasAny = true;
-                    } catch (e) {
-                        console.error('[AniVault player] insertPriorityBtn threw for watchanimeworld dub(multi)', s.name, e);
-                    } finally {
-                        multiTaskDone();
-                    }
-                });
-            }
-        });
-        hindiTaskDone();
-        multiTaskDone();
-        dubTaskDone();
-    });
 
-    // Debug hook — lets you inspect the live pending counters from the
-    // console (they're closure-local otherwise) when a loading skeleton
-    // seems stuck. Call window._debugPending() at any time.
-    window._debugPending = () => ({ subPending, dubPending, hindiPending, multiPending, subHasAny, dubHasAny, hindiHasAny, multiHasAny, playbackStarted });
-
-    // ── DesiDub Hindi Dub + raw sources ────────────────────────────────────
-    // Kept entirely separate from the sub/dub autoplay bookkeeping above —
-    // it renders into its own labeled group under the Dub tab (see
-    // watch.ts markup) and never auto-activates; English sub/dub still wins
-    // autoplay, Hindi Dub is opt-in via click. Priority within the group:
-    // VidMoly, then StreamRuby, then any Mirror variant(s), then any other
-    // HLS/MP4-capable host, and raw (embed-only) sources always last.
-    // (hindiPending/hindiHasAny/hindiTaskDone are declared further up,
-    // alongside multiPending/multiHasAny/multiTaskDone — both are shared
-    // with the AniZone/WatchAnimeWorld probing above, which also feeds
-    // these two groups.)
+    // ── DesiDub ───────────────────────────────────────────────────────────
+    // Hindi-only source. Tries its own 'dub' (HLS/MP4-capable) hosts first,
+    // in VidMoly > StreamRuby > Mirror > MuseMirror > other order, and only
+    // falls to 'raw' (embed-only) hosts if none of those work.
     function fetchDesidubList(audio, attempt = 1) {
         return fetch(\`\${SITE}/api/desidub_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${audio}\`)
             .then(r => r.json())
@@ -1587,13 +1094,8 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 return ok;
             }).catch(() => false);
     }
-    // VidMoly > StreamRuby > Mirror > MuseMirror > any other HLS/MP4-capable
-    // host > raw/embed-only sources (always last, badged "Embed" in the UI).
     // "muse" is checked before the generic "mirror" match since MuseMirror's
-    // name also contains the substring "mirror". This is DesiDub's internal
-    // ranking among its OWN servers only — it's combined with HINDI_PRIORITY
-    // (source-level: WatchAnimeWorld before DesiDub) as a tiebreaker below,
-    // not used on its own.
+    // name also contains the substring "mirror".
     function desidubInternalRank(name, type) {
         const n = (name || '').toLowerCase();
         if (type === 'raw') return 100;
@@ -1603,34 +1105,225 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         if (n.includes('mirror')) return 3;
         return 5;
     }
-    function insertDesidubBtn(key, label, badge, internalRank) {
-        const body = document.getElementById('servers-dub-hindi-body');
-        const loading = document.getElementById('servers-dub-hindi-loading');
-        const grp = document.getElementById('dub-hindi-group');
-        // Source-level priority (HINDI_PRIORITY: watchanimeworld, desidub)
-        // as the primary key, DesiDub's own host ranking as the tiebreaker
-        // — mirrors how AniZone/WatchAnimeWorld's Hindi servers above sort
-        // purely by priorityOf(HINDI_PRIORITY, source) with no tiebreaker
-        // of their own (internalRank effectively 0 for those).
-        const priority = priorityOf(HINDI_PRIORITY, 'desidub') * 1000 + internalRank;
-        const inserted = insertPriorityBtn(body, loading, grp, key, label, badge, priority);
-        if (inserted) hindiHasAny = true;
+
+    // ── Try a list of candidates in order, return whichever one worked ─────
+    // checkFn(item) should resolve true/false (and, on true, have already
+    // cached whatever playWinner() will need — every checkXProvider above
+    // already does this as a side effect).
+    function tryInOrder(items, checkFn, i) {
+        i = i || 0;
+        if (i >= items.length) return Promise.resolve(null);
+        return checkFn(items[i]).then(ok => ok ? items[i] : tryInOrder(items, checkFn, i + 1));
     }
 
-    ['dub', 'raw'].forEach(function(realType) {
-        fetchDesidubList(realType).then(list => {
-            list.forEach(s => {
-                hindiPending++;
-                checkDesidubProvider(s.name, realType).then(ok => {
-                    // Always show Hindi Dub buttons (pre-existing). Fallback on load if needed.
-                    const badge = realType === 'raw' ? 'Embed' : null;
-                    insertDesidubBtn('desidub:' + realType + ':' + s.name, s.name, badge, desidubInternalRank(s.name, realType));
-                    hindiTaskDone();
-                });
-            });
-            hindiTaskDone();
+    // ── Per-source resolvers ────────────────────────────────────────────────
+    // Each takes the audio type and resolves to either a winning server
+    // object (whatever playWinner() needs to actually load it) or null,
+    // meaning "this source doesn't have this episode at all" — the caller
+    // (activateBucketButton) moves on to the next source in priority order.
+    function resolveAnimeHeaven(audio) {
+        return checkAnimeHeaven(audio).then(ok => ok ? {} : null);
+    }
+    function resolveAnikoto(audio) {
+        return fetchAnikotoList(audio).then(list => tryInOrder(list, s => checkAnikotoProvider(s.name, audio)));
+    }
+    function resolveReanime(audio) {
+        return fetchReanimeList(audio).then(list => tryInOrder(list, s => checkReanimeProvider(s.name, audio)));
+    }
+    function resolveAnimenosub(audio) {
+        return fetchAnimenosubList(audio).then(list => tryInOrder(list, s => checkAnimenosubProvider(s.name, audio)));
+    }
+    function resolveAniwaves(audio) {
+        return fetchAniwavesList(audio).then(list => tryInOrder(list, s => checkAniwavesProvider(s.name, audio)));
+    }
+    function resolveAnizoneEn(audio) {
+        return fetchAnizoneList(audio).then(list => {
+            const candidates = audio === 'sub' ? list : list.filter(s => langBucket(s.lang) === 'en');
+            return tryInOrder(candidates, s => checkAnizoneProvider(s.name, audio, audio === 'dub' ? s.lang : null));
         });
+    }
+    function resolveWatchAnimeWorldEn(audio) {
+        return fetchWatchAnimeWorldList(audio).then(list => {
+            const candidates = audio === 'sub' ? list : list.filter(s => langBucket(s.lang) === 'en');
+            return tryInOrder(candidates, s => checkWatchAnimeWorldProvider(s.name, audio, audio === 'dub' ? s.lang : null));
+        });
+    }
+    function resolveWatchAnimeWorldHindi() {
+        return fetchWatchAnimeWorldList('dub').then(list => {
+            const candidates = list.filter(s => langBucket(s.lang) === 'hindi');
+            return tryInOrder(candidates, s => checkWatchAnimeWorldProvider(s.name, 'dub', s.lang));
+        });
+    }
+    function resolveDesidub() {
+        return fetchDesidubList('dub').then(list => {
+            const ranked = list.slice().sort((a, b) => desidubInternalRank(a.name, 'dub') - desidubInternalRank(b.name, 'dub'));
+            return tryInOrder(ranked, s => checkDesidubProvider(s.name, 'dub'));
+        }).then(winner => {
+            if (winner) return { name: winner.name, realType: 'dub' };
+            return fetchDesidubList('raw').then(list => {
+                const ranked = list.slice().sort((a, b) => desidubInternalRank(a.name, 'raw') - desidubInternalRank(b.name, 'raw'));
+                return tryInOrder(ranked, s => checkDesidubProvider(s.name, 'raw'));
+            }).then(winner2 => winner2 ? { name: winner2.name, realType: 'raw' } : null);
+        });
+    }
+
+    const RESOLVERS = {
+        sub:   { anizone: resolveAnizoneEn, anikoto: resolveAnikoto, animeheaven: resolveAnimeHeaven, reanime: resolveReanime, aniwaves: resolveAniwaves, watchanimeworld: resolveWatchAnimeWorldEn, animenosub: resolveAnimenosub },
+        dubEn: { anizone: resolveAnizoneEn, anikoto: resolveAnikoto, reanime: resolveReanime, aniwaves: resolveAniwaves, watchanimeworld: resolveWatchAnimeWorldEn, animenosub: resolveAnimenosub },
+        hindi: { watchanimeworld: () => resolveWatchAnimeWorldHindi(), desidub: () => resolveDesidub() },
+    };
+    const BUCKET_AUDIO = { sub: 'sub', dubEn: 'dub', hindi: 'dub' };
+
+    // Dedup concurrent calls for the same (bucket, source) — background
+    // pre-search and a fallback chain triggered by a click can both want
+    // the same source at the same moment; share one in-flight promise so
+    // it's never requested twice.
+    window._bucketResolvePromise = window._bucketResolvePromise || {};
+    function resolveOnce(bucket, source) {
+        const key = bucket + ':' + source;
+        if (!window._bucketResolvePromise[key]) {
+            window._bucketResolvePromise[key] = RESOLVERS[bucket][source](BUCKET_AUDIO[bucket]);
+        }
+        return window._bucketResolvePromise[key];
+    }
+
+    function playWinner(source, audio, winner) {
+        if (source === 'animeheaven') { switchToAnimeHeaven(audio); return; }
+        if (source === 'anikoto') { switchToAnikoto(winner.name, audio); return; }
+        if (source === 'desidub') { switchToDesidub(winner.name, winner.realType); return; }
+        if (source === 'reanime' || source === 'animenosub' || source === 'aniwaves') {
+            switchToGenericSource(source, winner.name, audio, ''); return;
+        }
+        if (source === 'anizone' || source === 'watchanimeworld') {
+            switchToGenericSource(source, winner.name, audio, winner.lang || ''); return;
+        }
+    }
+
+    function setButtonState(bucket, source, state) {
+        // state: 'searching' | 'unavailable' | null (clear)
+        const btn = document.querySelector(\`.server-btn[data-server="\${bucket}:\${source}"]\`);
+        if (!btn) return;
+        btn.classList.remove('searching', 'unavailable');
+        if (state) btn.classList.add(state);
+    }
+
+    // ── Core entry point ────────────────────────────────────────────────────
+    // Called on click, or automatically for the default Sub button on
+    // load. Always plays *something* if anything in the bucket works: tries
+    // the clicked/default source first, then every OTHER source in that
+    // bucket's full priority order (not just the ones after it), and
+    // whichever one succeeds plays — while the ORIGINALLY clicked button
+    // stays the one shown as active, per design ("the button represents
+    // this slot, not strictly this exact host").
+    function activateBucketButton(bucket, clickedSource) {
+        const audio = BUCKET_AUDIO[bucket];
+        const priorityList = bucket === 'sub' ? SUB_PRIORITY : bucket === 'dubEn' ? ENDUB_PRIORITY : HINDI_PRIORITY;
+        const order = [clickedSource].concat(priorityList.filter(s => s !== clickedSource));
+        const btnKey = bucket + ':' + clickedSource;
+
+        currentServer = btnKey;
+        currentAudio  = audio;
+        updateActiveServerButton(btnKey, audio);
+        setButtonState(bucket, clickedSource, 'searching');
+
+        function tryIndex(i) {
+            if (i >= order.length) {
+                setButtonState(bucket, clickedSource, 'unavailable');
+                if (bucket === 'sub' && !playbackStarted) {
+                    _showFatalClientError('No working sub server found for this episode.');
+                }
+                return;
+            }
+            const src = order[i];
+            resolveOnce(bucket, src).then(winner => {
+                // A later click may have superseded this activation while
+                // we were waiting on it — bail out quietly instead of
+                // yanking the player out from under a newer request.
+                if (currentServer !== btnKey) return;
+                if (winner) {
+                    setButtonState(bucket, clickedSource, null);
+                    playbackStarted = true;
+                    playWinner(src, audio, winner);
+                } else {
+                    tryIndex(i + 1);
+                }
+            });
+        }
+        tryIndex(0);
+    }
+    window.activateBucketButton = activateBucketButton;
+
+    // ── Kick things off ─────────────────────────────────────────────────
+    // Sub autoplays by default (top priority, with fallback baked in).
+    activateBucketButton('sub', SUB_PRIORITY[0]);
+
+    // Background pre-search every other button so switching later is
+    // instant instead of waiting on a fresh probe. This only warms
+    // resolveOnce's cache — it never plays anything on its own.
+    SUB_PRIORITY.slice(1).forEach(source => resolveOnce('sub', source));
+    ENDUB_PRIORITY.forEach(source => resolveOnce('dubEn', source));
+    HINDI_PRIORITY.forEach(source => resolveOnce('hindi', source));
+
+    // ── Multi Dub (Tamil/Telugu/Spanish/German/... — everything that isn't
+    // English or Hindi) — kept fully dynamic/individual, no fallback: each
+    // language+source combination only gets a button once actually
+    // confirmed working, since falling back to a DIFFERENT language would
+    // defeat the point of picking one. AniZone and WatchAnimeWorld are the
+    // only two sources with non-English/non-Hindi tracks.
+    multiPending++;
+    fetchAnizoneList('dub').then(list => {
+        list.forEach(s => {
+            if (langBucket(s.lang) !== 'multi') return;
+            const pKey = s.name.toLowerCase().trim();
+            multiPending++;
+            checkAnizoneProvider(s.name, 'dub', s.lang).then(ok => {
+                try {
+                    if (ok) {
+                        const body = document.getElementById('servers-dub-multi-body');
+                        const loading = document.getElementById('servers-dub-multi-loading');
+                        const grp = document.getElementById('dub-multi-group');
+                        const label = \`Zone-\${s.name} (\${prettyLang(s.lang)})\`;
+                        const inserted = insertPriorityBtn(body, loading, grp, \`anizone:dub:\${s.lang}:\${pKey}\`, label, prettyLang(s.lang), priorityOf(MULTI_PRIORITY, 'anizone'));
+                        if (inserted) { inserted.dataset.source = 'anizone'; multiHasAny = true; }
+                    }
+                } catch (e) {
+                    console.error('[AniVault player] insertPriorityBtn threw for anizone dub(multi)', s.name, e);
+                } finally {
+                    multiTaskDone();
+                }
+            });
+        });
+        multiTaskDone();
     });
+    multiPending++;
+    fetchWatchAnimeWorldList('dub').then(list => {
+        list.forEach(s => {
+            if (langBucket(s.lang) !== 'multi') return;
+            const pKey = s.name.toLowerCase().trim();
+            multiPending++;
+            checkWatchAnimeWorldProvider(s.name, 'dub', s.lang).then(ok => {
+                try {
+                    if (ok) {
+                        const body = document.getElementById('servers-dub-multi-body');
+                        const loading = document.getElementById('servers-dub-multi-loading');
+                        const grp = document.getElementById('dub-multi-group');
+                        const label = \`World-\${s.name} (\${prettyLang(s.lang)})\`;
+                        const inserted = insertPriorityBtn(body, loading, grp, \`watchanimeworld:dub:\${s.lang}:\${pKey}\`, label, prettyLang(s.lang), priorityOf(MULTI_PRIORITY, 'watchanimeworld'));
+                        if (inserted) { inserted.dataset.source = 'watchanimeworld'; multiHasAny = true; }
+                    }
+                } catch (e) {
+                    console.error('[AniVault player] insertPriorityBtn threw for watchanimeworld dub(multi)', s.name, e);
+                } finally {
+                    multiTaskDone();
+                }
+            });
+        });
+        multiTaskDone();
+    });
+
+    // Debug hook — inspect live bucket-resolve state from the console
+    // (window._bucketResolvePromise) when something seems stuck.
+    window._debugPending = () => ({ multiPending, multiHasAny, playbackStarted, currentServer, currentAudio });
   } catch (e) {
     _showFatalClientError('probeAndRenderServers crashed: ' + (e && e.message ? e.message : e));
   }
