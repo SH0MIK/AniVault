@@ -79,6 +79,23 @@ function buildMegaplayUrl(audio) {
 function stopCurrentVideo() {
     const vid = document.getElementById('sp-video');
     if (vid) {
+        // If the PREVIOUS server got itself force-muted because the browser
+        // blocked its autoplay (player-script.ts's fallback), that mute was
+        // never something the user chose — it was just this element's way
+        // of getting some server to play at all. Left alone, it silently
+        // carries over onto whatever server you switch to next (including
+        // AnimeHeaven/MP4 paths below, which never look at mute state at
+        // all), so a server that would have played fine with sound looks
+        // just as broken as the one that actually triggered the fallback.
+        // A server switch is itself a fresh click/user-gesture, so it's
+        // safe to clear an auto-mute here and let the new server get its
+        // own honest shot at unmuted autoplay. A mute the user picked on
+        // purpose (button/slider/keyboard) never sets this tag, so it's
+        // left untouched.
+        if (vid.dataset.autoMuted === '1') {
+            vid.muted = false;
+            vid.dataset.autoMuted = '';
+        }
         try { vid.pause(); } catch(e) {}
         vid.removeAttribute('src');
         try { vid.load(); } catch(e) {}
