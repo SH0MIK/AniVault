@@ -349,7 +349,13 @@ function switchToAnikoto(providerName, audio) {
         return;
     }
 
-    fetch(\`${siteUrl}/api/anikoto_stream.php?anime=${animeId}&ep=${epNum}&audio=\${audio}&server=\${encodeURIComponent(providerName)}\`)
+    // Omit &server= when provider is empty/default so scraper returns best available.
+    let anikotoUrl = \`${siteUrl}/api/anikoto_stream.php?anime=${animeId}&ep=${epNum}&audio=\${audio}\`;
+    const akProv = (providerName || '').trim();
+    if (akProv && akProv.toLowerCase() !== 'default') {
+        anikotoUrl += \`&server=\${encodeURIComponent(akProv)}\`;
+    }
+    fetch(anikotoUrl)
         .then(r => r.json())
         .then(applyAnikotoResult)
         .catch(() => {
@@ -630,7 +636,12 @@ function switchToGenericSource(source, providerName, realType, langKey) {
     }
 
     const endpoint = STREAM_ENDPOINT[source];
-    let url = \`${siteUrl}/api/\${endpoint}?anime=${animeId}&ep=${epNum}&audio=\${realType}&server=\${encodeURIComponent(providerName)}\`;
+    // If provider is empty / "default" omit &server= so the scraper returns its best/default stream.
+    let url = \`${siteUrl}/api/\${endpoint}?anime=${animeId}&ep=${epNum}&audio=\${realType}\`;
+    const prov = (providerName || '').trim();
+    if (prov && prov.toLowerCase() !== 'default') {
+        url += \`&server=\${encodeURIComponent(prov)}\`;
+    }
     if (langKey) url += \`&lang=\${encodeURIComponent(langKey)}\`;
     fetch(url)
         .then(r => r.json())
@@ -928,12 +939,36 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         }
     }
 
-    // Pre-show default buttons immediately (anizone first as requested).
-    // Individual search still runs below; if a source has no stream the
-    // button stays and load path can fall back to another URL.
-    markServerFound('sub', 'anizone:sub::default', 'Zone', null, 'anizone');
-    markServerFound('dub', 'anizone:dub::default', 'Zone', null, 'anizone');
-    markServerFound('sub', 'animeheaven', 'Eden', null, 'animeheaven');
+    // Pre-show ALL main source buttons immediately so nothing appears one-by-one.
+    // Keys use empty provider → switchToGenericSource omits &server= and the
+    // scraper returns its best/default stream for that source. Background
+    // probes still run and can add extra provider-specific buttons later.
+    // Default / first = anizone (Zone).
+    const PRESET_SUB = [
+        ['anizone:sub::', 'Zone', 'anizone'],
+        ['animeheaven', 'Eden', 'animeheaven'],
+        ['anikoto-default', 'AK', 'anikoto'],
+        ['reanime:sub::', 'ReAnime', 'reanime'],
+        ['aniwaves:sub::', 'Waves', 'aniwaves'],
+        ['watchanimeworld:sub::', 'World', 'watchanimeworld'],
+        ['animenosub:sub::', 'NoSub', 'animenosub'],
+    ];
+    const PRESET_DUB = [
+        ['anizone:dub::', 'Zone', 'anizone'],
+        ['anikoto-default', 'AK', 'anikoto'],
+        ['reanime:dub::', 'ReAnime', 'reanime'],
+        ['aniwaves:dub::', 'Waves', 'aniwaves'],
+        ['watchanimeworld:dub::', 'World', 'watchanimeworld'],
+        ['animenosub:dub::', 'NoSub', 'animenosub'],
+    ];
+    PRESET_SUB.forEach(([key, label, src]) => markServerFound('sub', key, label, null, src));
+    PRESET_DUB.forEach(([key, label, src]) => markServerFound('dub', key, label, null, src));
+
+    // Remove loading skeletons right away — buttons already exist.
+    ['servers-sub-loading', 'servers-dub-loading'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.remove();
+    });
 
     function subTaskDone() {
         subPending--;
