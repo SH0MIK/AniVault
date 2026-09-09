@@ -276,27 +276,21 @@ watchRoutes.get('/watch', async (c) => {
     videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched, dubbedLangs,
   });
 
-  // Server-probing/switching script (always present)
-  // NOTE: watchScript1() already returns its own <script>...</script>-wrapped
-  // string — do NOT wrap it again here. Doing so produces nested <script>
-  // tags, which the browser's HTML parser can't handle (it just scans for
-  // the first literal </script>, closing the tag early and handing the JS
-  // engine a stray leftover "<script>" as its first token — an immediate
-  // syntax error that silently kills this entire block before anything,
-  // including the server probe, ever runs).
-  html += watchScript1({
-    anilistId, epNum, resumeParam, animeId, siteUrl, qSub, qDub, isLoggedIn: auth.check(),
-  });
-
-  // Wall-clock progress tracker (logged-in users only, matches the PHP Auth::check() gate)
-  if (auth.check()) {
-    html += watchScript2(animeId, epNum, siteUrl, epDurationSec, totalEps);
-  }
-
-  html += renderFooter({ siteUrl, currentUser: layoutUser });
-
   // Senshi player -- pre-rendered hidden, moved into #watch-player-wrap by
   // the server-switching script on demand (same DOM-move pattern as the PHP version).
+  //
+  // IMPORTANT: this MUST be emitted before watchScript1 below. watchScript1's
+  // probeAndRenderServers() IIFE runs the instant its <script> tag is parsed
+  // (it isn't gated on DOMContentLoaded), and its async fetch callbacks call
+  // document.getElementById('senshi-player-root') as soon as a probe
+  // resolves. If this holder still hasn't been parsed into the DOM yet
+  // (e.g. a fast/cached probe response racing ahead of the parser on a slow
+  // phone), that lookup returns null — the switch function still clears
+  // #watch-player-wrap's innerHTML and (via the megaplay-fallback branch's
+  // inline aspect-ratio:unset/background:transparent/border:none styling)
+  // leaves it fully collapsed and invisible, with nothing ever appended
+  // back in. Rendering the holder first guarantees the element already
+  // exists no matter how fast the probe comes back.
   const watchBase = `${siteUrl}/watch?anime=${animeId}&ep=`;
   let epNums: number[] = [];
   if (allVideos.length > 0) epNums = allVideos.map((v) => v.episode_num);
@@ -321,10 +315,29 @@ watchRoutes.get('/watch', async (c) => {
     watchBase, epNums, curEp: epNum, totalEpsN: totalEps, episodesWatched,
   });
   html += `<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>`;
-  // Same double-wrap issue as watchScript1/2 above — playerScript() already
+  // Same double-wrap issue as watchScript1/2 below — playerScript() already
   // returns its own <script> tags.
   html += playerScript(animeId, epNum, siteUrl);
   html += `</div>`;
+
+  // Server-probing/switching script (always present)
+  // NOTE: watchScript1() already returns its own <script>...</script>-wrapped
+  // string — do NOT wrap it again here. Doing so produces nested <script>
+  // tags, which the browser's HTML parser can't handle (it just scans for
+  // the first literal </script>, closing the tag early and handing the JS
+  // engine a stray leftover "<script>" as its first token — an immediate
+  // syntax error that silently kills this entire block before anything,
+  // including the server probe, ever runs).
+  html += watchScript1({
+    anilistId, epNum, resumeParam, animeId, siteUrl, qSub, qDub, isLoggedIn: auth.check(),
+  });
+
+  // Wall-clock progress tracker (logged-in users only, matches the PHP Auth::check() gate)
+  if (auth.check()) {
+    html += watchScript2(animeId, epNum, siteUrl, epDurationSec, totalEps);
+  }
+
+  html += renderFooter({ siteUrl, currentUser: layoutUser });
 
   if (justAutoCreated) {
     // One-time toast (handled in app.js) so the visitor sees their generated
