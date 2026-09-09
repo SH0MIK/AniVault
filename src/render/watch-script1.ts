@@ -865,8 +865,14 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         btn.dataset.priority = priority;
         const siblings = Array.from(bodyEl.querySelectorAll('.server-btn'));
         const next = siblings.find(b => parseFloat(b.dataset.priority) > priority);
+        // loadingEl is captured by the caller (markServerFound) once, before
+        // this runs — it's possible for a *different* item's completion to
+        // remove the loading skeleton (setSearching→loading.remove(), once
+        // the pending counter hits 0) in between that capture and this call.
+        // insertBefore throws NotFoundError if the reference node isn't
+        // actually a child of bodyEl anymore, so re-verify before using it.
         if (next) bodyEl.insertBefore(btn, next);
-        else if (loadingEl) bodyEl.insertBefore(btn, loadingEl);
+        else if (loadingEl && loadingEl.parentNode === bodyEl) bodyEl.insertBefore(btn, loadingEl);
         else bodyEl.appendChild(btn);
         return btn;
     }
