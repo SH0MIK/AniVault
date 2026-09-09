@@ -404,26 +404,27 @@ export function renderWatchBody(p: WatchBodyParams): string {
             <div class="server-panel-body">
               <div class="server-tabs"><button class="server-tab active" data-tab="sub">Sub</button><button class="server-tab" data-tab="dub">Dub</button></div>
               <div class="server-tab-panel active" id="tab-panel-sub" data-audio="sub">
-                <button class="server-btn active" data-server="sub:anizone" data-source="anizone">Zone</button>
-                <button class="server-btn" data-server="sub:anikoto" data-source="anikoto">Anikoto</button>
-                <button class="server-btn" data-server="sub:animeheaven" data-source="animeheaven">AnimeHeaven</button>
-                <button class="server-btn" data-server="sub:reanime" data-source="reanime">ReAnime</button>
-                <button class="server-btn" data-server="sub:aniwaves" data-source="aniwaves">Waves</button>
-                <button class="server-btn" data-server="sub:watchanimeworld" data-source="watchanimeworld">World</button>
-                <button class="server-btn" data-server="sub:animenosub" data-source="animenosub">NoSub</button>
+                <button class="server-btn pending active" data-server="anizone:sub">AniZone</button>
+                <button class="server-btn pending" data-server="anikoto:sub">Anikoto</button>
+                <button class="server-btn pending" data-server="animeheaven">AnimeHeaven</button>
+                <button class="server-btn pending" data-server="reanime:sub">ReAnime</button>
+                <button class="server-btn pending" data-server="aniwaves:sub">AniWaves</button>
+                <button class="server-btn pending" data-server="watchanimeworld:sub">WatchAnimeWorld</button>
+                <button class="server-btn pending" data-server="animenosub:sub">AnimeNoSub</button>
               </div>
               <div class="server-tab-panel" id="tab-panel-dub" data-audio="dub">
-                <button class="server-btn" data-server="dubEn:anizone" data-source="anizone">Zone</button>
-                <button class="server-btn" data-server="dubEn:anikoto" data-source="anikoto">Anikoto</button>
-                <button class="server-btn" data-server="dubEn:reanime" data-source="reanime">ReAnime</button>
-                <button class="server-btn" data-server="dubEn:aniwaves" data-source="aniwaves">Waves</button>
-                <button class="server-btn" data-server="dubEn:watchanimeworld" data-source="watchanimeworld">World</button>
-                <button class="server-btn" data-server="dubEn:animenosub" data-source="animenosub">NoSub</button>
+                <button class="server-btn pending" data-server="anizone:dub">AniZone</button>
+                <button class="server-btn pending" data-server="anikoto:dub">Anikoto</button>
+                <button class="server-btn pending" data-server="reanime:dub">ReAnime</button>
+                <button class="server-btn pending" data-server="aniwaves:dub">AniWaves</button>
+                <button class="server-btn pending" data-server="watchanimeworld:dub">WatchAnimeWorld</button>
+                <button class="server-btn pending" data-server="animenosub:dub">AnimeNoSub</button>
                 <div class="server-group" id="dub-hindi-group">
                   <div class="server-group-label">Hindi Dub</div>
                   <div class="server-group-body" id="servers-dub-hindi-body">
-                    <button class="server-btn" data-server="hindi:watchanimeworld" data-source="watchanimeworld">World</button>
-                    <button class="server-btn" data-server="hindi:desidub" data-source="desidub">DesiDub</button>
+                    <button class="server-btn pending" data-server="anizone:hindi">AniZone</button>
+                    <button class="server-btn pending" data-server="watchanimeworld:hindi">WatchAnimeWorld</button>
+                    <button class="server-btn pending" data-server="desidub:hindi">DesiDub</button>
                   </div>
                 </div>
                 <div class="server-group" id="dub-multi-group" style="display:none">
