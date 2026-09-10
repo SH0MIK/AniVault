@@ -1,10 +1,17 @@
 (() => {
   'use strict';
 
-  const BRIDGE = 'http://127.0.0.1:6463/presence';
   let video = null;
   let seekPending = false;
   let waiting = false;
+  let bridgeUrl = 'http://127.0.0.1:6463/presence';
+
+  chrome.storage.sync.get({ bridgeUrl: 'http://127.0.0.1:6463/presence' }, value => {
+    if (typeof value.bridgeUrl === 'string' && value.bridgeUrl.trim()) {
+      bridgeUrl = value.bridgeUrl.trim().replace(/\/$/, '') + '/presence';
+    }
+    findVideo();
+  });
 
   const send = (event, keepalive = false) => {
     if (!video && event !== 'pagehide') return;
@@ -26,11 +33,11 @@
     const currentTime = video && Number.isFinite(video.currentTime) && video.currentTime >= 0 ? video.currentTime : 0;
     const playing = video ? !video.paused && !video.ended && !video.seeking && !waiting : false;
 
-    fetch(BRIDGE, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    chrome.runtime.sendMessage({
+      type: 'ANIVAULT_PRESENCE',
+      bridgeUrl,
       keepalive,
-      body: JSON.stringify({
+      payload: {
         version: 1,
         source: 'anivault-extension',
         event,
@@ -45,9 +52,7 @@
         playing,
         ended: video?.ended ?? false,
         at: Date.now(),
-      }),
-    }).catch(() => {
-      // The companion is optional; never disturb the player when it is closed.
+      },
     });
   };
 
@@ -73,15 +78,13 @@
     send('ready');
   }
 
-  const findVideo = () => {
+  function findVideo() {
     const candidate = document.getElementById('sp-video') || document.querySelector('video');
     if (candidate) attach(candidate);
-  };
+  }
 
   findVideo();
   new MutationObserver(findVideo).observe(document.documentElement, { childList: true, subtree: true });
 
-  // Clear the user's Discord activity when they leave the watch page.
-  // keepalive lets the request finish during normal page navigation/unload.
   window.addEventListener('pagehide', () => send('pagehide', true), { capture: true });
 })();
