@@ -140,8 +140,8 @@ let settings = {
   subSyncOffset: 0,
   showWhenMuted: false,
   iosMode: false,
-  subtitleHorizontal: 50,
-  subtitlePosition: 88,
+  subtitleHorizontal: 0,
+  subtitlePosition: 90,
   subtitleSize: 22,
   subtitleBgOpacity: 50,
   subtitleColor: '#ffffff',
@@ -579,8 +579,8 @@ rangeSubBg?.addEventListener('input', e => { settings.subtitleBgOpacity = Number
 
 headerReset?.addEventListener('click', e => {
   e.stopPropagation();
-  settings.subtitleHorizontal = 50;
-  settings.subtitlePosition = 88;
+  settings.subtitleHorizontal = 0;
+  settings.subtitlePosition = 90;
   settings.subtitleSize = 22;
   settings.subtitleBgOpacity = 50;
   applySubStyles();

@@ -425,17 +425,17 @@ export function playerBody(p: PlayerBodyParams): string {
             <div class="vh-slider-row">
               <div class="mb-2 flex items-center justify-between gap-3">
                 <span class="text-sm font-medium text-white">Horizontal</span>
-                <span id="vh-val-sub-h" class="text-sm tabular-nums text-white/70">50%</span>
+                <span id="vh-val-sub-h" class="text-sm tabular-nums text-white/70">0%</span>
               </div>
-              <input type="range" id="vh-range-sub-h" min="0" max="100" step="1" value="50" class="w-full accent-cyan-400" aria-label="Horizontal">
+              <input type="range" id="vh-range-sub-h" min="0" max="100" step="1" value="0" class="w-full accent-cyan-400" aria-label="Horizontal">
             </div>
             <!-- Vertical slider -->
             <div class="vh-slider-row">
               <div class="mb-2 flex items-center justify-between gap-3">
                 <span class="text-sm font-medium text-white">Vertical</span>
-                <span id="vh-val-sub-v" class="text-sm tabular-nums text-white/70">88%</span>
+                <span id="vh-val-sub-v" class="text-sm tabular-nums text-white/70">90%</span>
               </div>
-              <input type="range" id="vh-range-sub-v" min="0" max="100" step="1" value="88" class="w-full accent-cyan-400" aria-label="Vertical">
+              <input type="range" id="vh-range-sub-v" min="0" max="100" step="1" value="90" class="w-full accent-cyan-400" aria-label="Vertical">
             </div>
             <!-- Size slider -->
             <div class="vh-slider-row">
