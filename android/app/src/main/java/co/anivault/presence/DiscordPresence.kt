@@ -10,10 +10,11 @@ class DiscordPresence(context: Context) {
         }
     }
 
+    private val appContext = context.applicationContext
     private var ready = false
 
     fun start() {
-        nativeInit(context.applicationContext)
+        nativeInit(appContext, BuildConfig.DISCORD_APPLICATION_ID.toString())
         ready = true
     }
 
@@ -51,7 +52,7 @@ class DiscordPresence(context: Context) {
         ready = false
     }
 
-    private external fun nativeInit(context: Context)
+    private external fun nativeInit(context: Context, applicationId: String)
     private external fun nativeUpdate(
         title: String,
         episode: Int,
