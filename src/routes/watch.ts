@@ -27,7 +27,7 @@ import { AnimeTracker } from '../lib/tracker';
 import { EpisodeAir, AiredInfo } from '../lib/episode-air';
 import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
 import { getEpisodeThumbnail } from '../lib/episode-thumb';
-import { SUB_SOURCES, DUB_SOURCES, HINDI_SOURCES, fixedServerBtn } from '../lib/stream-sources';
+import { SUB_PROVIDERS, DUB_PROVIDERS, HINDI_PROVIDERS, fixedServerBtn } from '../lib/stream-sources';
 
 export const watchRoutes = new Hono<{ Bindings: Env }>();
 
@@ -406,17 +406,17 @@ export function renderWatchBody(p: WatchBodyParams): string {
               <div class="server-tabs"><button class="server-tab active" data-tab="sub">Sub</button><button class="server-tab" data-tab="dub">Dub</button></div>
               <div class="server-tab-panel active" id="tab-panel-sub" data-audio="sub">
                 <div class="server-btn-row" id="servers-sub-body">
-                  ${SUB_SOURCES.map(s => fixedServerBtn('sub', s.key, s.label)).join('')}
+                  ${SUB_PROVIDERS.map(p => fixedServerBtn('sub', p.source, p.provider, p.label)).join('')}
                 </div>
               </div>
               <div class="server-tab-panel" id="tab-panel-dub" data-audio="dub">
                 <div class="server-btn-row" id="servers-dub-body">
-                  ${DUB_SOURCES.map(s => fixedServerBtn('dub', s.key, s.label)).join('')}
+                  ${DUB_PROVIDERS.map(p => fixedServerBtn('dub', p.source, p.provider, p.label)).join('')}
                 </div>
                 <div class="server-group" id="dub-hindi-group">
                   <div class="server-group-label">Hindi Dub</div>
                   <div class="server-group-body" id="servers-dub-hindi-body">
-                    ${HINDI_SOURCES.map(s => fixedServerBtn('hindi', s.key, s.label)).join('')}
+                    ${HINDI_PROVIDERS.map(p => fixedServerBtn('hindi', p.source, p.provider, p.label)).join('')}
                   </div>
                 </div>
                 <div class="server-group" id="dub-multi-group" style="display:none">
