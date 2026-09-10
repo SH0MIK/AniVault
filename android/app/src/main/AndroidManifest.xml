@@ -19,7 +19,7 @@
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="discord-REPLACE_WITH_APPLICATION_ID" />
+                <data android:scheme="${DISCORD_APP_SCHEME}" />
             </intent-filter>
         </activity>
 
