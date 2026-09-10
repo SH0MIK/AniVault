@@ -4,15 +4,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   const bridgeUrl = typeof message.bridgeUrl === 'string' ? message.bridgeUrl : '';
   if (!/^https?:\/\//i.test(bridgeUrl)) return;
 
-  fetch(bridgeUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    keepalive: Boolean(message.keepalive),
-    body: JSON.stringify(message.payload || {}),
-  }).catch(() => {
-    // The companion is optional; never interfere with playback when it is offline.
+  chrome.storage.sync.get({ bridgeSecret: '' }, ({ bridgeSecret }) => {
+    const headers = { 'Content-Type': 'application/json' };
+    if (typeof bridgeSecret === 'string' && bridgeSecret) {
+      headers['X-AniVault-Bridge-Secret'] = bridgeSecret;
+    }
+
+    fetch(bridgeUrl, {
+      method: 'POST',
+      headers,
+      keepalive: Boolean(message.keepalive),
+      body: JSON.stringify(message.payload || {}),
+    }).catch(() => {
+      // The companion is optional; never interfere with playback when it is offline.
+    });
   });
 
   sendResponse({ ok: true });
