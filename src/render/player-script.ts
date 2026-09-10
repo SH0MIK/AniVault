@@ -492,6 +492,9 @@ function parseVtt(text) {
       return hours * 3600 + parseInt(min, 10) * 60 + parseInt(sec, 10) + parseInt(ms, 10) / 1000;
     };
 
+    const start = parseSeconds(m[1], m[2], m[3], m[4]);
+    const end = parseSeconds(m[5], m[6], m[7], m[8]);
+
     const cueText = bLines.slice(timeIdx + 1).join('<br>').replace(new RegExp('<(?!/?(i|b|u|font)\\\\b)[^>]+>', 'gi'), '');
     if (cueText) cues.push({ start, end, text: cueText });
   }
@@ -1228,7 +1231,7 @@ window.SenshiPlayer = {
         fetch(s.url)
           .then(r => r.text())
           .then(txt => {
-            subTracks[i] = { label: s.label || ('Track ' + (i + 1)), cues: parseVtt(txt) };
+            subTracks[i] = { label: s.label || s.lang || ('Track ' + (i + 1)), cues: parseVtt(txt) };
           })
           .catch(() => {})
           .finally(() => {
