@@ -1,307 +1,1171 @@
-export const PLAYER_CSS = `<style id="sp-skin">
-/* ─── Tokens ────────────────────────────────────────────── */
-:root{
-  --sp-accent:#7c3aed;
-  --sp-accent-rgb:124,58,237;
-  --sp-accent-glow:rgba(124,58,237,0.4);
-  --sp-bg:#05070d;
-  --sp-surface:#0f1219;
-  --sp-surface2:#161b26;
-  --sp-surface3:#1e2535;
-  --sp-text:#e8eaf0;
-  --sp-text-sub:rgba(232,234,240,0.6);
-  --sp-text-muted:rgba(232,234,240,0.35);
-  --sp-border:rgba(124,58,237,0.15);
-  --sp-border2:rgba(124,58,237,0.08);
-  --sp-r:14px;
-  --sp-hud:'Orbitron',monospace;
-  --sp-body:'Exo 2',sans-serif;
+export const PLAYER_CSS = `
+/* ══════════════════════════════════════════════════════════════════════════
+   OFFICIAL VIDHAWK / ENMA 4 CSS — PIXEL FOR PIXEL REPLICA
+   ══════════════════════════════════════════════════════════════════════════ */
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap');
+
+:root {
+  --vh-ios-fade-ms: 220ms;
+  --vh-ios-sheet-ms: 320ms;
+  --vh-ios-panel-ms: 260ms;
+  --vh-ios-ease: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-/* ─── Reset / base ──────────────────────────────────────── */
-#senshi-player-root *{box-sizing:border-box;margin:0;padding:0}
-#senshi-player-root{
-  position:relative;width:100%;
-  background:var(--sp-bg);
-  font-family:var(--sp-body);
-  border-radius:var(--sp-r);
-  box-shadow:0 0 0 1px var(--sp-border),0 0 28px rgba(124,58,237,0.07);
-  overflow:hidden;
+/* ── Utility shims for VidHawk class names used in player body ─────────── */
+.h-3   { height: 0.75rem; }
+.h-3\.5 { height: 0.875rem; }
+.h-4   { height: 1rem; }
+.h-4\.5 { height: 1.125rem; }
+.h-6   { height: 1.5rem; }
+.h-7   { height: 1.75rem; }
+.h-8   { height: 2rem; }
+.h-9   { height: 2.25rem; }
+.h-10  { height: 2.5rem; }
+.h-11  { height: 2.75rem; }
+.h-14  { height: 3.5rem; }
+.h-16  { height: 4rem; }
+.h-full { height: 100%; }
+.h-screen { height: 100dvh; }
+.w-3   { width: 0.75rem; }
+.w-3\.5 { width: 0.875rem; }
+.w-4   { width: 1rem; }
+.w-6   { width: 1.5rem; }
+.w-7   { width: 1.75rem; }
+.w-8   { width: 2rem; }
+.w-9   { width: 2.25rem; }
+.w-10  { width: 2.5rem; }
+.w-11  { width: 2.75rem; }
+.w-16  { width: 4rem; }
+.w-full { width: 100%; }
+.w-screen { width: 100vw; }
+
+/* h-[18px] w-[18px] arbitrary Tailwind values used by VidHawk icons */
+[class*="h-\\[18px\\]"], .vh-btn > svg:first-child { width: 18px; height: 18px; }
+.h-\[18px\] { height: 18px; }
+.w-\[18px\] { width: 18px; }
+
+.fill-current { fill: currentColor; }
+.shrink-0 { flex-shrink: 0; }
+.relative { position: relative; }
+.z-20 { z-index: 20; }
+.z-30 { z-index: 30; }
+.bg-black { background-color: #000; }
+.text-white { color: #fff; }
+.font-bold { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+.text-sm { font-size: 0.875rem; line-height: 1.25rem; }
+.text-xs { font-size: 0.75rem; line-height: 1rem; }
+.text-base { font-size: 1rem; line-height: 1.5rem; }
+.leading-relaxed { line-height: 1.625; }
+.tracking-wide { letter-spacing: 0.025em; }
+.mt-1 { margin-top: 0.25rem; }
+.mt-2 { margin-top: 0.5rem; }
+.px-4 { padding-left: 1rem; padding-right: 1rem; }
+.px-5 { padding-left: 1.25rem; padding-right: 1.25rem; }
+.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.px-3 { padding-left: 0.75rem; padding-right: 0.75rem; }
+.px-3\.5 { padding-left: 0.875rem; padding-right: 0.875rem; }
+.py-1\.5 { padding-top: 0.375rem; padding-bottom: 0.375rem; }
+.rounded-full { border-radius: 9999px; }
+.flex { display: flex; }
+.inline-flex { display: inline-flex; }
+.items-center { align-items: center; }
+.justify-center { justify-content: center; }
+.gap-1\.5 { gap: 0.375rem; }
+.gap-2 { gap: 0.5rem; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+.min-w-0 { min-width: 0; }
+.overflow-hidden { overflow: hidden; }
+.text-center { text-align: center; }
+.absolute { position: absolute; }
+.inset-0 { inset: 0; }
+.p-1\.5 { padding: 0.375rem; }
+.p-2 { padding: 0.5rem; }
+.p-3 { padding: 0.75rem; }
+.p-4 { padding: 1rem; }
+.py-1 { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+.flex-col { flex-direction: column; }
+.flex-1 { flex: 1 1 0%; }
+.pointer-events-none { pointer-events: none; }
+.select-none { user-select: none; -webkit-user-select: none; }
+.tabular-nums { font-variant-numeric: tabular-nums; }
+.whitespace-nowrap { white-space: nowrap; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.w-72 { width: 18rem; }
+.max-h-56 { max-height: 14rem; }
+.max-h-80 { max-height: 20rem; }
+
+/* Animate-spin for spinner */
+@keyframes spin { to { transform: rotate(360deg); } }
+.animate-spin { animation: spin 1s linear infinite; }
+
+/* Pulse for server toast */
+@keyframes pulse { 50% { opacity: 0.5; } }
+.animate-pulse { animation: pulse 2s cubic-bezier(0.4,0,0.6,1) infinite; }
+
+/* accent-cyan-400 */
+.accent-cyan-400 { accent-color: #22d3ee; }
+
+/* p-1.5 shorthand for submenu panels */
+#vh-menu-root, #vh-menu-quality, #vh-menu-speed,
+#vh-menu-captions, #vh-menu-more, #vh-menu-sleep { padding: 0.375rem; }
+#vh-menu-sub-style { padding-block: 0.25rem; }
+
+
+#senshi-player-root,
+#watch-player,
+[data-vh-player] {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background-color: #000000;
+  font-family: 'Manrope', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #ffffff;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  border-radius: 12px;
 }
 
-/* ─── Video area ────────────────────────────────────────── */
-#sp-video-area{position:relative;width:100%;aspect-ratio:16/9;background:#000;overflow:hidden}
-#sp-video{width:100%;height:100%;display:block;background:#000}
-
-/* ─── Spinner ─────────────────────────────────────────────
-   Solid black so it fully covers the video element (which otherwise shows
-   a "no source" placeholder icon on a grey background while the stream is
-   still loading — that's what was making it look broken). Visible by
-   default; only hidden once playback actually starts. ─────────────── */
-#sp-spinner{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:20;background:#000;opacity:1;transition:opacity .25s}
-#sp-spinner.hide{opacity:0;pointer-events:none}
-.sp-spin{width:46px;height:46px;border-radius:50%;border:2.5px solid transparent;border-top-color:var(--sp-accent);border-bottom-color:rgba(124,58,237,0.2);animation:sp-spin .75s linear infinite;box-shadow:0 0 12px var(--sp-accent-glow)}
-@keyframes sp-spin{to{transform:rotate(360deg)}}
-
-/* ─── Error ─────────────────────────────────────────────── */
-#sp-error{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:.9rem;background:rgba(0,0,0,0.9);z-index:40;padding:2rem;text-align:center}
-#sp-error.show{display:flex}
-.sp-err-icon{font-size:2rem}
-.sp-err-title{font-family:var(--sp-hud);font-size:.85rem;letter-spacing:.06em;color:#fff}
-.sp-err-msg{font-size:.78rem;color:var(--sp-text-sub);line-height:1.5;max-width:320px}
-.sp-err-retry{font-family:var(--sp-hud);font-size:.7rem;letter-spacing:.08em;padding:.4rem 1.4rem;background:var(--sp-accent);color:#fff;border:none;border-radius:8px;cursor:pointer;transition:opacity .15s}
-.sp-err-retry:hover{opacity:.85}
-
-/* ─── Pause flash icon ──────────────────────────────────── */
-#sp-pause-icon{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%) scale(1.4);width:64px;height:64px;border-radius:50%;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:15;opacity:0;pointer-events:none;transition:opacity .35s,transform .35s}
-#sp-pause-icon.show{opacity:1;transform:translate(-50%,-50%) scale(1)}
-#sp-pause-icon svg{width:28px;height:28px;fill:#fff}
-
-/* ─── Custom control bar ────────────────────────────────────
-   Replaces the native <video controls> UI. Auto-hides via the
-   .sp-hide-ui class toggled from player-script.ts on inactivity. */
-#sp-ctrl-bar{position:absolute;left:0;right:0;bottom:0;z-index:25;padding:22px 14px 10px;background:linear-gradient(180deg,transparent,rgba(0,0,0,.82) 60%,rgba(0,0,0,.92));opacity:1;transition:opacity .25s;font-family:var(--sp-body)}
-#sp-video-area.sp-hide-ui #sp-ctrl-bar{opacity:0;pointer-events:none}
-#sp-video-area.sp-hide-ui{cursor:none}
-
-.sp-progress-wrap{position:relative;height:14px;display:flex;align-items:center;cursor:pointer;margin-bottom:6px}
-.sp-progress-wrap::before{content:'';position:absolute;left:0;right:0;height:4px;border-radius:2px;background:rgba(255,255,255,.18)}
-.sp-buf-fill{position:absolute;left:0;height:4px;width:0;border-radius:2px;background:rgba(255,255,255,.32);pointer-events:none}
-.sp-play-fill{position:absolute;left:0;height:4px;width:0;border-radius:2px;background:var(--sp-accent);box-shadow:0 0 8px var(--sp-accent-glow);pointer-events:none}
-.sp-play-fill::after{content:'';position:absolute;right:-5px;top:50%;transform:translateY(-50%);width:11px;height:11px;border-radius:50%;background:var(--sp-accent);box-shadow:0 0 0 3px rgba(0,0,0,.25);opacity:0;transition:opacity .15s}
-.sp-progress-wrap:hover .sp-play-fill::after{opacity:1}
-.sp-seek{position:absolute;inset:0;width:100%;margin:0;opacity:0;cursor:pointer}
-.sp-seek-tip{position:absolute;bottom:20px;transform:translateX(-50%);background:#0f0f0f;border:1px solid var(--sp-border);color:var(--sp-text);font-size:.68rem;padding:3px 7px;border-radius:6px;white-space:nowrap;opacity:0;pointer-events:none;transition:opacity .15s}
-.sp-progress-wrap:hover .sp-seek-tip{opacity:1}
-
-.sp-ctrl-row{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.sp-ctrl-left,.sp-ctrl-right{display:flex;align-items:center;gap:2px}
-.sp-cbtn{width:34px;height:34px;display:flex;align-items:center;justify-content:center;background:transparent;border:none;color:#fff;cursor:pointer;border-radius:8px;transition:background .15s;flex-shrink:0;position:relative}
-.sp-cbtn:hover{background:rgba(255,255,255,.1)}
-.sp-cbtn svg{width:19px;height:19px}
-.sp-cbtn span{position:absolute;bottom:2px;right:3px;font-size:.5rem;font-weight:800;font-family:var(--sp-hud);pointer-events:none}
-.sp-vol{width:64px;accent-color:var(--sp-accent);margin:0 6px;cursor:pointer}
-.sp-time{font-family:var(--sp-hud);font-size:.68rem;letter-spacing:.03em;color:var(--sp-text-sub);white-space:nowrap;margin-left:4px}
-
-.sp-settings-wrap{position:relative}
-.sp-settings-pop{position:absolute;bottom:44px;right:0;width:220px;background:#111421;border:1px solid var(--sp-border);border-radius:14px;padding:10px;box-shadow:0 10px 32px rgba(0,0,0,.5);display:none;overflow:hidden}
-.sp-settings-pop.show{display:block}
-.sp-sett-item{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;margin-bottom:2px;border-radius:9px;cursor:pointer;font-size:.78rem;color:var(--sp-text)}
-.sp-sett-item:last-child{margin-bottom:0}
-.sp-sett-item:hover{background:rgba(124,58,237,.1)}
-.sp-sett-cur{color:var(--sp-text-muted);font-size:.72rem}
-.sp-sett-back{display:flex;align-items:center;gap:8px;padding:10px 8px;margin-bottom:6px;border-bottom:1px solid var(--sp-border2);font-size:.75rem;font-weight:700;color:var(--sp-text);cursor:pointer}
-.sp-sett-back svg{width:14px;height:14px}
-.sp-sett-opts{max-height:220px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
-.sp-sett-opt{padding:10px 14px;border-radius:9px;font-size:.78rem;color:var(--sp-text-sub);cursor:pointer}
-.sp-sett-opt:hover{background:rgba(124,58,237,.08);color:var(--sp-text)}
-.sp-sett-opt.active{background:rgba(124,58,237,.15);color:var(--sp-accent)}
-
-/* Fullscreen: bar/controls scale up slightly for easier hit targets */
-#sp-video-area:fullscreen #sp-ctrl-bar,
-#sp-video-area:-webkit-full-screen #sp-ctrl-bar{padding-bottom:18px}
-
-/* iOS Safari fallback fullscreen — iOS doesn't support the Fullscreen API on
-   non-<video> elements, so we fake it with fixed positioning instead. */
-#sp-video-area.sp-ios-fs{
-  position:fixed!important;
-  top:0;left:0;right:0;bottom:0;
-  width:100vw!important;height:100vh!important;
-  max-width:none!important;max-height:none!important;
-  aspect-ratio:unset!important;
-  z-index:2147483000;
-  border-radius:0!important;
-  background:#000;
-  padding-top:env(safe-area-inset-top);
-  padding-bottom:env(safe-area-inset-bottom);
-}
-#sp-video-area.sp-ios-fs #sp-ctrl-bar{padding-bottom:18px}
-html.sp-ios-fs-lock,html.sp-ios-fs-lock body{overflow:hidden!important;height:100%!important}
-
-@media (max-width:640px){
-  .sp-vol{width:44px}
-  .sp-time{font-size:.62rem}
-  #sp-ctrl-bar{padding:16px 8px 8px}
-  .sp-cbtn{width:30px;height:30px}
-  .sp-cbtn svg{width:17px;height:17px}
+#senshi-player-root:fullscreen,
+#senshi-player-root:-webkit-full-screen,
+#watch-player:fullscreen,
+#watch-player:-webkit-full-screen,
+[data-player-fullscreen="true"] {
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  border-radius: 0 !important;
+  aspect-ratio: auto !important;
 }
 
-/* ─── Tap-to-play overlay ───────────────────────────────────
-   Shown when the browser blocks autoplay (no recent user-gesture
-   context — common right after a page reload) even though the video
-   is already fully loaded and ready. Sits above the spinner so a
-   real, working play button replaces what would otherwise look like
-   an endless loading spinner. ─────────────────────────────────── */
-#sp-preplay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:30;cursor:pointer}
-#sp-preplay.hide{display:none;pointer-events:none}
-#sp-pp-bg{position:absolute;inset:0;background:rgba(0,0,0,0.55)}
-#sp-pp-vignette{position:absolute;inset:0;background:radial-gradient(ellipse at center,transparent 40%,rgba(0,0,0,.5) 100%);pointer-events:none}
-#sp-pp-btn{position:relative;z-index:1;width:64px;height:64px;border-radius:50%;border:none;background:var(--sp-accent);color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 0 0 1px rgba(255,255,255,.15),0 4px 20px var(--sp-accent-glow);transition:transform .15s,opacity .15s}
-#sp-pp-btn:hover{opacity:.9;transform:scale(1.05)}
-#sp-pp-btn svg{width:28px;height:28px;fill:#fff;margin-left:3px}
-
-/* ─── Top bar (simple, not overlaid on the video so it never blocks
-       native video controls / gestures) ───────────────────── */
-#sp-topbar{
-  display:flex;align-items:center;justify-content:space-between;gap:10px;
-  padding:8px 14px;background:var(--sp-surface);
-  border-bottom:1px solid var(--sp-border);
-}
-.sp-top-title{font-family:var(--sp-hud);font-size:.68rem;font-weight:500;letter-spacing:.05em;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.sp-top-ep{font-family:var(--sp-hud);font-size:.56rem;letter-spacing:.07em;color:rgba(124,58,237,.7);margin-top:2px}
-#sp-hls-badge{font-family:var(--sp-hud);font-size:.5rem;letter-spacing:.14em;color:rgba(124,58,237,.7);border:1px solid rgba(124,58,237,.25);border-radius:4px;padding:2px 6px;background:rgba(124,58,237,.06);flex-shrink:0}
-
-/* ─── INFO PANEL (below video) — UNCHANGED ─────────────────── */
-#sp-panel{
-  background:var(--sp-surface, #0f1219);
-  border-top:1px solid var(--sp-border, rgba(124,58,237,0.15));
-  border-radius:0 0 var(--sp-r, 14px) var(--sp-r, 14px);
+/* VidHawk Frosted Glass Utility Token (nB) */
+.vh-glass {
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background-color: rgba(0, 0, 0, 0.65);
+  color: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
-/* ── Info strip (above tabs) ────────────────────────────── */
-#sp-info-strip{
-  display:flex;align-items:center;gap:2px;
-  padding:10px 10px;
-  border-bottom:1px solid var(--sp-border, rgba(124,58,237,0.15));
-  background:rgba(0,0,0,.18);
-  overflow-x:auto;scrollbar-width:none;
-}
-#sp-info-strip::-webkit-scrollbar{display:none}
-.sp-istat{
-  position:relative;display:flex;align-items:center;gap:5px;
-  padding:3px 8px;border-radius:6px;cursor:default;flex-shrink:0;
-  transition:background .15s;
-}
-.sp-istat:hover{background:rgba(255,255,255,.06)}
-.sp-istat svg{width:13px;height:13px;fill:rgba(124,58,237,.7);flex-shrink:0}
-.sp-istat-val{font-family:var(--sp-hud, 'Orbitron',monospace);font-size:.6rem;color:var(--sp-text-sub, rgba(232,234,240,0.6));letter-spacing:.02em;white-space:nowrap}
-.sp-istat-sep{width:1px;height:12px;background:var(--sp-border, rgba(124,58,237,0.15));margin:0 3px;flex-shrink:0}
-
-#sp-istat-float-tip{
-  position:absolute;
-  background:rgba(8,10,18,.97);border:1px solid var(--sp-border, rgba(124,58,237,0.15));
-  color:var(--sp-text-sub, rgba(232,234,240,0.6));font-family:var(--sp-hud, 'Orbitron',monospace);font-size:.5rem;letter-spacing:.09em;
-  padding:4px 9px;border-radius:5px;white-space:nowrap;
-  pointer-events:none;opacity:0;transition:opacity .12s;z-index:60;text-transform:uppercase;
-  transform:translateX(-50%);
-}
-#sp-istat-float-tip.show{opacity:1}
-
-/* ── Tabs ───────────────────────────────────────────────── */
-#sp-panel-tabs{display:flex;border-bottom:1px solid var(--sp-border, rgba(124,58,237,0.15))}
-.sp-ptab{
-  flex:1;padding:12px 6px;
-  font-family:var(--sp-hud, 'Orbitron',monospace);font-size:.58rem;font-weight:700;
-  letter-spacing:.08em;text-transform:uppercase;
-  color:var(--sp-text-muted, rgba(232,234,240,0.35));cursor:pointer;border:none;background:none;
-  text-align:center;border-bottom:2px solid transparent;
-  transition:color .2s;margin-bottom:-1px;white-space:nowrap;
-}
-.sp-ptab.active{color:var(--sp-accent, #7c3aed);border-bottom-color:var(--sp-accent, #7c3aed)}
-.sp-ptab:hover{color:var(--sp-text, #e8eaf0)}
-#sp-panel-body{padding:18px 16px 16px!important}
-.sp-psec{display:none}.sp-psec.active{display:block}
-
-/* ── Episodes tab ───────────────────────────────────────── */
-.sp-ep-nav{display:flex;gap:8px;margin:0 0 16px!important}
-.sp-ep-nav-btn{
-  flex:1;display:flex;align-items:center;gap:8px;
-  padding:10px 12px;background:var(--sp-surface2, #161b26);
-  border:1px solid var(--sp-border, rgba(124,58,237,0.15));border-radius:9px;
-  color:var(--sp-text-sub, rgba(232,234,240,0.6));font-family:var(--sp-body, 'Exo 2',sans-serif);font-size:.8rem;font-weight:500;
-  cursor:pointer;text-decoration:none;transition:all .18s;
-}
-.sp-ep-nav-btn:hover{border-color:var(--sp-accent, #7c3aed);color:#fff;background:rgba(124,58,237,.07)}
-.sp-ep-nav-btn.disabled{opacity:.28;pointer-events:none;cursor:default}
-.sp-ep-nav-btn svg{width:16px;height:16px;fill:currentColor;flex-shrink:0}
-.sp-ep-nav-lbl{display:flex;flex-direction:column}
-.sp-ep-nav-lbl small{font-size:.55rem;color:var(--sp-text-muted, rgba(232,234,240,0.35));font-family:var(--sp-hud, 'Orbitron',monospace);letter-spacing:.07em;text-transform:uppercase}
-.sp-ep-nav-btn.next{justify-content:flex-end;text-align:right}
-.sp-ep-divider{
-  font-family:var(--sp-hud, 'Orbitron',monospace);font-size:.47rem;letter-spacing:.18em;text-transform:uppercase;
-  color:var(--sp-text-muted, rgba(232,234,240,0.35));margin:0 0 10px!important;padding-bottom:6px;
-  border-bottom:1px solid var(--sp-border, rgba(124,58,237,0.15));
-  display:flex;align-items:center;justify-content:space-between;
-}
-.sp-ep-grid{
-  display:grid;grid-template-columns:repeat(auto-fill,minmax(40px,1fr));gap:6px;
-  margin-top:2px;
-  overflow:hidden;
-}
-.sp-ep-grid.sp-ep-expanded{
-  max-height:152px;overflow-y:auto;
-  scrollbar-width:thin;scrollbar-color:rgba(124,58,237,.35) transparent;
-  padding-right:3px;
-}
-.sp-ep-grid.sp-ep-expanded::-webkit-scrollbar{width:4px}
-.sp-ep-grid.sp-ep-expanded::-webkit-scrollbar-track{background:transparent}
-.sp-ep-grid.sp-ep-expanded::-webkit-scrollbar-thumb{background:rgba(124,58,237,.35);border-radius:2px}
-.sp-ep-chip{
-  display:block;padding:7px 2px;background:var(--sp-surface2, #161b26);
-  border:1px solid var(--sp-border, rgba(124,58,237,0.15));border-radius:7px;
-  text-align:center;font-family:var(--sp-hud, 'Orbitron',monospace);font-size:.62rem;
-  color:var(--sp-text-muted, rgba(232,234,240,0.35));cursor:pointer;text-decoration:none;transition:all .15s;
-}
-.sp-ep-chip:hover{border-color:var(--sp-accent, #7c3aed);color:#fff;background:rgba(124,58,237,.08)}
-.sp-ep-chip.current{border-color:var(--sp-accent, #7c3aed);background:rgba(124,58,237,.15);color:var(--sp-accent, #7c3aed)}
-.sp-ep-chip.watched:not(.current){background:rgba(0,0,0,.4);border-color:rgba(255,255,255,.05);color:var(--sp-text-muted, rgba(232,234,240,0.35))}
-.sp-ep-chip.watched:not(.current):hover{background:rgba(0,0,0,.5)}
-.sp-ep-chip.sp-ep-extra{display:none}
-.sp-ep-grid.sp-ep-expanded .sp-ep-chip.sp-ep-extra{display:block}
-
-/* show more / less button */
-.sp-ep-more{
-  display:flex;align-items:center;justify-content:center;gap:6px;
-  width:100%;margin-top:12px!important;padding:9px;
-  background:var(--sp-surface2, #161b26);border:1px solid var(--sp-border, rgba(124,58,237,0.15));
-  border-radius:8px;color:var(--sp-text-sub, rgba(232,234,240,0.6));
-  font-family:var(--sp-hud, 'Orbitron',monospace);font-size:.6rem;letter-spacing:.06em;text-transform:uppercase;
-  cursor:pointer;transition:all .15s;
-}
-.sp-ep-more:hover{border-color:var(--sp-accent, #7c3aed);color:#fff;background:rgba(124,58,237,.08)}
-.sp-ep-more svg{width:12px;height:12px;fill:currentColor;transition:transform .2s;flex-shrink:0}
-.sp-ep-more.sp-expanded svg{transform:rotate(180deg)}
-
-/* quality panel */
-.sp-qual-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.sp-qopt{padding:10px 8px;background:var(--sp-surface2, #161b26);border:1px solid var(--sp-border, rgba(124,58,237,0.15));border-radius:8px;cursor:pointer;text-align:center;transition:all .18s}
-.sp-qopt:hover{border-color:var(--sp-accent, #7c3aed);background:rgba(124,58,237,.06)}
-.sp-qopt.active{border-color:var(--sp-accent, #7c3aed);background:rgba(124,58,237,.12)}
-.sp-qopt-lbl{font-family:var(--sp-hud, 'Orbitron',monospace);font-size:.8rem;font-weight:500;color:var(--sp-text, #e8eaf0)}
-.sp-qopt-sub{font-size:.65rem;color:var(--sp-text-muted, rgba(232,234,240,0.35));margin-top:4px;font-family:var(--sp-body, 'Exo 2',sans-serif)}
-
-/* speed panel */
-.sp-spd-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
-.sp-sopt{padding:10px 4px;background:var(--sp-surface2, #161b26);border:1px solid var(--sp-border, rgba(124,58,237,0.15));border-radius:8px;cursor:pointer;text-align:center;font-family:var(--sp-hud, 'Orbitron',monospace);font-size:.68rem;color:var(--sp-text-muted, rgba(232,234,240,0.35));transition:all .18s}
-.sp-sopt:hover{border-color:var(--sp-accent, #7c3aed);color:var(--sp-text, #e8eaf0)}
-.sp-sopt.active{border-color:var(--sp-accent, #7c3aed);color:var(--sp-accent, #7c3aed);background:rgba(124,58,237,.1);text-shadow:0 0 8px rgba(124,58,237,.35)}
-
-/* stats panel */
-.sp-stat-bar{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px!important}
-.sp-stat-item{font-family:var(--sp-hud, 'Orbitron',monospace);font-size:.58rem;letter-spacing:.05em;color:var(--sp-text-muted, rgba(232,234,240,0.35))}
-.sp-stat-item span{color:var(--sp-accent, #7c3aed)}
-#sp-buf-chart{height:48px;background:var(--sp-surface2, #161b26);border:1px solid var(--sp-border, rgba(124,58,237,0.15));border-radius:8px;overflow:hidden;display:flex;align-items:flex-end;padding:5px;gap:2px}
-.sp-buf-bar{flex:1;border-radius:3px 3px 0 0;background:rgba(124,58,237,.45);min-width:0;transition:height .4s,opacity .4s}
-
-/* shortcuts panel */
-.sp-keys-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.sp-key-row{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04)}
-.sp-key-row:last-child{border:none}
-.sp-kbd{background:var(--sp-surface3, #1e2535);border:1px solid var(--sp-border, rgba(124,58,237,0.15));border-radius:4px;padding:3px 8px;font-family:var(--sp-hud, 'Orbitron',monospace);font-size:.58rem;color:var(--sp-accent, #7c3aed);white-space:nowrap;flex-shrink:0}
-.sp-key-desc{font-family:var(--sp-body, 'Exo 2',sans-serif);font-size:.75rem;color:var(--sp-text-muted, rgba(232,234,240,0.35))}
-
-/* ─── Mobile ─────────────────────────────────────────────── */
-@media(max-width:600px){
-  .sp-top-title{font-size:.6rem}
-  #sp-panel-body{padding:16px 12px 14px!important}
-  .sp-ptab{font-size:.5rem;padding:11px 4px!important;letter-spacing:.04em}
-  .sp-qual-grid{grid-template-columns:repeat(3,1fr)}
-  .sp-spd-grid{grid-template-columns:repeat(4,1fr)}
-  .sp-keys-grid{grid-template-columns:1fr 1fr}
-  .sp-key-desc{font-size:.7rem}
-  .sp-ep-grid{grid-template-columns:repeat(auto-fill,minmax(38px,1fr))}
-  .sp-ep-grid.sp-ep-expanded{max-height:130px}
+.vh-ctrl-glass {
+  backface-visibility: hidden;
+  transform: translateZ(0);
 }
 
-</style>
+/* Video Surface */
+#sp-video-area {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  background: #000;
+  overflow: hidden;
+}
+
+#sp-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
+}
+
+/* Scrim Gradients - bottom controls shadow only when UI active */
+.vh-gradient-overlay {
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  height: 140px;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.75) 0%, rgba(0, 0, 0, 0.25) 50%, transparent 100%);
+  opacity: 0;
+  transition: opacity 200ms cubic-bezier(0.32, 0.72, 0, 1);
+  z-index: 25;
+}
+
+#senshi-player-root:not(.vh-ui-hidden) .vh-gradient-overlay {
+  opacity: 1;
+}
+
+.vh-top-scrim {
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  top: 0;
+  height: 70px;
+  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.45) 0%, transparent 100%);
+  opacity: 0;
+  transition: opacity 200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+#senshi-player-root:not(.vh-ui-hidden) .vh-top-scrim {
+  opacity: 1;
+}
+
+/* Main UI Container */
+.vh-main-ui {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  transition: opacity 200ms cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+/* UI Hidden State */
+.vh-ui-hidden .vh-gradient-overlay,
+.vh-ui-hidden .vh-main-ui {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Mini Progress Bar when UI is hidden */
+.vh-mini-progress {
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 42;
+  padding-inline: 12px;
+  padding-bottom: 10px;
+  opacity: 0;
+  transition: opacity 200ms ease;
+}
+
+.vh-ui-hidden .vh-mini-progress {
+  opacity: 1;
+}
+
+.vh-mini-track {
+  position: relative;
+  height: 3px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 9999px;
+  background-color: rgba(255, 255, 255, 0.2);
+}
+
+.vh-mini-played {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  background-color: rgba(255, 255, 255, 0.55);
+}
+
+.vh-mini-intro {
+  position: absolute;
+  inset-block: 0;
+  background-color: #38bdf8;
+}
+
+.vh-mini-outro {
+  position: absolute;
+  inset-block: 0;
+  background-color: #fbbf24;
+}
+
+/* Top Bar */
+.vh-top-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 8px 12px;
+  z-index: 45;
+}
+
+.vh-top-title {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-left: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  display: none;
+}
+
+#senshi-player-root:fullscreen .vh-top-title,
+#senshi-player-root:-webkit-full-screen .vh-top-title,
+[data-player-fullscreen="true"] .vh-top-title {
+  display: block !important;
+}
+
+.vh-top-spacer {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+}
+
+.vh-top-mobile-ctrls {
+  position: relative;
+  z-index: 1;
+  display: none;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  border-radius: 9999px;
+  padding: 2px 6px;
+}
+
+/* ─── VidHawk Seekbar (lf component) ───────────────────────────────────── */
+.vh-seek-container {
+  position: relative;
+  display: flex;
+  width: 100%;
+  touch-action: none;
+  align-items: center;
+  user-select: none;
+  -webkit-user-select: none;
+  height: 14px;
+  cursor: pointer;
+}
+
+.vh-seek-track {
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  overflow: hidden;
+  border-radius: 9999px;
+  background-color: rgba(255, 255, 255, 0.25);
+  height: 2.5px;
+  transition: height 100ms ease;
+}
+
+.vh-seek-container:hover .vh-seek-track,
+.vh-seek-container.is-scrubbing .vh-seek-track {
+  height: 3.5px;
+}
+
+.vh-seek-buffered {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  background-color: rgba(255, 255, 255, 0.35);
+}
+
+.vh-seek-played {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  background-color: #ffffff;
+}
+
+.vh-seek-intro-band {
+  position: absolute;
+  inset-block: 0;
+  z-index: 1;
+  background-color: #38bdf8;
+}
+
+.vh-seek-outro-band {
+  position: absolute;
+  inset-block: 0;
+  z-index: 1;
+  background-color: #fbbf24;
+}
+
+.vh-seek-thumb {
+  pointer-events: none;
+  position: absolute;
+  transform: translate(-50%, 0);
+  border-radius: 9999px;
+  background-color: #ffffff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.25);
+  height: 12px;
+  width: 12px;
+  transition: width 100ms ease, height 100ms ease;
+}
+
+.vh-seek-container:hover .vh-seek-thumb,
+.vh-seek-container.is-scrubbing .vh-seek-thumb {
+  height: 14px;
+  width: 14px;
+}
+
+/* Hover time tooltip */
+.vh-seek-tooltip {
+  pointer-events: none;
+  position: absolute;
+  bottom: 20px;
+  transform: translateX(-50%);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background-color: rgba(0, 0, 0, 0.85);
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: #fff;
+  opacity: 0;
+  transition: opacity 120ms ease;
+  white-space: nowrap;
+}
+
+.vh-seek-tooltip.active {
+  opacity: 1;
+}
+
+/* ─── Control Buttons (ll component) ───────────────────────────────────── */
+.vh-btn {
+  display: inline-flex;
+  height: 36px;
+  width: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: rgba(255, 255, 255, 0.9);
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  transition: background-color 150ms ease, transform 100ms ease;
+}
+
+.vh-btn:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.vh-btn:active {
+  background-color: rgba(255, 255, 255, 0.14);
+  transform: scale(0.95);
+}
+
+.vh-btn.active {
+  color: #ffffff;
+}
+
+/* Center Controls */
+.vh-center-controls {
+  pointer-events: none;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+}
+
+@media (min-width: 640px) {
+  .vh-center-controls {
+    gap: 48px;
+  }
+}
+
+.vh-center-rewind,
+.vh-center-forward {
+  height: 44px;
+  width: 44px;
+  background: transparent;
+  pointer-events: auto;
+}
+
+.vh-center-play {
+  height: 56px;
+  width: 56px;
+  border-radius: 9999px;
+  pointer-events: auto;
+}
+
+
+
+/* Bottom Container */
+.vh-bottom-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 12px 12px 12px;
+}
+
+.vh-bottom-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.vh-bottom-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.vh-vol-pill {
+  display: flex;
+  align-items: center;
+  border-radius: 9999px;
+}
+
+.vh-vol-slider {
+  margin-right: 8px;
+  height: 4px;
+  width: 0;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.3);
+  accent-color: #ffffff;
+  opacity: 0;
+  transition: width 150ms ease, opacity 150ms ease;
+}
+
+.group\/vol:hover .vh-vol-slider,
+.group\/vol:focus-within .vh-vol-slider {
+  width: 64px !important;
+  opacity: 1 !important;
+}
+
+.vh-time-pill {
+  border-radius: 9999px;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  font-variant-numeric: tabular-nums;
+}
+
+.vh-bottom-right {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  border-radius: 9999px;
+  padding: 2px 6px;
+}
+
+.vh-hd-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  border-radius: 2px;
+  background-color: #ffffff;
+  padding: 1px 3px;
+  font-size: 7px;
+  font-weight: 700;
+  line-height: 1;
+  color: #000000;
+}
+
+/* ─── Responsive Desktop vs Mobile Switch (VidHawk ti logic) ────────────── */
+@media (hover: hover) and (pointer: fine) and (min-width: 640px) {
+  .vh-center-controls {
+    display: none !important;
+  }
+  .vh-top-mobile-ctrls {
+    display: none !important;
+  }
+  .vh-mobile-only {
+    display: none !important;
+  }
+  .vh-desktop-only {
+    display: flex !important;
+  }
+}
+
+@media not all and (hover: hover) and (pointer: fine) and (min-width: 640px) {
+  .vh-center-controls {
+    display: flex !important;
+  }
+  .vh-top-mobile-ctrls {
+    display: flex !important;
+  }
+  .vh-mobile-only {
+    display: flex !important;
+  }
+  .vh-desktop-only {
+    display: none !important;
+  }
+  #vh-nav-lock {
+    display: flex !important;
+  }
+  .vh-vol-slider {
+    display: none !important;
+  }
+  .vh-vol-pill {
+    padding: 0 !important;
+  }
+  .vh-time-pill {
+    padding: 6px 10px !important;
+  }
+  .vh-bottom-container {
+    gap: 8px !important;
+    padding: 2px 10px 10px 10px !important;
+  }
+}
+
+@media (max-width: 639px) {
+  .vh-center-controls {
+    display: flex !important;
+  }
+  .vh-top-mobile-ctrls {
+    display: flex !important;
+  }
+  .vh-mobile-only {
+    display: flex !important;
+  }
+  .vh-desktop-only {
+    display: none !important;
+  }
+  .vh-vol-slider {
+    display: none !important;
+  }
+}
+
+/* ─── Lock Screen Mode ─────────────────────────────────────────────────── */
+#senshi-player-root[data-locked="true"] .vh-main-ui,
+#senshi-player-root[data-locked="true"] .vh-gradient-overlay,
+#senshi-player-root[data-locked="true"] .vh-mini-progress {
+  display: none !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+#senshi-player-root[data-locked="true"] #vh-lock-overlay {
+  display: block !important;
+}
+
+.vh-lock-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.vh-lock-unlock-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+
+.vh-lock-unlock-wrap.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* ─── VidHawk Settings Sheet (Exact classes & animation) ────────────────── */
+.vh-sheet-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: rgba(0, 0, 0, 0.45);
+  animation: vh-sheet-backdrop-in var(--vh-ios-fade-ms) ease-out both;
+}
+
+@media (min-width: 640px) {
+  .vh-sheet-backdrop {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: flex-end;
+    padding: 12px;
+    padding-bottom: 4.75rem;
+  }
+}
+
+.vh-sheet-backdrop.is-leaving {
+  animation: vh-sheet-backdrop-out var(--vh-ios-fade-ms) ease-in both;
+}
+
+.vh-sheet-surface {
+  display: flex;
+  max-height: 80%;
+  width: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  border-top-left-radius: 22px;
+  border-top-right-radius: 22px;
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background-color: rgba(0, 0, 0, 0.75);
+  color: #ffffff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  animation: vh-sheet-up-in var(--vh-ios-sheet-ms) var(--vh-ios-ease) both;
+  will-change: transform;
+}
+
+@media (min-width: 640px) {
+  .vh-sheet-surface {
+    max-height: min(85%, calc(100% - 5.5rem));
+    width: 288px;
+    border-radius: 22px;
+    animation-name: vh-sheet-pop-in;
+  }
+}
+
+.vh-sheet-surface.is-leaving {
+  animation: vh-sheet-up-out 300ms var(--vh-ios-ease) both;
+}
+
+@media (min-width: 640px) {
+  .vh-sheet-surface.is-leaving {
+    animation-name: vh-sheet-pop-out;
+  }
+}
+
+.vh-sheet-header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.5);
+  padding: 10px 8px;
+  backdrop-filter: blur(24px);
+}
+
+.vh-header-title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  color: #fff;
+}
+
+.vh-header-reset {
+  flex-shrink: 0;
+  padding-inline: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.025em;
+  color: #22d3ee;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.vh-header-reset:hover {
+  color: #67e8f9;
+}
+
+.vh-sheet-panel {
+  flex: auto;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  -webkit-mask-image: linear-gradient(rgba(0, 0, 0, 0) 0, #000 0.75rem);
+  mask-image: linear-gradient(rgba(0, 0, 0, 0) 0, #000 0.75rem);
+}
+
+.vh-sheet-panel::-webkit-scrollbar {
+  display: none;
+}
+
+.vh-sheet-panel[data-dir="forward"] {
+  animation: vh-panel-forward var(--vh-ios-panel-ms) var(--vh-ios-ease) both;
+  will-change: transform, opacity;
+}
+
+.vh-sheet-panel[data-dir="back"] {
+  animation: vh-panel-back var(--vh-ios-panel-ms) var(--vh-ios-ease) both;
+  will-change: transform, opacity;
+}
+
+/* Keyframes */
+@keyframes vh-sheet-backdrop-in { 0% { opacity: 0; } to { opacity: 1; } }
+@keyframes vh-sheet-backdrop-out { 0% { opacity: 1; } to { opacity: 0; } }
+@keyframes vh-sheet-up-in { 0% { transform: translateY(110%); } to { transform: translate(0, 0); } }
+@keyframes vh-sheet-up-out { 0% { transform: translate(0, 0); } to { transform: translateY(110%); } }
+@keyframes vh-sheet-pop-in { 0% { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: translate(0, 0) scale(1); } }
+@keyframes vh-sheet-pop-out { 0% { opacity: 1; transform: translate(0, 0) scale(1); } to { opacity: 0; transform: translateY(8px) scale(0.97); } }
+@keyframes vh-panel-forward { 0% { opacity: 0.35; transform: translateX(14%); } to { opacity: 1; transform: translate(0, 0); } }
+@keyframes vh-panel-back { 0% { opacity: 0.35; transform: translateX(-10%); } to { opacity: 1; transform: translate(0, 0); } }
+
+/* ─── Menu Rows (ld component) ─────────────────────────────────────────── */
+.vh-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 16px;
+  border-radius: 12px;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 14px;
+  background: none;
+  border: none;
+  color: #ffffff;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.vh-menu-item:hover {
+  background-color: rgba(255, 255, 255, 0.06);
+}
+
+.vh-menu-item:active {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.vh-menu-icon {
+  display: flex;
+  height: 20px;
+  width: 20px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+}
+
+.vh-menu-label {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+}
+
+.vh-menu-value {
+  flex-shrink: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.5);
+}
+
+.vh-menu-chevron {
+  height: 16px;
+  width: 16px;
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.vh-divider {
+  margin-block: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.vh-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+/* Offset Row */
+.vh-offset-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+}
+
+.vh-offset-btn {
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background-color: rgba(255, 255, 255, 0.08);
+  padding: 4px 10px;
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.vh-offset-btn:hover {
+  background-color: rgba(255, 255, 255, 0.14);
+}
+
+.vh-offset-val {
+  min-width: 3.5rem;
+  text-align: center;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Slider Row (lc component) */
+.vh-slider-row {
+  padding: 10px 12px;
+}
+
+/* ─── VidHawk Switch Toggle (lo component) ──────────────────────────────── */
+.vh-switch-btn {
+  position: relative;
+  height: 24px;
+  width: 44px;
+  flex-shrink: 0;
+  border-radius: 9999px;
+  background-color: rgba(255, 255, 255, 0.2);
+  border: none;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+  padding: 0;
+}
+
+.vh-switch-btn.active {
+  background-color: #ffffff;
+}
+
+.vh-switch-dot {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  height: 20px;
+  width: 20px;
+  border-radius: 9999px;
+  background-color: #000000;
+  transition: transform 150ms ease;
+}
+
+.vh-switch-btn.active .vh-switch-dot {
+  transform: translateX(20px);
+}
+
+/* ─── Subtitles Layer (Exact VidHawk Styling) ──────────────────────────── */
+.vh-sub-container {
+  pointer-events: none;
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding-inline: 16px;
+  padding-bottom: 56px;
+}
+
+.vh-sub-text {
+  max-width: 85%;
+  text-align: center;
+  line-height: 1.375;
+  word-break: break-word;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-weight: 500;
+}
+
+/* ─── Sleep Timer Ended Overlay ────────────────────────────────────────── */
+.vh-sleep-ended-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 45;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background-color: rgba(0, 0, 0, 0.85);
+  padding: 24px;
+  text-align: center;
+  color: #ffffff;
+}
+
+/* ─── Lock Screen Overlay ──────────────────────────────────────────────── */
+.vh-lock-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 35;
+}
+
+.vh-lock-unlock-wrap {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  padding: 16px;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 300ms ease;
+}
+
+.vh-lock-unlock-wrap.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Spinner */
+#sp-spinner {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  pointer-events: none;
+  z-index: 35;
+  transition: opacity 250ms ease;
+}
+
+#sp-spinner.hide {
+  display: none !important;
+  opacity: 0;
+}
+
+/* Error */
+#sp-error {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  background: rgba(0, 0, 0, 0.9);
+  z-index: 45;
+  padding: 24px;
+  text-align: center;
+}
+
+#sp-error.show {
+  display: flex;
+}
+
+/* ─── Episode Panel Below Player (sp-panel / sp-ep-* classes) ───────────── */
+#senshi-player-root {
+  border-radius: 0;
+}
+
+#sp-panel {
+  padding: 16px 0 8px 0;
+}
+
+.sp-ep-divider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.sp-ep-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sp-ep-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
+  gap: 6px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.sp-ep-grid.sp-ep-expanded {
+  max-height: 152px;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  padding-right: 3px;
+}
+
+.sp-ep-chip {
+  display: block;
+  padding: 7px 2px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.45);
+  cursor: pointer;
+  text-decoration: none;
+  transition: all 0.15s ease;
+}
+
+.sp-ep-chip:hover {
+  border-color: rgba(255, 255, 255, 0.25);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.sp-ep-chip.current {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+
+.sp-ep-chip.watched:not(.current) {
+  background: rgba(0, 0, 0, 0.3);
+  border-color: rgba(255, 255, 255, 0.04);
+  color: rgba(255, 255, 255, 0.2);
+}
+
+.sp-ep-chip.sp-ep-extra {
+  display: none;
+}
+
+.sp-ep-grid.sp-ep-expanded .sp-ep-chip.sp-ep-extra {
+  display: block;
+}
+
+.sp-ep-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  margin-top: 10px;
+  padding: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sp-ep-more:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.sp-ep-more svg {
+  width: 12px;
+  height: 12px;
+  fill: currentColor;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.sp-ep-more.sp-expanded svg {
+  transform: rotate(180deg);
+}
 `;
+

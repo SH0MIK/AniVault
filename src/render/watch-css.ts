@@ -333,8 +333,8 @@ export const WATCH_CSS = `/* ═════════════════
   flex-shrink: 0;
   transition: all .22s;
 }
-.server-btn[data-source="animeheaven"]::before{ background:#22c55e; box-shadow:0 0 5px rgba(34,197,94,.6); }
-.server-btn[data-source="anikoto"]::before { background:#c084fc; box-shadow:0 0 5px rgba(192,132,252,.6); }
+.server-btn[data-server="animeheaven"]::before{ background:#22c55e; box-shadow:0 0 5px rgba(34,197,94,.6); }
+.server-btn[data-server^="anikoto-"]::before { background:#c084fc; box-shadow:0 0 5px rgba(192,132,252,.6); }
 .server-btn:hover {
   background: rgba(255,255,255,.09);
   border-color: rgba(255,255,255,.17);
@@ -342,41 +342,81 @@ export const WATCH_CSS = `/* ═════════════════
   transform: translateY(-1px);
   box-shadow: 0 2px 10px rgba(0,0,0,.3);
 }
-.server-btn[data-source="animeheaven"].active {
+.server-btn[data-server="animeheaven"].active {
   background: rgba(34,197,94,.14); border-color: rgba(34,197,94,.55);
   color: #22c55e; box-shadow: 0 0 16px rgba(34,197,94,.2), inset 0 1px 0 rgba(34,197,94,.12);
 }
-.server-btn[data-source="anikoto"].active { background:rgba(192,132,252,.14); border-color:rgba(192,132,252,.55); color:#c084fc; box-shadow:0 0 16px rgba(192,132,252,.2),inset 0 1px 0 rgba(192,132,252,.12); }
+.server-btn[data-server^="anikoto-"].active { background:rgba(192,132,252,.14); border-color:rgba(192,132,252,.55); color:#c084fc; box-shadow:0 0 16px rgba(192,132,252,.2),inset 0 1px 0 rgba(192,132,252,.12); }
 
 /* DesiDub (Hindi Dub / raw embed sources) — kept visually distinct from the
    English dub servers above via its own accent color + a labeled group. */
-.server-btn[data-source="desidub"]::before { background:#f97316; box-shadow:0 0 5px rgba(249,115,22,.6); }
-.server-btn[data-source="desidub"].active { background:rgba(249,115,22,.14); border-color:rgba(249,115,22,.55); color:#f97316; box-shadow:0 0 16px rgba(249,115,22,.2),inset 0 1px 0 rgba(249,115,22,.12); }
+.server-btn[data-server^="desidub:"]::before { background:#f97316; box-shadow:0 0 5px rgba(249,115,22,.6); }
+.server-btn[data-server^="desidub:"].active { background:rgba(249,115,22,.14); border-color:rgba(249,115,22,.55); color:#f97316; box-shadow:0 0 16px rgba(249,115,22,.2),inset 0 1px 0 rgba(249,115,22,.12); }
 
 /* ReAnime / AnimeNoSub / AniWaves / AniZone / WatchAnimeWorld — the 5
    sources added once the scraper backend had all 8 providers working. Each
    gets its own accent color, same active/hover treatment as the originals. */
-.server-btn[data-source="reanime"]::before          { background:#38bdf8; box-shadow:0 0 5px rgba(56,189,248,.6); }
-.server-btn[data-source="reanime"].active           { background:rgba(56,189,248,.14); border-color:rgba(56,189,248,.55); color:#38bdf8; box-shadow:0 0 16px rgba(56,189,248,.2),inset 0 1px 0 rgba(56,189,248,.12); }
-.server-btn[data-source="animenosub"]::before       { background:#facc15; box-shadow:0 0 5px rgba(250,204,21,.6); }
-.server-btn[data-source="animenosub"].active        { background:rgba(250,204,21,.14); border-color:rgba(250,204,21,.55); color:#facc15; box-shadow:0 0 16px rgba(250,204,21,.2),inset 0 1px 0 rgba(250,204,21,.12); }
-.server-btn[data-source="aniwaves"]::before         { background:#f472b6; box-shadow:0 0 5px rgba(244,114,182,.6); }
-.server-btn[data-source="aniwaves"].active          { background:rgba(244,114,182,.14); border-color:rgba(244,114,182,.55); color:#f472b6; box-shadow:0 0 16px rgba(244,114,182,.2),inset 0 1px 0 rgba(244,114,182,.12); }
-.server-btn[data-source="anizone"]::before          { background:#818cf8; box-shadow:0 0 5px rgba(129,140,248,.6); }
-.server-btn[data-source="anizone"].active           { background:rgba(129,140,248,.14); border-color:rgba(129,140,248,.55); color:#818cf8; box-shadow:0 0 16px rgba(129,140,248,.2),inset 0 1px 0 rgba(129,140,248,.12); }
-.server-btn[data-source="watchanimeworld"]::before  { background:#2dd4bf; box-shadow:0 0 5px rgba(45,212,191,.6); }
-.server-btn[data-source="watchanimeworld"].active   { background:rgba(45,212,191,.14); border-color:rgba(45,212,191,.55); color:#2dd4bf; box-shadow:0 0 16px rgba(45,212,191,.2),inset 0 1px 0 rgba(45,212,191,.12); }
+.server-btn[data-server^="reanime:"]::before          { background:#38bdf8; box-shadow:0 0 5px rgba(56,189,248,.6); }
+.server-btn[data-server^="reanime:"].active           { background:rgba(56,189,248,.14); border-color:rgba(56,189,248,.55); color:#38bdf8; box-shadow:0 0 16px rgba(56,189,248,.2),inset 0 1px 0 rgba(56,189,248,.12); }
+.server-btn[data-server^="animenosub:"]::before       { background:#facc15; box-shadow:0 0 5px rgba(250,204,21,.6); }
+.server-btn[data-server^="animenosub:"].active        { background:rgba(250,204,21,.14); border-color:rgba(250,204,21,.55); color:#facc15; box-shadow:0 0 16px rgba(250,204,21,.2),inset 0 1px 0 rgba(250,204,21,.12); }
+.server-btn[data-server^="aniwaves:"]::before         { background:#f472b6; box-shadow:0 0 5px rgba(244,114,182,.6); }
+.server-btn[data-server^="aniwaves:"].active          { background:rgba(244,114,182,.14); border-color:rgba(244,114,182,.55); color:#f472b6; box-shadow:0 0 16px rgba(244,114,182,.2),inset 0 1px 0 rgba(244,114,182,.12); }
+.server-btn[data-server^="anizone:"]::before          { background:#818cf8; box-shadow:0 0 5px rgba(129,140,248,.6); }
+.server-btn[data-server^="anizone:"].active           { background:rgba(129,140,248,.14); border-color:rgba(129,140,248,.55); color:#818cf8; box-shadow:0 0 16px rgba(129,140,248,.2),inset 0 1px 0 rgba(129,140,248,.12); }
+.server-btn[data-server^="watchanimeworld:"]::before  { background:#2dd4bf; box-shadow:0 0 5px rgba(45,212,191,.6); }
+.server-btn[data-server^="watchanimeworld:"].active   { background:rgba(45,212,191,.14); border-color:rgba(45,212,191,.55); color:#2dd4bf; box-shadow:0 0 16px rgba(45,212,191,.2),inset 0 1px 0 rgba(45,212,191,.12); }
 
-/* Pre-existing static buttons (Sub / Dub / Hindi Dub) now search in the
-   background continuously rather than appearing only once found — these
-   two states cover that lifecycle. .searching is deliberately subtle
-   (this can be true for most buttons most of the time); .unavailable
-   only applies once EVERY source in that bucket's fallback chain has been
-   exhausted, which should be rare. */
-.server-btn.searching::before { animation: server-btn-pulse 1.1s ease-in-out infinite; }
-@keyframes server-btn-pulse { 0%,100% { opacity: 1; } 50% { opacity: .3; } }
-.server-btn.unavailable { opacity: .4; cursor: not-allowed; }
-.server-btn.unavailable:hover { transform: none; box-shadow: none; }
+/* Fixed server buttons (always rendered, one per source — see
+   stream-sources.ts) — same accent colors as above but keyed off
+   data-fixed-key, since data-server on these holds the stable
+   "fixed:<key>" click/highlight key rather than the real provider key
+   the button ends up actually playing (which can be a DIFFERENT source
+   entirely once same-group fallback kicks in). */
+.server-btn[data-fixed-key="anizone"]::before          { background:#818cf8; box-shadow:0 0 5px rgba(129,140,248,.6); }
+.server-btn[data-fixed-key="anizone"].active           { background:rgba(129,140,248,.14); border-color:rgba(129,140,248,.55); color:#818cf8; box-shadow:0 0 16px rgba(129,140,248,.2),inset 0 1px 0 rgba(129,140,248,.12); }
+.server-btn[data-fixed-key="anikoto"]::before          { background:#c084fc; box-shadow:0 0 5px rgba(192,132,252,.6); }
+.server-btn[data-fixed-key="anikoto"].active           { background:rgba(192,132,252,.14); border-color:rgba(192,132,252,.55); color:#c084fc; box-shadow:0 0 16px rgba(192,132,252,.2),inset 0 1px 0 rgba(192,132,252,.12); }
+.server-btn[data-fixed-key="animeheaven"]::before      { background:#22c55e; box-shadow:0 0 5px rgba(34,197,94,.6); }
+.server-btn[data-fixed-key="animeheaven"].active       { background:rgba(34,197,94,.14); border-color:rgba(34,197,94,.55); color:#22c55e; box-shadow:0 0 16px rgba(34,197,94,.2),inset 0 1px 0 rgba(34,197,94,.12); }
+.server-btn[data-fixed-key="reanime"]::before          { background:#38bdf8; box-shadow:0 0 5px rgba(56,189,248,.6); }
+.server-btn[data-fixed-key="reanime"].active           { background:rgba(56,189,248,.14); border-color:rgba(56,189,248,.55); color:#38bdf8; box-shadow:0 0 16px rgba(56,189,248,.2),inset 0 1px 0 rgba(56,189,248,.12); }
+.server-btn[data-fixed-key="aniwaves"]::before         { background:#f472b6; box-shadow:0 0 5px rgba(244,114,182,.6); }
+.server-btn[data-fixed-key="aniwaves"].active          { background:rgba(244,114,182,.14); border-color:rgba(244,114,182,.55); color:#f472b6; box-shadow:0 0 16px rgba(244,114,182,.2),inset 0 1px 0 rgba(244,114,182,.12); }
+.server-btn[data-fixed-key="watchanimeworld"]::before  { background:#2dd4bf; box-shadow:0 0 5px rgba(45,212,191,.6); }
+.server-btn[data-fixed-key="watchanimeworld"].active   { background:rgba(45,212,191,.14); border-color:rgba(45,212,191,.55); color:#2dd4bf; box-shadow:0 0 16px rgba(45,212,191,.2),inset 0 1px 0 rgba(45,212,191,.12); }
+.server-btn[data-fixed-key="animenosub"]::before       { background:#facc15; box-shadow:0 0 5px rgba(250,204,21,.6); }
+.server-btn[data-fixed-key="animenosub"].active        { background:rgba(250,204,21,.14); border-color:rgba(250,204,21,.55); color:#facc15; box-shadow:0 0 16px rgba(250,204,21,.2),inset 0 1px 0 rgba(250,204,21,.12); }
+.server-btn[data-fixed-key="desidub"]::before          { background:#f97316; box-shadow:0 0 5px rgba(249,115,22,.6); }
+.server-btn[data-fixed-key="desidub"].active           { background:rgba(249,115,22,.14); border-color:rgba(249,115,22,.55); color:#f97316; box-shadow:0 0 16px rgba(249,115,22,.2),inset 0 1px 0 rgba(249,115,22,.12); }
+
+.server-btn-row { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; }
+
+/* Still resolving in the background — dimmed + small spinner, not
+   clickable yet. Every fixed button starts in this state the instant
+   the page loads (it's server-rendered, not injected later). */
+.server-btn-pending { opacity: .45; cursor: default; pointer-events: none; }
+.server-btn-spin {
+  width: 9px; height: 9px; border-radius: 50%;
+  border: 1.5px solid rgba(255,255,255,.25);
+  border-top-color: rgba(255,255,255,.75);
+  display: none;
+  animation: server-btn-spin-anim .7s linear infinite;
+}
+.server-btn-pending .server-btn-spin { display: inline-block; }
+@keyframes server-btn-spin-anim { to { transform: rotate(360deg); } }
+
+/* Resolved, but this source itself had nothing for this episode — the
+   button is silently playing a different (working) source from the same
+   group instead. Label stays the same on purpose; this is just a subtle
+   hint for anyone who looks closely, via title="" set client-side. */
+.server-btn-fallback { box-shadow: inset 0 0 0 1px rgba(255,255,255,.14); }
+
+/* Resolved, and NOTHING in this button's whole fallback group worked for
+   this episode (exceedingly rare — every source in the group is down or
+   missing this episode). Shown disabled rather than removed, since the
+   spec is "buttons always exist". */
+.server-btn-dead { opacity: .3; cursor: not-allowed; pointer-events: none; text-decoration: line-through; }
 
 /* Multi Dub group — same nested-group treatment as Hindi Dub above it. */
 #dub-multi-group { border-top: 1px dashed rgba(255,255,255,.08); }
@@ -405,10 +445,8 @@ export const WATCH_CSS = `/* ═════════════════
   align-items: center;
 }
 
-/* Small inline pill used inside a .server-btn — e.g. the "Embed" badge shown
-   when a source's winning result is a raw/iframe-only stream (DesiDub
-   falling to an embed-only host being the common case) rather than a
-   direct HLS/MP4 link. */
+/* Small inline pill used inside a .server-btn — e.g. the "Embed" badge on
+   raw/iframe-only sources that couldn't be resolved to a direct stream. */
 .ad-badge {
   font-size: .56rem;
   font-weight: 700;
@@ -420,7 +458,7 @@ export const WATCH_CSS = `/* ═════════════════
   color: var(--text-muted);
   line-height: 1.5;
 }
-.server-btn[data-source="desidub"] .ad-badge {
+.server-btn[data-server^="desidub:raw:"] .ad-badge {
   background: rgba(249,115,22,.14);
   color: #f97316;
 }
