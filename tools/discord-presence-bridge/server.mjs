@@ -49,13 +49,11 @@ function buildActivity(data) {
     ? ` — ${data.episodeTitle.trim()}`
     : '';
 
-  // Discord's timestamps are absolute wall-clock times. We derive the start
-  // from the video's actual currentTime instead of counting seconds locally.
-  // This keeps the Discord timer aligned after every seek/resume.
   const start = Date.now() - Math.round(current * 1000);
   const end = duration > 0 ? start + Math.round(duration * 1000) : undefined;
 
   return {
+    type: 3,
     details: `Watching ${String(data.title || 'Anime')}`.slice(0, 128),
     state: `${episodeText}${episodeTitle}`.slice(0, 128),
     startTimestamp: playing ? new Date(start) : undefined,
@@ -67,17 +65,20 @@ function buildActivity(data) {
   };
 }
 
+async function clearPresence() {
+  if (!rpcReady) return;
+  try {
+    await rpc.user?.clearActivity();
+  } catch (error) {
+    console.error('[AniVault RPC] Could not clear activity:', error?.message || error);
+  }
+}
+
 async function setPresence(data) {
   if (!rpcReady) return;
 
   if (!data || data.event === 'ended' || data.event === 'pagehide') {
-    await rpc.user?.setActivity({
-      details: 'Browsing AniVault',
-      largeImageKey: 'anivault',
-      largeImageText: 'AniVault',
-      buttons: [{ label: 'Open AniVault', url: 'https://www.anivault.co/' }],
-      instance: false,
-    });
+    await clearPresence();
     return;
   }
 
@@ -86,6 +87,7 @@ async function setPresence(data) {
     const mins = Math.floor(current / 60);
     const secs = Math.floor(current % 60).toString().padStart(2, '0');
     await rpc.user?.setActivity({
+      type: 3,
       details: `Paused · ${String(data.title || 'Anime')}`.slice(0, 128),
       state: `Episode ${Number(data.episode) || 0} · ${mins}:${secs}`.slice(0, 128),
       largeImageKey: 'anivault',
