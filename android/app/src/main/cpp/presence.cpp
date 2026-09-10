@@ -4,8 +4,9 @@
 #include <jni.h>
 #include <android/log.h>
 
+#include <algorithm>
+#include <atomic>
 #include <chrono>
-#include <cmath>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -87,9 +88,11 @@ Java_co_anivault_presence_DiscordPresence_nativeUpdate(
         return result;
     };
 
-    const std::string titleValue = getString(title).empty() ? "Anime" : getString(title);
+    std::string titleValue = getString(title);
     const std::string episodeTitleValue = getString(episodeTitle);
-    const std::string urlValue = getString(url).empty() ? "https://www.anivault.co/" : getString(url);
+    std::string urlValue = getString(url);
+    if (titleValue.empty()) titleValue = "Anime";
+    if (urlValue.empty()) urlValue = "https://www.anivault.co/";
 
     std::lock_guard<std::mutex> lock(clientMutex);
     if (!client) return;
@@ -128,9 +131,7 @@ Java_co_anivault_presence_DiscordPresence_nativeUpdate(
     }
 
     client->UpdateRichPresence(std::move(activity), [](discordpp::ClientResult result) {
-        if (!result.Successful()) {
-            LOGE("Discord Rich Presence update failed");
-        }
+        if (!result.Successful()) LOGE("Discord Rich Presence update failed");
     });
 }
 
