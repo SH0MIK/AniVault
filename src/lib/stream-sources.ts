@@ -24,6 +24,7 @@ export interface FixedProviderDef {
 export const SUB_PROVIDERS: FixedProviderDef[] = [
   { source: 'anikoto', provider: 'Hd-1', label: 'Hd-1' },
   { source: 'anikoto', provider: 'Vidstream-2', label: 'Vidstream-2' },
+  { source: 'anizone', provider: 'Japanese', label: 'Japanese (Zone)' },
   { source: 'animeheaven', provider: null, label: 'AnimeHeaven' },
   { source: 'reanime', provider: 'Hd-2', label: 'Hd-2' },
   { source: 'aniwaves', provider: 'Vidplay', label: 'Vidplay' },
@@ -40,6 +41,7 @@ export const SUB_PROVIDERS: FixedProviderDef[] = [
 export const DUB_PROVIDERS: FixedProviderDef[] = [
   { source: 'anikoto', provider: 'Hd-1', label: 'Hd-1' },
   { source: 'anikoto', provider: 'Vidstream-2', label: 'Vidstream-2' },
+  { source: 'anizone', provider: 'English', label: 'English (Zone),
   { source: 'reanime', provider: 'Hd-2', label: 'Hd-2' },
   { source: 'aniwaves', provider: 'Vidplay', label: 'Vidplay' },
   { source: 'aniwaves', provider: 'BYFMS', label: 'BYFMS' },
