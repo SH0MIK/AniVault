@@ -501,25 +501,31 @@ function parseVtt(text) {
   return cues.sort((a, b) => a.start - b.start);
 }
 
+let lastRenderedSubText = null;
+
 function renderCurrentSubtitle(time) {
   if (!settings.captionsEnabled || activeSubIdx === -1 || !parsedCues.length) {
-    if (subText) subText.innerHTML = '';
+    if (lastRenderedSubText !== '') {
+      if (subText) subText.innerHTML = '';
+      lastRenderedSubText = '';
+    }
     return;
   }
 
   const offset = settings.subSyncEnabled ? (settings.subSyncOffset || 0) : 0;
   const adjTime = time + offset;
   const active = parsedCues.find(c => adjTime >= c.start && adjTime <= c.end);
+  const nextText = active ? active.text : '';
 
-  if (active) {
-    subText.innerHTML = active.text;
-  } else {
-    subText.innerHTML = '';
+  if (nextText !== lastRenderedSubText) {
+    subText.innerHTML = nextText;
+    lastRenderedSubText = nextText;
   }
 }
 
 function setSubTrack(idx) {
   activeSubIdx = idx;
+  lastRenderedSubText = null;
   if (idx === -1) {
     settings.captionsEnabled = false;
     parsedCues = [];
