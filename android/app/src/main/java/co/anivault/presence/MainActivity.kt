@@ -7,6 +7,7 @@ import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import com.discord.socialsdk.DiscordSocialSdkInit
 import org.json.JSONObject
 
 class MainActivity : Activity() {
@@ -16,6 +17,8 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        DiscordSocialSdkInit.setEngineActivity(this)
 
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
