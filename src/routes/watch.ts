@@ -404,27 +404,25 @@ export function renderWatchBody(p: WatchBodyParams): string {
             <div class="server-panel-body">
               <div class="server-tabs"><button class="server-tab active" data-tab="sub">Sub</button><button class="server-tab" data-tab="dub">Dub</button></div>
               <div class="server-tab-panel active" id="tab-panel-sub" data-audio="sub">
-                <button class="server-btn pending active" data-server="anizone:sub">AniZone</button>
-                <button class="server-btn pending" data-server="anikoto:sub">Anikoto</button>
-                <button class="server-btn pending" data-server="animeheaven">AnimeHeaven</button>
-                <button class="server-btn pending" data-server="reanime:sub">ReAnime</button>
-                <button class="server-btn pending" data-server="aniwaves:sub">AniWaves</button>
-                <button class="server-btn pending" data-server="watchanimeworld:sub">WatchAnimeWorld</button>
-                <button class="server-btn pending" data-server="animenosub:sub">AnimeNoSub</button>
+                <div class="server-skel-group" id="servers-sub-loading">
+                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:72px"></span></span>
+                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:46px"></span></span>
+                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:58px"></span></span>
+                </div>
               </div>
               <div class="server-tab-panel" id="tab-panel-dub" data-audio="dub">
-                <button class="server-btn pending" data-server="anizone:dub">AniZone</button>
-                <button class="server-btn pending" data-server="anikoto:dub">Anikoto</button>
-                <button class="server-btn pending" data-server="reanime:dub">ReAnime</button>
-                <button class="server-btn pending" data-server="aniwaves:dub">AniWaves</button>
-                <button class="server-btn pending" data-server="watchanimeworld:dub">WatchAnimeWorld</button>
-                <button class="server-btn pending" data-server="animenosub:dub">AnimeNoSub</button>
-                <div class="server-group" id="dub-hindi-group">
+                <div class="server-skel-group" id="servers-dub-loading">
+                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:72px"></span></span>
+                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:46px"></span></span>
+                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:58px"></span></span>
+                </div>
+                <div class="server-group" id="dub-hindi-group" style="display:none">
                   <div class="server-group-label">Hindi Dub</div>
                   <div class="server-group-body" id="servers-dub-hindi-body">
-                    <button class="server-btn pending" data-server="anizone:hindi">AniZone</button>
-                    <button class="server-btn pending" data-server="watchanimeworld:hindi">WatchAnimeWorld</button>
-                    <button class="server-btn pending" data-server="desidub:hindi">DesiDub</button>
+                    <div class="server-skel-group" id="servers-dub-hindi-loading">
+                      <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:64px"></span></span>
+                      <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:50px"></span></span>
+                    </div>
                   </div>
                 </div>
                 <div class="server-group" id="dub-multi-group" style="display:none">
