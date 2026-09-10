@@ -27,6 +27,7 @@ import { AnimeTracker } from '../lib/tracker';
 import { EpisodeAir, AiredInfo } from '../lib/episode-air';
 import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
 import { getEpisodeThumbnail } from '../lib/episode-thumb';
+import { SUB_SOURCES, DUB_SOURCES, HINDI_SOURCES, fixedServerBtn } from '../lib/stream-sources';
 
 export const watchRoutes = new Hono<{ Bindings: Env }>();
 
@@ -404,25 +405,18 @@ export function renderWatchBody(p: WatchBodyParams): string {
             <div class="server-panel-body">
               <div class="server-tabs"><button class="server-tab active" data-tab="sub">Sub</button><button class="server-tab" data-tab="dub">Dub</button></div>
               <div class="server-tab-panel active" id="tab-panel-sub" data-audio="sub">
-                <div class="server-skel-group" id="servers-sub-loading">
-                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:72px"></span></span>
-                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:46px"></span></span>
-                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:58px"></span></span>
+                <div class="server-btn-row" id="servers-sub-body">
+                  ${SUB_SOURCES.map(s => fixedServerBtn('sub', s.key, s.label)).join('')}
                 </div>
               </div>
               <div class="server-tab-panel" id="tab-panel-dub" data-audio="dub">
-                <div class="server-skel-group" id="servers-dub-loading">
-                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:72px"></span></span>
-                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:46px"></span></span>
-                  <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:58px"></span></span>
+                <div class="server-btn-row" id="servers-dub-body">
+                  ${DUB_SOURCES.map(s => fixedServerBtn('dub', s.key, s.label)).join('')}
                 </div>
-                <div class="server-group" id="dub-hindi-group" style="display:none">
+                <div class="server-group" id="dub-hindi-group">
                   <div class="server-group-label">Hindi Dub</div>
                   <div class="server-group-body" id="servers-dub-hindi-body">
-                    <div class="server-skel-group" id="servers-dub-hindi-loading">
-                      <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:64px"></span></span>
-                      <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:50px"></span></span>
-                    </div>
+                    ${HINDI_SOURCES.map(s => fixedServerBtn('hindi', s.key, s.label)).join('')}
                   </div>
                 </div>
                 <div class="server-group" id="dub-multi-group" style="display:none">
