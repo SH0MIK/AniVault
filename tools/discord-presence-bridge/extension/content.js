@@ -6,8 +6,8 @@
   let seekPending = false;
   let waiting = false;
 
-  const send = (event) => {
-    if (!video) return;
+  const send = (event, keepalive = false) => {
+    if (!video && event !== 'pagehide') return;
 
     const url = new URL(location.href);
     const animeId = Number(url.searchParams.get('anime')) || 0;
@@ -22,13 +22,14 @@
 
     const episodeTitle = document.querySelector('.wp-ep-title, [data-episode-title]')?.textContent?.trim() || null;
     const image = document.querySelector('meta[property="og:image"]')?.content || '';
-    const duration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
-    const currentTime = Number.isFinite(video.currentTime) && video.currentTime >= 0 ? video.currentTime : 0;
-    const playing = !video.paused && !video.ended && !video.seeking && !waiting;
+    const duration = video && Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+    const currentTime = video && Number.isFinite(video.currentTime) && video.currentTime >= 0 ? video.currentTime : 0;
+    const playing = video ? !video.paused && !video.ended && !video.seeking && !waiting : false;
 
     fetch(BRIDGE, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
+      keepalive,
       body: JSON.stringify({
         version: 1,
         source: 'anivault-extension',
@@ -42,7 +43,7 @@
         currentTime,
         duration,
         playing,
-        ended: video.ended,
+        ended: video?.ended ?? false,
         at: Date.now(),
       }),
     }).catch(() => {
@@ -79,4 +80,8 @@
 
   findVideo();
   new MutationObserver(findVideo).observe(document.documentElement, { childList: true, subtree: true });
+
+  // Clear the user's Discord activity when they leave the watch page.
+  // keepalive lets the request finish during normal page navigation/unload.
+  window.addEventListener('pagehide', () => send('pagehide', true), { capture: true });
 })();
