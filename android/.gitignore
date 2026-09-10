@@ -1,0 +1,7 @@
+/.gradle/
+/local.properties
+/.idea/
+/build/
+**/build/
+app/libs/discord_partner_sdk.aar
+*.iml
