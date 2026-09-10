@@ -1,3 +1,5 @@
+import { SUB_PROVIDERS, DUB_PROVIDERS, HINDI_PROVIDERS } from '../lib/stream-sources';
+
 export function watchScript1(params: {
   anilistId: number | null; epNum: number; resumeParam: number; animeId: number;
   siteUrl: string; qSub: any[]; qDub: any[]; isLoggedIn: boolean;
@@ -10,6 +12,9 @@ const epNum = ${epNum};
 const resumeTime = ${resumeParam};
 const ANIME_ID = ${animeId};
 const SITE_URL = '${siteUrl}';
+const SUB_PROVIDERS = ${JSON.stringify(SUB_PROVIDERS)};
+const DUB_PROVIDERS = ${JSON.stringify(DUB_PROVIDERS)};
+const HINDI_PROVIDERS = ${JSON.stringify(HINDI_PROVIDERS)};
 let currentServer = 'animeheaven';
 let currentAudio  = 'sub';
 
@@ -790,26 +795,21 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     const EP    = ${epNum};
     console.log('[AniVault player] probing servers on', SITE, 'anime', ANIME, 'ep', EP);
 
-    // ── Fixed server groups ─────────────────────────────────────────────
-    // Every button in these groups already exists in the HTML (see
-    // watch.ts / stream-sources.ts) — nothing is created or removed here.
-    // Each source is probed independently in the background (auto-search,
-    // no click required). If a source's OWN probe comes up empty for this
-    // episode, the button falls back to playing whichever OTHER source in
-    // the SAME group did resolve — the button's label never changes, only
-    // what's actually streaming behind it. Multi Dub (further below) is
-    // the one group that intentionally has NO fallback: every language is
-    // its own thing, searched individually.
-    const SUB_SOURCES   = ['anizone', 'anikoto', 'animeheaven', 'reanime', 'aniwaves', 'watchanimeworld', 'animenosub'];
-    const DUB_SOURCES   = ['anizone', 'anikoto', 'reanime', 'aniwaves', 'watchanimeworld', 'animenosub'];
-    const HINDI_SOURCES = ['watchanimeworld', 'desidub'];
     const MULTI_LANG_SOURCES = ['anizone', 'watchanimeworld'];
     const MULTI_PRIORITY = ['anizone', 'watchanimeworld'];
-    const SOURCE_LABELS = { reanime: 'ReAnime', animenosub: 'NoSub', aniwaves: 'Waves', anizone: 'Zone', watchanimeworld: 'World' };
+    const SOURCE_LABELS = { reanime: 'ReAnime', animenosub: 'NoSub', aniwaves: 'Waves', anizone: 'Zone', watchanimeworld: 'World', anikoto: 'Anikoto', animeheaven: 'AnimeHeaven', desidub: 'DesiDub' };
 
     function priorityOf(list, source) {
         const i = list.indexOf(source);
         return i === -1 ? list.length : i;
+    }
+
+    // Mirrors providerId() in stream-sources.ts exactly — must produce the
+    // same id both sides, since watch.ts bakes it into data-server
+    // server-side and this script looks buttons up by it client-side.
+    function providerId(source, provider) {
+        const slug = (provider || source).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+        return \`\${source}__\${slug}\`;
     }
 
     let playbackStarted = false;
@@ -839,54 +839,43 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     }
 
     // ── Button UI helpers ────────────────────────────────────────────────
-    // group (sub/dub/hindi) + source together identify a button — the
-    // SAME source (e.g. AniZone) has a separate button, with its own
-    // independent fallback resolution, in more than one group, so looking
-    // up by source alone would find whichever of those buttons happens to
-    // come first in the DOM and silently update the wrong one.
-    function fixedBtnEl(group, source) {
-        return document.querySelector(\`.server-btn[data-server="fixed:\${group}:\${source}"]\`);
+    // group (sub/dub/hindi) + id (providerId(source, provider)) together
+    // identify a button — the SAME source (e.g. AniZone/Anikoto) can have
+    // several buttons, each its own separate provider, and some sources
+    // recur across groups too, so looking up by source alone would find
+    // the wrong button and stomp on its state.
+    function fixedBtnEl(group, id) {
+        return document.querySelector(\`.server-btn[data-server="fixed:\${group}:\${id}"]\`);
     }
-    function setBtnPending(group, source) {
-        const btn = fixedBtnEl(group, source);
+    function setBtnPending(group, id) {
+        const btn = fixedBtnEl(group, id);
         if (btn) btn.classList.add('server-btn-pending');
     }
-    // Which source a REAL key actually plays — used to tell whether a
-    // fixed button ended up on a fallback from elsewhere in its group.
-    function sourceOfRealKey(k) {
-        if (!k) return null;
-        if (k === 'animeheaven') return 'animeheaven';
-        if (k.indexOf('anikoto-') === 0) return 'anikoto';
-        if (k.indexOf('desidub:') === 0) return 'desidub';
-        const idx = k.indexOf(':');
-        return idx === -1 ? k : k.slice(0, idx);
-    }
-    function setBtnResolved(group, source, realKey) {
-        const btn = fixedBtnEl(group, source);
+    function setBtnResolved(group, id, realKey, isFallback) {
+        const btn = fixedBtnEl(group, id);
         if (!btn) return;
         btn.classList.remove('server-btn-pending', 'server-btn-dead');
         btn.dataset.realServer = realKey;
-        const isFallback = sourceOfRealKey(realKey) !== source;
-        btn.classList.toggle('server-btn-fallback', isFallback);
-        btn.title = isFallback ? \`Playing via \${SOURCE_LABELS[sourceOfRealKey(realKey)] || sourceOfRealKey(realKey)} (\${btn.textContent.trim()} had nothing for this episode)\` : '';
+        btn.classList.toggle('server-btn-fallback', !!isFallback);
+        btn.title = isFallback ? \`Playing a different working server (this one had nothing for this episode)\` : '';
     }
-    function setBtnDead(group, source) {
-        const btn = fixedBtnEl(group, source);
+    function setBtnDead(group, id) {
+        const btn = fixedBtnEl(group, id);
         if (!btn) return;
         btn.classList.remove('server-btn-pending');
         btn.classList.add('server-btn-dead');
     }
 
-    function activateFixedButton(group, source, tabAudio) {
+    function activateFixedButton(group, id, tabAudio) {
         playbackStarted = true;
         _clearOverallWatchdog();
         document.querySelectorAll('.server-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabAudio));
         document.querySelectorAll('.server-tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-panel-' + tabAudio));
         document.querySelectorAll('.server-btn').forEach(b => b.classList.remove('active'));
-        const btn = fixedBtnEl(group, source);
-        const realKey = btn ? (btn.dataset.realServer || source) : source;
+        const btn = fixedBtnEl(group, id);
+        const realKey = btn ? (btn.dataset.realServer || id) : id;
         if (btn) btn.classList.add('active');
-        switchToServer(realKey, tabAudio, \`fixed:\${group}:\${source}\`);
+        switchToServer(realKey, tabAudio, \`fixed:\${group}:\${id}\`);
     }
 
     function showNoServersAtAll(msg) {
@@ -919,17 +908,6 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     }
 
     // ── Anikoto (its own dedicated endpoint/cache shape) ────────────────
-    function fetchAnikotoList(audio, attempt = 1) {
-        return fetch(\`\${SITE}/api/anikoto_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${audio}\`)
-            .then(r => r.json())
-            .then(d => { console.log('[AniVault player] anikoto list', audio, 'attempt', attempt, d); return (d.servers || []).filter(s => s.type === audio); })
-            .catch(e => { console.error('[AniVault player] anikoto list fetch threw', audio, e); return []; })
-            .then(list => {
-                if (list.length > 0 || attempt >= 3) return list;
-                return new Promise(res => setTimeout(res, attempt * 1500))
-                    .then(() => fetchAnikotoList(audio, attempt + 1));
-            });
-    }
     function checkAnikotoProvider(provider, audio) {
         return fetch(\`\${SITE}/api/anikoto_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${audio}&server=\${encodeURIComponent(provider)}\`)
             .then(r => r.json()).then(d => {
@@ -991,142 +969,100 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         return _dubListPromise[source];
     }
 
-    // ── DesiDub (Hindi group's second source — dub + raw, own ranking) ──
-    function desidubInternalRank(name, type) {
-        const n = (name || '').toLowerCase();
-        if (type === 'raw') return 100;
-        if (n.indexOf('vidmoly') !== -1 || n.indexOf('vmoly') !== -1) return 1;
-        if (n.indexOf('ruby') !== -1) return 2;
-        if (n.indexOf('muse') !== -1) return 4;
-        if (n.indexOf('mirror') !== -1) return 3;
-        return 5;
-    }
-    function resolveDesidubHindi() {
-        function fetchList(realType) {
-            return fetch(\`\${SITE}/api/desidub_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${realType}\`)
-                .then(r => r.json())
-                .then(d => (d.servers || []).filter(s => s.type === realType).map(s => ({ name: s.name, realType })))
-                .catch(() => []);
+    // ── DesiDub (Hindi group's second source) ───────────────────────────
+    // ── Per-provider resolver used by the Sub / Dub(English) / Hindi
+    // fixed groups. Every button maps to EXACTLY one hardcoded provider —
+    // no "try the next one in the list" here, since there's no list:
+    // each provider gets checked directly against its own endpoint.
+    // Returns the exact real key switchToServer expects, or null.
+    function resolveProvider(def, audio) {
+        if (def.source === 'animeheaven') {
+            return checkAnimeHeaven(audio).then(ok => ok ? 'animeheaven' : null);
         }
-        function checkOne(providerName, realType) {
-            return fetch(\`\${SITE}/api/desidub_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${realType}&server=\${encodeURIComponent(providerName)}\`)
+        if (def.source === 'anikoto') {
+            return checkAnikotoProvider(def.provider, audio).then(ok => ok ? ('anikoto-' + def.provider) : null);
+        }
+        if (def.source === 'desidub') {
+            // Every DesiDub provider in HINDI_PROVIDERS is a "dub"-type
+            // name (per the scraper's own /servers listing) — no raw
+            // fallback needed here since each is its own fixed button.
+            const providerName = def.provider;
+            return fetch(\`\${SITE}/api/desidub_stream.php?anime=\${ANIME}&ep=\${EP}&audio=dub&server=\${encodeURIComponent(providerName)}\`)
                 .then(r => r.json())
                 .then(d => {
                     const ok = !d.error && !!(d.m3u8 || d.mp4 || d.iframeOnly);
+                    console.log('[AniVault player] desidub', providerName, ok ? 'OK' : 'FAILED', d);
                     if (ok) {
                         window._desidubCache = window._desidubCache || {};
-                        window._desidubCache[realType + '::' + providerName.toLowerCase().trim()] = { data: d, ts: Date.now() };
+                        window._desidubCache['dub::' + providerName.toLowerCase().trim()] = { data: d, ts: Date.now() };
                     }
-                    return ok;
-                }).catch(() => false);
+                    return ok ? (\`desidub:dub:\${providerName}\`) : null;
+                }).catch(e => { console.error('[AniVault player] desidub', providerName, 'threw', e); return null; });
         }
-        return Promise.all([fetchList('dub'), fetchList('raw')]).then(results => {
-            const all = results[0].concat(results[1]);
-            all.sort((a, b) => desidubInternalRank(a.name, a.realType) - desidubInternalRank(b.name, b.realType));
-            function tryNext(i) {
-                if (i >= all.length) return null;
-                const s = all[i];
-                return checkOne(s.name, s.realType).then(ok => ok ? (\`desidub:\${s.realType}:\${s.name}\`) : tryNext(i + 1));
-            }
-            return tryNext(0);
-        });
-    }
-    function resolveWatchAnimeWorldHindi() {
-        return getDubListOnce('watchanimeworld').then(list => {
-            const hi = list.filter(s => langBucket(s.lang) === 'hindi');
-            function tryNext(i) {
-                if (i >= hi.length) return null;
-                const p = hi[i];
-                const lang = p.lang || '';
-                return checkSourceProvider('watchanimeworld', p.name, 'dub', lang).then(ok => ok ? (\`watchanimeworld:dub:\${lang}:\${p.name.toLowerCase().trim()}\`) : tryNext(i + 1));
-            }
-            return tryNext(0);
-        });
-    }
-
-    // ── Per-source resolver used by the Sub / Dub(English) fixed groups ──
-    // Tries every provider that source has for this episode/audio, in
-    // list order, until one actually resolves to a playable stream — that
-    // result gets cached (via checkSourceProvider/checkAnikotoProvider/
-    // checkAnimeHeaven above) so clicking the button later is instant.
-    // Returns the exact real key switchToServer expects, or null.
-    function resolveSource(source, audio) {
-        if (source === 'animeheaven') {
-            if (audio !== 'sub') return Promise.resolve(null); // no dub on AnimeHeaven
-            return checkAnimeHeaven('sub').then(ok => ok ? 'animeheaven' : null);
-        }
-        if (source === 'anikoto') {
-            return fetchAnikotoList(audio).then(list => {
-                function tryNext(i) {
-                    if (i >= list.length) return null;
-                    return checkAnikotoProvider(list[i].name, audio).then(ok => ok ? ('anikoto-' + list[i].name) : tryNext(i + 1));
-                }
-                return tryNext(0);
-            });
-        }
-        const isMultiLang = MULTI_LANG_SOURCES.indexOf(source) !== -1;
-        const listPromise = (audio === 'dub' && isMultiLang) ? getDubListOnce(source) : fetchSourceList(source, audio);
-        return listPromise.then(list => {
-            const candidates = (audio === 'dub' && isMultiLang) ? list.filter(s => langBucket(s.lang) === 'en') : list;
-            function tryNext(i) {
-                if (i >= candidates.length) return null;
-                const p = candidates[i];
-                const lang = (audio === 'dub' && isMultiLang) ? (p.lang || '') : '';
-                return checkSourceProvider(source, p.name, audio, lang).then(ok => ok ? (\`\${source}:\${audio}:\${lang}:\${p.name.toLowerCase().trim()}\`) : tryNext(i + 1));
-            }
-            return tryNext(0);
-        });
+        // Generic (ReAnime / AniWaves / WatchAnimeWorld / AnimeNoSub) —
+        // WatchAnimeWorld's English/Hindi providers are literally named
+        // that ("English", "Hindi"), so pass the name as lang too; the
+        // scraper only uses it to disambiguate providers that share an
+        // identical display name across languages, and ignores it
+        // harmlessly otherwise.
+        const lang = (def.source === 'watchanimeworld' && audio === 'dub') ? def.provider.toLowerCase() : '';
+        return checkSourceProvider(def.source, def.provider, audio, lang)
+            .then(ok => ok ? (\`\${def.source}:\${audio}:\${lang}:\${def.provider.toLowerCase().trim()}\`) : null);
     }
 
     // ── Resolve one whole fixed group (sub / dub / hindi) ───────────────
-    // Every source in "sources" is probed in parallel (fast — no server
-    // waits on another). Once every source in the group has an answer,
-    // any source that came up empty gets wired to play the first OTHER
-    // source in the group that DID resolve, so its button — same label,
-    // same position — quietly plays that instead of showing an error.
-    function resolveGroupUI(group, sources, resolveFn) {
-        sources.forEach(src => setBtnPending(group, src));
-        return Promise.all(sources.map(src => resolveFn(src).then(realKey => ({ src, realKey })))).then(results => {
+    // Every provider in "defs" is probed in parallel (fast — no button
+    // waits on another). Once every provider in the group has an answer,
+    // any provider that came up empty gets wired to play the first OTHER
+    // provider in the group that DID resolve, so its button — same
+    // label, same position — quietly plays that instead of showing an
+    // error.
+    function resolveGroupUI(group, defs, audio) {
+        const ids = defs.map(d => providerId(d.source, d.provider));
+        ids.forEach(id => setBtnPending(group, id));
+        return Promise.all(defs.map((def, i) => resolveProvider(def, audio).then(realKey => ({ id: ids[i], realKey })))).then(results => {
             const resolvedMap = {};
-            results.forEach(r => { resolvedMap[r.src] = r.realKey; });
-            sources.forEach(src => {
-                let realKey = resolvedMap[src];
-                if (!realKey) {
-                    const fb = sources.find(other => other !== src && resolvedMap[other]);
-                    realKey = fb ? resolvedMap[fb] : null;
-                }
-                if (realKey) setBtnResolved(group, src, realKey); else setBtnDead(group, src);
+            results.forEach(r => { resolvedMap[r.id] = r.realKey; });
+            ids.forEach(id => {
+                const own = resolvedMap[id];
+                if (own) { setBtnResolved(group, id, own, false); return; }
+                const fb = ids.find(other => other !== id && resolvedMap[other]);
+                if (fb) setBtnResolved(group, id, resolvedMap[fb], true);
+                else setBtnDead(group, id);
             });
             return resolvedMap;
         });
     }
-    function firstPlayable(sources, resolvedMap) {
-        for (let i = 0; i < sources.length; i++) if (resolvedMap[sources[i]]) return sources[i];
+    function firstPlayable(defs, resolvedMap) {
+        for (let i = 0; i < defs.length; i++) {
+            const id = providerId(defs[i].source, defs[i].provider);
+            if (resolvedMap[id]) return id;
+        }
         return null;
     }
 
-    const subMapPromise = resolveGroupUI('sub', SUB_SOURCES, src => resolveSource(src, 'sub'));
-    const dubMapPromise = resolveGroupUI('dub', DUB_SOURCES, src => resolveSource(src, 'dub'));
-    const hindiMapPromise = resolveGroupUI('hindi', HINDI_SOURCES, src => src === 'desidub' ? resolveDesidubHindi() : resolveWatchAnimeWorldHindi());
+    const subMapPromise = resolveGroupUI('sub', SUB_PROVIDERS, 'sub');
+    const dubMapPromise = resolveGroupUI('dub', DUB_PROVIDERS, 'dub');
+    const hindiMapPromise = resolveGroupUI('hindi', HINDI_PROVIDERS, 'dub');
 
     // Autoplay priority: Sub first; if Sub has nothing at all for this
     // episode, fall to English Dub; if that's also empty, fall to Hindi
     // Dub as a last resort. Every group still resolves and updates its
     // own buttons in the background regardless of this chain.
     subMapPromise.then(subMap => {
-        const pick = firstPlayable(SUB_SOURCES, subMap);
+        const pick = firstPlayable(SUB_PROVIDERS, subMap);
         if (pick) {
             if (!playbackStarted) activateFixedButton('sub', pick, 'sub');
             return;
         }
         return dubMapPromise.then(dubMap => {
-            const dpick = firstPlayable(DUB_SOURCES, dubMap);
+            const dpick = firstPlayable(DUB_PROVIDERS, dubMap);
             if (dpick) {
                 if (!playbackStarted) activateFixedButton('dub', dpick, 'dub');
                 return;
             }
             return hindiMapPromise.then(hindiMap => {
-                const hpick = firstPlayable(HINDI_SOURCES, hindiMap);
+                const hpick = firstPlayable(HINDI_PROVIDERS, hindiMap);
                 if (hpick && !playbackStarted) activateFixedButton('hindi', hpick, 'dub');
                 else if (!hpick && !playbackStarted) showNoServersAtAll();
             });
