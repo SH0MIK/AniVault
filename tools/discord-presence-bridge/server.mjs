@@ -2,10 +2,17 @@ import http from 'node:http';
 import { Client } from '@xhayper/discord-rpc';
 
 const PORT = Number(process.env.ANIVAULT_RPC_PORT || 6463);
+const HOST = process.env.ANIVAULT_RPC_HOST || '127.0.0.1';
 const CLIENT_ID = process.env.DISCORD_CLIENT_ID;
+const BRIDGE_SECRET = process.env.ANIVAULT_BRIDGE_SECRET || '';
 
 if (!CLIENT_ID) {
   console.error('Missing DISCORD_CLIENT_ID. Set it to the Application ID of your AniVault Discord app.');
+  process.exit(1);
+}
+
+if (HOST !== '127.0.0.1' && !BRIDGE_SECRET) {
+  console.error('ANIVAULT_BRIDGE_SECRET is required when the bridge listens beyond localhost.');
   process.exit(1);
 }
 
@@ -43,13 +50,17 @@ function buildActivity(data) {
   const current = Math.max(0, Number(data.currentTime) || 0);
   const duration = Math.max(0, Number(data.duration) || 0);
   const playing = Boolean(data.playing);
+  const sourceAt = Number(data.at) || Date.now();
 
   const episodeText = `Episode ${Number(data.episode) || 0}`;
   const episodeTitle = typeof data.episodeTitle === 'string' && data.episodeTitle.trim()
     ? ` — ${data.episodeTitle.trim()}`
     : '';
 
-  const start = Date.now() - Math.round(current * 1000);
+  // Use the browser's exact currentTime and its event timestamp. This keeps
+  // the Discord clock accurate even when the phone's request reaches the PC
+  // a little later over Wi-Fi.
+  const start = sourceAt - Math.round(current * 1000);
   const end = duration > 0 ? start + Math.round(duration * 1000) : undefined;
 
   return {
@@ -104,7 +115,7 @@ async function setPresence(data) {
 const server = http.createServer(async (req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-AniVault-Bridge-Secret');
 
   if (req.method === 'OPTIONS') {
     res.writeHead(204);
@@ -118,11 +129,18 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (BRIDGE_SECRET && req.headers['x-anivault-bridge-secret'] !== BRIDGE_SECRET) {
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Unauthorized' }));
+    return;
+  }
+
   let body = '';
   req.setEncoding('utf8');
   req.on('data', chunk => { body += chunk; });
   req.on('end', async () => {
     try {
+      if (body.length > 64 * 1024) throw new Error('Payload too large');
       const data = JSON.parse(body);
       await setPresence(data);
       res.writeHead(204);
@@ -135,8 +153,8 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, '127.0.0.1', () => {
-  console.log(`[AniVault Bridge] Listening on http://127.0.0.1:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(`[AniVault Bridge] Listening on http://${HOST}:${PORT}`);
 });
 
 connectRpc();
