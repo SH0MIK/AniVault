@@ -602,6 +602,26 @@ function switchToGenericSource(source, providerName, realType, langKey) {
         }
 
         const subs = d.subtitles || [];
+
+        // AniZone / ReAnime / WatchAnimeWorld serve demuxed HLS — audio and
+        // video are separate renditions linked only inside the *master*
+        // playlist (#EXT-X-MEDIA:TYPE=AUDIO). Their per-resolution
+        // "qualities" URLs are video-only child playlists with the audio
+        // rendition stripped out, so loading one directly plays silently no
+        // matter what the mute button does. For these three, always load
+        // the master and let hls.js's own adaptive engine handle
+        // resolution switching — that keeps the linked audio track intact
+        // and feeds the player's built-in quality menu (buildQual/qualList
+        // in player-pro-script.ts) straight from hls.js's parsed levels, so
+        // there's no separate quality row to maintain for these sources.
+        const DEMUXED_AUDIO_SOURCES = ['reanime', 'anizone', 'watchanimeworld'];
+        if (DEMUXED_AUDIO_SOURCES.indexOf(source) !== -1) {
+            clearDynQualityRow();
+            if (!d.m3u8) { fail('No stream URL returned.'); return; }
+            loadUrl(d.m3u8, false, subs);
+            return;
+        }
+
         // Already sorted highest-first server-side — [0] is "top quality as
         // top priority", the rest populate the manual switcher below.
         const qualities = Array.isArray(d.qualities) ? d.qualities : [];
