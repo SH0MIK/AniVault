@@ -13,6 +13,10 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+
+        val discordAppId = providers.gradleProperty("discordApplicationId").orElse("0").get()
+        buildConfigField("long", "DISCORD_APPLICATION_ID", discordAppId)
+        manifestPlaceholders["DISCORD_APP_SCHEME"] = "discord-$discordAppId"
     }
 
     buildFeatures {
@@ -22,6 +26,13 @@ android {
 
     packaging {
         resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+
+    externalNativeBuild {
+        cmake {
+            path = file("src/main/cpp/CMakeLists.txt")
+            version = "3.22.1"
+        }
     }
 }
 
