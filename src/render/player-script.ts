@@ -1001,6 +1001,17 @@ function stopAmbient() {
 // and every custom element stays in the DOM and visible.
 const isIphone = /iPhone|iPod/.test(navigator.userAgent);
 let _iosFsMode = false;
+// #senshi-player-root gets moved at runtime into #watch-player-wrap
+// (.wp-player-shell), which has `animation: playerReveal .55s ... both`.
+// The "both" fill-mode keeps that animation's final `transform:
+// translateY(0) scale(1)` applied forever, and any non-none transform on
+// an ancestor turns it into the containing block for position:fixed
+// descendants — so our fixed fullscreen box was anchoring (and getting
+// clipped by .wp-player-shell's overflow:hidden) to that small 16:9 box
+// instead of the real viewport. Reparenting to <body> while "fullscreen"
+// sidesteps that trap entirely.
+let _iosFsParent = null;
+let _iosFsNextSibling = null;
 
 function isFs() {
   return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || _iosFsMode);
@@ -1026,6 +1037,15 @@ function toggleFs() {
   if (isIphone) {
     _iosFsMode = !_iosFsMode;
     document.body.style.overflow = _iosFsMode ? 'hidden' : '';
+    if (_iosFsMode) {
+      _iosFsParent = root.parentNode;
+      _iosFsNextSibling = root.nextSibling;
+      document.body.appendChild(root);
+    } else if (_iosFsParent) {
+      _iosFsParent.insertBefore(root, _iosFsNextSibling);
+      _iosFsParent = null;
+      _iosFsNextSibling = null;
+    }
     onFsChange();
     return;
   }
