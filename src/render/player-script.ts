@@ -67,6 +67,13 @@ const btnLock        = document.getElementById('vh-btn-lock');
 const fsEnterIcon    = btnFs?.querySelector('.vh-fs-enter');
 const fsExitIcon     = btnFs?.querySelector('.vh-fs-exit');
 
+/* Keep iPhone playback inline. Never expose native video controls here. */
+if (vid) {
+  vid.setAttribute('playsinline', '');
+  vid.setAttribute('webkit-playsinline', '');
+  vid.removeAttribute('controls');
+}
+
 /* Settings Sheet */
 const sheetBackdrop  = document.getElementById('vh-sheet-backdrop');
 const sheetSurface   = document.getElementById('vh-sheet-surface');
@@ -430,21 +437,7 @@ function updateBands() {
 function applyVolume(vol, muted, isAutoFallback) {
   vid.volume = vol;
   vid.muted = muted;
-  // Tags a mute that was forced by the autoplay-blocked fallback (as
-  // opposed to one the user actually chose via the mute button/slider/
-  // keyboard) so a server switch can safely clear it — see
-  // stopCurrentVideo() in watch-script1.ts. Any call to applyVolume()
-  // that doesn't explicitly pass isAutoFallback=true (i.e. every real
-  // user interaction) clears the tag.
   vid.dataset.autoMuted = (muted && isAutoFallback) ? '1' : '';
-
-  // Only persist real, deliberate choices. A mute forced by a blocked
-  // autoplay attempt is not something the user asked for — saving it
-  // here previously meant every autoplay-block permanently wrote
-  // muted:true to localStorage, silently overriding the user's next
-  // manual unmute the moment the next switch also got autoplay-blocked
-  // (which is most of them, since a switch's play() call happens after
-  // an async fetch and often no longer counts as a fresh user gesture).
   if (!isAutoFallback) {
     settings.volume = vol;
     settings.muted = muted;
@@ -596,7 +589,6 @@ btnCaptions?.addEventListener('click', e => {
 });
 topBtnCaptions?.addEventListener('click', e => { e.stopPropagation(); btnCaptions?.click(); });
 
-/* Upload Subtitles File */
 document.getElementById('vh-btn-upload-subs')?.addEventListener('click', e => {
   e.stopPropagation();
   subFileInput?.click();
@@ -991,8 +983,13 @@ function stopAmbient() {
 }
 
 /* Fullscreen & Picture in Picture */
+const isIPhone = /iPhone|iPod/i.test(navigator.userAgent || '');
+let iosPseudoFs = false;
+let iosFsScrollY = 0;
+let iosBodyStyles = null;
+
 function isFs() {
-  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
+  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || iosPseudoFs);
 }
 
 function lockScreenOrientation() {
@@ -1011,16 +1008,118 @@ function unlockScreenOrientation() {
   } catch(e) {}
 }
 
+function renderIosPseudoFs() {
+  if (!iosPseudoFs || !root) return;
+  const vv = window.visualViewport;
+  const vw = Math.max(1, vv?.width || window.innerWidth);
+  const vh = Math.max(1, vv?.height || window.innerHeight);
+  const portrait = vw < vh;
+
+  root.style.setProperty('position', 'fixed', 'important');
+  root.style.setProperty('z-index', '2147483647', 'important');
+  root.style.setProperty('margin', '0', 'important');
+  root.style.setProperty('border-radius', '0', 'important');
+  root.style.setProperty('overflow', 'hidden', 'important');
+  root.style.setProperty('max-width', 'none', 'important');
+  root.style.setProperty('max-height', 'none', 'important');
+  root.style.setProperty('transform-origin', 'center center', 'important');
+
+  if (portrait) {
+    root.style.setProperty('width', vh + 'px', 'important');
+    root.style.setProperty('height', vw + 'px', 'important');
+    root.style.setProperty('left', ((vw - vh) / 2) + 'px', 'important');
+    root.style.setProperty('top', ((vh - vw) / 2) + 'px', 'important');
+    root.style.setProperty('transform', 'rotate(90deg)', 'important');
+  } else {
+    root.style.setProperty('width', '100vw', 'important');
+    root.style.setProperty('height', '100dvh', 'important');
+    root.style.setProperty('left', '0', 'important');
+    root.style.setProperty('top', '0', 'important');
+    root.style.setProperty('transform', 'none', 'important');
+  }
+}
+
+function enterIosPseudoFs() {
+  if (iosPseudoFs) return;
+  iosPseudoFs = true;
+  iosFsScrollY = window.scrollY || window.pageYOffset || 0;
+  iosBodyStyles = document.body ? {
+    position: document.body.style.position,
+    top: document.body.style.top,
+    left: document.body.style.left,
+    right: document.body.style.right,
+    width: document.body.style.width,
+    overflow: document.body.style.overflow,
+    touchAction: document.body.style.touchAction,
+  } : null;
+
+  document.documentElement.style.overflow = 'hidden';
+  if (document.body) {
+    document.body.style.position = 'fixed';
+    document.body.style.top = (-iosFsScrollY) + 'px';
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+    document.body.style.touchAction = 'none';
+  }
+
+  root.setAttribute('data-player-fullscreen', 'true');
+  document.querySelectorAll('.vh-fs-enter').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.vh-fs-exit').forEach(el => el.style.display = 'block');
+  if (topTitle) topTitle.textContent = topTitle.dataset.fulltitle || '';
+  renderIosPseudoFs();
+  lockScreenOrientation();
+}
+
+function exitIosPseudoFs() {
+  if (!iosPseudoFs) return;
+  iosPseudoFs = false;
+  root.removeAttribute('data-player-fullscreen');
+  root.style.removeProperty('position');
+  root.style.removeProperty('z-index');
+  root.style.removeProperty('margin');
+  root.style.removeProperty('border-radius');
+  root.style.removeProperty('overflow');
+  root.style.removeProperty('max-width');
+  root.style.removeProperty('max-height');
+  root.style.removeProperty('transform-origin');
+  root.style.removeProperty('width');
+  root.style.removeProperty('height');
+  root.style.removeProperty('left');
+  root.style.removeProperty('top');
+  root.style.removeProperty('transform');
+  document.querySelectorAll('.vh-fs-enter').forEach(el => el.style.display = 'block');
+  document.querySelectorAll('.vh-fs-exit').forEach(el => el.style.display = 'none');
+  if (topTitle) topTitle.textContent = '';
+  document.documentElement.style.overflow = '';
+  if (document.body && iosBodyStyles) {
+    document.body.style.position = iosBodyStyles.position;
+    document.body.style.top = iosBodyStyles.top;
+    document.body.style.left = iosBodyStyles.left;
+    document.body.style.right = iosBodyStyles.right;
+    document.body.style.width = iosBodyStyles.width;
+    document.body.style.overflow = iosBodyStyles.overflow;
+    document.body.style.touchAction = iosBodyStyles.touchAction;
+  }
+  unlockScreenOrientation();
+  window.scrollTo(0, iosFsScrollY);
+  iosBodyStyles = null;
+}
+
 function toggleFs() {
+  if (isIPhone) {
+    if (iosPseudoFs) exitIosPseudoFs();
+    else enterIosPseudoFs();
+    return;
+  }
+
   if (!isFs()) {
     const r = root.requestFullscreen?.() || root.webkitRequestFullscreen?.() || root.mozRequestFullScreen?.();
     if (r && typeof r.then === 'function') {
       r.then(lockScreenOrientation).catch(() => {});
     } else {
       lockScreenOrientation();
-    }
-    if (vid && typeof vid.webkitEnterFullscreen === 'function') {
-      try { vid.webkitEnterFullscreen(); } catch(e) {}
     }
   } else {
     unlockScreenOrientation();
@@ -1039,15 +1138,16 @@ function onFsChange() {
   if (topTitle) {
     topTitle.textContent = fs ? (topTitle.dataset.fulltitle || '') : '';
   }
-  if (fs) {
-    lockScreenOrientation();
-  } else {
-    unlockScreenOrientation();
-  }
+  if (fs) lockScreenOrientation();
+  else unlockScreenOrientation();
 }
 
 document.addEventListener('fullscreenchange', onFsChange);
 document.addEventListener('webkitfullscreenchange', onFsChange);
+
+window.addEventListener('resize', () => { if (iosPseudoFs) renderIosPseudoFs(); });
+window.addEventListener('orientationchange', () => { if (iosPseudoFs) setTimeout(renderIosPseudoFs, 150); });
+window.visualViewport?.addEventListener('resize', () => { if (iosPseudoFs) renderIosPseudoFs(); });
 
 btnPip?.addEventListener('click', async e => {
   e.stopPropagation();
@@ -1295,6 +1395,7 @@ window.SenshiPlayer = {
     stopAmbient();
     clearTimeout(idleTimer);
     clearTimeout(sleepTimer);
+    if (iosPseudoFs) exitIosPseudoFs();
   }
 };
 
