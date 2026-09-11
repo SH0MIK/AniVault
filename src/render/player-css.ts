@@ -141,25 +141,6 @@ export const PLAYER_CSS = `
   aspect-ratio: auto !important;
 }
 
-/* iPhone Safari can't use the real Fullscreen API on a container element, so
-   toggleFs() simulates it with this class instead of calling
-   video.webkitEnterFullscreen() (which would hand off to Apple's native
-   AVPlayer UI and hide our custom controls). */
-.sp-fake-fullscreen {
-  position: fixed !important;
-  inset: 0 !important;
-  top: 0 !important;
-  left: 0 !important;
-  width: 100vw !important;
-  height: 100dvh !important;
-  max-width: none !important;
-  max-height: none !important;
-  margin: 0 !important;
-  border-radius: 0 !important;
-  aspect-ratio: auto !important;
-  z-index: 999999 !important;
-}
-
 /* VidHawk Frosted Glass Utility Token (nB) */
 .vh-glass {
   border: 1px solid rgba(255, 255, 255, 0.15);

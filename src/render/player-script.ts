@@ -991,14 +991,8 @@ function stopAmbient() {
 }
 
 /* Fullscreen & Picture in Picture */
-let _fakeFsMode = false; // iPhone Safari can't do real element fullscreen, so we simulate it
-
-function isIphone() {
-  return /iPhone/.test(navigator.userAgent) && !window.MSStream;
-}
-
 function isFs() {
-  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || _fakeFsMode);
+  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
 }
 
 function lockScreenOrientation() {
@@ -1019,31 +1013,16 @@ function unlockScreenOrientation() {
 
 function toggleFs() {
   if (!isFs()) {
-    if (isIphone()) {
-      // iPhone Safari doesn't support requestFullscreen() on a container element,
-      // and calling video.webkitEnterFullscreen() hands control to Apple's native
-      // AVPlayer UI, replacing our custom controls entirely. Simulate fullscreen
-      // instead with a fixed-position overlay so our own controls stay in charge.
-      root?.classList.add('sp-fake-fullscreen');
-      _fakeFsMode = true;
-      lockScreenOrientation();
-      onFsChange();
-      return;
-    }
     const r = root.requestFullscreen?.() || root.webkitRequestFullscreen?.() || root.mozRequestFullScreen?.();
     if (r && typeof r.then === 'function') {
       r.then(lockScreenOrientation).catch(() => {});
     } else {
       lockScreenOrientation();
     }
-  } else {
-    if (_fakeFsMode) {
-      root?.classList.remove('sp-fake-fullscreen');
-      _fakeFsMode = false;
-      unlockScreenOrientation();
-      onFsChange();
-      return;
+    if (vid && typeof vid.webkitEnterFullscreen === 'function') {
+      try { vid.webkitEnterFullscreen(); } catch(e) {}
     }
+  } else {
     unlockScreenOrientation();
     document.exitFullscreen?.() || document.webkitExitFullscreen?.() || document.mozCancelFullScreen?.();
   }
