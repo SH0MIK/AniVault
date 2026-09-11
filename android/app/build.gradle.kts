@@ -11,8 +11,8 @@ android {
         applicationId = "co.anivault.presence"
         minSdk = 24
         targetSdk = 35
-        versionCode = 2
-        versionName = "0.1.1"
+        versionCode = 3
+        versionName = "0.1.2"
 
         // The checked-in Discord Social SDK AAR was reduced to arm64-v8a
         // because GitHub's file-size limit prevented committing the full AAR.
@@ -23,6 +23,15 @@ android {
         val discordAppId = providers.gradleProperty("discordApplicationId").orElse("0").get()
         buildConfigField("long", "DISCORD_APPLICATION_ID", discordAppId)
         manifestPlaceholders["DISCORD_APP_SCHEME"] = "discord-$discordAppId"
+    }
+
+    // The GitHub Actions build is a beta/test build, so use Android's debug
+    // signing configuration for the release APK. This makes the APK directly
+    // installable instead of producing an unsigned release artifact.
+    buildTypes {
+        getByName("release") {
+            signingConfig = signingConfigs.getByName("debug")
+        }
     }
 
     compileOptions {
