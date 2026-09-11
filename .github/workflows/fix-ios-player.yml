@@ -1,0 +1,85 @@
+name: fix-ios-player
+on:
+  push:
+    branches: [main]
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: ${{ !contains(github.event.head_commit.message, 'fix: make iPhone pseudo fullscreen orientation stable') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Patch iPhone fullscreen
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+          p = Path('src/render/player-script.ts')
+          s = p.read_text()
+          start = s.find('let iosPseudoFs')
+          if start < 0:
+              raise SystemExit('iosPseudoFs marker not found')
+          end = s.find('\n/* ', start)
+          if end < 0:
+              end = len(s)
+          sec = s[start:end]
+
+          # iPhone Safari cannot do HTML element fullscreen, so this path must be
+          # an immersive viewport layout rather than a rotated desktop-style box.
+          sec = re.sub(r"\n?[^\n]*root\.style\.transform\s*=.*(?:\n|$)", '\n', sec)
+          sec = re.sub(r"\n?[^\n]*transformOrigin[^\n]*\n", '\n', sec)
+
+          helper = r'''
+function syncIosPseudoFsViewport() {
+  if (!iosPseudoFs || !root) return;
+  const vv = window.visualViewport;
+  const width = Math.max(1, Math.round(vv?.width || window.innerWidth));
+  const height = Math.max(1, Math.round(vv?.height || window.innerHeight));
+  root.style.position = 'fixed';
+  root.style.left = '0';
+  root.style.top = '0';
+  root.style.right = 'auto';
+  root.style.bottom = 'auto';
+  root.style.width = width + 'px';
+  root.style.height = height + 'px';
+  root.style.maxWidth = 'none';
+  root.style.maxHeight = 'none';
+  root.style.margin = '0';
+  root.style.transform = 'none';
+  root.style.transformOrigin = 'center center';
+  root.style.boxSizing = 'border-box';
+}
+
+'''
+          if 'function syncIosPseudoFsViewport()' not in sec:
+              m = re.search(r'\nfunction ', sec)
+              if not m:
+                  raise SystemExit('fullscreen function marker not found')
+              sec = sec[:m.start()+1] + helper + sec[m.start()+1:]
+
+          # Force the iPhone pseudo-fullscreen path to use the real viewport size.
+          if 'syncIosPseudoFsViewport();' not in sec:
+              m = re.search(r'(function\s+enter\w*Ios\w*Fs\s*\([^)]*\)\s*\{)', sec)
+              if m:
+                  sec = sec[:m.end()] + '\n  syncIosPseudoFsViewport();' + sec[m.end():]
+
+          # Re-sync whenever Safari changes the visual viewport (browser chrome,
+          # physical rotation, orientation changes, etc.).
+          if 'iosPseudoFsViewportHandler' not in sec:
+              sec += "\nconst iosPseudoFsViewportHandler = () => syncIosPseudoFsViewport();\nwindow.addEventListener('resize', iosPseudoFsViewportHandler, { passive: true });\nwindow.addEventListener('orientationchange', iosPseudoFsViewportHandler, { passive: true });\nif (window.visualViewport) window.visualViewport.addEventListener('resize', iosPseudoFsViewportHandler, { passive: true });\n"
+
+          s = s[:start] + sec + s[end:]
+          p.write_text(s)
+          PY
+      - name: Commit patch and remove workflow
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add src/render/player-script.ts .github/workflows/fix-ios-player.yml
+          git commit -m 'fix: make iPhone pseudo fullscreen orientation stable'
+          git push
+          rm .github/workflows/fix-ios-player.yml
+          git add .github/workflows/fix-ios-player.yml
+          git commit -m 'chore: remove one-shot iOS fullscreen fixer'
+          git push
