@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   patch:
-    if: ${{ !contains(github.event.head_commit.message || '', 'iPhone fullscreen') }}
+    if: ${{ github.event_name == 'schedule' || !contains(github.event.head_commit.message || '', 'iPhone fullscreen') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +21,6 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          import re
 
           path = Path('src/render/player-script.ts')
           text = path.read_text(encoding='utf-8')
@@ -59,7 +58,6 @@ jobs:
           '''
 
           text = text[:start] + replacement + text[end:]
-
           text = text.replace("  renderIosPseudoFs();\n  lockScreenOrientation();", "  renderIosPseudoFs();")
 
           marker = "function toggleFs() {"
@@ -81,27 +79,27 @@ jobs:
               text = text.replace(marker, listeners + marker, 1)
 
           path.write_text(text, encoding='utf-8')
-          print('Patched iPhone pseudo fullscreen without CSS rotation.')
+          print('Patched iPhone fullscreen to follow the real viewport without CSS rotation.')
           PY
 
       - name: Verify patch
         run: |
           grep -n "function syncIosPseudoFsViewport" src/render/player-script.ts
-          grep -n "transform', 'none'" src/render/player-script.ts
+          grep -n "iosPseudoFsViewportHandler" src/render/player-script.ts
           if grep -n "rotate(90deg)" src/render/player-script.ts; then
-            echo 'ERROR: iPhone fullscreen still contains CSS rotation'
+            echo 'ERROR: CSS rotation remains in player-script.ts'
             exit 1
           fi
+          if grep -n "renderIosPseudoFs();[[:space:]]*$" src/render/player-script.ts | grep -q .; then
+            echo 'iOS renderer call present'
+          fi
 
-      - name: Commit patch and remove one-shot workflow
+      - name: Commit patch and remove fixer
         shell: bash
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add src/render/player-script.ts .github/workflows/fix-ios-player.yml
-          if git diff --cached --quiet; then
-            echo 'No patch needed.'
-            exit 0
-          fi
+          git rm .github/workflows/fix-ios-player.yml
+          git add src/render/player-script.ts
           git commit -m 'fix: iPhone fullscreen orientation'
           git push
