@@ -991,8 +991,19 @@ function stopAmbient() {
 }
 
 /* Fullscreen & Picture in Picture */
+// iPhone (not iPad) has no real Element.requestFullscreen support, and
+// video.webkitEnterFullscreen() hands the <video> off to Apple's native
+// player — which strips out our custom control bar and subtitle overlay
+// entirely, since those are sibling DOM elements, not part of the video
+// itself. So on iPhone we skip both native paths and fake fullscreen with
+// CSS instead: a plain 100vw/100dvh page element still rotates correctly
+// with the physical device (that's normal page reflow, not a video API),
+// and every custom element stays in the DOM and visible.
+const isIphone = /iPhone|iPod/.test(navigator.userAgent);
+let _iosFsMode = false;
+
 function isFs() {
-  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement);
+  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || _iosFsMode);
 }
 
 function lockScreenOrientation() {
@@ -1012,6 +1023,12 @@ function unlockScreenOrientation() {
 }
 
 function toggleFs() {
+  if (isIphone) {
+    _iosFsMode = !_iosFsMode;
+    document.body.style.overflow = _iosFsMode ? 'hidden' : '';
+    onFsChange();
+    return;
+  }
   if (!isFs()) {
     const r = root.requestFullscreen?.() || root.webkitRequestFullscreen?.() || root.mozRequestFullScreen?.();
     if (r && typeof r.then === 'function') {
@@ -1039,10 +1056,12 @@ function onFsChange() {
   if (topTitle) {
     topTitle.textContent = fs ? (topTitle.dataset.fulltitle || '') : '';
   }
-  if (fs) {
-    lockScreenOrientation();
-  } else {
-    unlockScreenOrientation();
+  if (!isIphone) {
+    if (fs) {
+      lockScreenOrientation();
+    } else {
+      unlockScreenOrientation();
+    }
   }
 }
 

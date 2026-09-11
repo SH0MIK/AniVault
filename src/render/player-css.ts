@@ -141,6 +141,17 @@ export const PLAYER_CSS = `
   aspect-ratio: auto !important;
 }
 
+/* iPhone has no real Fullscreen API, so [data-player-fullscreen="true"] is
+   set manually via JS there (see toggleFs in player-script.ts) instead of
+   the :fullscreen pseudo-class. The real Fullscreen API auto-covers the
+   screen for the other selectors above; this manual case needs it spelled
+   out or the box just grows in place instead of overlaying the page. */
+[data-player-fullscreen="true"]:not(:fullscreen):not(:-webkit-full-screen) {
+  position: fixed !important;
+  inset: 0 !important;
+  z-index: 2147483647 !important;
+}
+
 /* VidHawk Frosted Glass Utility Token (nB) */
 .vh-glass {
   border: 1px solid rgba(255, 255, 255, 0.15);
