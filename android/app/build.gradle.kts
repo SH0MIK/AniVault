@@ -25,19 +25,6 @@ android {
         manifestPlaceholders["DISCORD_APP_SCHEME"] = "discord-$discordAppId"
     }
 
-    signingConfigs {
-        getByName("debug")
-    }
-
-    buildTypes {
-        getByName("release") {
-            // Temporary test signing so the GitHub Actions APK can be installed
-            // directly on the phone. Replace with a private release keystore
-            // before publishing to Google Play.
-            signingConfig = signingConfigs.getByName("debug")
-        }
-    }
-
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -64,11 +51,21 @@ kotlin {
     jvmToolchain(17)
 }
 
+// Reuse AniVault's existing site icon as the Android launcher icon.
+val syncAniVaultIcon by tasks.registering(Copy::class) {
+    from(rootProject.projectDir.parentFile.resolve("public/assets/img/site-img/icon.png"))
+    into(layout.buildDirectory.dir("generated/res/launcherIcon/drawable"))
+    rename { "anivault_icon.png" }
+}
+
+tasks.named("preBuild") {
+    dependsOn(syncAniVaultIcon)
+}
+
+android.sourceSets["main"].res.srcDir(layout.buildDirectory.dir("generated/res/launcherIcon"))
+
 dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.appcompat:appcompat:1.7.0")
-
-    // Discord distributes this AAR from the Social SDK Downloads page.
-    // Place the downloaded discord_partner_sdk.aar in android/app/libs/.
     implementation(files("libs/discord_partner_sdk.aar"))
 }
