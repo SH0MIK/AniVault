@@ -991,30 +991,14 @@ function stopAmbient() {
 }
 
 /* Fullscreen & Picture in Picture */
-// iPhone (not iPad) has no real Element.requestFullscreen support, and
-// video.webkitEnterFullscreen() hands the <video> off to Apple's native
-// player — which strips out our custom control bar and subtitle overlay
-// entirely, since those are sibling DOM elements, not part of the video
-// itself. So on iPhone we skip both native paths and fake fullscreen with
-// CSS instead: a plain 100vw/100dvh page element still rotates correctly
-// with the physical device (that's normal page reflow, not a video API),
-// and every custom element stays in the DOM and visible.
-const isIphone = /iPhone|iPod/.test(navigator.userAgent);
-let _iosFsMode = false;
-// #senshi-player-root gets moved at runtime into #watch-player-wrap
-// (.wp-player-shell), which has `animation: playerReveal .55s ... both`.
-// The "both" fill-mode keeps that animation's final `transform:
-// translateY(0) scale(1)` applied forever, and any non-none transform on
-// an ancestor turns it into the containing block for position:fixed
-// descendants — so our fixed fullscreen box was anchoring (and getting
-// clipped by .wp-player-shell's overflow:hidden) to that small 16:9 box
-// instead of the real viewport. Reparenting to <body> while "fullscreen"
-// sidesteps that trap entirely.
-let _iosFsParent = null;
-let _iosFsNextSibling = null;
+let _fakeFsMode = false; // iPhone Safari can't do real element fullscreen, so we simulate it
+
+function isIphone() {
+  return /iPhone/.test(navigator.userAgent) && !window.MSStream;
+}
 
 function isFs() {
-  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || _iosFsMode);
+  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || _fakeFsMode);
 }
 
 function lockScreenOrientation() {
@@ -1034,32 +1018,32 @@ function unlockScreenOrientation() {
 }
 
 function toggleFs() {
-  if (isIphone) {
-    _iosFsMode = !_iosFsMode;
-    document.body.style.overflow = _iosFsMode ? 'hidden' : '';
-    if (_iosFsMode) {
-      _iosFsParent = root.parentNode;
-      _iosFsNextSibling = root.nextSibling;
-      document.body.appendChild(root);
-    } else if (_iosFsParent) {
-      _iosFsParent.insertBefore(root, _iosFsNextSibling);
-      _iosFsParent = null;
-      _iosFsNextSibling = null;
-    }
-    onFsChange();
-    return;
-  }
   if (!isFs()) {
+    if (isIphone()) {
+      // iPhone Safari doesn't support requestFullscreen() on a container element,
+      // and calling video.webkitEnterFullscreen() hands control to Apple's native
+      // AVPlayer UI, replacing our custom controls entirely. Simulate fullscreen
+      // instead with a fixed-position overlay so our own controls stay in charge.
+      root?.classList.add('sp-fake-fullscreen');
+      _fakeFsMode = true;
+      lockScreenOrientation();
+      onFsChange();
+      return;
+    }
     const r = root.requestFullscreen?.() || root.webkitRequestFullscreen?.() || root.mozRequestFullScreen?.();
     if (r && typeof r.then === 'function') {
       r.then(lockScreenOrientation).catch(() => {});
     } else {
       lockScreenOrientation();
     }
-    if (vid && typeof vid.webkitEnterFullscreen === 'function') {
-      try { vid.webkitEnterFullscreen(); } catch(e) {}
-    }
   } else {
+    if (_fakeFsMode) {
+      root?.classList.remove('sp-fake-fullscreen');
+      _fakeFsMode = false;
+      unlockScreenOrientation();
+      onFsChange();
+      return;
+    }
     unlockScreenOrientation();
     document.exitFullscreen?.() || document.webkitExitFullscreen?.() || document.mozCancelFullScreen?.();
   }
@@ -1076,12 +1060,10 @@ function onFsChange() {
   if (topTitle) {
     topTitle.textContent = fs ? (topTitle.dataset.fulltitle || '') : '';
   }
-  if (!isIphone) {
-    if (fs) {
-      lockScreenOrientation();
-    } else {
-      unlockScreenOrientation();
-    }
+  if (fs) {
+    lockScreenOrientation();
+  } else {
+    unlockScreenOrientation();
   }
 }
 

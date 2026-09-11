@@ -141,15 +141,23 @@ export const PLAYER_CSS = `
   aspect-ratio: auto !important;
 }
 
-/* iPhone has no real Fullscreen API, so [data-player-fullscreen="true"] is
-   set manually via JS there (see toggleFs in player-script.ts) instead of
-   the :fullscreen pseudo-class. The real Fullscreen API auto-covers the
-   screen for the other selectors above; this manual case needs it spelled
-   out or the box just grows in place instead of overlaying the page. */
-[data-player-fullscreen="true"]:not(:fullscreen):not(:-webkit-full-screen) {
+/* iPhone Safari can't use the real Fullscreen API on a container element, so
+   toggleFs() simulates it with this class instead of calling
+   video.webkitEnterFullscreen() (which would hand off to Apple's native
+   AVPlayer UI and hide our custom controls). */
+.sp-fake-fullscreen {
   position: fixed !important;
   inset: 0 !important;
-  z-index: 2147483647 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  max-height: none !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  aspect-ratio: auto !important;
+  z-index: 999999 !important;
 }
 
 /* VidHawk Frosted Glass Utility Token (nB) */
