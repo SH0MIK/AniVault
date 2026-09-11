@@ -14,18 +14,25 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
+        // The checked-in Discord Social SDK AAR was reduced to arm64-v8a
+        // because GitHub's file-size limit prevented committing the full AAR.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
+
         val discordAppId = providers.gradleProperty("discordApplicationId").orElse("0").get()
         buildConfigField("long", "DISCORD_APPLICATION_ID", discordAppId)
         manifestPlaceholders["DISCORD_APP_SCHEME"] = "discord-$discordAppId"
     }
 
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+    }
+
     buildFeatures {
         buildConfig = true
         prefab = true
-    }
-
-    packaging {
-        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
 
     externalNativeBuild {
@@ -34,6 +41,14 @@ android {
             version = "3.22.1"
         }
     }
+
+    packaging {
+        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+    }
+}
+
+kotlin {
+    jvmToolchain(17)
 }
 
 dependencies {
