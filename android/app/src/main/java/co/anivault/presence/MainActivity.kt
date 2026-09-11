@@ -12,13 +12,11 @@ import org.json.JSONObject
 
 class MainActivity : Activity() {
     private lateinit var webView: WebView
-    private val discord = DiscordPresence(this)
+    private var discord: DiscordPresence? = null
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        DiscordSocialSdkInit.setEngineActivity(this)
 
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
@@ -30,6 +28,7 @@ class MainActivity : Activity() {
                 override fun onPageFinished(view: WebView, url: String) {
                     super.onPageFinished(view, url)
                     injectPresenceHook(view)
+                    initDiscordSafely()
                 }
             }
             webChromeClient = WebChromeClient()
@@ -38,7 +37,17 @@ class MainActivity : Activity() {
         }
 
         setContentView(webView)
-        discord.start()
+    }
+
+    private fun initDiscordSafely() {
+        if (discord != null) return
+        try {
+            DiscordSocialSdkInit.setEngineActivity(this)
+            discord = DiscordPresence(this).also { it.start() }
+        } catch (_: Throwable) {
+            // Discord must never prevent AniVault from opening.
+            discord = null
+        }
     }
 
     private fun injectPresenceHook(view: WebView) {
@@ -46,10 +55,12 @@ class MainActivity : Activity() {
     }
 
     override fun onDestroy() {
-        webView.evaluateJavascript("window.__anivaultPresence?.send('pagehide');", null)
-        discord.clear()
-        discord.close()
-        webView.destroy()
+        if (::webView.isInitialized) {
+            webView.evaluateJavascript("window.__anivaultPresence?.send('pagehide');", null)
+        }
+        discord?.clear()
+        discord?.close()
+        if (::webView.isInitialized) webView.destroy()
         super.onDestroy()
     }
 
@@ -58,7 +69,7 @@ class MainActivity : Activity() {
         fun update(json: String) {
             runOnUiThread {
                 try {
-                    discord.update(JSONObject(json))
+                    discord?.update(JSONObject(json))
                 } catch (_: Exception) {
                     // Ignore malformed page events; playback must never be interrupted.
                 }
