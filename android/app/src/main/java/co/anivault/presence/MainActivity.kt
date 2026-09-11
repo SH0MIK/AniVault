@@ -74,7 +74,7 @@ class MainActivity : Activity() {
               window.__anivaultPresence = api;
 
               const meta = (name, attr = 'content') =>
-                document.querySelector(`meta[property="${name}"], meta[name="${name}"]`)?.getAttribute(attr) || '';
+                document.querySelector(`meta[property="${'$'}{name}"], meta[name="${'$'}{name}"]`)?.getAttribute(attr) || '';
 
               const send = (event) => {
                 const v = api.video;
