@@ -987,6 +987,8 @@ const isIPhone = /iPhone|iPod/i.test(navigator.userAgent || '');
 let iosPseudoFs = false;
 let iosFsScrollY = 0;
 let iosBodyStyles = null;
+let iosFsParent = null;
+let iosFsNextSibling = null;
 
 function isFs() {
   return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || iosPseudoFs);
@@ -1043,6 +1045,14 @@ function enterIosPseudoFs() {
   if (iosPseudoFs) return;
   iosPseudoFs = true;
   iosFsScrollY = window.scrollY || window.pageYOffset || 0;
+
+  // Escape ancestor stacking/overflow/transform contexts on iPhone.
+  iosFsParent = root.parentNode;
+  iosFsNextSibling = root.nextSibling;
+  if (iosFsParent && document.body && root.parentNode !== document.body) {
+    document.body.appendChild(root);
+  }
+
   iosBodyStyles = document.body ? {
     position: document.body.style.position,
     top: document.body.style.top,
@@ -1089,6 +1099,18 @@ function exitIosPseudoFs() {
   root.style.removeProperty('left');
   root.style.removeProperty('top');
   root.style.removeProperty('transform');
+
+  // Restore the player to its exact original DOM position.
+  if (iosFsParent) {
+    if (iosFsNextSibling && iosFsNextSibling.parentNode === iosFsParent) {
+      iosFsParent.insertBefore(root, iosFsNextSibling);
+    } else {
+      iosFsParent.appendChild(root);
+    }
+  }
+  iosFsParent = null;
+  iosFsNextSibling = null;
+
   document.querySelectorAll('.vh-fs-enter').forEach(el => el.style.display = 'block');
   document.querySelectorAll('.vh-fs-exit').forEach(el => el.style.display = 'none');
   if (topTitle) topTitle.textContent = '';
