@@ -1,0 +1,55 @@
+name: Build AniVault Android App
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" "cmake;3.22.1" "ndk;27.2.12479018"
+
+      - name: Download Discord Social SDK AAR
+        env:
+          DISCORD_SDK_URL: ${{ secrets.DISCORD_SDK_URL }}
+          DISCORD_SDK_TOKEN: ${{ secrets.DISCORD_SDK_TOKEN }}
+        run: |
+          set -e
+          mkdir -p android/app/libs
+          if [ -z "$DISCORD_SDK_URL" ]; then
+            echo "DISCORD_SDK_URL repository secret is required."
+            exit 1
+          fi
+          if [ -n "$DISCORD_SDK_TOKEN" ]; then
+            curl -fL --retry 3 -H "Authorization: Bearer $DISCORD_SDK_TOKEN" "$DISCORD_SDK_URL" -o android/app/libs/discord_partner_sdk.aar
+          else
+            curl -fL --retry 3 "$DISCORD_SDK_URL" -o android/app/libs/discord_partner_sdk.aar
+          fi
+          test -s android/app/libs/discord_partner_sdk.aar
+          ls -lh android/app/libs/discord_partner_sdk.aar
+
+      - name: Build release APK
+        working-directory: android
+        run: |
+          chmod +x gradlew
+          ./gradlew :app:assembleRelease -PdiscordApplicationId=1505538731791093820
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AniVault-Android
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
