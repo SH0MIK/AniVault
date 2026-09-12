@@ -1,5 +1,7 @@
 import { Hono } from 'hono';
 import { authRoutes } from './routes/auth';
+import { mobileAuthRoutes } from './routes/api-mobile-auth';
+import { mobileContentRoutes } from './routes/api-mobile-content';
 import { homeRoutes } from './routes/home';
 import { browseRoutes } from './routes/browse';
 import { discoverRoutes } from './routes/discover';
@@ -45,9 +47,7 @@ import { legacyRedirectRoutes } from './routes/legacy-redirects';
 import { apiChatRoutes } from './routes/api-chat';
 import { healthRoutes } from './routes/health';
 import { handleScheduled } from './scheduled';
-import { discordPresenceWebScript } from './render/discord-presence-web';
 
-// Env bindings + secrets (set secrets via `wrangler secret put NAME`, see wrangler.toml)
 export interface Env {
   DB: D1Database;
   API_CACHE: KVNamespace;
@@ -55,6 +55,7 @@ export interface Env {
   SITE_NAME: string;
   SITE_URL: string;
   SESSION_LIFETIME_SECONDS: string;
+  MOBILE_SESSION_LIFETIME_SECONDS?: string;
   API_CACHE_ENABLED?: string;
   API_CACHE_TIME?: string;
   GOOGLE_CLIENT_ID?: string;
@@ -66,10 +67,6 @@ export interface Env {
   DISCORD_SERVER_ID?: string;
   DISCORD_BOT_TOKEN?: string;
   DISCORD_LOG_CHANNEL_ID?: string;
-  // Shared secret between this Worker and the AniVault Discord bot (Vercel).
-  // Used both ways: the bot doesn't call in with it anymore for notifications
-  // (the Worker posts those to Discord directly), but the bot DOES send it
-  // as `x-bot-secret` when hitting /api/discord/user-lookup for /user.
   BOT_SECRET?: string;
   MAL_CLIENT_ID?: string;
   MAL_CLIENT_SECRET?: string;
@@ -85,40 +82,13 @@ const app = new Hono<{ Bindings: Env }>();
 
 app.route('/', healthRoutes);
 app.route('/', authRoutes);
+app.route('/', mobileAuthRoutes);
+app.route('/', mobileContentRoutes);
 app.route('/', homeRoutes);
 app.route('/', browseRoutes);
 app.route('/', discoverRoutes);
 app.route('/', animeRoutes);
 app.route('/', characterRoutes);
-
-// The browser cannot open Discord's Windows IPC pipe directly. On normal
-// AniVault web pages we therefore inject a tiny, optional bridge client that
-// talks to the user's localhost helper. It is completely silent when the
-// helper is not installed/running, so this does not affect ordinary visitors.
-app.use('/watch', async (c, next) => {
-  await next();
-
-  if (c.req.method !== 'GET') return;
-  const contentType = c.res.headers.get('content-type') ?? '';
-  if (!contentType.includes('text/html')) return;
-
-  const html = await c.res.text();
-  if (html.includes('__anivaultPcDiscordPresence')) return;
-
-  const script = discordPresenceWebScript();
-  const injected = html.includes('</body>')
-    ? html.replace('</body>', `${script}</body>`)
-    : html + script;
-
-  const headers = new Headers(c.res.headers);
-  headers.delete('content-length');
-  c.res = new Response(injected, {
-    status: c.res.status,
-    statusText: c.res.statusText,
-    headers,
-  });
-});
-
 app.route('/', watchRoutes);
 app.route('/', listRoutes);
 app.route('/', apiListRoutes);
@@ -158,11 +128,6 @@ app.route('/', watchNowRoutes);
 app.route('/', legacyRedirectRoutes);
 app.route('/', apiChatRoutes);
 
-// Global error handler — without this, an unhandled exception anywhere just
-// shows a bare "Internal Server Error" with no detail in the logs beyond
-// whatever single stack frame Cloudflare happens to capture. This logs the
-// full error (message + stack + which URL triggered it) and returns a
-// plain but on-brand error page instead of a blank one.
 app.onError((err, c) => {
   console.error(`[unhandled] ${c.req.method} ${c.req.url} — ${err.message}\n${err.stack ?? ''}`);
   return c.html(
@@ -176,7 +141,6 @@ app.onError((err, c) => {
 
 export default {
   fetch: app.fetch,
-  // Cloudflare Cron Trigger entry point — see [triggers] in wrangler.toml.
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
     ctx.waitUntil(handleScheduled(env, event.cron));
   },
