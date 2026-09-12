@@ -113,7 +113,9 @@ Java_co_anivault_presence_DiscordPresence_nativeUpdate(
     // Override the registered application's current name ("Game") with
     // the name we actually want users to see in the Rich Presence card.
     activity.SetName("AniVault");
-    activity.SetDetails(trim128("Watching " + titleValue));
+    // The header already says "Watching AniVault", so keep the anime title
+    // itself here instead of repeating the word "Watching".
+    activity.SetDetails(trim128(titleValue));
 
     std::string state = "Episode " + std::to_string(std::max(0, static_cast<int>(episode)));
     if (!episodeTitleValue.empty()) state += " — " + episodeTitleValue;
