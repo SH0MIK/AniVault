@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>AniVault Discord Presence</title>
+  <style>
+    body { font: 15px system-ui, sans-serif; max-width: 620px; margin: 40px auto; padding: 0 20px; }
+    label { display:block; font-weight:600; margin:18px 0 7px; }
+    input { width:100%; box-sizing:border-box; padding:10px; border:1px solid #bbb; border-radius:8px; }
+    button { margin-top:18px; padding:10px 16px; border:0; border-radius:8px; cursor:pointer; }
+    #status { margin-left:10px; color:#16803c; }
+    .hint { color:#666; line-height:1.5; }
+    code { background:#f1f1f1; padding:2px 5px; border-radius:4px; }
+  </style>
+</head>
+<body>
+  <h1>AniVault Discord Presence</h1>
+  <p class="hint">On PC, leave the bridge at <code>http://127.0.0.1:6463</code>. For phone playback, enter the PC's LAN address, for example <code>http://192.168.1.10:6463</code>.</p>
+
+  <label for="bridgeUrl">Bridge URL</label>
+  <input id="bridgeUrl" value="http://127.0.0.1:6463">
+
+  <label for="bridgeSecret">Bridge secret</label>
+  <input id="bridgeSecret" type="password" autocomplete="off" placeholder="Only required for LAN/phone mode">
+
+  <button id="save">Save</button><span id="status"></span>
+  <script src="options.js"></script>
+</body>
+</html>

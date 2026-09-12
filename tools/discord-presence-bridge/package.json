@@ -1,0 +1,12 @@
+{
+  "name": "anivault-discord-presence-bridge",
+  "private": true,
+  "type": "module",
+  "version": "0.1.0",
+  "description": "Local AniVault-to-Discord Rich Presence companion",
+  "engines": { "node": ">=18" },
+  "scripts": { "start": "node server.mjs" },
+  "dependencies": {
+    "@xhayper/discord-rpc": "^1.3.4"
+  }
+}

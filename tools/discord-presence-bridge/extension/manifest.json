@@ -1,0 +1,32 @@
+{
+  "manifest_version": 3,
+  "name": "AniVault Discord Presence",
+  "version": "0.2.0",
+  "description": "Sync AniVault playback with Discord Rich Presence using a local or LAN companion.",
+  "permissions": ["storage"],
+  "host_permissions": [
+    "https://www.anivault.co/watch*",
+    "https://anivault.co/watch*",
+    "http://*/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": true
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://www.anivault.co/watch*",
+        "https://anivault.co/watch*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "AniVault Discord Presence"
+  }
+}
