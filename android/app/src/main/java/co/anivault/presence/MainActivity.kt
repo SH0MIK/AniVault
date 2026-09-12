@@ -81,11 +81,63 @@ class MainActivity : Activity() {
         private val PRESENCE_SCRIPT = """
             (() => {
               if (window.__anivaultPresence) return;
-              const api = { video: null };
+              const api = {
+                video: null,
+                art: { image: '', banner: '' },
+                artLoading: false,
+                artLoadedFor: ''
+              };
               window.__anivaultPresence = api;
 
               const meta = (name, attr = 'content') =>
                 document.querySelector(`meta[property="${'$'}{name}"], meta[name="${'$'}{name}"]`)?.getAttribute(attr) || '';
+
+              const cssUrl = (value) => {
+                const m = String(value || '').match(/url\\((['"]?)(.*?)\\1\\)/i);
+                return m ? m[2] : '';
+              };
+
+              const animeIdFromUrl = () => {
+                try { return new URL(location.href).searchParams.get('anime') || ''; }
+                catch (_) { return ''; }
+              };
+
+              const currentPoster = () => {
+                const ambient = document.querySelector('.av-ambient-img');
+                const inline = ambient?.style?.backgroundImage || '';
+                return cssUrl(inline) || meta('og:image');
+              };
+
+              const loadAnimeArt = async () => {
+                const animeId = animeIdFromUrl();
+                if (!animeId || api.artLoading || api.artLoadedFor === animeId) return;
+                api.artLoading = true;
+
+                // The watch page already has the same poster used by the anime
+                // page in its ambient background. Use it immediately, then fetch
+                // the anime page once to obtain its banner for fallback.
+                api.art.image = currentPoster();
+
+                try {
+                  const res = await fetch(`/anime?id=${encodeURIComponent(animeId)}`, {
+                    credentials: 'same-origin',
+                    cache: 'force-cache'
+                  });
+                  if (res.ok) {
+                    const html = await res.text();
+                    const doc = new DOMParser().parseFromString(html, 'text/html');
+                    const poster = doc.querySelector('.ih-thumb img')?.getAttribute('src') || '';
+                    const banner = cssUrl(doc.querySelector('.ih-bg')?.getAttribute('style') || '');
+                    if (poster) api.art.image = new URL(poster, location.href).href;
+                    if (banner) api.art.banner = new URL(banner, location.href).href;
+                  }
+                } catch (_) {
+                  // Keep the poster already available on the watch page.
+                }
+
+                api.artLoadedFor = animeId;
+                api.artLoading = false;
+              };
 
               const send = (event) => {
                 const v = api.video;
@@ -106,6 +158,8 @@ class MainActivity : Activity() {
                 window.AniVaultPresence?.update(JSON.stringify({
                   event, title, episode, episodeTitle,
                   url: location.href,
+                  image: api.art.image || currentPoster(),
+                  banner: api.art.banner || '',
                   currentTime, duration, playing,
                   at: Date.now()
                 }));
@@ -119,6 +173,7 @@ class MainActivity : Activity() {
                   next.addEventListener(e, () => send(e), {passive:true})
                 );
                 send('ready');
+                loadAnimeArt().then(() => send('art-ready'));
               };
 
               api.send = send;
