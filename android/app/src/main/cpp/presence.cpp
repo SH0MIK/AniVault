@@ -107,14 +107,11 @@ Java_co_anivault_presence_DiscordPresence_nativeUpdate(
     if (!client) return;
 
     discordpp::Activity activity;
-    // This is a video-watching activity, so Discord should display
-    // "Watching" rather than the default "Playing" label.
     activity.SetType(discordpp::ActivityTypes::Watching);
-    // Override the registered application's current name ("Game") with
-    // the name we actually want users to see in the Rich Presence card.
     activity.SetName("AniVault");
-    // The header already says "Watching AniVault", so keep the anime title
-    // itself here instead of repeating the word "Watching".
+
+    // The activity name is already shown as "Watching AniVault", so keep
+    // the details line to the anime title only.
     activity.SetDetails(trim128(titleValue));
 
     std::string state = "Episode " + std::to_string(std::max(0, static_cast<int>(episode)));
@@ -122,8 +119,6 @@ Java_co_anivault_presence_DiscordPresence_nativeUpdate(
     activity.SetState(trim128(state));
     activity.SetDetailsUrl(urlValue);
 
-    // Prefer the exact episode thumbnail supplied by the watch page.
-    // If it is unavailable, fall back to the anime banner.
     const std::string selectedImage = !imageValue.empty() ? imageValue : bannerValue;
     if (!selectedImage.empty()) {
         discordpp::ActivityAssets assets;
@@ -138,15 +133,21 @@ Java_co_anivault_presence_DiscordPresence_nativeUpdate(
     button.SetUrl(urlValue);
     activity.AddButton(button);
 
+    // Discord's Watching activity supports start + end timestamps. Together
+    // they allow Discord to render the native video progress/timing UI.
+    // Anchor the start at the actual video position so seeking stays correct.
     if (playing && duration > 0.0) {
-        const double safeCurrent = std::max(0.0, currentTime);
-        const uint64_t start = static_cast<uint64_t>(
-            static_cast<double>(sourceTimeMs) - safeCurrent * 1000.0);
-        const uint64_t end = start + static_cast<uint64_t>(duration * 1000.0);
+        const double safeCurrent = std::clamp(currentTime, 0.0, duration);
+        const int64_t nowMs = static_cast<int64_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count());
+        const int64_t startSigned = static_cast<int64_t>(
+            static_cast<double>(nowMs) - safeCurrent * 1000.0);
+        const int64_t endSigned = startSigned + static_cast<int64_t>(duration * 1000.0);
 
         discordpp::ActivityTimestamps timestamps;
-        timestamps.SetStart(start);
-        timestamps.SetEnd(end);
+        timestamps.SetStart(static_cast<uint64_t>(std::max<int64_t>(0, startSigned)));
+        timestamps.SetEnd(static_cast<uint64_t>(std::max<int64_t>(0, endSigned)));
         activity.SetTimestamps(timestamps);
     } else {
         activity.SetState(trim128(state + " · Paused"));
