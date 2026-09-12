@@ -78,55 +78,32 @@ class MainActivity : Activity() {
         private val PRESENCE_SCRIPT = """
             (() => {
               if (window.__anivaultPresence) return;
-              const api = {
-                video: null,
-                art: { image: '', banner: '' },
-                artLoading: false,
-                artLoadedFor: ''
-              };
+              const api = { video: null, art: { image: '', banner: '' }, artLoading: false, artLoadedFor: '' };
               window.__anivaultPresence = api;
 
               const meta = (name, attr = 'content') =>
                 document.querySelector(`meta[property="${'$'}{name}"], meta[name="${'$'}{name}"]`)?.getAttribute(attr) || '';
-
               const cssUrl = (value) => {
                 const m = String(value || '').match(/url\((['"]?)(.*?)\1\)/i);
                 return m ? m[2] : '';
               };
-
               const animeIdFromUrl = () => {
-                try { return new URL(location.href).searchParams.get('anime') || ''; }
-                catch (_) { return ''; }
+                try { return new URL(location.href).searchParams.get('anime') || ''; } catch (_) { return ''; }
               };
-
               const currentPoster = () => {
                 const ambient = document.querySelector('.av-ambient-img');
-                const inline = ambient?.style?.backgroundImage || '';
-                return cssUrl(inline) || '';
+                return cssUrl(ambient?.style?.backgroundImage || '') || meta('og:image');
               };
-
-              const episodeThumbnail = () => {
-                // The watch route sets og:image to the exact episode thumbnail
-                // resolved by AniVault's scraper API. Prefer it over the anime
-                // poster so Discord shows the thumbnail for this episode.
-                return meta('og:image') || '';
-              };
+              const episodeThumbnail = () => meta('og:image') || '';
 
               const loadAnimeArt = async () => {
                 const animeId = animeIdFromUrl();
                 if (!animeId || api.artLoading || api.artLoadedFor === animeId) return;
                 api.artLoading = true;
-
-                // Episode thumbnail is the primary RPC image.
                 api.art.image = episodeThumbnail() || currentPoster();
-
                 try {
-                  // Only fetch the anime page to obtain a banner fallback.
-                  // Never replace an already-found episode thumbnail.
-                  const res = await fetch(`/anime?id=${encodeURIComponent(animeId)}`, {
-                    credentials: 'same-origin',
-                    cache: 'force-cache'
-                  });
+                  const encodedId = encodeURIComponent(animeId);
+                  const res = await fetch(`/anime?id=${encodedId}`, { credentials: 'same-origin', cache: 'force-cache' });
                   if (res.ok) {
                     const html = await res.text();
                     const doc = new DOMParser().parseFromString(html, 'text/html');
@@ -135,10 +112,7 @@ class MainActivity : Activity() {
                     if (!api.art.image && poster) api.art.image = new URL(poster, location.href).href;
                     if (banner) api.art.banner = new URL(banner, location.href).href;
                   }
-                } catch (_) {
-                  // Keep the episode thumbnail already available on the watch page.
-                }
-
+                } catch (_) {}
                 api.artLoadedFor = animeId;
                 api.artLoading = false;
               };
@@ -149,23 +123,17 @@ class MainActivity : Activity() {
                 const u = new URL(location.href);
                 const episode = Number(u.searchParams.get('ep')) || 0;
                 if (!episode) return;
-
                 const title = (meta('og:title') || document.title)
                   .replace(/^Ep\s+\d+\s+[—-]\s*/i, '')
-                  .replace(/\s*\|\s*AniVault.*$/i, '')
-                  .trim() || 'Anime';
+                  .replace(/\s*\|\s*AniVault.*$/i, '').trim() || 'Anime';
                 const episodeTitle = document.querySelector('.wp-ep-title, [data-episode-title]')?.textContent?.trim() || '';
                 const currentTime = v && Number.isFinite(v.currentTime) ? Math.max(0, v.currentTime) : 0;
                 const duration = v && Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 0;
                 const playing = !!v && !v.paused && !v.ended && !v.seeking;
-
                 window.AniVaultPresence?.update(JSON.stringify({
-                  event, title, episode, episodeTitle,
-                  url: location.href,
+                  event, title, episode, episodeTitle, url: location.href,
                   image: api.art.image || episodeThumbnail() || currentPoster(),
-                  banner: api.art.banner || '',
-                  currentTime, duration, playing,
-                  at: Date.now()
+                  banner: api.art.banner || '', currentTime, duration, playing, at: Date.now()
                 }));
               };
 
@@ -174,7 +142,7 @@ class MainActivity : Activity() {
                 if (!(next instanceof HTMLVideoElement) || next === api.video) return;
                 api.video = next;
                 ['play','playing','pause','waiting','stalled','seeked','loadedmetadata','durationchange','ended'].forEach(e =>
-                  next.addEventListener(e, () => send(e), {passive:true})
+                  next.addEventListener(e, () => send(e), { passive: true })
                 );
                 send('ready');
                 loadAnimeArt().then(() => send('art-ready'));
@@ -182,8 +150,8 @@ class MainActivity : Activity() {
 
               api.send = send;
               attach();
-              new MutationObserver(attach).observe(document.documentElement, {childList:true, subtree:true});
-              window.addEventListener('pagehide', () => send('pagehide'), {capture:true});
+              new MutationObserver(attach).observe(document.documentElement, { childList: true, subtree: true });
+              window.addEventListener('pagehide', () => send('pagehide'), { capture: true });
             })();
         """.trimIndent()
     }
