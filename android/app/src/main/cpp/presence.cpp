@@ -107,7 +107,12 @@ Java_co_anivault_presence_DiscordPresence_nativeUpdate(
     if (!client) return;
 
     discordpp::Activity activity;
-    activity.SetType(discordpp::ActivityTypes::Playing);
+    // This is a video-watching activity, so Discord should display
+    // "Watching" rather than the default "Playing" label.
+    activity.SetType(discordpp::ActivityTypes::Watching);
+    // Override the registered application's current name ("Game") with
+    // the name we actually want users to see in the Rich Presence card.
+    activity.SetName("AniVault");
     activity.SetDetails(trim128("Watching " + titleValue));
 
     std::string state = "Episode " + std::to_string(std::max(0, static_cast<int>(episode)));
@@ -115,9 +120,8 @@ Java_co_anivault_presence_DiscordPresence_nativeUpdate(
     activity.SetState(trim128(state));
     activity.SetDetailsUrl(urlValue);
 
-    // Discord Social SDK accepts either uploaded asset keys or external image
-    // URLs for Rich Presence art. Prefer the exact anime-page poster/thumbnail
-    // and fall back to that anime's banner when the poster is unavailable.
+    // Prefer the exact episode thumbnail supplied by the watch page.
+    // If it is unavailable, fall back to the anime banner.
     const std::string selectedImage = !imageValue.empty() ? imageValue : bannerValue;
     if (!selectedImage.empty()) {
         discordpp::ActivityAssets assets;
