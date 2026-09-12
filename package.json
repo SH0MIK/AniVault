@@ -7,9 +7,11 @@
     "deploy": "wrangler deploy",
     "db:schema": "wrangler d1 execute anivault --file=./d1_schema.sql",
     "db:data": "wrangler d1 execute anivault --file=./d1_data.sql",
-    "db:sessions": "wrangler d1 execute anivault --file=./d1_sessions.sql"
+    "db:sessions": "wrangler d1 execute anivault --file=./d1_sessions.sql",
+    "discord:pc": "node tools/discord-rpc-bridge.mjs"
   },
   "dependencies": {
+    "@xhayper/discord-rpc": "^1.3.4",
     "bcryptjs": "^2.4.3",
     "hono": "^4.6.14"
   },
