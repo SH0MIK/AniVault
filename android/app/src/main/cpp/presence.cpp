@@ -36,6 +36,11 @@ std::string trim128(std::string value) {
     return value;
 }
 
+std::string trim300(std::string value) {
+    if (value.size() > 300) value.resize(300);
+    return value;
+}
+
 void startCallbacks() {
     if (running.exchange(true)) return;
     callbackThread = std::thread([] {
@@ -76,6 +81,8 @@ Java_co_anivault_presence_DiscordPresence_nativeUpdate(
     jint episode,
     jstring episodeTitle,
     jstring url,
+    jstring image,
+    jstring banner,
     jdouble currentTime,
     jdouble duration,
     jboolean playing,
@@ -91,6 +98,8 @@ Java_co_anivault_presence_DiscordPresence_nativeUpdate(
     std::string titleValue = getString(title);
     const std::string episodeTitleValue = getString(episodeTitle);
     std::string urlValue = getString(url);
+    const std::string imageValue = getString(image);
+    const std::string bannerValue = getString(banner);
     if (titleValue.empty()) titleValue = "Anime";
     if (urlValue.empty()) urlValue = "https://www.anivault.co/";
 
@@ -106,10 +115,17 @@ Java_co_anivault_presence_DiscordPresence_nativeUpdate(
     activity.SetState(trim128(state));
     activity.SetDetailsUrl(urlValue);
 
-    discordpp::ActivityAssets assets;
-    assets.SetLargeImage("anivault");
-    assets.SetLargeText("AniVault");
-    activity.SetAssets(assets);
+    // Discord Social SDK accepts either uploaded asset keys or external image
+    // URLs for Rich Presence art. Prefer the exact anime-page poster/thumbnail
+    // and fall back to that anime's banner when the poster is unavailable.
+    const std::string selectedImage = !imageValue.empty() ? imageValue : bannerValue;
+    if (!selectedImage.empty()) {
+        discordpp::ActivityAssets assets;
+        assets.SetLargeImage(trim300(selectedImage));
+        assets.SetLargeText(trim128(titleValue));
+        assets.SetLargeUrl(urlValue);
+        activity.SetAssets(assets);
+    }
 
     discordpp::ActivityButton button;
     button.SetLabel(playing ? "Watch on AniVault" : "Resume on AniVault");
