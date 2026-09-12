@@ -103,7 +103,7 @@ class MainActivity : Activity() {
                 api.art.image = episodeThumbnail() || currentPoster();
                 try {
                   const encodedId = encodeURIComponent(animeId);
-                  const res = await fetch(`/anime?id=${encodedId}`, { credentials: 'same-origin', cache: 'force-cache' });
+                  const res = await fetch(`/anime?id=${'$'}{encodedId}`, { credentials: 'same-origin', cache: 'force-cache' });
                   if (res.ok) {
                     const html = await res.text();
                     const doc = new DOMParser().parseFromString(html, 'text/html');
