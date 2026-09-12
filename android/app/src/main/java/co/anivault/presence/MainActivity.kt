@@ -17,7 +17,6 @@ class MainActivity : Activity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         webView = WebView(this).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
@@ -35,7 +34,6 @@ class MainActivity : Activity() {
             addJavascriptInterface(PresenceJsBridge(), "AniVaultPresence")
             loadUrl("https://www.anivault.co/")
         }
-
         setContentView(webView)
     }
 
@@ -45,7 +43,6 @@ class MainActivity : Activity() {
             DiscordSocialSdkInit.setEngineActivity(this)
             discord = DiscordPresence(this).also { it.start() }
         } catch (_: Throwable) {
-            // Discord must never prevent AniVault from opening.
             discord = null
         }
     }
@@ -105,7 +102,14 @@ class MainActivity : Activity() {
               const currentPoster = () => {
                 const ambient = document.querySelector('.av-ambient-img');
                 const inline = ambient?.style?.backgroundImage || '';
-                return cssUrl(inline) || meta('og:image');
+                return cssUrl(inline) || '';
+              };
+
+              const episodeThumbnail = () => {
+                // The watch route sets og:image to the exact episode thumbnail
+                // resolved by AniVault's scraper API. Prefer it over the anime
+                // poster so Discord shows the thumbnail for this episode.
+                return meta('og:image') || '';
               };
 
               const loadAnimeArt = async () => {
@@ -113,12 +117,12 @@ class MainActivity : Activity() {
                 if (!animeId || api.artLoading || api.artLoadedFor === animeId) return;
                 api.artLoading = true;
 
-                // The watch page already has the same poster used by the anime
-                // page in its ambient background. Use it immediately, then fetch
-                // the anime page once to obtain its banner for fallback.
-                api.art.image = currentPoster();
+                // Episode thumbnail is the primary RPC image.
+                api.art.image = episodeThumbnail() || currentPoster();
 
                 try {
+                  // Only fetch the anime page to obtain a banner fallback.
+                  // Never replace an already-found episode thumbnail.
                   const res = await fetch(`/anime?id=${encodeURIComponent(animeId)}`, {
                     credentials: 'same-origin',
                     cache: 'force-cache'
@@ -128,11 +132,11 @@ class MainActivity : Activity() {
                     const doc = new DOMParser().parseFromString(html, 'text/html');
                     const poster = doc.querySelector('.ih-thumb img')?.getAttribute('src') || '';
                     const banner = cssUrl(doc.querySelector('.ih-bg')?.getAttribute('style') || '');
-                    if (poster) api.art.image = new URL(poster, location.href).href;
+                    if (!api.art.image && poster) api.art.image = new URL(poster, location.href).href;
                     if (banner) api.art.banner = new URL(banner, location.href).href;
                   }
                 } catch (_) {
-                  // Keep the poster already available on the watch page.
+                  // Keep the episode thumbnail already available on the watch page.
                 }
 
                 api.artLoadedFor = animeId;
@@ -158,7 +162,7 @@ class MainActivity : Activity() {
                 window.AniVaultPresence?.update(JSON.stringify({
                   event, title, episode, episodeTitle,
                   url: location.href,
-                  image: api.art.image || currentPoster(),
+                  image: api.art.image || episodeThumbnail() || currentPoster(),
                   banner: api.art.banner || '',
                   currentTime, duration, playing,
                   at: Date.now()
