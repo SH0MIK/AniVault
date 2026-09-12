@@ -7,6 +7,7 @@ const PORT = Number(process.env.ANIVAULT_RPC_PORT || 27123);
 const CLIENT_ID = process.env.ANIVAULT_DISCORD_CLIENT_ID || process.argv[2] || '';
 const SITE_ORIGIN = process.env.ANIVAULT_RPC_ORIGIN || 'https://www.anivault.co';
 const MIN_UPDATE_GAP_MS = 4000;
+const STALE_SESSION_MS = 25000;
 
 if (!CLIENT_ID) {
   console.error('Missing Discord application ID.');
@@ -19,6 +20,7 @@ let client = null;
 let ready = false;
 let connecting = null;
 let latestPayload = null;
+let lastSeenAt = 0;
 let lastAppliedKey = '';
 let lastAppliedAt = 0;
 let queuedTimer = null;
@@ -89,6 +91,7 @@ async function ensureConnected() {
 
 async function clearPresence() {
   latestPayload = null;
+  lastSeenAt = 0;
   lastAppliedKey = '';
   if (!client?.user) return;
   try {
@@ -107,6 +110,8 @@ async function applyPresence(payload) {
   }
 
   latestPayload = payload;
+  lastSeenAt = Date.now();
+
   const key = JSON.stringify({
     title: payload.title,
     episode: payload.episode,
@@ -116,7 +121,6 @@ async function applyPresence(payload) {
     currentTime: Math.floor(payload.currentTime),
     duration: Math.floor(payload.duration),
     playing: payload.playing,
-    event: payload.event,
   });
 
   const now = Date.now();
@@ -242,6 +246,13 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+const staleTimer = setInterval(() => {
+  if (lastSeenAt && Date.now() - lastSeenAt > STALE_SESSION_MS) {
+    clearPresence().catch(() => {});
+  }
+}, 10000);
+staleTimer.unref?.();
+
 server.listen(PORT, HOST, () => {
   log(`Listening on http://${HOST}:${PORT}`);
   log(`Allowed origin: ${SITE_ORIGIN}`);
@@ -250,6 +261,7 @@ server.listen(PORT, HOST, () => {
 
 const shutdown = async () => {
   if (queuedTimer) clearTimeout(queuedTimer);
+  clearInterval(staleTimer);
   await clearPresence();
   if (client) {
     try { await client.destroy(); } catch (_) {}
