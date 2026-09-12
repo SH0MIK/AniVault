@@ -93,7 +93,7 @@ class MainActivity : Activity() {
                 document.querySelector(`meta[property="${'$'}{name}"], meta[name="${'$'}{name}"]`)?.getAttribute(attr) || '';
 
               const cssUrl = (value) => {
-                const m = String(value || '').match(/url\\((['"]?)(.*?)\\1\\)/i);
+                const m = String(value || '').match(/url\((['"]?)(.*?)\1\)/i);
                 return m ? m[2] : '';
               };
 
