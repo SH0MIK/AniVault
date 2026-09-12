@@ -1,6 +1,7 @@
 // Full port of includes/notification.php.
 import { Db } from './db';
 import { h } from './helpers';
+import { sendPushToUser, sendPush } from './push';
 
 export interface NotificationRow {
   [key: string]: unknown;
@@ -27,8 +28,6 @@ export const NOTIFICATION_TYPES: Record<string, { icon: string; color: string; l
 };
 
 export const Notification = {
-  /** Creates a notification, skipping self-notifications (except announcements)
-   * and de-duping identical (user, actor, type, entity) notifications within 1 hour. */
   async create(db: Db, userId: number, actorId: number, type: string, entityId: number | null = null, entityMeta: string | null = null): Promise<void> {
     if (userId === actorId && type !== 'announcement') return;
 
@@ -44,10 +43,15 @@ export const Notification = {
       'INSERT INTO notifications (user_id, actor_id, type, entity_id, entity_meta) VALUES (?,?,?,?,?)',
       [userId, actorId, type, entityId, entityMeta]
     );
+
+    const meta = NOTIFICATION_TYPES[type];
+    if (meta) {
+      const actor = await db.fetchOne<{ username: string }>('SELECT username FROM users WHERE id = ?', [actorId]);
+      const actorName = actor?.username ?? 'Someone';
+      await sendPushToUser(db, userId, 'AniVault', `${actorName} ${meta.label}`, { type, entityId });
+    }
   },
 
-  /** Broadcasts an announcement notification to every user, skipping users
-   * who already have one for this announcement (idempotent, safe to re-run). */
   async broadcast(db: Db, announcementId: number, actorId: number, title: string): Promise<void> {
     const users = await db.fetchAll<{ id: number }>('SELECT id FROM users', []);
     for (const user of users) {
@@ -60,6 +64,12 @@ export const Notification = {
         'INSERT INTO notifications (user_id, actor_id, type, entity_id, entity_meta) VALUES (?,?,?,?,?)',
         [user.id, actorId, 'announcement', announcementId, title]
       );
+    }
+    try {
+      const allTokens = await db.fetchAll<{ token: string }>('SELECT token FROM push_tokens', []);
+      await sendPush(allTokens.map((t) => t.token), 'AniVault', title, { type: 'announcement', entityId: announcementId });
+    } catch {
+      // push_tokens may not be migrated yet — announcements still save fine.
     }
   },
 

@@ -37,26 +37,53 @@ export class Session {
     this.isNew = isNew;
   }
 
+  private fromBearer = false;
+
+  private static bearerId(c: Context): string | null {
+    const header = c.req.header('authorization') ?? c.req.header('Authorization');
+    if (!header) return null;
+    const match = /^Bearer\s+(.+)$/i.exec(header.trim());
+    return match ? match[1].trim() : null;
+  }
+
   static async load(c: Context, db: Db, lifetimeSeconds: number): Promise<Session> {
     const cookieId = getCookie(c, COOKIE_NAME);
-    if (cookieId) {
+    const bearerId = cookieId ? null : Session.bearerId(c);
+    const id = cookieId ?? bearerId;
+
+    if (id) {
       const row = await db.fetchOne<{ id: string; user_id: number | null; data: string; expires_at: number }>(
         'SELECT id, user_id, data, expires_at FROM sessions WHERE id = ?',
-        [cookieId]
+        [id]
       );
       if (row && row.expires_at > Math.floor(Date.now() / 1000)) {
         let parsed: SessionData = {};
         try { parsed = JSON.parse(row.data || '{}'); } catch { /* ignore malformed */ }
-        return new Session(db, row.id, row.user_id, parsed, false);
+        const session = new Session(db, row.id, row.user_id, parsed, false);
+        session.fromBearer = !!bearerId;
+        return session;
       }
     }
-    // No valid session -> create a fresh one
-    const id = crypto.randomUUID();
-    return new Session(db, id, null, {}, true);
+    const newId = crypto.randomUUID();
+    const session = new Session(db, newId, null, {}, true);
+    session.fromBearer = cookieId === undefined && bearerId !== null;
+    return session;
   }
 
-  /** Persists session state to D1 and writes the cookie. Call once per request, at the end. */
   async save(c: Context, lifetimeSeconds: number): Promise<void> {
+    await this.persist(lifetimeSeconds);
+    if (!this.fromBearer) {
+      setCookie(c, COOKIE_NAME, this.id, {
+        path: '/',
+        httpOnly: true,
+        secure: true,
+        sameSite: 'Lax',
+        maxAge: lifetimeSeconds,
+      });
+    }
+  }
+
+  async persist(lifetimeSeconds: number): Promise<void> {
     const now = Math.floor(Date.now() / 1000);
     const expiresAt = now + lifetimeSeconds;
     const json = JSON.stringify(this.data);
@@ -66,20 +93,13 @@ export class Session {
         'INSERT INTO sessions (id, user_id, data, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
         [this.id, this.user_id, json, expiresAt, now]
       );
+      this.isNew = false;
     } else {
       await this.db.query(
         'UPDATE sessions SET user_id = ?, data = ?, expires_at = ? WHERE id = ?',
         [this.user_id, json, expiresAt, this.id]
       );
     }
-
-    setCookie(c, COOKIE_NAME, this.id, {
-      path: '/',
-      httpOnly: true,
-      secure: true,
-      sameSite: 'Lax',
-      maxAge: lifetimeSeconds,
-    });
   }
 
   async destroy(c: Context): Promise<void> {
