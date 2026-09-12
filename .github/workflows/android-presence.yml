@@ -2,13 +2,18 @@ name: Build AniVault Android App
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feat/discord-presence-bridge
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout Android presence branch
         uses: actions/checkout@v4
+        with:
+          ref: feat/discord-presence-bridge
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -23,6 +28,9 @@ jobs:
 
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 12266719
+          accept-android-sdk-licenses: true
 
       - name: Install Android SDK packages
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" "cmake;3.22.1" "ndk;27.2.12479018"
