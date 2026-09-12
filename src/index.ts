@@ -45,6 +45,7 @@ import { legacyRedirectRoutes } from './routes/legacy-redirects';
 import { apiChatRoutes } from './routes/api-chat';
 import { healthRoutes } from './routes/health';
 import { handleScheduled } from './scheduled';
+import { discordPresenceWebScript } from './render/discord-presence-web';
 
 // Env bindings + secrets (set secrets via `wrangler secret put NAME`, see wrangler.toml)
 export interface Env {
@@ -89,6 +90,35 @@ app.route('/', browseRoutes);
 app.route('/', discoverRoutes);
 app.route('/', animeRoutes);
 app.route('/', characterRoutes);
+
+// The browser cannot open Discord's Windows IPC pipe directly. On normal
+// AniVault web pages we therefore inject a tiny, optional bridge client that
+// talks to the user's localhost helper. It is completely silent when the
+// helper is not installed/running, so this does not affect ordinary visitors.
+app.use('/watch', async (c, next) => {
+  await next();
+
+  if (c.req.method !== 'GET') return;
+  const contentType = c.res.headers.get('content-type') ?? '';
+  if (!contentType.includes('text/html')) return;
+
+  const html = await c.res.text();
+  if (html.includes('__anivaultPcDiscordPresence')) return;
+
+  const script = discordPresenceWebScript();
+  const injected = html.includes('</body>')
+    ? html.replace('</body>', `${script}</body>`)
+    : html + script;
+
+  const headers = new Headers(c.res.headers);
+  headers.delete('content-length');
+  c.res = new Response(injected, {
+    status: c.res.status,
+    statusText: c.res.statusText,
+    headers,
+  });
+});
+
 app.route('/', watchRoutes);
 app.route('/', listRoutes);
 app.route('/', apiListRoutes);
