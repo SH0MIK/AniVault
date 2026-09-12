@@ -4,7 +4,7 @@ import { Client } from '@xhayper/discord-rpc';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.ANIVAULT_RPC_PORT || 27123);
-const CLIENT_ID = process.env.ANIVAULT_DISCORD_CLIENT_ID || process.argv[2] || '';
+const CLIENT_ID = process.env.ANIVAULT_DISCORD_CLIENT_ID || process.argv[2] || '1505538731791093820';
 const SITE_ORIGIN = process.env.ANIVAULT_RPC_ORIGIN || 'https://www.anivault.co';
 const MIN_UPDATE_GAP_MS = 4000;
 const STALE_SESSION_MS = 25000;
