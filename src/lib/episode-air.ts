@@ -1,7 +1,9 @@
-// Source: MAL's own `num_episodes` field (via mal.getAnime), nothing else.
-// Previously this tried the scraper API first and fell back to counting
-// per-episode air dates from Jikan — dropped both in favor of a single
-// direct MAL lookup, since that's the one source of truth we want now.
+// Primary source: MAL's own `num_episodes` field (via mal.getAnime) — no
+// scraper, no Jikan pagination. Fallback (MAL only, when that's 0/null):
+// the highest episode number already sitting in the episode-thumbnail bulk
+// cache, since that's populated independently and already has a correct
+// number for long-running currently-airing shows (One Piece etc.) that MAL
+// itself doesn't finalize until the show ends. See fetchFromThumbCache below.
 //
 // This isn't cheap enough to compute live for a card grid, so it's cached
 // in `episode_air_cache`. Only the single-anime detail page does a
@@ -9,6 +11,7 @@
 // getForMany).
 import { Db } from './db';
 import { MalAPI } from './mal-api';
+import { getCachedRaw, animeEpisodeThumbsCacheKey } from './episode-thumb';
 
 const STALE_AFTER_MS = 6 * 60 * 60 * 1000; // 6 hours
 
@@ -17,23 +20,45 @@ export interface EpisodeAirEnv { SCRAPER_API_BASE?: string; }
 export interface ScanCandidate { id: number; title: string; image: string; inSeason: boolean; cached: AiredInfo | null; }
 
 export const EpisodeAir = {
-  /** MAL's `num_episodes` field, straight from mal.getAnime — no scraper, no Jikan.
-   *  Returns null on any failure or missing/zero episode count. MAL doesn't expose
-   *  an aired/total split for a currently-airing show, so both fields get the same
-   *  number — same shape callers already expect. */
-  async fetchAiredCount(env: EpisodeAirEnv, mal: MalAPI, animeId: number): Promise<{ aired: number; total: number } | null> {
+  /** Fallback for when MAL's num_episodes is 0/null (long-running currently-airing
+   *  shows like One Piece — MAL doesn't finalize this until the show ends). Reads
+   *  the highest episode number already sitting in the episode-thumbnail bulk
+   *  cache (`epthumbs_all_{malId}`, see episode-thumb.ts) — the exact same cache
+   *  that already successfully renders thumbnails for these shows, so if
+   *  thumbnails are showing, this will have a number too. Read-only: never
+   *  writes to or otherwise touches that cache. */
+  async fetchFromThumbCache(db: Db, animeId: number): Promise<number | null> {
+    try {
+      const raw = await getCachedRaw(db, animeEpisodeThumbsCacheKey(animeId));
+      if (!raw) return null;
+      const parsed: { episodes?: Record<string, string> } = JSON.parse(raw);
+      const nums = Object.keys(parsed.episodes ?? {}).map(Number).filter((n) => Number.isFinite(n) && n > 0);
+      if (nums.length === 0) return null;
+      return Math.max(...nums);
+    } catch (err: any) {
+      console.warn('[episode-air] thumb-cache fallback read failed for anime', animeId, '—', String(err?.message ?? err));
+      return null;
+    }
+  },
+
+  /** MAL's `num_episodes` field first, straight from mal.getAnime. If that's
+   *  0/null, falls back to fetchFromThumbCache above rather than returning
+   *  nothing at all. Returns null only if both come up empty. MAL doesn't
+   *  expose an aired/total split for a currently-airing show, so both fields
+   *  get the same number either way — same shape callers already expect. */
+  async fetchAiredCount(db: Db, env: EpisodeAirEnv, mal: MalAPI, animeId: number): Promise<{ aired: number; total: number } | null> {
     try {
       const res = await mal.getAnime(animeId);
       const count = Number(res?.data?.episodes);
-      if (!count || count <= 0) {
-        console.warn('[episode-air] MAL returned no usable episode count for anime', animeId);
-        return null;
-      }
-      return { aired: count, total: count };
+      if (count > 0) return { aired: count, total: count };
+      console.warn('[episode-air] MAL returned no usable episode count for anime', animeId, '— trying thumbnail cache');
     } catch (err: any) {
-      console.warn('[episode-air] MAL lookup failed for anime', animeId, '—', String(err?.message ?? err));
-      return null;
+      console.warn('[episode-air] MAL lookup failed for anime', animeId, '—', String(err?.message ?? err), '— trying thumbnail cache');
     }
+
+    const fromThumbs = await EpisodeAir.fetchFromThumbCache(db, animeId);
+    if (fromThumbs) return { aired: fromThumbs, total: fromThumbs };
+    return null;
   },
 
   /** Read-through cache for a single anime — used by the detail page, where the extra round trip on a cache miss is worth it. */
@@ -44,7 +69,7 @@ export const EpisodeAir = {
     const isFresh = cached && (Date.now() - new Date(cached.updated_at.replace(' ', 'T') + 'Z').getTime()) < STALE_AFTER_MS;
     if (cached && isFresh) return { aired: cached.aired_count, total: cached.total_count, updatedAt: cached.updated_at };
 
-    const fetched = await EpisodeAir.fetchAiredCount(env, mal, animeId);
+    const fetched = await EpisodeAir.fetchAiredCount(db, env, mal, animeId);
     if (!fetched) return cached ? { aired: cached.aired_count, total: cached.total_count, updatedAt: cached.updated_at } : null;
 
     await db.query(
@@ -107,7 +132,7 @@ export const EpisodeAir = {
         continue;
       }
 
-      const fetched = await EpisodeAir.fetchAiredCount(env, mal, row.anime_id);
+      const fetched = await EpisodeAir.fetchAiredCount(db, env, mal, row.anime_id);
       if (fetched) {
         await db.query('UPDATE episode_air_cache SET aired_count=?, total_count=?, updated_at=datetime(\'now\') WHERE anime_id=?', [fetched.aired, fetched.total, row.anime_id]);
         refreshed++;
@@ -175,7 +200,7 @@ export const EpisodeAir = {
     const errors: { id: number; message: string }[] = [];
     for (const id of ids) {
       try {
-        const fetched = await EpisodeAir.fetchAiredCount(env, mal, id);
+        const fetched = await EpisodeAir.fetchAiredCount(db, env, mal, id);
         if (!fetched) continue;
         await db.query(
           `INSERT INTO episode_air_cache (anime_id, aired_count, total_count, updated_at) VALUES (?, ?, ?, datetime('now'))
@@ -211,7 +236,7 @@ export const EpisodeAir = {
     for (let i = 0; i < toScan.length; i++) {
       const cand = toScan[i];
       try {
-        const fetched = await EpisodeAir.fetchAiredCount(env, mal, cand.id);
+        const fetched = await EpisodeAir.fetchAiredCount(db, env, mal, cand.id);
         if (fetched) {
           await db.query(
             `INSERT INTO episode_air_cache (anime_id, aired_count, total_count, updated_at) VALUES (?, ?, ?, datetime('now'))
