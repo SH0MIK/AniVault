@@ -45,7 +45,7 @@ mobileDiscoverRoutes.get('/api/mobile/seasonal', async (c) => {
   return c.json({
     success: true,
     season,
-    seasonName: mal.currentSeasonPublic(),
+    seasonName: season === 'now' ? mal.currentSeasonPublic() : 'upcoming',
     year: new Date().getUTCFullYear(),
     data: items.map((a: NormalisedAnime) => ({ ...card(a, userStatuses[a.mal_id] ?? null), airedInfo: meta.get(a.mal_id)?.airedInfo ?? null, dubbedLangs: meta.get(a.mal_id)?.dubbedLangs ?? [] })),
     pagination: result.pagination ?? {},
@@ -75,8 +75,14 @@ mobileDiscoverRoutes.get('/api/mobile/schedule', async (c) => {
   const today = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][todayIdx];
   const requested = (c.req.query('day') ?? today).toLowerCase();
   const day = DAYS.includes(requested) ? requested : today;
-  const result = await mal.getSchedule(day);
-  const items = result.data ?? [];
+
+  // MAL's v2 API does not expose a dedicated schedule endpoint. The site's
+  // existing seasonal feed contains the broadcast day/time, so use the
+  // airing seasonal catalog as the source of truth and filter it here.
+  const seasonal = await mal.getSeasonNow(1);
+  const items = (seasonal.data ?? []).filter((a: NormalisedAnime) =>
+    a.broadcast?.day?.toLowerCase() === day
+  );
   const meta = await buildCardMetaMap(db, items);
   return c.json({
     success: true,
