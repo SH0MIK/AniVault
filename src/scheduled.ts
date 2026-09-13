@@ -146,8 +146,9 @@ export async function handleScheduled(env: Env, cron?: string): Promise<void> {
   // the current season specifically, gated by the toggle/interval set on
   // admin/episode_scanner.php.
   const settings = new Settings(db);
-  const scannerEnabled = (await settings.get('episode_scanner_auto_enabled', '1')) === '1';
-  if (scannerEnabled) {
+  const scannerOn = (await settings.get('episode_scanner_enabled', '1')) === '1';
+  const autoRunEnabled = (await settings.get('episode_scanner_auto_enabled', '1')) === '1';
+  if (scannerOn && autoRunEnabled) {
     const intervalMinutes = parseInt((await settings.get('episode_scanner_interval_minutes', '60')) ?? '60', 10) || 60;
     const lastRunRaw = await env.API_CACHE.get(SCANNER_LAST_RUN_KV_KEY);
     const lastRun = lastRunRaw ? parseInt(lastRunRaw, 10) : 0;
