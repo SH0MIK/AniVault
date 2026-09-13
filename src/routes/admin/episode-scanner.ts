@@ -49,15 +49,18 @@ adminEpisodeScannerRoutes.on(['GET', 'POST'], '/admin/episode_scanner.php', asyn
 
   if (c.req.method === 'POST') {
     const body = await c.req.parseBody();
+    const scannerOn = body.scanner_enabled !== undefined ? '1' : '0';
     const enabled = body.auto_enabled !== undefined ? '1' : '0';
     let interval = String(body.interval_minutes ?? '60');
     if (!INTERVAL_OPTIONS.some((o) => o.value === interval)) interval = '60';
+    await settings.set('episode_scanner_enabled', scannerOn);
     await settings.set('episode_scanner_auto_enabled', enabled);
     await settings.set('episode_scanner_interval_minutes', interval);
-    await Logger.log(db, userId, 'admin_episode_scanner_settings', `Episode scanner: auto-run ${enabled === '1' ? 'enabled' : 'disabled'}, interval ${interval}m`);
-    message = '✅ Scanner settings saved.';
+    await Logger.log(db, userId, 'admin_episode_scanner_settings', `Episode scanner: ${scannerOn === '1' ? 'on' : 'OFF'}, auto-run ${enabled === '1' ? 'enabled' : 'disabled'}, interval ${interval}m`);
+    message = scannerOn === '1' ? '✅ Scanner settings saved.' : '✅ Scanner settings saved — scanner is turned off, it will not run (auto or manual).';
   }
 
+  const scannerEnabled = (await settings.get('episode_scanner_enabled', '1')) === '1';
   const autoEnabled = (await settings.get('episode_scanner_auto_enabled', '1')) === '1';
   const intervalMinutes = (await settings.get('episode_scanner_interval_minutes', '60')) ?? '60';
   const lastRunRaw = await c.env.API_CACHE.get(SCANNER_LAST_RUN_KV_KEY);
@@ -72,12 +75,20 @@ adminEpisodeScannerRoutes.on(['GET', 'POST'], '/admin/episode_scanner.php', asyn
   html += `
 <div class="admin-header"><div><h1>📡 Episode Count Scanner</h1><p class="text-muted" style="font-size:0.9rem;">Keeps episode_air_cache fresh for currently-airing anime specifically, instead of chasing whatever's oldest.</p></div></div>
 ${message ? `<div class="alert alert-success mb-2">${h(message)}</div>` : ''}
+${!scannerEnabled ? `<div class="alert alert-warning mb-2">⏸️ Scanner is turned off — it will not run, on cron or manually, until you turn it back on below.</div>` : ''}
 
 <div class="grid-2" style="gap:1.5rem;margin-bottom:1.5rem;">
   <div class="card card-body">
     <h2 class="mb-2">⚙️ Auto-Run Settings</h2>
     <p class="text-muted mb-2" style="font-size:0.9rem;">When enabled, the hourly cron checks this interval and runs a (smaller, 15-item) scan on its own — no need to visit this page.</p>
     <form method="POST">
+      <div class="form-group" style="display:flex;align-items:center;gap:12px;margin-bottom:1.25rem;padding-bottom:1.25rem;border-bottom:1px solid var(--border);">
+        <label class="form-label" style="margin:0;min-width:100px;">Scanner</label>
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <div class="toggle-wrap"><input type="checkbox" name="scanner_enabled" ${scannerEnabled ? 'checked' : ''}><span class="toggle-slider"></span></div>
+          <span style="font-size:0.9rem;color:var(--text-secondary);">Master switch — turn off to stop it running entirely (auto and manual)</span>
+        </label>
+      </div>
       <div class="form-group" style="display:flex;align-items:center;gap:12px;margin-bottom:1.25rem;">
         <label class="form-label" style="margin:0;min-width:100px;">Auto-Run</label>
         <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
@@ -103,7 +114,8 @@ ${message ? `<div class="alert alert-success mb-2">${h(message)}</div>` : ''}
       <div class="stat-card"><div class="stat-value">${inSeasonCount}</div><div class="stat-label">In current season</div></div>
       <div class="stat-card"><div class="stat-value">${candidates.length}</div><div class="stat-label">Total candidates</div></div>
     </div>
-    <button id="scan-now-btn" class="btn btn-secondary">🔄 Scan Now (up to ${SCAN_LIMIT})</button>
+    <button id="scan-now-btn" class="btn btn-secondary" ${!scannerEnabled ? 'disabled title="Scanner is turned off — enable it above first"' : ''}>🔄 Scan Now (up to ${SCAN_LIMIT})</button>
+    ${!scannerEnabled ? `<p class="text-muted mt-2" style="font-size:0.8rem;">Turned off — flip the Scanner switch above to re-enable.</p>` : ''}
     <div id="scan-progress-wrap" style="display:none;margin-top:12px;">
       <div class="flex-between" style="font-size:0.82rem;margin-bottom:4px;">
         <span id="scan-progress-label" class="text-muted">Starting…</span>
@@ -224,6 +236,10 @@ adminEpisodeScannerRoutes.post('/admin/episode_scanner_run.php', async (c) => {
   const session = await Session.load(c, db, lifetime);
   const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
   if (!auth.isAdmin()) { await session.save(c, lifetime); return c.json({ error: 'Forbidden' }, 403); }
+
+  const settings = new Settings(db);
+  const scannerEnabled = (await settings.get('episode_scanner_enabled', '1')) === '1';
+  if (!scannerEnabled) { await session.save(c, lifetime); return c.json({ error: 'Scanner is turned off' }, 409); }
 
   const body = await c.req.json().catch(() => ({}));
   const ids = Array.isArray(body.ids) ? body.ids.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n > 0).slice(0, CHUNK_SIZE) : [];
