@@ -105,6 +105,7 @@ adminCacheRoutes.on(['GET', 'POST'], '/admin/cache.php', async (c) => {
   );
   const epCacheCount = await db.count('SELECT COUNT(*) as cnt FROM episode_air_cache');
   const epCacheOldest = await db.fetchOne<{ updated_at: string }>('SELECT updated_at FROM episode_air_cache ORDER BY updated_at ASC LIMIT 1');
+  const epThumbCount = await db.count('SELECT COUNT(*) as cnt FROM episode_thumb_cache');
   const lastDubRefreshRaw = await c.env.API_CACHE.get('dub_status_last_refresh');
   const lastDubRefresh = lastDubRefreshRaw ? new Date(parseInt(lastDubRefreshRaw, 10)).toISOString() : null;
 
@@ -223,8 +224,17 @@ ${message ? `<div class="alert alert-success mb-2">${h(message)}</div>` : ''}
       <div class="stat-card mb-2"><div class="stat-value">${epCacheCount.toLocaleString('en-US')}</div><div class="stat-label">Anime with a cached count</div></div>
       <p class="text-muted" style="font-size:0.85rem;">Oldest cached entry: ${epCacheOldest ? h(epCacheOldest.updated_at) : 'none yet'}</p>
       <button id="ep-refresh-btn" class="btn btn-secondary btn-sm mt-2">🔄 Refresh Stale Episode Counts Now</button>
+      <button id="ep-clear-air-btn" class="btn btn-danger btn-sm mt-2">🗑️ Clear Episode-Air Cache (${epCacheCount.toLocaleString('en-US')})</button>
       <pre id="ep-refresh-log" style="display:none;margin-top:10px;font-size:0.78rem;background:rgba(255,255,255,0.03);padding:10px;border-radius:8px;white-space:pre-wrap;"></pre>
     </div>
+  </div>
+
+  <div style="margin-top:1.5rem;padding-top:1.25rem;border-top:1px solid var(--border);">
+    <h3 style="font-size:0.95rem;margin-bottom:8px;">Episode thumbnail cache</h3>
+    <div class="stat-card mb-2" style="max-width:220px;"><div class="stat-value">${epThumbCount.toLocaleString('en-US')}</div><div class="stat-label">Cached thumbnail rows</div></div>
+    <button id="ep-clear-thumb-btn" class="btn btn-danger btn-sm mt-2">🗑️ Clear Episode-Thumbnail Cache (${epThumbCount.toLocaleString('en-US')})</button>
+    <button id="ep-clear-all-btn" class="btn btn-danger btn-sm mt-2">🗑️ Clear Both Episode Caches</button>
+    <p class="text-muted mt-2" style="font-size:0.78rem;">This wipes the cached counts/thumbnails entirely — they'll be re-fetched from MAL/the scraper as pages are viewed or the scanner next runs. It does not touch anything on the Episode Cache Import page.</p>
   </div>
 </div>
 
@@ -264,6 +274,33 @@ if (epBtn) {
     epBtn.disabled = false; epBtn.textContent = '🔄 Refresh Stale Episode Counts Now';
   });
 }
+
+async function clearEpCache(which, btn, defaultLabel) {
+  const label = which === 'air' ? 'episode-air cache' : which === 'thumb' ? 'episode-thumbnail cache' : 'both episode caches';
+  if (!confirm('Clear ' + label + '? This cannot be undone.')) return;
+  btn.disabled = true; btn.textContent = 'Clearing…';
+  const log = document.getElementById('ep-refresh-log');
+  try {
+    const res = await fetch('ep_cache_clear.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ which }),
+    });
+    const data = await res.json();
+    log.style.display = 'block';
+    log.textContent = JSON.stringify(data, null, 2);
+    if (data.success) setTimeout(() => location.reload(), 1200);
+  } catch (e) {
+    log.style.display = 'block';
+    log.textContent = 'Request failed: ' + e;
+  }
+  btn.disabled = false; btn.textContent = defaultLabel;
+}
+const epClearAirBtn = document.getElementById('ep-clear-air-btn');
+if (epClearAirBtn) epClearAirBtn.addEventListener('click', () => clearEpCache('air', epClearAirBtn, epClearAirBtn.textContent));
+const epClearThumbBtn = document.getElementById('ep-clear-thumb-btn');
+if (epClearThumbBtn) epClearThumbBtn.addEventListener('click', () => clearEpCache('thumb', epClearThumbBtn, epClearThumbBtn.textContent));
+const epClearAllBtn = document.getElementById('ep-clear-all-btn');
+if (epClearAllBtn) epClearAllBtn.addEventListener('click', () => clearEpCache('both', epClearAllBtn, epClearAllBtn.textContent));
 </script>
 
 <style>
@@ -386,4 +423,35 @@ adminCacheRoutes.post('/admin/ep_refresh.php', async (c) => {
   await Logger.log(db, session.user_id ?? 0, 'admin_ep_refresh', `Manually refreshed ${refreshed} stale episode-air cache entries`);
   await session.save(c, lifetime);
   return c.json({ success: true, refreshed });
+});
+
+// ── Wipe episode_air_cache and/or episode_thumb_cache entirely (see the
+// "Episode-air cache" / "Episode thumbnail cache" buttons on admin/cache.php).
+// Fully separate from admin/episode_cache_import.php — this never touches
+// that page's import/export flow, just clears rows straight from D1.
+adminCacheRoutes.post('/admin/ep_cache_clear.php', async (c) => {
+  const db = new Db(c.env.DB);
+  const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
+  const session = await Session.load(c, db, lifetime);
+  const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
+  if (!auth.isAdmin()) { await session.save(c, lifetime); return c.json({ error: 'Forbidden' }, 403); }
+
+  const body = await c.req.json().catch(() => ({}));
+  const which = body.which === 'air' || body.which === 'thumb' || body.which === 'both' ? body.which : 'both';
+
+  let airDeleted = 0;
+  let thumbDeleted = 0;
+  if (which === 'air' || which === 'both') {
+    airDeleted = await db.count('SELECT COUNT(*) as cnt FROM episode_air_cache');
+    await db.query('DELETE FROM episode_air_cache');
+  }
+  if (which === 'thumb' || which === 'both') {
+    thumbDeleted = await db.count('SELECT COUNT(*) as cnt FROM episode_thumb_cache');
+    await db.query('DELETE FROM episode_thumb_cache');
+  }
+
+  await Logger.log(db, session.user_id ?? 0, 'admin_ep_cache_clear',
+    `Manually cleared episode cache (${which}): ${airDeleted} air rows, ${thumbDeleted} thumbnail rows`);
+  await session.save(c, lifetime);
+  return c.json({ success: true, which, airDeleted, thumbDeleted });
 });
