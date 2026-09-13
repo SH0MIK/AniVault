@@ -256,8 +256,11 @@ export async function getEpisodeThumbnail(
   return thumb;
 }
 
-/** Cache key for the whole-anime bulk lookup below. */
-function animeEpisodeThumbsCacheKey(malId: number): string {
+/** Cache key for the whole-anime bulk lookup below. Exported so episode-air.ts
+ * can fall back to this cache's episode count when MAL's own num_episodes is
+ * 0/null (happens on very long-running currently-airing shows, e.g. One
+ * Piece, until MAL finalizes the count at series end). */
+export function animeEpisodeThumbsCacheKey(malId: number): string {
   return `epthumbs_all_${malId}`;
 }
 
