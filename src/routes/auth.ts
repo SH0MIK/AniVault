@@ -52,59 +52,49 @@ authRoutes.post('/api/auth_ajax.php', async (c) => {
   return c.json(result);
 });
 
-// ── api/auto_auth.php — silently creates a real account (no popup, no
-//    email) for a signed-out visitor the moment they do something that
-//    needs one: add to watchlist, favorite, or open the watch page. The
-//    login/signup modal from the nav's Login/Sign Up buttons is untouched —
-//    this is a separate, invisible path used only by those specific actions.
 authRoutes.post('/api/auto_auth.php', async (c) => {
   const { auth, session } = await buildAuth(c);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
-
   if (auth.check()) {
     await session.save(c, lifetime);
     return c.json({ success: true, alreadyLoggedIn: true });
   }
-
   const result = await auth.autoRegister();
   await session.save(c, result.success ? AUTO_SESSION_LIFETIME_SECONDS : lifetime);
   return c.json(result);
 });
 
-// ── api/auth_google_url.php ───────────────────────────────────────────────
 authRoutes.get('/api/auth_google_url.php', async (c) => {
   const { auth, session } = await buildAuth(c);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
-
   const redirect = c.req.query('redirect');
   if (redirect) session.data.oauth_redirect = redirect;
-
   const url = auth.getGoogleAuthUrl();
   await session.save(c, lifetime);
   return c.json({ url });
 });
 
-// ── api/auth_discord_url.php (new — mirrors the Google URL endpoint;
-//    the old PHP site built this URL inline instead of via a dedicated
-//    endpoint, but the popup JS pattern is identical) ─────────────────────
 authRoutes.get('/api/auth_discord_url.php', async (c) => {
   const { auth, session } = await buildAuth(c);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
-
   const redirect = c.req.query('redirect');
   if (redirect) session.data.oauth_redirect = redirect;
-
   const url = auth.getDiscordAuthUrl();
   await session.save(c, lifetime);
   return c.json({ url });
 });
+
+function mobileOAuthRedirect(redirect: string, token: string): string {
+  if (!redirect.startsWith('anivault://oauth-callback')) return redirect;
+  const separator = redirect.includes('?') ? '&' : '?';
+  return `${redirect}${separator}token=${encodeURIComponent(token)}`;
+}
 
 // ── pages/oauth_google.php — Google redirects back here ──────────────────
 authRoutes.get('/pages/oauth_google.php', async (c) => {
   const { auth, session } = await buildAuth(c);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const siteUrl = c.env.SITE_URL;
-
   const code = c.req.query('code') ?? '';
   const state = c.req.query('state') ?? '';
   const error = c.req.query('error') ?? '';
@@ -119,7 +109,6 @@ authRoutes.get('/pages/oauth_google.php', async (c) => {
   const redirect = isConnecting
     ? `${siteUrl}/profile`
     : (session.data.oauth_redirect as string) ?? `${siteUrl}/`;
-
   const result = await auth.loginWithGoogle(code, state);
 
   if (result.success) {
@@ -129,14 +118,14 @@ authRoutes.get('/pages/oauth_google.php', async (c) => {
       session.data.post_setup_redirect = redirect;
     }
     await session.save(c, lifetime);
-    return c.redirect(redirect);
-  } else {
-    if (result.message !== 'Invalid OAuth state.') {
-      session.setFlash('error', result.message ?? 'Google login failed.');
-    }
-    await session.save(c, lifetime);
-    return c.redirect(isConnecting ? `${siteUrl}/profile` : `${siteUrl}/login`);
+    return c.redirect(mobileOAuthRedirect(redirect, session.id));
   }
+
+  if (result.message !== 'Invalid OAuth state.') {
+    session.setFlash('error', result.message ?? 'Google login failed.');
+  }
+  await session.save(c, lifetime);
+  return c.redirect(isConnecting ? `${siteUrl}/profile` : `${siteUrl}/login`);
 });
 
 // ── pages/oauth_discord.php — Discord redirects back here ────────────────
@@ -144,7 +133,6 @@ authRoutes.get('/pages/oauth_discord.php', async (c) => {
   const { auth, session } = await buildAuth(c);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const siteUrl = c.env.SITE_URL;
-
   const code = c.req.query('code') ?? '';
   const state = c.req.query('state') ?? '';
   const error = c.req.query('error') ?? '';
@@ -159,7 +147,6 @@ authRoutes.get('/pages/oauth_discord.php', async (c) => {
   const redirect = isConnecting
     ? `${siteUrl}/profile`
     : (session.data.oauth_redirect as string) ?? `${siteUrl}/`;
-
   const result = await auth.loginWithDiscord(code, state);
 
   if (result.success) {
@@ -169,25 +156,22 @@ authRoutes.get('/pages/oauth_discord.php', async (c) => {
       session.data.post_setup_redirect = redirect;
     }
     await session.save(c, lifetime);
-    return c.redirect(redirect);
-  } else {
-    if (result.message !== 'Invalid OAuth state.') {
-      session.setFlash('error', result.message ?? 'Discord login failed.');
-    }
-    await session.save(c, lifetime);
-    return c.redirect(isConnecting ? `${siteUrl}/profile` : `${siteUrl}/login`);
+    return c.redirect(mobileOAuthRedirect(redirect, session.id));
   }
+
+  if (result.message !== 'Invalid OAuth state.') {
+    session.setFlash('error', result.message ?? 'Discord login failed.');
+  }
+  await session.save(c, lifetime);
+  return c.redirect(isConnecting ? `${siteUrl}/profile` : `${siteUrl}/login`);
 });
 
-// ── MAL/AniList list-sync connect callbacks — always require an existing
-//    logged-in session (unlike Google/Discord, these never double as a
-//    login/registration method, only account linking for list sync) ──────
+// ── MAL/AniList list-sync connect callbacks ──────────────────────────────
 authRoutes.get('/pages/oauth_mal_sync.php', async (c) => {
   const { auth, session, db } = await buildAuth(c);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const siteUrl = c.env.SITE_URL;
   if (!auth.check()) { await session.save(c, lifetime); return c.redirect(`${siteUrl}/login`); }
-
   const code = c.req.query('code') ?? '';
   const state = c.req.query('state') ?? '';
   const error = c.req.query('error') ?? '';
@@ -196,15 +180,12 @@ authRoutes.get('/pages/oauth_mal_sync.php', async (c) => {
     await session.save(c, lifetime);
     return c.redirect(`${siteUrl}/profile?tab=connections`);
   }
-
   const { MalSync } = await import('../lib/list-sync');
   const result = await MalSync.handleCallback(c.env as any, db, session, session.user_id!, code, state);
   if (result.success) {
     const pull = await MalSync.pullMerge(c.env as any, db, session.user_id!);
     session.setFlash('success', pull.added ? `${result.message} Imported ${pull.added} new anime from your MAL list.` : result.message);
-  } else {
-    session.setFlash('error', result.message);
-  }
+  } else session.setFlash('error', result.message);
   await session.save(c, lifetime);
   return c.redirect(`${siteUrl}/profile?tab=connections`);
 });
@@ -214,7 +195,6 @@ authRoutes.get('/pages/oauth_anilist_sync.php', async (c) => {
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const siteUrl = c.env.SITE_URL;
   if (!auth.check()) { await session.save(c, lifetime); return c.redirect(`${siteUrl}/login`); }
-
   const code = c.req.query('code') ?? '';
   const error = c.req.query('error') ?? '';
   if (error || !code) {
@@ -222,21 +202,15 @@ authRoutes.get('/pages/oauth_anilist_sync.php', async (c) => {
     await session.save(c, lifetime);
     return c.redirect(`${siteUrl}/profile?tab=connections`);
   }
-
   const { AniListSync } = await import('../lib/list-sync');
   const result = await AniListSync.handleCallback(c.env as any, db, session, session.user_id!, code);
-  if (result.success) {
-    session.setFlash('success', result.message);
-  } else {
-    session.setFlash('error', result.message);
-  }
+  session.setFlash(result.success ? 'success' : 'error', result.message);
   await session.save(c, lifetime);
   return c.redirect(`${siteUrl}/profile?tab=connections`);
 });
 
-// ── logout (was Auth::logout(), triggered from a link/button site-wide) ──
 authRoutes.get('/logout', async (c) => {
-  const { auth, session, db } = await buildAuth(c);
+  const { session, db } = await buildAuth(c);
   if (session.user_id) {
     const { Logger } = await import('../lib/logger');
     await Logger.log(db, session.user_id, 'logout', 'User logged out', clientIp(c));
@@ -245,30 +219,17 @@ authRoutes.get('/logout', async (c) => {
   return c.redirect(c.env.SITE_URL + '/');
 });
 
-// ── api/auth_social.php (new — connect/disconnect google/discord from
-//    profile settings, ports Auth::connectSocial / disconnectSocial) ─────
 authRoutes.post('/api/auth_social.php', async (c) => {
   const { auth, session } = await buildAuth(c);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
-
-  if (!auth.check()) {
-    return c.json({ success: false, message: 'Not logged in.' }, 401);
-  }
+  if (!auth.check()) return c.json({ success: false, message: 'Not logged in.' }, 401);
   const body = await c.req.parseBody();
   const provider = String(body.provider ?? '') as 'google' | 'discord';
   const action = String(body.action ?? 'disconnect');
-
-  if (provider !== 'google' && provider !== 'discord') {
-    return c.json({ success: false, message: 'Unknown provider.' }, 400);
-  }
-
-  let result;
-  if (action === 'disconnect') {
-    result = await auth.disconnectSocial(session.user_id!, provider);
-  } else {
-    return c.json({ success: false, message: 'Use the OAuth URL endpoint to connect.' }, 400);
-  }
-
+  if (provider !== 'google' && provider !== 'discord') return c.json({ success: false, message: 'Unknown provider.' }, 400);
+  const result = action === 'disconnect'
+    ? await auth.disconnectSocial(session.user_id!, provider)
+    : { success: false, message: 'Use the OAuth URL endpoint to connect.' };
   await session.save(c, lifetime);
   return c.json(result);
 });
