@@ -57,7 +57,7 @@ export const DUB_PROVIDERS: FixedProviderDef[] = [
 export const HINDI_PROVIDERS: FixedProviderDef[] = [
   { source: 'watchanimeworld', provider: 'Hindi', label: 'Hindi' },
   { source: 'desidub', provider: 'Abyssdub', label: 'Abyss' },
-  { source: 'desidub', provider: 'VidMolydub', label: 'VMoly' },
+  { source: 'desidub', provider: 'VMolydub', label: 'VMoly' },
   { source: 'desidub', provider: 'Mirrordub', label: 'Mirror' },
   { source: 'desidub', provider: 'Rubydub', label: 'Ruby' },
   { source: 'desidub', provider: 'VMoly (Muse)dub', label: 'VMoly (Muse)' },
