@@ -142,7 +142,10 @@ watchRoutes.get('/watch', async (c) => {
     if (!anime) return c.html('', 404);
 
     const title = getAnimeTitle(anime);
-    const image = anime.images?.jpg?.large_image_url ?? '';
+    const cover = anime.images?.jpg?.large_image_url ?? '';
+    const bannerInfo = await mal.getLocalAnimeBannerInfo(animeId).catch(() => null);
+    const coverFallback = bannerInfo?.image_url || cover;
+    const image = await getEpisodeOgImage(db, c.env, animeId, epNum, coverFallback, anime.status);
     const __banner = await getBannerData(db);
     const html = renderHeader({
       ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: `Ep ${epNum} — ${title}`, currentPage: 'watch',
@@ -294,7 +297,8 @@ watchRoutes.get('/watch', async (c) => {
     ? { id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url, role: currentUser.role }
     : null;
 
-  const ogImage = await getEpisodeOgImage(db, c.env, animeId, epNum, image, anime.status);
+  const bannerInfo = await mal.getLocalAnimeBannerInfo(animeId).catch(() => null);
+  const ogImage = await getEpisodeOgImage(db, c.env, animeId, epNum, bannerInfo?.image_url || image, anime.status);
 
   const __banner = await getBannerData(db);
   let html = renderHeader({
