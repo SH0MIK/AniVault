@@ -113,17 +113,56 @@ async function getEpisodeOgImage(
   return scraped ?? fallback;
 }
 
+// Matches the user-agents link-preview crawlers send (Facebook, Discord,
+// Twitter/X, Slack, Telegram, WhatsApp, LinkedIn, iMessage/Applebot, etc).
+// These never render JS or need the player -- they just read <head> meta
+// tags and move on. The full handler below does ~6 sequential external
+// calls (MAL/Jikan/scraper for anime, episodes, characters, AniList id
+// mapping, episode thumbnail) plus an anonymous-visitor auto-register DB
+// write, since crawlers send no session cookie. That easily adds up past a
+// crawler's own timeout (this is why Facebook's Sharing Debugger was
+// reporting "Curl Timeout" / no OG tags even though the page itself loads
+// fine for a real browser). This fast path skips all of that: one cached
+// anime lookup, no auth/account creation, no watch-history write, no
+// episode/character/AniList calls.
+const PREVIEW_BOT_RE = /facebookexternalhit|Facebot|Twitterbot|Discordbot|Slackbot|TelegramBot|WhatsApp|LinkedInBot|Pinterest|SkypeUriPreview|vkShare|redditbot|Applebot|Google-InspectionTool|W3C_Validator/i;
+
 watchRoutes.get('/watch', async (c) => {
+  const siteUrl = c.env.SITE_URL;
+  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
+  if (!animeId || !epNum) return c.redirect(siteUrl + '/');
+
+  const ua = c.req.header('user-agent') ?? '';
+  if (PREVIEW_BOT_RE.test(ua)) {
+    const db = new Db(c.env.DB);
+    const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+    const result = await mal.getAnime(animeId);
+    const anime = result.data;
+    if (!anime) return c.html('', 404);
+
+    const title = getAnimeTitle(anime);
+    const image = anime.images?.jpg?.large_image_url ?? '';
+    const __banner = await getBannerData(db);
+    const html = renderHeader({
+      ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: `Ep ${epNum} — ${title}`, currentPage: 'watch',
+      currentUser: null, unreadCount: 0, requestUrl: c.req.url,
+      ogData: {
+        title: `Ep ${epNum} — ${title} | AniVault`,
+        description: `Watch ${title} Episode ${epNum} on AniVault`,
+        image, image_width: 1280, image_height: 720,
+        url: `${siteUrl}/watch?anime=${animeId}&ep=${epNum}`,
+        type: 'video.episode',
+      },
+    }) + `</main></body></html>`;
+    return c.html(html);
+  }
+
   const db = new Db(c.env.DB);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const session = await Session.load(c, db, lifetime);
   const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
   const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-  const siteUrl = c.env.SITE_URL;
-
-  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
-  const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
-  if (!animeId || !epNum) return c.redirect(siteUrl + '/');
 
   // No more login wall on the watch page: a signed-out visitor gets a real
   // account (random username/password) created transparently right here, so
