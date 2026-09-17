@@ -63,3 +63,52 @@ legacyRedirectRoutes.get('/pages/user.php', (c) => {
   const search = Object.keys(rest).length ? '?' + new URLSearchParams(rest).toString() : '';
   return c.redirect(`${siteUrl}/u/${encodeURIComponent(username)}${search}`, 301);
 });
+
+// bare /*.php form (no /pages/ prefix) -- e.g. links shared/bookmarked/indexed
+// as https://site/watch.php?anime=X&ep=Y instead of /pages/watch.php
+const BARE_MAP: Record<string, string> = {
+  '/anime.php': '/anime',
+  '/character.php': '/character',
+  '/browse.php': '/browse',
+  '/search.php': '/search',
+  '/seasonal.php': '/seasonal',
+  '/top.php': '/top',
+  '/schedule.php': '/schedule',
+  '/watch.php': '/watch',
+  '/watch-now.php': '/watch-now',
+  '/favorites.php': '/favorites',
+  '/history.php': '/history',
+  '/mylist.php': '/mylist',
+  '/notifications.php': '/notifications',
+  '/announcements.php': '/announcements',
+  '/profile.php': '/profile',
+  '/importexport.php': '/importexport',
+  '/privacy.php': '/privacy',
+  '/terms.php': '/terms',
+  '/register.php': '/register',
+  '/login.php': '/login',
+};
+
+for (const [from, to] of Object.entries(BARE_MAP)) {
+  legacyRedirectRoutes.get(from, (c) => {
+    const siteUrl = c.env.SITE_URL;
+    const qs = c.req.query();
+    const search = Object.keys(qs).length ? '?' + new URLSearchParams(qs).toString() : '';
+    return c.redirect(`${siteUrl}${to}${search}`, 301);
+  });
+  legacyRedirectRoutes.post(from, (c) => {
+    const siteUrl = c.env.SITE_URL;
+    return c.redirect(`${siteUrl}${to}`, 307);
+  });
+}
+
+// /user.php?u=NAME -> /u/NAME (bare form)
+legacyRedirectRoutes.get('/user.php', (c) => {
+  const siteUrl = c.env.SITE_URL;
+  const username = (c.req.query('u') ?? '').trim();
+  if (!username) return c.redirect(`${siteUrl}/`, 301);
+  const rest = { ...c.req.query() };
+  delete rest.u;
+  const search = Object.keys(rest).length ? '?' + new URLSearchParams(rest).toString() : '';
+  return c.redirect(`${siteUrl}/u/${encodeURIComponent(username)}${search}`, 301);
+});
