@@ -154,7 +154,7 @@ class FixEndlistLoader {
         const first = performance.now();
         let fixed = text;
         if (fixed.includes('#EXTM3U') && fixed.includes('#EXTINF') && !fixed.includes('#EXT-X-ENDLIST')) {
-          fixed = fixed.replace(/\s*$/, '') + '\n#EXT-X-ENDLIST\n';
+          fixed = fixed.trimEnd() + String.fromCharCode(10) + '#EXT-X-ENDLIST' + String.fromCharCode(10);
         }
         const end = performance.now();
         this.stats.loading = { start, first, end };
