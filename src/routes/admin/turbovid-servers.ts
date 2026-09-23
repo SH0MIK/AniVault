@@ -14,6 +14,18 @@ adminTurbovidServerRoutes.get('/admin/turbovid_servers.php', async (c) => {
   if (!ctx) return c.redirect(siteUrl + '/');
   const { db, session, lifetime, isOwner, impersonating } = ctx;
   const selectedAnime = Number(c.req.query('anime') || 0) || 0;
+  const json = c.req.query('json') === '1';
+  if (json) {
+    const anime = Number(c.req.query('anime') || 0);
+    const episode = Number(c.req.query('episode') || 0);
+    if (!anime || !episode) return c.json({ error: 'Missing anime or episode' }, 400);
+    const rows = await db.fetchAll<any>(
+      `SELECT id, anime_id, episode_num, audio_group, language, label, embed_url, is_active, updated_at
+         FROM turbovid_servers WHERE anime_id=? AND episode_num=? ORDER BY audio_group, language, id`,
+      [anime, episode]
+    );
+    return c.json({ success:true, sources:rows });
+  }
 
   const seriesRows = await db.fetchAll<any>(
     `SELECT anime_id, COUNT(DISTINCT episode_num) AS episode_count, COUNT(*) AS source_count, MAX(updated_at) AS last_updated
