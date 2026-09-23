@@ -853,6 +853,18 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
 
     let playbackStarted = false;
 
+    // AniVault TurboVid is the primary server when one is saved for this
+    // episode. Start it immediately instead of waiting for the slower
+    // third-party server probes. The button remains first in every group.
+    const initialAvSub = document.querySelector('#tab-panel-sub .turbovid-server-btn');
+    if (initialAvSub) {
+        playbackStarted = true;
+        _clearOverallWatchdog?.();
+        document.querySelectorAll('.server-btn').forEach(b => b.classList.remove('active'));
+        initialAvSub.classList.add('active');
+        switchToServer(initialAvSub.dataset.server, 'sub', initialAvSub.dataset.server);
+    }
+
     // Plain fetch() has no timeout: if the scraper backend hangs on one
     // particular source instead of erroring, that fetch's promise never
     // settles. Force a hard ceiling so "never responds" is treated the
