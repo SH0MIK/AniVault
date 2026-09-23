@@ -350,6 +350,22 @@ adminTurbovidRoutes.get('/admin/turbovid_resolve.php', async (c) => {
   });
 });
 
+// TurboVid fake-HLS media is sometimes stored as a PNG/WebP container.
+// Strip the image header and apply the same 16-byte XOR mask used by the
+// client-side diagnostic loader so the proxy returns actual media bytes.
+function unwrapTurbovidMedia(buf: ArrayBuffer): ArrayBuffer {
+  const bytes = new Uint8Array(buf);
+  const isWebp = bytes.length >= 12 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
+  const isPng = bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
+  if (!isWebp && !isPng) return buf;
+  const offset = isWebp ? 12 : 8;
+  const payload = bytes.slice(offset);
+  if (payload.length && payload[0] === 0x47) return payload.buffer;
+  const mask = [157,42,241,71,179,142,92,112,166,25,228,59,216,98,15,197];
+  for (let i = 0; i < payload.length; i++) payload[i] ^= mask[i & 15];
+  return payload.buffer;
+}
+
 // ── admin/turbovid_hls_proxy.php — proxy m3u8/segments via CF egress ──────
 adminTurbovidRoutes.get('/admin/turbovid_hls_proxy.php', async (c) => {
   const db = new Db(c.env.DB);
@@ -399,9 +415,12 @@ adminTurbovidRoutes.get('/admin/turbovid_hls_proxy.php', async (c) => {
       });
     }
 
-    const body = await upstream.arrayBuffer();
+    let body = await upstream.arrayBuffer();
+    const isWrappedImage = contentType.toLowerCase().startsWith('image/') ||
+      url.includes('googleusercontent.com');
+    if (isWrappedImage) body = unwrapTurbovidMedia(body);
     const headers: Record<string, string> = {
-      'Content-Type': contentType || 'application/octet-stream',
+      'Content-Type': isWrappedImage ? 'video/mp2t' : (contentType || 'application/octet-stream'),
       'Access-Control-Allow-Origin': '*',
       'Cache-Control': 'public, max-age=30',
     };
