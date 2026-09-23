@@ -816,11 +816,9 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         // a few seconds later and silently activate Sub/HD-1 even after the
         // user had selected Hindi/another server.
         window._manualServerSelection = true;
-        // A manual tap is an explicit playback choice. Stop the global
-        // server-finding watchdog from replacing the player while the
-        // selected scraper/TurboVid source is still resolving.
-        playbackStarted = true;
-        if (typeof _clearOverallWatchdog === 'function') _clearOverallWatchdog();
+        // A manual tap is an explicit playback choice. The probe/watchdog
+        // logic inside the player bootstrap sees this flag and must never
+        // replace the player while the selected source is resolving.
         const displayKey = btn.dataset.server;
         const realKey = btn.dataset.realServer || displayKey;
         const audio = panel.dataset.audio;
