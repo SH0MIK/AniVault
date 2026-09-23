@@ -455,21 +455,25 @@ export function renderWatchBody(p: WatchBodyParams): string {
               <div class="server-tab-panel active" id="tab-panel-sub" data-audio="sub">
                 <div class="server-btn-row" id="servers-sub-body">
                   ${SUB_PROVIDERS.map(p => fixedServerBtn('sub', p.source, p.provider, p.label)).join('')}
+                ${turbovidServers.filter(v=>v.audio_group==='sub').map(v=>`<button class="server-btn turbovid-server-btn" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}">${h(v.label)}</button>`).join('')}
                 </div>
               </div>
               <div class="server-tab-panel" id="tab-panel-dub" data-audio="dub">
                 <div class="server-btn-row" id="servers-dub-body">
                   ${DUB_PROVIDERS.map(p => fixedServerBtn('dub', p.source, p.provider, p.label)).join('')}
+                  ${turbovidServers.filter(v=>v.audio_group==='dub').map(v=>`<button class="server-btn turbovid-server-btn" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}">${h(v.label)}</button>`).join('')}
                 </div>
                 <div class="server-group" id="dub-hindi-group">
                   <div class="server-group-label">Hindi Dub</div>
                   <div class="server-group-body" id="servers-dub-hindi-body">
                     ${HINDI_PROVIDERS.map(p => fixedServerBtn('hindi', p.source, p.provider, p.label)).join('')}
+                    ${turbovidServers.filter(v=>v.audio_group==='hindi').map(v=>`<button class="server-btn turbovid-server-btn" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}">${h(v.label)}</button>`).join('')}
                   </div>
                 </div>
                 <div class="server-group" id="dub-multi-group" style="display:none">
                   <div class="server-group-label">Multi Dub</div>
                   <div class="server-group-body" id="servers-dub-multi-body">
+                    ${turbovidServers.filter(v=>v.audio_group==='multi').map(v=>`<button class="server-btn turbovid-server-btn" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}">${h(v.label)}</button>`).join('')}
                     <div class="server-skel-group" id="servers-dub-multi-loading">
                       <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:64px"></span></span>
                       <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:50px"></span></span>
