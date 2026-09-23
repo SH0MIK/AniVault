@@ -90,6 +90,50 @@ function renderSubtitleBar(video, subtitles) {
   setActive(offBtn);
 }
 
+function unwrapFlixSegmentBytes(buf) {
+  const bytes = new Uint8Array(buf);
+  const isWebp = bytes.length >= 12 && bytes[0]===0x52 && bytes[1]===0x49 && bytes[2]===0x46 && bytes[3]===0x46 && bytes[8]===0x57 && bytes[9]===0x45 && bytes[10]===0x42 && bytes[11]===0x50;
+  const isPng = bytes.length >= 8 && bytes[0]===0x89 && bytes[1]===0x50 && bytes[2]===0x4e && bytes[3]===0x47 && bytes[4]===0x0d && bytes[5]===0x0a && bytes[6]===0x1a && bytes[7]===0x0a;
+  if (!isWebp && !isPng) return buf;
+  const offset = isWebp ? 12 : 8;
+  const payload = bytes.slice(offset);
+  if (payload[0] === 0x47) return payload.buffer; // already a valid MPEG-TS sync byte, no XOR needed
+  const mask = [157,42,241,71,179,142,92,112,166,25,228,59,216,98,15,197];
+  for (let i = 0; i < payload.length; i++) payload[i] ^= mask[i & 15];
+  return payload.buffer;
+}
+
+// Custom hls.js fragment loader: fetches segments directly from the
+// viewer's own browser (avoiding the datacenter-IP 429 entirely, since
+// CORS is wide open — access-control-allow-origin: * — confirmed in the
+// HAR) and unwraps the PNG/WebP-disguised payload client-side before
+// handing it to hls.js's demuxer. Manifest loads stay on hls.js's default
+// loader since the .m3u8 responses aren't wrapped, only the segments are.
+class FlixUnwrapLoader {
+  constructor(config) { this.config = config; this.stats = { aborted:false, loaded:0, total:0, retry:0, chunkCount:0, bwEstimate:0, loading:{start:0,first:0,end:0}, parsing:{start:0,end:0}, buffering:{start:0,first:0,end:0} }; }
+  load(context, config, callbacks) {
+    const start = performance.now();
+    this._aborted = false;
+    fetch(context.url)
+      .then((res) => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.arrayBuffer(); })
+      .then((buf) => {
+        if (this._aborted) return;
+        const first = performance.now();
+        const unwrapped = unwrapFlixSegmentBytes(buf);
+        const end = performance.now();
+        this.stats.loading = { start, first, end };
+        this.stats.loaded = this.stats.total = unwrapped.byteLength;
+        callbacks.onSuccess({ url: context.url, data: unwrapped }, this.stats, context, null);
+      })
+      .catch((err) => {
+        if (this._aborted) return;
+        callbacks.onError({ code: 0, text: err.message }, context, null, this.stats);
+      });
+  }
+  abort() { this._aborted = true; }
+  destroy() {}
+}
+
 function renderPlayer(data, direct) {
   const ep = document.getElementById('embedPreview');
   document.getElementById('embedSubBar').innerHTML = '';
@@ -97,12 +141,10 @@ function renderPlayer(data, direct) {
 
   // Direct mode: hand the browser the RAW m3u8 (turbosplayer.com), no proxy
   // in the loop at all — segments get fetched straight from the viewer's
-  // own IP. Tests whether Google's throttle is specifically about our
-  // server's IP hitting it, or whether it needs CORS headers that only
-  // our proxy was ever supplying.
+  // own IP (avoids Google's datacenter-IP 429), and unwrapped client-side
+  // via FlixUnwrapLoader since they're disguised as PNG/WebP.
   // Subtitles stay proxied either way — they're small text files, not the
-  // thing under test; only the video path matters for the CORS/rate-limit
-  // question direct mode exists to answer.
+  // thing under test; only the video path matters here.
   const hlsUrl = direct ? data.m3u8 : (data.hlsProxyUrl || data.m3u8);
   if (!hlsUrl) { ep.innerHTML = '<span style="color:var(--accent);font-size:0.85rem;">No m3u8 in the resolved response</span>'; return; }
 
@@ -110,7 +152,9 @@ function renderPlayer(data, direct) {
   const video = document.getElementById('turbovidCfPreview');
 
   if (window.Hls && Hls.isSupported()) {
-    const hls = new Hls({ enableWorker: true, backBufferLength: 90 });
+    const hlsConfig = { enableWorker: true, backBufferLength: 90 };
+    if (direct) hlsConfig.fLoader = FlixUnwrapLoader;
+    const hls = new Hls(hlsConfig);
     window._cfHls = hls;
     let retryCount = 0; const MAX_RETRIES = 4;
     hls.loadSource(hlsUrl);
@@ -135,7 +179,7 @@ function renderPlayer(data, direct) {
             retryCount++;
             if (retryCount > MAX_RETRIES) {
               setStatus((direct
-                ? 'Network errors after ' + MAX_RETRIES + ' retries in DIRECT mode — most likely a CORS block (check the browser console for a CORS error) rather than a rate limit, since there is no proxy in this path.'
+                ? 'Network errors after ' + MAX_RETRIES + ' retries in DIRECT mode (with unwrap loader active) — check console for the actual fetch/decode error.'
                 : 'Network errors after ' + MAX_RETRIES + ' retries — giving up.'), 'error');
               try { hls.destroy(); } catch(e) {}
               return;
