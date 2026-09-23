@@ -188,7 +188,14 @@ function renderPlayer(data, direct) {
     // Native hls.js handles redirects, byte ranges, init maps, retries,
     // and fragment scheduling correctly. Keep the unwrap code available
     // above for experiments, but do not force it onto TurboVid streams.
-    const hlsConfig = { enableWorker: true, backBufferLength: 90, debug: true };
+    const hlsConfig = {
+      enableWorker: true,
+      backBufferLength: 90,
+      debug: true,
+      lowLatencyMode: false,
+      startLevel: -1,
+      testBandwidth: false,
+    };
     const hls = new Hls(hlsConfig);
     window._cfHls = hls;
     let retryCount = 0; const MAX_RETRIES = 4;
@@ -198,6 +205,13 @@ function renderPlayer(data, direct) {
       setStatus('Manifest parsed ✓ — ' + (hls.levels?.length || 0) + ' quality level(s); loading media playlist…', 'ok');
       if (Array.isArray(hls.levels) && hls.levels.length > 0) hls.currentLevel = hls.levels.length - 1;
       video.play().catch(() => {});
+    });
+    hls.on(Hls.Events.MANIFEST_LOADED, (_, data) => {
+      const levels = data?.levels || [];
+      setStatus('Manifest loaded ✓ — ' + levels.length + ' level(s)', 'ok');
+    });
+    hls.on(Hls.Events.LEVEL_LOADING, (_, data) => {
+      setStatus('Loading media level… ' + (data?.url || '').split('/').pop(), 'ok');
     });
     hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
       const details = data?.details;
@@ -215,6 +229,7 @@ function renderPlayer(data, direct) {
       setStatus('Media fragment loaded ✓' + (len ? ' (' + Math.round(len/1024) + ' KB)' : ''), 'ok');
     });
     hls.on(Hls.Events.ERROR, (event, errData) => {
+      setStatus('HLS ' + (errData?.type || 'unknown') + ': ' + (errData?.details || 'unknown') + (errData?.url ? ' — ' + String(errData.url).split('/').pop() : ''), errData?.fatal ? 'error' : 'ok');
       const httpStatus = errData && errData.response && errData.response.code;
       if (httpStatus === 429) {
         retryCount++;
