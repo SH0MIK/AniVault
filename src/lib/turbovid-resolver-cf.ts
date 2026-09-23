@@ -130,7 +130,17 @@ export async function resolveTurbovidCF(embedUrl: string): Promise<TurbovidResul
 export function rewriteHlsPlaylistCF(proxyBase: string, body: string, sourceUrl: string, ref?: string): string {
   const base = new URL(sourceUrl);
   const proxyUri = (uri: string) => {
-    const absolute = new URL(uri, base).toString();
+    const absoluteUrl = new URL(uri, base);
+    const absolute = absoluteUrl.toString();
+
+    // TurboVid fake-HLS media is often stored as PNG/WebP on Google.
+    // Cloudflare egress is currently returning 429/520 for those binary
+    // objects, so leave Google media URLs direct and proxy everything else.
+    if (absoluteUrl.hostname === 'lh3.googleusercontent.com' ||
+        absoluteUrl.hostname.endsWith('.googleusercontent.com')) {
+      return absolute;
+    }
+
     const refParam = ref ? `&ref=${encodeURIComponent(ref)}` : '';
     return `${proxyBase}?url=${encodeURIComponent(absolute)}${refParam}`;
   };
