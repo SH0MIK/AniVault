@@ -138,7 +138,6 @@ function switchToAnimeHeaven(audio) {
     // Detach player node first so innerHTML='' doesn't destroy it
     const shell = preparePlayerShell();
     const sp = shell.sp;
-    const pw = shell.pw;
 
     // Show spinner in player while fetching
     if (window.SenshiPlayer) {
@@ -302,7 +301,6 @@ function switchToAnikoto(providerName, audio) {
 
     const shell = preparePlayerShell();
     const sp = shell.sp;
-    const pw = shell.pw;
 
     if (window.SenshiPlayer) window.SenshiPlayer.destroy();
     const spinEl = document.getElementById('sp-spinner');
@@ -373,7 +371,6 @@ function switchToDesidub(providerName, realType) {
 
     const shell = preparePlayerShell();
     const sp = shell.sp;
-    const pw = shell.pw;
 
     if (window.SenshiPlayer) window.SenshiPlayer.destroy();
     const spinEl = document.getElementById('sp-spinner');
@@ -514,7 +511,6 @@ function switchToGenericSource(source, providerName, realType, langKey) {
 
     const shell = preparePlayerShell();
     const sp = shell.sp;
-    const pw = shell.pw;
 
     if (window.SenshiPlayer) window.SenshiPlayer.destroy();
     const spinEl = document.getElementById('sp-spinner');
@@ -652,7 +648,6 @@ function switchToTurboVid(id, audio) {
     clearDynQualityRow();
     const shell = preparePlayerShell();
     const sp = shell.sp;
-    const pw = shell.pw;
     if (window.SenshiPlayer) window.SenshiPlayer.destroy();
     const spinEl = document.getElementById('sp-spinner');
     const errEl = document.getElementById('sp-error');
