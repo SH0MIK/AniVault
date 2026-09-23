@@ -674,10 +674,69 @@ function switchToGenericSource(source, providerName, realType, langKey) {
 // behavior when displayKey isn't passed, so nothing else calling this
 // needs to change.
 let currentDisplayServer = 'fixed:animeheaven';
+function switchToTurboVid(id, audio) {
+    const pw = document.getElementById('watch-player-wrap');
+    if (!pw) return;
+    stopCurrentVideo();
+    clearDynQualityRow();
+    const sp = document.getElementById('senshi-player-root');
+    if (sp && sp.parentNode) sp.parentNode.removeChild(sp);
+    pw.innerHTML = '';
+    pw.style.opacity = '0';
+    pw.style.aspectRatio = 'unset';
+    pw.style.overflow = 'visible';
+    pw.style.background = 'transparent';
+    pw.style.borderRadius = '14px';
+    if (sp) { sp.style.cssText = 'display:block;width:100%;'; pw.appendChild(sp); }
+    pw.style.opacity = '1';
+    if (window.SenshiPlayer) window.SenshiPlayer.destroy();
+    const spinEl = document.getElementById('sp-spinner');
+    const errEl = document.getElementById('sp-error');
+    if (spinEl) spinEl.classList.remove('hide');
+    if (errEl) errEl.classList.remove('show');
+
+    fetch(`${SITE_URL}/api/turbovid_stream.php?id=${encodeURIComponent(id)}`)
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) throw new Error(d.error);
+        if (d.type === 'iframe' && d.embedUrl) {
+          pw.innerHTML = `<iframe id="main-player-iframe" src="${d.embedUrl}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe>`;
+          return;
+        }
+        if (!d.hlsProxyUrl) throw new Error('TurboVid did not return an HLS stream.');
+        const badge = document.getElementById('sp-hls-badge');
+        if (badge) badge.textContent = 'HLS';
+        if (window.SenshiPlayer && window.SenshiPlayer.loadWithSubs) {
+          window.SenshiPlayer.loadWithSubs(d.hlsProxyUrl, d.subtitles || []);
+        } else if (window.SenshiPlayer) {
+          window.SenshiPlayer.load(d.hlsProxyUrl);
+        } else {
+          const vid = document.getElementById('sp-video');
+          if (vid) { vid.src = d.hlsProxyUrl; vid.load(); vid.play().catch(()=>{}); }
+        }
+      })
+      .catch(e => {
+        const msg = document.getElementById('sp-err-msg');
+        if (msg) msg.textContent = 'TurboVid: ' + (e.message || 'Resolve failed');
+        if (errEl) errEl.classList.add('show');
+        if (spinEl) spinEl.classList.add('hide');
+      });
+}
+
 function switchToServer(serverName, audio = currentAudio, displayKey) {
     const pw = document.getElementById('watch-player-wrap');
     if (!pw) return;
     const dKey = displayKey || serverName;
+
+    // ── Saved TurboVid sources ───────────────────────────────────────────
+    if (serverName.startsWith('turbovid:')) {
+        switchToTurboVid(serverName.slice('turbovid:'.length), audio);
+        currentServer = serverName;
+        currentDisplayServer = dKey;
+        currentAudio = audio;
+        updateActiveServerButton(dKey, audio);
+        return;
+    }
 
     // ── AnimeHeaven (MP4) ────────────────────────────────────────────────
     if (serverName === 'animeheaven') {
