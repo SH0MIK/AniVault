@@ -188,7 +188,7 @@ function renderPlayer(data, direct) {
     // Native hls.js handles redirects, byte ranges, init maps, retries,
     // and fragment scheduling correctly. Keep the unwrap code available
     // above for experiments, but do not force it onto TurboVid streams.
-    const hlsConfig: any = {
+    const hlsConfig = {
       enableWorker: true,
       backBufferLength: 90,
       debug: true,
