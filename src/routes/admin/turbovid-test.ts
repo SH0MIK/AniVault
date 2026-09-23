@@ -92,22 +92,31 @@ function renderSubtitleBar(video, subtitles) {
 
 function unwrapFlixSegmentBytes(buf) {
   const bytes = new Uint8Array(buf);
-  const isWebp = bytes.length >= 12 && bytes[0]===0x52 && bytes[1]===0x49 && bytes[2]===0x46 && bytes[3]===0x46 && bytes[8]===0x57 && bytes[9]===0x45 && bytes[10]===0x42 && bytes[11]===0x50;
-  const isPng = bytes.length >= 8 && bytes[0]===0x89 && bytes[1]===0x50 && bytes[2]===0x4e && bytes[3]===0x47 && bytes[4]===0x0d && bytes[5]===0x0a && bytes[6]===0x1a && bytes[7]===0x0a;
-  if (!isWebp && !isPng) return buf;
-  const offset = isWebp ? 12 : 8;
-  const payload = bytes.slice(offset);
-  if (payload[0] === 0x47) return payload.buffer; // already a valid MPEG-TS sync byte, no XOR needed
-  const mask = [157,42,241,71,179,142,92,112,166,25,228,59,216,98,15,197];
-  for (let i = 0; i < payload.length; i++) payload[i] ^= mask[i & 15];
-  return payload.buffer;
+  const png = [0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a];
+  if (bytes.length < png.length || !png.every((v,i) => bytes[i] === v)) return buf;
+
+  // TurboVid's "PNG" is a real PNG wrapper placed before the MPEG-TS
+  // segment. The video bytes start immediately after the PNG IEND marker.
+  // There is no XOR transform here.
+  const iend = [0x49,0x45,0x4e,0x44,0xae,0x42,0x60,0x82];
+  let iendPos = -1;
+  for (let i = 8; i <= bytes.length - iend.length; i++) {
+    let ok = true;
+    for (let j = 0; j < iend.length; j++) {
+      if (bytes[i + j] !== iend[j]) { ok = false; break; }
+    }
+    if (ok) { iendPos = i; break; }
+  }
+  if (iendPos < 0) return buf;
+
+  let start = iendPos + iend.length;
+  while (start < bytes.length && (bytes[start] === 0x00 || bytes[start] === 0xff)) start++;
+  return bytes.slice(start).buffer;
 }
 
-// Optional fragment-unwrapping loader retained for debugging unusual
-// fake-HLS sources. TurboVid direct playback currently uses hls.js's native
-// loader first; the HAR showed no fragment requests with the previous
-// forced loader combination, so forcing this loader can hide the real HLS
-// scheduling/parsing problem.
+// Fragment loader for TurboVid's fake-HLS segments. The playlist itself is
+// handled by hls.js normally; only binary media fragments need the fake-PNG
+// wrapper removed before hls.js sends them to its MPEG-TS demuxer.
 class FlixUnwrapLoader {
   constructor(config) { this.config = config; this.stats = { aborted:false, loaded:0, total:0, retry:0, chunkCount:0, bwEstimate:0, loading:{start:0,first:0,end:0}, parsing:{start:0,end:0}, buffering:{start:0,first:0,end:0} }; }
   load(context, config, callbacks) {
@@ -171,8 +180,8 @@ function renderPlayer(data, direct) {
 
   // Direct mode: hand the browser the RAW m3u8 (turbosplayer.com), no proxy
   // in the loop at all — segments get fetched straight from the viewer's
-  // own IP (avoids Google's datacenter-IP 429), and unwrapped client-side
-  // via FlixUnwrapLoader since they're disguised as PNG/WebP.
+  // own IP (avoids Google's datacenter-IP 429), then the fake PNG wrapper
+  // is removed client-side by FlixUnwrapLoader.
   // Subtitles stay proxied either way — they're small text files, not the
   // thing under test; only the video path matters here.
   const hlsUrl = direct ? data.m3u8 : (data.hlsProxyUrl || data.m3u8);
@@ -182,12 +191,10 @@ function renderPlayer(data, direct) {
   const video = document.getElementById('turbovidCfPreview');
 
   if (window.Hls && Hls.isSupported()) {
-    // Start with hls.js' native loaders. The HAR showed that the old
-    // custom fragment/playlist loaders never reached a media fragment:
-    // the player kept re-requesting a g263 master/media URL instead.
-    // Native hls.js handles redirects, byte ranges, init maps, retries,
-    // and fragment scheduling correctly. Keep the unwrap code available
-    // above for experiments, but do not force it onto TurboVid streams.
+    // Let hls.js handle playlist parsing/scheduling normally. Only replace the
+    // fragment loader because TurboVid's media objects are fake PNG files;
+    // the direct embed's browser can fetch them, but hls.js needs the PNG
+    // wrapper removed before MPEG-TS parsing.
     const hlsConfig = {
       enableWorker: true,
       backBufferLength: 90,
@@ -207,7 +214,7 @@ function renderPlayer(data, direct) {
     // unwrap loader belongs on hls.js' fragment loader (fLoader), not the
     // playlist loader. This lets native hls.js parse/schedule playlists
     // while only transforming the actual media bytes.
-    if (!direct) hlsConfig.fLoader = FlixUnwrapLoader;
+    hlsConfig.fLoader = FlixUnwrapLoader;
 
     const hls = new Hls(hlsConfig);
     window._cfHls = hls;
@@ -355,15 +362,25 @@ adminTurbovidRoutes.get('/admin/turbovid_resolve.php', async (c) => {
 // client-side diagnostic loader so the proxy returns actual media bytes.
 function unwrapTurbovidMedia(buf: ArrayBuffer): ArrayBuffer {
   const bytes = new Uint8Array(buf);
-  const isWebp = bytes.length >= 12 && bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 && bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50;
-  const isPng = bytes.length >= 8 && bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47 && bytes[4] === 0x0d && bytes[5] === 0x0a && bytes[6] === 0x1a && bytes[7] === 0x0a;
-  if (!isWebp && !isPng) return buf;
-  const offset = isWebp ? 12 : 8;
-  const payload = bytes.slice(offset);
-  if (payload.length && payload[0] === 0x47) return payload.buffer;
-  const mask = [157,42,241,71,179,142,92,112,166,25,228,59,216,98,15,197];
-  for (let i = 0; i < payload.length; i++) payload[i] ^= mask[i & 15];
-  return payload.buffer;
+  const png = [0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a];
+  if (bytes.length < png.length || !png.every((v,i) => bytes[i] === v)) return buf;
+
+  const iend = [0x49,0x45,0x4e,0xae,0x42,0x60,0x82];
+  // Correct IEND marker is "IEND" + PNG CRC AE 42 60 82.
+  const marker = [0x49,0x45,0x4e,0x44,0xae,0x42,0x60,0x82];
+  let iendPos = -1;
+  for (let i = 8; i <= bytes.length - marker.length; i++) {
+    let ok = true;
+    for (let j = 0; j < marker.length; j++) {
+      if (bytes[i + j] !== marker[j]) { ok = false; break; }
+    }
+    if (ok) { iendPos = i; break; }
+  }
+  if (iendPos < 0) return buf;
+
+  let start = iendPos + marker.length;
+  while (start < bytes.length && (bytes[start] === 0x00 || bytes[start] === 0xff)) start++;
+  return bytes.slice(start).buffer;
 }
 
 // ── admin/turbovid_hls_proxy.php — proxy m3u8/segments via CF egress ──────
