@@ -102,6 +102,30 @@ function updateActiveServerButton(serverName, audio) {
     if (btn) btn.classList.add('active');
 }
 
+
+function preparePlayerShell() {
+    const pw = document.getElementById('watch-player-wrap');
+    const sp = document.getElementById('senshi-player-root');
+    if (!pw || !sp) return { pw, sp };
+    // Never blank/rebuild the player wrapper: doing so can detach the
+    // custom player and makes repeated server taps hide the whole player.
+    Array.from(pw.children).forEach(el => { if (el !== sp) el.remove(); });
+    if (sp.parentNode !== pw) pw.appendChild(sp);
+    sp.style.cssText = 'display:block;width:100%;';
+    pw.style.opacity = '1';
+    pw.style.aspectRatio = 'unset';
+    pw.style.overflow = 'visible';
+    pw.style.background = 'transparent';
+    pw.style.borderRadius = '14px';
+    const spinEl = document.getElementById('sp-spinner');
+    const errEl = document.getElementById('sp-error');
+    const preplay = document.getElementById('sp-preplay');
+    if (spinEl) spinEl.classList.remove('hide');
+    if (errEl) errEl.classList.remove('show');
+    if (preplay) preplay.classList.add('hide');
+    return { pw, sp };
+}
+
 // ── AnimeHeaven (MP4 via fetch, plays in the custom player) ──────────────
 function switchToAnimeHeaven(audio) {
     const pw = document.getElementById('watch-player-wrap');
@@ -112,25 +136,9 @@ function switchToAnimeHeaven(audio) {
     stopCurrentVideo();
 
     // Detach player node first so innerHTML='' doesn't destroy it
-    const sp = document.getElementById('senshi-player-root');
-    if (sp && sp.parentNode) sp.parentNode.removeChild(sp);
-
-    pw.style.opacity = '0';
-    if (pw._senshiHls) { pw._senshiHls.destroy(); pw._senshiHls = null; }
-
-    // Restore shell to player mode
-    pw.style.aspectRatio  = 'unset';
-    pw.style.overflow     = 'visible';
-    pw.style.background   = 'transparent';
-    pw.style.borderRadius = '14px';
-    pw.innerHTML = '';
-
-    // Show a loading state in the player
-    if (sp) {
-        sp.style.cssText = 'display:block;width:100%;';
-        pw.appendChild(sp);
-    }
-    pw.style.opacity = '1';
+    const shell = preparePlayerShell();
+    const sp = shell.sp;
+    const pw = shell.pw;
 
     // Show spinner in player while fetching
     if (window.SenshiPlayer) {
@@ -292,22 +300,9 @@ function switchToAnikoto(providerName, audio) {
     // running underneath the loading spinner / error state below.
     stopCurrentVideo();
 
-    const sp = document.getElementById('senshi-player-root');
-    if (sp && sp.parentNode) sp.parentNode.removeChild(sp);
-
-    pw.style.opacity = '0';
-
-    pw.style.aspectRatio  = 'unset';
-    pw.style.overflow     = 'visible';
-    pw.style.background   = 'transparent';
-    pw.style.borderRadius = '14px';
-    pw.innerHTML = '';
-
-    if (sp) {
-        sp.style.cssText = 'display:block;width:100%;';
-        pw.appendChild(sp);
-    }
-    pw.style.opacity = '1';
+    const shell = preparePlayerShell();
+    const sp = shell.sp;
+    const pw = shell.pw;
 
     if (window.SenshiPlayer) window.SenshiPlayer.destroy();
     const spinEl = document.getElementById('sp-spinner');
@@ -376,21 +371,9 @@ function switchToDesidub(providerName, realType) {
 
     stopCurrentVideo();
 
-    const sp = document.getElementById('senshi-player-root');
-    if (sp && sp.parentNode) sp.parentNode.removeChild(sp);
-
-    pw.style.opacity = '0';
-    pw.style.aspectRatio  = 'unset';
-    pw.style.overflow     = 'visible';
-    pw.style.background   = 'transparent';
-    pw.style.borderRadius = '14px';
-    pw.innerHTML = '';
-
-    if (sp) {
-        sp.style.cssText = 'display:block;width:100%;';
-        pw.appendChild(sp);
-    }
-    pw.style.opacity = '1';
+    const shell = preparePlayerShell();
+    const sp = shell.sp;
+    const pw = shell.pw;
 
     if (window.SenshiPlayer) window.SenshiPlayer.destroy();
     const spinEl = document.getElementById('sp-spinner');
@@ -529,21 +512,9 @@ function switchToGenericSource(source, providerName, realType, langKey) {
     stopCurrentVideo();
     clearDynQualityRow();
 
-    const sp = document.getElementById('senshi-player-root');
-    if (sp && sp.parentNode) sp.parentNode.removeChild(sp);
-
-    pw.style.opacity = '0';
-    pw.style.aspectRatio  = 'unset';
-    pw.style.overflow     = 'visible';
-    pw.style.background   = 'transparent';
-    pw.style.borderRadius = '14px';
-    pw.innerHTML = '';
-
-    if (sp) {
-        sp.style.cssText = 'display:block;width:100%;';
-        pw.appendChild(sp);
-    }
-    pw.style.opacity = '1';
+    const shell = preparePlayerShell();
+    const sp = shell.sp;
+    const pw = shell.pw;
 
     if (window.SenshiPlayer) window.SenshiPlayer.destroy();
     const spinEl = document.getElementById('sp-spinner');
@@ -679,16 +650,9 @@ function switchToTurboVid(id, audio) {
     if (!pw) return;
     stopCurrentVideo();
     clearDynQualityRow();
-    const sp = document.getElementById('senshi-player-root');
-    if (sp && sp.parentNode) sp.parentNode.removeChild(sp);
-    pw.innerHTML = '';
-    pw.style.opacity = '0';
-    pw.style.aspectRatio = 'unset';
-    pw.style.overflow = 'visible';
-    pw.style.background = 'transparent';
-    pw.style.borderRadius = '14px';
-    if (sp) { sp.style.cssText = 'display:block;width:100%;'; pw.appendChild(sp); }
-    pw.style.opacity = '1';
+    const shell = preparePlayerShell();
+    const sp = shell.sp;
+    const pw = shell.pw;
     if (window.SenshiPlayer) window.SenshiPlayer.destroy();
     const spinEl = document.getElementById('sp-spinner');
     const errEl = document.getElementById('sp-error');
