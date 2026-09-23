@@ -703,16 +703,17 @@ function switchToTurboVid(id, audio) {
           pw.innerHTML = \`<iframe id="main-player-iframe" src="\${d.embedUrl}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe>\`;
           return;
         }
-        if (!d.hlsProxyUrl) throw new Error('TurboVid did not return an HLS stream.');
+        const streamUrl = d.m3u8 || d.hlsProxyUrl;
+        if (!streamUrl) throw new Error('TurboVid did not return an HLS stream.');
         const badge = document.getElementById('sp-hls-badge');
         if (badge) badge.textContent = 'HLS';
         if (window.SenshiPlayer && window.SenshiPlayer.loadWithSubs) {
-          window.SenshiPlayer.loadWithSubs(d.hlsProxyUrl, d.subtitles || []);
+          window.SenshiPlayer.loadWithSubs(streamUrl, d.subtitles || []);
         } else if (window.SenshiPlayer) {
-          window.SenshiPlayer.load(d.hlsProxyUrl);
+          window.SenshiPlayer.load(streamUrl);
         } else {
           const vid = document.getElementById('sp-video');
-          if (vid) { vid.src = d.hlsProxyUrl; vid.load(); vid.play().catch(()=>{}); }
+          if (vid) { vid.src = streamUrl; vid.load(); vid.play().catch(()=>{}); }
         }
       })
       .catch(e => {
