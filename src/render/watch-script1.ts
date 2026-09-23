@@ -859,7 +859,6 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     const initialAvSub = document.querySelector('#tab-panel-sub .turbovid-server-btn');
     if (initialAvSub) {
         playbackStarted = true;
-        _clearOverallWatchdog?.();
         document.querySelectorAll('.server-btn').forEach(b => b.classList.remove('active'));
         initialAvSub.classList.add('active');
         switchToServer(initialAvSub.dataset.server, 'sub', initialAvSub.dataset.server);
