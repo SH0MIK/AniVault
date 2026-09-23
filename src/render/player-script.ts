@@ -1235,6 +1235,62 @@ window.addEventListener('keydown', e => {
   }
 });
 
+/* TurboVid fake-HLS segment unwrapping. TurboVid may return media bytes
+ * inside a PNG/WebP-looking wrapper; strip only the known PNG IEND wrapper.
+ * For normal HLS responses this is a no-op. */
+function unwrapTurboVidSegment(buf) {
+  const bytes = new Uint8Array(buf);
+  const png = [0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a];
+  if (bytes.length < png.length || !png.every((v,i) => bytes[i] === v)) return buf;
+  const marker = [0x49,0x45,0x4e,0x44,0xae,0x42,0x60,0x82];
+  let pos = -1;
+  for (let i = 8; i <= bytes.length - marker.length; i++) {
+    let ok = true;
+    for (let j = 0; j < marker.length; j++) {
+      if (bytes[i + j] !== marker[j]) { ok = false; break; }
+    }
+    if (ok) { pos = i; break; }
+  }
+  if (pos < 0) return buf;
+  let start = pos + marker.length;
+  while (start < bytes.length && (bytes[start] === 0x00 || bytes[start] === 0xff)) start++;
+  return bytes.slice(start).buffer;
+}
+
+class TurboVidFragmentLoader {
+  constructor(config) {
+    this.config = config;
+    this.stats = {
+      aborted: false, loaded: 0, total: 0, retry: 0, chunkCount: 0, bwEstimate: 0,
+      loading: { start: 0, first: 0, end: 0 }, parsing: { start: 0, end: 0 }, buffering: { start: 0, first: 0, end: 0 }
+    };
+  }
+  load(context, config, callbacks) {
+    const start = performance.now();
+    this._aborted = false;
+    fetch(context.url, { credentials: 'omit' })
+      .then(res => {
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        return res.arrayBuffer();
+      })
+      .then(buf => {
+        if (this._aborted) return;
+        const first = performance.now();
+        const data = unwrapTurboVidSegment(buf);
+        const end = performance.now();
+        this.stats.loading = { start, first, end };
+        this.stats.loaded = this.stats.total = data.byteLength;
+        callbacks.onSuccess({ url: context.url, data }, this.stats, context, null);
+      })
+      .catch(err => {
+        if (this._aborted) return;
+        callbacks.onError({ code: 0, text: err?.message || String(err) }, context, null, this.stats);
+      });
+  }
+  abort() { this._aborted = true; }
+  destroy() {}
+}
+
 /* HLS Stream Loader */
 function loadHLS(m3u8Url) {
   if (!m3u8Url) {
@@ -1259,6 +1315,7 @@ function loadHLS(m3u8Url) {
       lowLatencyMode: false,
       backBufferLength: 90,
       capLevelToPlayerSize: false,
+      fLoader: TurboVidFragmentLoader,
     });
 
     hls.loadSource(m3u8Url);
