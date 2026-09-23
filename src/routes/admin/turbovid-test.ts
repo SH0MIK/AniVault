@@ -43,7 +43,8 @@ adminTurbovidRoutes.get('/admin/turbovid_test.php', async (c) => {
   <div class="flex" style="gap:10px;flex-wrap:wrap;">
     <input type="text" id="embedUrl" placeholder="https://turbovidhls.com/t/&lt;hash&gt;"
       style="flex:1;min-width:260px;background:rgba(255,255,255,0.04);border:1px solid var(--border);border-radius:8px;color:var(--text-primary);font-family:monospace;font-size:0.85rem;padding:10px 12px;">
-    <button id="resolveBtn" class="btn btn-primary">Resolve &amp; Play</button>
+    <button id="resolveBtn" class="btn btn-primary">Resolve &amp; Play (Proxied)</button>
+    <button id="directBtn" class="btn btn-ghost">Play Direct (No Proxy)</button>
   </div>
   <div id="status" class="text-muted mt-1" style="font-size:0.85rem;min-height:18px;"></div>
 </div>
@@ -89,12 +90,20 @@ function renderSubtitleBar(video, subtitles) {
   setActive(offBtn);
 }
 
-function renderPlayer(data) {
+function renderPlayer(data, direct) {
   const ep = document.getElementById('embedPreview');
   document.getElementById('embedSubBar').innerHTML = '';
   if (window._cfHls) { try { window._cfHls.destroy(); } catch(e) {} window._cfHls = null; }
 
-  const hlsUrl = data.hlsProxyUrl || data.m3u8;
+  // Direct mode: hand the browser the RAW m3u8 (turbosplayer.com), no proxy
+  // in the loop at all — segments get fetched straight from the viewer's
+  // own IP. Tests whether Google's throttle is specifically about our
+  // server's IP hitting it, or whether it needs CORS headers that only
+  // our proxy was ever supplying.
+  // Subtitles stay proxied either way — they're small text files, not the
+  // thing under test; only the video path matters for the CORS/rate-limit
+  // question direct mode exists to answer.
+  const hlsUrl = direct ? data.m3u8 : (data.hlsProxyUrl || data.m3u8);
   if (!hlsUrl) { ep.innerHTML = '<span style="color:var(--accent);font-size:0.85rem;">No m3u8 in the resolved response</span>'; return; }
 
   ep.innerHTML = '<video id="turbovidCfPreview" controls playsinline crossorigin="anonymous" style="width:100%;height:100%;"></video>';
@@ -124,7 +133,13 @@ function renderPlayer(data) {
         switch (errData.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
             retryCount++;
-            if (retryCount > MAX_RETRIES) { setStatus('Network errors after ' + MAX_RETRIES + ' retries — giving up.', 'error'); try { hls.destroy(); } catch(e) {} return; }
+            if (retryCount > MAX_RETRIES) {
+              setStatus((direct
+                ? 'Network errors after ' + MAX_RETRIES + ' retries in DIRECT mode — most likely a CORS block (check the browser console for a CORS error) rather than a rate limit, since there is no proxy in this path.'
+                : 'Network errors after ' + MAX_RETRIES + ' retries — giving up.'), 'error');
+              try { hls.destroy(); } catch(e) {}
+              return;
+            }
             setTimeout(() => { try { hls.startLoad(); } catch(e) {} }, 1500 * retryCount);
             break;
           case Hls.ErrorTypes.MEDIA_ERROR: hls.recoverMediaError(); break;
@@ -141,6 +156,7 @@ function renderPlayer(data) {
 
   renderSubtitleBar(video, data.subtitles);
   document.getElementById('meta').innerHTML =
+    '<div><b>Mode:</b> ' + (direct ? 'DIRECT (no proxy — browser fetches from turbosplayer/googleusercontent directly)' : 'PROXIED (through this Worker)') + '</div>' +
     '<div><b>Title:</b> ' + h(data.title || '—') + '</div>' +
     '<div><b>Embed:</b> ' + h(data.embedUrl || '—') + '</div>' +
     '<div><b>m3u8:</b> ' + h(data.m3u8 || '—') + '</div>' +
@@ -148,25 +164,28 @@ function renderPlayer(data) {
     '<div><b>Subtitles:</b> ' + ((data.subtitles||[]).length ? data.subtitles.map(s=>h(s.lang)).join(', ') : 'none') + '</div>';
 }
 
-document.getElementById('resolveBtn').addEventListener('click', resolveEmbed);
-document.getElementById('embedUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') resolveEmbed(); });
+document.getElementById('resolveBtn').addEventListener('click', () => resolveEmbed(false));
+document.getElementById('directBtn').addEventListener('click', () => resolveEmbed(true));
+document.getElementById('embedUrl').addEventListener('keydown', (e) => { if (e.key === 'Enter') resolveEmbed(false); });
 
-async function resolveEmbed() {
+async function resolveEmbed(direct) {
   const url = document.getElementById('embedUrl').value.trim();
   if (!url) { setStatus('Paste an embed URL first', 'error'); return; }
-  const btn = document.getElementById('resolveBtn');
-  btn.disabled = true; setStatus('Resolving via Cloudflare…');
+  const resolveBtn = document.getElementById('resolveBtn');
+  const directBtn = document.getElementById('directBtn');
+  resolveBtn.disabled = true; directBtn.disabled = true;
+  setStatus(direct ? 'Resolving (will play DIRECT, no proxy)…' : 'Resolving via Cloudflare…');
   document.getElementById('meta').innerHTML = '';
   try {
     const res = await fetch('turbovid_resolve.php?url=' + encodeURIComponent(url));
     const data = await res.json();
     if (!res.ok) { setStatus(data.error || ('Request failed (' + res.status + ')'), 'error'); return; }
-    setStatus('Resolved ✓', 'ok');
-    renderPlayer(data);
+    setStatus('Resolved ✓' + (direct ? ' — playing direct, watch console for CORS errors' : ''), 'ok');
+    renderPlayer(data, direct);
   } catch (e) {
     setStatus('Network error: ' + e.message, 'error');
   } finally {
-    btn.disabled = false;
+    resolveBtn.disabled = false; directBtn.disabled = false;
   }
 }
 </script>`;
