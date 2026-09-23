@@ -134,6 +134,42 @@ class FlixUnwrapLoader {
   destroy() {}
 }
 
+// hls.js treats a media playlist without #EXT-X-ENDLIST as a live stream
+// and polls forever waiting for new segments — turbovid's inner playlists
+// are static/VOD but appear to omit that tag, so hls.js gets stuck at the
+// "live edge" replaying the same last few segments forever. Patch it in
+// client-side: append ENDLIST to any playlist that has segments
+// (#EXTINF) but is missing it. No-op for master/variant playlists (they
+// only list #EXT-X-STREAM-INF entries, no #EXTINF, so this never touches
+// them) and no-op for a playlist that already has ENDLIST.
+class FixEndlistLoader {
+  constructor(config) { this.config = config; this.stats = { aborted:false, loaded:0, total:0, retry:0, chunkCount:0, bwEstimate:0, loading:{start:0,first:0,end:0}, parsing:{start:0,end:0}, buffering:{start:0,first:0,end:0} }; }
+  load(context, config, callbacks) {
+    const start = performance.now();
+    this._aborted = false;
+    fetch(context.url)
+      .then((res) => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.text(); })
+      .then((text) => {
+        if (this._aborted) return;
+        const first = performance.now();
+        let fixed = text;
+        if (fixed.includes('#EXTM3U') && fixed.includes('#EXTINF') && !fixed.includes('#EXT-X-ENDLIST')) {
+          fixed = fixed.replace(/\s*$/, '') + '\n#EXT-X-ENDLIST\n';
+        }
+        const end = performance.now();
+        this.stats.loading = { start, first, end };
+        this.stats.loaded = this.stats.total = fixed.length;
+        callbacks.onSuccess({ url: context.url, data: fixed }, this.stats, context, null);
+      })
+      .catch((err) => {
+        if (this._aborted) return;
+        callbacks.onError({ code: 0, text: err.message }, context, null, this.stats);
+      });
+  }
+  abort() { this._aborted = true; }
+  destroy() {}
+}
+
 function renderPlayer(data, direct) {
   const ep = document.getElementById('embedPreview');
   document.getElementById('embedSubBar').innerHTML = '';
@@ -153,7 +189,7 @@ function renderPlayer(data, direct) {
 
   if (window.Hls && Hls.isSupported()) {
     const hlsConfig = { enableWorker: true, backBufferLength: 90 };
-    if (direct) hlsConfig.fLoader = FlixUnwrapLoader;
+    if (direct) { hlsConfig.fLoader = FlixUnwrapLoader; hlsConfig.pLoader = FixEndlistLoader; }
     const hls = new Hls(hlsConfig);
     window._cfHls = hls;
     let retryCount = 0; const MAX_RETRIES = 4;
