@@ -52,7 +52,7 @@ ${selected?`<div class="tv-section-head"><h2>Series / Episodes</h2><span>${selec
 <div class="tv-actions"><button type="button" class="tv-cancel" id="tv-cancel-modal">Cancel</button><button class="tv-save" id="tv-save">Save Source</button></div></form></div></div></div>
 <script>
 (function(){
-const siteUrl=\${JSON.stringify(siteUrl)},selectedAnime=\${Number(selectedAnime)||0},byId=id=>document.getElementById(id);
+const siteUrl=${JSON.stringify(siteUrl)},selectedAnime=${Number(selectedAnime)||0},byId=id=>document.getElementById(id);
 let tvPresetEpisode=0;
 function closeTurboModal(){const m=byId('tv-modal');if(m)m.classList.remove('open');document.body.style.overflow='';}
 function openTurboModal(ep=0,source=null){const m=byId('tv-modal');if(!m)return;tvPresetEpisode=Number(ep||0);m.classList.add('open');document.body.style.overflow='hidden';const f=byId('tv-form'),a=byId('tv-anime'),e=byId('tv-ep');if(f)f.reset();byId('tv-source-id').value='';if(a&&selectedAnime)a.value=String(selectedAnime);if(e&&tvPresetEpisode)e.value=String(tvPresetEpisode);if(source){byId('tv-source-id').value=String(source.id||'');byId('tv-group').value=source.audio_group||'sub';byId('tv-lang').value=source.language||'';byId('tv-url').value=source.embed_url||'';byId('tv-active').checked=!!source.is_active;byId('tv-modal-title').textContent='Edit TurboVid Source';byId('tv-save').textContent='Update Source';}else{byId('tv-active').checked=true;byId('tv-modal-title').textContent='Add Series / Episode Source';byId('tv-save').textContent='Save Source';}const w=byId('tv-lang-wrap');if(w)w.style.display=byId('tv-group').value==='multi'?'':'none';}
