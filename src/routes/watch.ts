@@ -470,7 +470,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
                     ${turbovidServers.filter(v=>v.audio_group==='hindi').map(v=>`<button class="server-btn turbovid-server-btn" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}">${h(v.label)}</button>`).join('')}
                   </div>
                 </div>
-                <div class="server-group" id="dub-multi-group" style="display:none">
+                <div class="server-group" id="dub-multi-group" style="${turbovidServers.some(v=>v.audio_group==='multi') ? '' : 'display:none'}">
                   <div class="server-group-label">Multi Dub</div>
                   <div class="server-group-body" id="servers-dub-multi-body">
                     ${turbovidServers.filter(v=>v.audio_group==='multi').map(v=>`<button class="server-btn turbovid-server-btn" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}">${h(v.label)}</button>`).join('')}
