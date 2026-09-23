@@ -103,12 +103,11 @@ function unwrapFlixSegmentBytes(buf) {
   return payload.buffer;
 }
 
-// Custom hls.js fragment loader: fetches segments directly from the
-// viewer's own browser (avoiding the datacenter-IP 429 entirely, since
-// CORS is wide open — access-control-allow-origin: * — confirmed in the
-// HAR) and unwraps the PNG/WebP-disguised payload client-side before
-// handing it to hls.js's demuxer. Manifest loads stay on hls.js's default
-// loader since the .m3u8 responses aren't wrapped, only the segments are.
+// Optional fragment-unwrapping loader retained for debugging unusual
+// fake-HLS sources. TurboVid direct playback currently uses hls.js's native
+// loader first; the HAR showed no fragment requests with the previous
+// forced loader combination, so forcing this loader can hide the real HLS
+// scheduling/parsing problem.
 class FlixUnwrapLoader {
   constructor(config) { this.config = config; this.stats = { aborted:false, loaded:0, total:0, retry:0, chunkCount:0, bwEstimate:0, loading:{start:0,first:0,end:0}, parsing:{start:0,end:0}, buffering:{start:0,first:0,end:0} }; }
   load(context, config, callbacks) {
@@ -183,8 +182,13 @@ function renderPlayer(data, direct) {
   const video = document.getElementById('turbovidCfPreview');
 
   if (window.Hls && Hls.isSupported()) {
+    // Start with hls.js' native loaders. The HAR showed that the old
+    // custom fragment/playlist loaders never reached a media fragment:
+    // the player kept re-requesting a g263 master/media URL instead.
+    // Native hls.js handles redirects, byte ranges, init maps, retries,
+    // and fragment scheduling correctly. Keep the unwrap code available
+    // above for experiments, but do not force it onto TurboVid streams.
     const hlsConfig = { enableWorker: true, backBufferLength: 90, debug: true };
-    if (direct) { hlsConfig.fLoader = FlixUnwrapLoader; hlsConfig.pLoader = FixEndlistLoader; }
     const hls = new Hls(hlsConfig);
     window._cfHls = hls;
     let retryCount = 0; const MAX_RETRIES = 4;
@@ -195,13 +199,21 @@ function renderPlayer(data, direct) {
       if (Array.isArray(hls.levels) && hls.levels.length > 0) hls.currentLevel = hls.levels.length - 1;
       video.play().catch(() => {});
     });
-    hls.on(Hls.Events.LEVEL_LOADED, (_, details) => {
-      setStatus('Media playlist loaded ✓ — ' + (details?.details?.fragments?.length || 0) + ' fragment(s)', 'ok');
+    hls.on(Hls.Events.LEVEL_LOADED, (_, data) => {
+      const details = data?.details;
+      const count = details?.fragments?.length || 0;
+      const live = details?.live ? 'live' : 'VOD';
+      setStatus('Media playlist loaded ✓ — ' + count + ' fragment(s), ' + live + '; waiting for fragment…', 'ok');
     });
-    hls.on(Hls.Events.FRAG_LOADING, () => {
-      setStatus('Loading media fragment…', 'ok');
+    hls.on(Hls.Events.FRAG_LOADING, (_, data) => {
+      const url = data?.frag?.url || '';
+      setStatus('Loading media fragment… ' + (url ? url.split('/').pop() : ''), 'ok');
     });
-    hls.on(Hls.Events.FRAG_LOADED, () => { retryCount = 0; });
+    hls.on(Hls.Events.FRAG_LOADED, (_, data) => {
+      retryCount = 0;
+      const len = data?.payload?.byteLength || 0;
+      setStatus('Media fragment loaded ✓' + (len ? ' (' + Math.round(len/1024) + ' KB)' : ''), 'ok');
+    });
     hls.on(Hls.Events.ERROR, (event, errData) => {
       const httpStatus = errData && errData.response && errData.response.code;
       if (httpStatus === 429) {
