@@ -1080,6 +1080,47 @@ export const WATCH_CSS = `/* ═════════════════
 .wp-no-video .nv-icon { font-size:2.5rem; opacity:.25; }
 .wp-no-video p { color:var(--text-muted); font-size:.88rem; line-height:1.5; }
 
+/* AniVault-owned server buttons */
+.av-server {
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:.38rem;
+  min-height:34px;
+  padding:.32rem .68rem;
+  border:1px solid rgba(124,58,237,.38) !important;
+  border-radius:999px;
+  background:linear-gradient(180deg,rgba(124,58,237,.14),rgba(18,20,28,.72));
+  color:var(--text-primary);
+  font-weight:800;
+  letter-spacing:.01em;
+  box-shadow:0 3px 12px rgba(0,0,0,.2);
+  transition:transform .15s ease,border-color .15s ease,box-shadow .15s ease,background .15s ease;
+}
+.av-server:hover {
+  transform:translateY(-1px);
+  border-color:rgba(124,58,237,.72) !important;
+  background:linear-gradient(180deg,rgba(124,58,237,.24),rgba(18,20,28,.86));
+  box-shadow:0 5px 18px rgba(124,58,237,.22);
+}
+.av-server.active {
+  border-color:rgba(124,58,237,.95) !important;
+  background:linear-gradient(180deg,rgba(124,58,237,.42),rgba(78,38,145,.82));
+  box-shadow:0 0 0 1px rgba(124,58,237,.22),0 5px 18px rgba(124,58,237,.3);
+}
+.av-server-logo {
+  width:18px;
+  height:18px;
+  border-radius:5px;
+  object-fit:contain;
+  flex:0 0 18px;
+  box-shadow:0 0 10px rgba(124,58,237,.22);
+}
+.av-server-label { line-height:1; }
+@media (max-width:390px) {
+  .av-server { min-height:31px; padding:.28rem .55rem; gap:.3rem; }
+  .av-server-logo { width:16px; height:16px; flex-basis:16px; }
+}
 /* RESPONSIVE */
 @media (min-width:1025px) and (max-width:1200px) {
   .wp-grid { grid-template-columns: 1fr 300px; gap: 1.25rem; }
