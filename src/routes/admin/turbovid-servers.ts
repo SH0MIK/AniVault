@@ -62,9 +62,14 @@ async function adminOnly(c:any){ return await buildAdminCtx(c); }
 adminTurbovidServerRoutes.post('/admin/turbovid_servers.php', async (c) => {
   const ctx=await adminOnly(c); if(!ctx)return c.json({error:'Forbidden'},403);
   const body:any=await c.req.json().catch(()=>null);
-  const animeId=Number(body?.anime_id||0),ep=Number(body?.episode_num||0),group=String(body?.audio_group||''),lang=String(body?.language||'').trim(),url=String(body?.embed_url||'').trim();
+  const sourceId=Number(body?.id||0),animeId=Number(body?.anime_id||0),ep=Number(body?.episode_num||0),group=String(body?.audio_group||''),lang=String(body?.language||'').trim(),url=String(body?.embed_url||'').trim();
   if(!animeId||!ep||!/^https?:\/\//i.test(url)||!['sub','dub','hindi','multi'].includes(group)||(group==='multi'&&!lang))return c.json({error:'Invalid source data'},400);
-  await ctx.db.query("INSERT INTO turbovid_servers (anime_id,episode_num,audio_group,language,label,embed_url,is_active,updated_at) VALUES (?,?,?,?,?,?,?,datetime('now')) ON CONFLICT(anime_id,episode_num,audio_group,language) DO UPDATE SET label=excluded.label,embed_url=excluded.embed_url,is_active=excluded.is_active,updated_at=datetime('now')",[animeId,ep,group,lang,group==='multi'?'AV-'+lang:group==='sub'?'AV-sub':group==='hindi'?'AV-hindi':'AV-dub',url,Number(body?.is_active?1:0)]);
+  const label=group==='multi'?'AV-'+lang:group==='sub'?'AV-sub':group==='hindi'?'AV-hindi':'AV-dub';
+  if(sourceId){
+    await ctx.db.query("UPDATE turbovid_servers SET anime_id=?,episode_num=?,audio_group=?,language=?,label=?,embed_url=?,is_active=?,updated_at=datetime('now') WHERE id=?",[animeId,ep,group,lang,label,url,Number(body?.is_active?1:0),sourceId]);
+  } else {
+    await ctx.db.query("INSERT INTO turbovid_servers (anime_id,episode_num,audio_group,language,label,embed_url,is_active,updated_at) VALUES (?,?,?,?,?,?,?,datetime('now')) ON CONFLICT(anime_id,episode_num,audio_group,language) DO UPDATE SET label=excluded.label,embed_url=excluded.embed_url,is_active=excluded.is_active,updated_at=datetime('now')",[animeId,ep,group,lang,label,url,Number(body?.is_active?1:0)]);
+  }
   return c.json({success:true});
 });
 
