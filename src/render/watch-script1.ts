@@ -816,6 +816,11 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         // a few seconds later and silently activate Sub/HD-1 even after the
         // user had selected Hindi/another server.
         window._manualServerSelection = true;
+        // A manual tap is an explicit playback choice. Stop the global
+        // server-finding watchdog from replacing the player while the
+        // selected scraper/TurboVid source is still resolving.
+        playbackStarted = true;
+        if (typeof _clearOverallWatchdog === 'function') _clearOverallWatchdog();
         const displayKey = btn.dataset.server;
         const realKey = btn.dataset.realServer || displayKey;
         const audio = panel.dataset.audio;
@@ -935,16 +940,30 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
 
     function showNoServersAtAll(msg) {
         const pw = document.getElementById('watch-player-wrap');
-        if (pw) pw.innerHTML = \`<div style="display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center;height:100%;min-height:240px;color:var(--text-muted);font-family:var(--font-body);text-align:center;padding:1rem;"><div>\${msg || 'No working servers found for this episode.'}</div><button onclick="location.reload()" style="padding:8px 16px;border-radius:8px;border:1px solid currentColor;background:transparent;color:inherit;cursor:pointer;font:inherit;">Try Again</button></div>\`;
+        if (!pw) return;
+        // Never replace the player DOM here. The old watchdog used
+        // innerHTML and could destroy #senshi-player-root; a late stream
+        // response would then leave a black/empty player that could not
+        // recover when another server was selected.
+        const errEl = document.getElementById('sp-error');
+        const errMsg = document.getElementById('sp-err-msg');
+        const spinEl = document.getElementById('sp-spinner');
+        if (errMsg) errMsg.textContent = msg || 'No working servers found for this episode.';
+        if (errEl) errEl.classList.add('show');
+        if (spinEl) spinEl.classList.add('hide');
     }
 
-    // Hard overall cap — the individual probes have no client-side
-    // timeout of their own and can legitimately take a while if the
-    // scraper backend is slow, but the "Finding the best server..."
-    // screen should never sit there forever with no feedback.
+    // Do not replace/destroy the player while the scraper is still working.
+    // Individual provider requests already have their own timeouts/retries,
+    // and the user can manually switch servers at any time.
     const _overallWatchdog = setTimeout(() => {
-        if (!playbackStarted) showNoServersAtAll('Servers are taking longer than usual to respond. The stream backend may be slow or down right now.');
-    }, 25000);
+        if (!playbackStarted && !window._manualServerSelection) {
+            const errEl = document.getElementById('sp-error');
+            const errMsg = document.getElementById('sp-err-msg');
+            if (errMsg) errMsg.textContent = 'Servers are taking longer than usual to respond. You can still choose a server below.';
+            if (errEl) errEl.classList.add('show');
+        }
+    }, 45000);
     const _clearOverallWatchdog = () => clearTimeout(_overallWatchdog);
 
     // ── AnimeHeaven (sub-only) ───────────────────────────────────────────
