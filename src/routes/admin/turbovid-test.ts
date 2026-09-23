@@ -147,9 +147,17 @@ class FixEndlistLoader extends Hls.DefaultConfig.loader {
     const originalSuccess = callbacks.onSuccess;
     callbacks.onSuccess = (response, stats, ctx, networkDetails) => {
       let data = response.data;
-      if (typeof data === 'string' && data.includes('#EXTM3U') && data.includes('#EXTINF') && !data.includes('#EXT-X-ENDLIST')) {
-        data = data.trimEnd() + String.fromCharCode(10) + '#EXT-X-ENDLIST' + String.fromCharCode(10);
-        response = { ...response, data };
+      if (typeof data === 'string' && data.includes('#EXTM3U') && !data.includes('#EXT-X-ENDLIST')) {
+        const isMaster = data.includes('#EXT-X-STREAM-INF') || data.includes('#EXT-X-I-FRAME-STREAM-INF');
+        const isMedia = data.includes('#EXTINF') ||
+          data.includes('#EXT-X-TARGETDURATION') ||
+          data.includes('#EXT-X-MEDIA-SEQUENCE') ||
+          data.includes('#EXT-X-PART:') ||
+          data.includes('#EXT-X-MAP:');
+        if (!isMaster && isMedia) {
+          data = data.trimEnd() + String.fromCharCode(10) + '#EXT-X-ENDLIST' + String.fromCharCode(10);
+          response = { ...response, data };
+        }
       }
       originalSuccess(response, stats, ctx, networkDetails);
     };
@@ -175,7 +183,7 @@ function renderPlayer(data, direct) {
   const video = document.getElementById('turbovidCfPreview');
 
   if (window.Hls && Hls.isSupported()) {
-    const hlsConfig = { enableWorker: true, backBufferLength: 90 };
+    const hlsConfig = { enableWorker: true, backBufferLength: 90, debug: true };
     if (direct) { hlsConfig.fLoader = FlixUnwrapLoader; hlsConfig.pLoader = FixEndlistLoader; }
     const hls = new Hls(hlsConfig);
     window._cfHls = hls;
@@ -183,8 +191,15 @@ function renderPlayer(data, direct) {
     hls.loadSource(hlsUrl);
     hls.attachMedia(video);
     hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      setStatus('Manifest parsed ✓ — ' + (hls.levels?.length || 0) + ' quality level(s); loading media playlist…', 'ok');
       if (Array.isArray(hls.levels) && hls.levels.length > 0) hls.currentLevel = hls.levels.length - 1;
       video.play().catch(() => {});
+    });
+    hls.on(Hls.Events.LEVEL_LOADED, (_, details) => {
+      setStatus('Media playlist loaded ✓ — ' + (details?.details?.fragments?.length || 0) + ' fragment(s)', 'ok');
+    });
+    hls.on(Hls.Events.FRAG_LOADING, () => {
+      setStatus('Loading media fragment…', 'ok');
     });
     hls.on(Hls.Events.FRAG_LOADED, () => { retryCount = 0; });
     hls.on(Hls.Events.ERROR, (event, errData) => {
@@ -197,6 +212,7 @@ function renderPlayer(data, direct) {
         return;
       }
       if (errData && errData.fatal) {
+        console.error('[TurboVid HLS fatal]', errData);
         switch (errData.type) {
           case Hls.ErrorTypes.NETWORK_ERROR:
             retryCount++;
