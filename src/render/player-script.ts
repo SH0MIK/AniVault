@@ -72,6 +72,26 @@ if (vid) {
   vid.setAttribute('playsinline', '');
   vid.setAttribute('webkit-playsinline', '');
   vid.removeAttribute('controls');
+
+  // Keep the loading overlay on the black player until media is ACTUALLY
+  // playing. "manifest parsed", "metadata loaded", or "canplay" only means
+  // the browser has received enough information — it does not mean the
+  // first frame has started. This is especially important for TurboVid,
+  // where the manifest can arrive well before the first unwrapped segment.
+  const showMediaLoader = () => {
+    if (spinner) spinner.classList.remove('hide');
+  };
+  const hideMediaLoader = () => {
+    if (spinner) spinner.classList.add('hide');
+  };
+  vid.addEventListener('loadstart', showMediaLoader);
+  vid.addEventListener('waiting', () => {
+    if (!vid.paused) showMediaLoader();
+  });
+  vid.addEventListener('stalled', () => {
+    if (!vid.paused) showMediaLoader();
+  });
+  vid.addEventListener('playing', hideMediaLoader);
 }
 
 /* Settings Sheet */
@@ -1322,7 +1342,7 @@ function loadHLS(m3u8Url) {
     hls.attachMedia(vid);
 
     hls.on(window.Hls.Events.MANIFEST_PARSED, (evt, data) => {
-      if (spinner) spinner.classList.add('hide');
+      if (spinner) spinner.classList.remove('hide');
       buildQualityMenu();
       if (settings.autoplay) {
         vid.play().catch(() => { applyVolume(vid.volume, true, true); vid.play().catch(() => {}); });
@@ -1356,7 +1376,7 @@ function loadHLS(m3u8Url) {
   } else if (vid.canPlayType('application/vnd.apple.mpegurl')) {
     vid.src = m3u8Url;
     vid.addEventListener('loadedmetadata', () => {
-      if (spinner) spinner.classList.add('hide');
+      if (spinner) spinner.classList.remove('hide');
       if (settings.autoplay) vid.play().catch(() => {});
     });
     vid.addEventListener('error', () => {
