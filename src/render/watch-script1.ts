@@ -811,6 +811,11 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     panel.addEventListener('click', e => {
         const btn = e.target.closest('.server-btn');
         if (!btn) return;
+        // A real user selection must permanently win over the background
+        // server-probing/autoplay chain. Previously the probe could finish
+        // a few seconds later and silently activate Sub/HD-1 even after the
+        // user had selected Hindi/another server.
+        window._manualServerSelection = true;
         const displayKey = btn.dataset.server;
         const realKey = btn.dataset.realServer || displayKey;
         const audio = panel.dataset.audio;
@@ -1102,19 +1107,19 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     subMapPromise.then(subMap => {
         const pick = firstPlayable(SUB_PROVIDERS, subMap);
         if (pick) {
-            if (!playbackStarted) activateFixedButton('sub', pick, 'sub');
+            if (!playbackStarted && !window._manualServerSelection) activateFixedButton('sub', pick, 'sub');
             return;
         }
         return dubMapPromise.then(dubMap => {
             const dpick = firstPlayable(DUB_PROVIDERS, dubMap);
             if (dpick) {
-                if (!playbackStarted) activateFixedButton('dub', dpick, 'dub');
+                if (!playbackStarted && !window._manualServerSelection) activateFixedButton('dub', dpick, 'dub');
                 return;
             }
             return hindiMapPromise.then(hindiMap => {
                 const hpick = firstPlayable(HINDI_PROVIDERS, hindiMap);
-                if (hpick && !playbackStarted) activateFixedButton('hindi', hpick, 'dub');
-                else if (!hpick && !playbackStarted) showNoServersAtAll();
+                if (hpick && !playbackStarted && !window._manualServerSelection) activateFixedButton('hindi', hpick, 'dub');
+                else if (!hpick && !playbackStarted && !window._manualServerSelection) showNoServersAtAll();
             });
         });
     });
