@@ -188,7 +188,7 @@ function renderPlayer(data, direct) {
     // Native hls.js handles redirects, byte ranges, init maps, retries,
     // and fragment scheduling correctly. Keep the unwrap code available
     // above for experiments, but do not force it onto TurboVid streams.
-    const hlsConfig = {
+    const hlsConfig: any = {
       enableWorker: true,
       backBufferLength: 90,
       debug: true,
@@ -196,6 +196,19 @@ function renderPlayer(data, direct) {
       startLevel: -1,
       testBandwidth: false,
     };
+
+    // The latest Firefox HAR proves the direct g263 request is being
+    // rejected by the browser's CORS layer: the response has status 0 and
+    // does NOT contain Access-Control-Allow-Origin. That is a browser-side
+    // block, not an HLS parser failure. For proxied playback, however, the
+    // Worker can fetch the playlist/segments server-side and add CORS.
+    //
+    // TurboVid's fake-HLS segments can also be wrapped in PNG/WebP. The
+    // unwrap loader belongs on hls.js' fragment loader (fLoader), not the
+    // playlist loader. This lets native hls.js parse/schedule playlists
+    // while only transforming the actual media bytes.
+    if (!direct) hlsConfig.fLoader = FlixUnwrapLoader;
+
     const hls = new Hls(hlsConfig);
     window._cfHls = hls;
     let retryCount = 0; const MAX_RETRIES = 4;
@@ -245,7 +258,7 @@ function renderPlayer(data, direct) {
             retryCount++;
             if (retryCount > MAX_RETRIES) {
               setStatus((direct
-                ? 'Network errors after ' + MAX_RETRIES + ' retries in DIRECT mode (with unwrap loader active) — check console for the actual fetch/decode error.'
+                ? 'Direct mode is blocked by the upstream CORS policy (Firefox reported status 0). Use Resolve & Play (Proxied) for this source.'
                 : 'Network errors after ' + MAX_RETRIES + ' retries — giving up.'), 'error');
               try { hls.destroy(); } catch(e) {}
               return;
