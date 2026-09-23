@@ -142,32 +142,19 @@ class FlixUnwrapLoader {
 // (#EXTINF) but is missing it. No-op for master/variant playlists (they
 // only list #EXT-X-STREAM-INF entries, no #EXTINF, so this never touches
 // them) and no-op for a playlist that already has ENDLIST.
-class FixEndlistLoader {
-  constructor(config) { this.config = config; this.stats = { aborted:false, loaded:0, total:0, retry:0, chunkCount:0, bwEstimate:0, loading:{start:0,first:0,end:0}, parsing:{start:0,end:0}, buffering:{start:0,first:0,end:0} }; }
+class FixEndlistLoader extends Hls.DefaultConfig.loader {
   load(context, config, callbacks) {
-    const start = performance.now();
-    this._aborted = false;
-    fetch(context.url)
-      .then((res) => { if (!res.ok) throw new Error('HTTP ' + res.status); return res.text(); })
-      .then((text) => {
-        if (this._aborted) return;
-        const first = performance.now();
-        let fixed = text;
-        if (fixed.includes('#EXTM3U') && fixed.includes('#EXTINF') && !fixed.includes('#EXT-X-ENDLIST')) {
-          fixed = fixed.trimEnd() + String.fromCharCode(10) + '#EXT-X-ENDLIST' + String.fromCharCode(10);
-        }
-        const end = performance.now();
-        this.stats.loading = { start, first, end };
-        this.stats.loaded = this.stats.total = fixed.length;
-        callbacks.onSuccess({ url: context.url, data: fixed }, this.stats, context, null);
-      })
-      .catch((err) => {
-        if (this._aborted) return;
-        callbacks.onError({ code: 0, text: err.message }, context, null, this.stats);
-      });
+    const originalSuccess = callbacks.onSuccess;
+    callbacks.onSuccess = (response, stats, ctx, networkDetails) => {
+      let data = response.data;
+      if (typeof data === 'string' && data.includes('#EXTM3U') && data.includes('#EXTINF') && !data.includes('#EXT-X-ENDLIST')) {
+        data = data.trimEnd() + String.fromCharCode(10) + '#EXT-X-ENDLIST' + String.fromCharCode(10);
+        response = { ...response, data };
+      }
+      originalSuccess(response, stats, ctx, networkDetails);
+    };
+    super.load(context, config, callbacks);
   }
-  abort() { this._aborted = true; }
-  destroy() {}
 }
 
 function renderPlayer(data, direct) {
