@@ -695,12 +695,12 @@ function switchToTurboVid(id, audio) {
     if (spinEl) spinEl.classList.remove('hide');
     if (errEl) errEl.classList.remove('show');
 
-    fetch(`${SITE_URL}/api/turbovid_stream.php?id=${encodeURIComponent(id)}`)
+    fetch(\`\${SITE_URL}/api/turbovid_stream.php?id=\${encodeURIComponent(id)}\`)
       .then(r => r.json())
       .then(d => {
         if (d.error) throw new Error(d.error);
         if (d.type === 'iframe' && d.embedUrl) {
-          pw.innerHTML = `<iframe id="main-player-iframe" src="${d.embedUrl}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe>`;
+          pw.innerHTML = \`<iframe id="main-player-iframe" src="\${d.embedUrl}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe>\`;
           return;
         }
         if (!d.hlsProxyUrl) throw new Error('TurboVid did not return an HLS stream.');
