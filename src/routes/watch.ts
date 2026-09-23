@@ -29,6 +29,8 @@ import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
 import { getEpisodeThumbnail } from '../lib/episode-thumb';
 import { SUB_PROVIDERS, DUB_PROVIDERS, HINDI_PROVIDERS, fixedServerBtn } from '../lib/stream-sources';
 
+interface TurboVidServerRow { id:number; anime_id:number; episode_num:number; audio_group:string; language:string; label:string; embed_url:string; is_active:number; }
+
 export const watchRoutes = new Hono<{ Bindings: Env }>();
 
 interface EpisodeVideoRow {
@@ -221,6 +223,7 @@ watchRoutes.get('/watch', async (c) => {
   const resumeT = Math.max(0, parseInt(c.req.query('t') ?? '0', 10) || 0);
   const resumeParam = resumeT >= 30 ? resumeT : 0;
   const hasMegaplayFallback = !video;
+  const turbovidServers = await db.fetchAll<TurboVidServerRow>('SELECT id,anime_id,episode_num,audio_group,language,label,embed_url,is_active FROM turbovid_servers WHERE anime_id=? AND episode_num=? AND is_active=1 ORDER BY audio_group, language, id',[animeId,epNum]);
 
   const anilistId = await getAnilistIdFromMal(db, animeId, c.env);
 
@@ -317,7 +320,7 @@ watchRoutes.get('/watch', async (c) => {
   html += renderWatchBody({
     anime, image, coverSm, title, animeId, epNum, totalEps, video, qSub, hasMegaplayFallback,
     isLoggedIn: auth.check(), prevEp, nextEp, currentEpInfo, chars, allEps, allVideos,
-    videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched, dubbedLangs,
+    videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched, dubbedLangs, turbovidServers,
   });
 
   // Server-probing/switching script (always present)
@@ -405,12 +408,13 @@ interface WatchBodyParams {
   siteUrl: string;
   episodesWatched: number;
   dubbedLangs: string[];
+  turbovidServers: TurboVidServerRow[];
 }
 
 export function renderWatchBody(p: WatchBodyParams): string {
   const { anime, image, coverSm, title, animeId, epNum, totalEps, video, qSub, hasMegaplayFallback,
     isLoggedIn, prevEp, nextEp, currentEpInfo, chars, allEps, allVideos, videoEpNumSet, layoutUser, siteUrl,
-    episodesWatched, dubbedLangs } = p;
+    episodesWatched, dubbedLangs, turbovidServers } = p;
 
   const genres = (anime.genres ?? []).slice(0, 6);
   const score = anime.score;
@@ -419,6 +423,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
   const animePage = `${siteUrl}/anime?id=${animeId}`;
 
   const hasRealVideo = !!video && (qSub.length > 0 || !!video.video_url);
+  const hasTurboVid = turbovidServers.length > 0;
 
   let playerHtml: string;
   if (hasRealVideo) {
@@ -433,7 +438,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
     playerHtml = `<div class="wp-no-video"><div class="nv-icon">🎬</div><p>No video available yet.<br>Check back later or explore other episodes.</p><a href="${animePage}" class="btn btn-ghost btn-sm" style="margin-top:.25rem">← Back to Anime</a></div>`;
   }
 
-  const serverControlsHtml = (isLoggedIn && (video || hasMegaplayFallback)) ? `
+  const serverControlsHtml = (isLoggedIn && (video || hasMegaplayFallback || hasTurboVid)) ? `
         <div class="wp-controls">
           <div class="wp-controls-top"><span class="wpc-label">Server</span><span class="wpc-hint">F = fullscreen</span></div>
           ${qSub.length > 0 ? `
