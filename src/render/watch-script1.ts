@@ -662,8 +662,41 @@ function switchToTurboVid(id, audio) {
           pw.innerHTML = \`<iframe id="main-player-iframe" src="\${d.embedUrl}" allow="autoplay; fullscreen; picture-in-picture" allowfullscreen loading="lazy"></iframe>\`;
           return;
         }
+
+        // TurboVid direct MP4: use the resolved video URL directly.
+        // No proxy is needed — the media host is already browser-playable.
+        if (d.type === 'mp4' && d.videoUrl) {
+          const vid = document.getElementById('sp-video');
+          if (!vid) throw new Error('Player video element not found.');
+          const badge = document.getElementById('sp-hls-badge');
+          if (badge) badge.textContent = 'MP4';
+          vid.src = d.videoUrl;
+          vid.load();
+          vid.addEventListener('playing', () => {
+            if (spinEl) spinEl.classList.add('hide');
+          }, { once: true });
+          vid.addEventListener('error', () => {
+            if (spinEl) spinEl.classList.add('hide');
+            const msg = document.getElementById('sp-err-msg');
+            if (msg) msg.textContent = 'TurboVid: direct MP4 failed to load. Try another server.';
+            if (errEl) errEl.classList.add('show');
+          }, { once: true });
+          vid.play().catch(err => {
+            if (err && err.name === 'NotAllowedError') {
+              if (spinEl) spinEl.classList.add('hide');
+              const preplay = document.getElementById('sp-preplay');
+              const ppBtn = document.getElementById('sp-pp-btn');
+              if (preplay) {
+                preplay.classList.remove('hide');
+                (ppBtn || preplay).addEventListener('click', () => { vid.play().catch(() => {}); }, { once: true });
+              }
+            }
+          });
+          return;
+        }
+
         const streamUrl = d.m3u8 || d.hlsProxyUrl;
-        if (!streamUrl) throw new Error('TurboVid did not return an HLS stream.');
+        if (!streamUrl) throw new Error('TurboVid did not return a playable stream.');
         const badge = document.getElementById('sp-hls-badge');
         if (badge) badge.textContent = 'HLS';
         if (window.SenshiPlayer && window.SenshiPlayer.loadWithSubs) {
@@ -673,8 +706,7 @@ function switchToTurboVid(id, audio) {
         } else {
           const vid = document.getElementById('sp-video');
           if (vid) { vid.src = streamUrl; vid.load(); vid.play().catch(()=>{}); }
-        }
-      })
+        }      })
       .catch(e => {
         const msg = document.getElementById('sp-err-msg');
         if (msg) msg.textContent = 'TurboVid: ' + (e.message || 'Resolve failed');
