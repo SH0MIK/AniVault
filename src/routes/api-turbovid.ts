@@ -23,5 +23,5 @@ turbovidApiRoutes.get('/api/turbovid_stream.php', async (c) => {
   const hlsProxy=base.origin+'/admin/turbovid_hls_proxy.php';
   const subProxy=base.origin+'/admin/turbovid_subtitle_proxy.php';
   await session.save(c,lifetime);
-  return c.json({id:row.id,group:row.audio_group,language:row.language,label:row.label,embedUrl:result.embedUrl,m3u8:result.m3u8,hlsProxyUrl:result.m3u8?hlsProxy+'?url='+encodeURIComponent(result.m3u8)+'&ref='+encodeURIComponent(result.referer):null,subtitles:result.subtitles.map(s=>({lang:s.lang,url:s.url})),poster:result.poster,title:result.title,type:result.type});
+  return c.json({id:row.id,group:row.audio_group,language:row.language,label:row.label,embedUrl:result.embedUrl,m3u8:result.m3u8,videoUrl:result.videoUrl,videoProxyUrl:result.videoUrl?hlsProxy+'?url='+encodeURIComponent(result.videoUrl)+'&ref='+encodeURIComponent(result.referer):null,hlsProxyUrl:result.m3u8?hlsProxy+'?url='+encodeURIComponent(result.m3u8)+'&ref='+encodeURIComponent(result.referer):null,subtitles:result.subtitles.map(s=>({lang:s.lang,url:s.url})),poster:result.poster,title:result.title,type:result.type});
 });
