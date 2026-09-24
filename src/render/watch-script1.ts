@@ -1064,24 +1064,25 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 return new Promise(res => setTimeout(res, attempt * 1500)).then(() => fetchSourceList(source, audio, attempt + 1));
             });
     }
-    function checkSourceProvider(source, providerName, audio, lang, attempt = 1) {
+    function checkSourceProvider(source, providerName, audio, lang) {
         let url = \`\${SITE}/api/\${STREAM_ENDPOINT[source]}?anime=\${ANIME}&ep=\${EP}&audio=\${audio}&server=\${encodeURIComponent(providerName)}\`;
         if (lang) url += \`&lang=\${encodeURIComponent(lang)}\`;
-        return fetchJsonTimeout(url, 25000).then(d => {
+
+        return fetchJsonTimeout(url, 15000).then(d => {
             const ok = !d.error && !!(d.m3u8 || d.mp4 || d.iframeOnly);
-            console.log('[AniVault player]', source, providerName, audio, lang || '', 'attempt', attempt, ok ? 'OK' : 'FAILED', d);
+            console.log('[AniVault player]', source, providerName, audio, lang || '', ok ? 'OK' : 'FAILED', d);
+
             if (ok) {
                 const cacheName = '_' + source + 'Cache';
                 window[cacheName] = window[cacheName] || {};
-                window[cacheName][[audio, lang || '', providerName.toLowerCase().trim()].join('::')] = { data: d, ts: Date.now() };
-                return true;
+                window[cacheName][[audio, lang || '', providerName.toLowerCase().trim()].join('::')] = {
+                    data: d, ts: Date.now()
+                };
             }
-            if (attempt >= 2) return false;
-            return checkSourceProvider(source, providerName, audio, lang, attempt + 1);
+            return ok;
         }).catch(e => {
-            console.error('[AniVault player]', source, providerName, audio, lang || '', 'attempt', attempt, 'threw/timed out', e);
-            if (attempt >= 2) return false;
-            return checkSourceProvider(source, providerName, audio, lang, attempt + 1);
+            console.error('[AniVault player]', source, providerName, audio, lang || '', 'timed out/failed', e);
+            return false;
         });
     }
 
@@ -1142,21 +1143,49 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     // provider in the group that DID resolve, so its button — same
     // label, same position — quietly plays that instead of showing an
     // error.
-    function resolveGroupUI(group, defs, audio) {
+    async function resolveGroupUI(group, defs, audio) {
         const ids = defs.map(d => providerId(d.source, d.provider));
         ids.forEach(id => setBtnPending(group, id));
-        return Promise.all(defs.map((def, i) => resolveProvider(def, audio).then(realKey => ({ id: ids[i], realKey })))).then(results => {
-            const resolvedMap = {};
-            results.forEach(r => { resolvedMap[r.id] = r.realKey; });
+        const resolvedMap = {};
+
+        // IMPORTANT: probe API providers one-by-one. The old Promise.all()
+        // fired every resolver at once and could overload the scraper API,
+        // causing several requests to time out together.
+        for (let i = 0; i < defs.length; i++) {
+            const id = ids[i];
+            let realKey = null;
+            try {
+                realKey = await resolveProvider(defs[i], audio);
+            } catch (e) {
+                console.error('[AniVault player] sequential probe failed', group, defs[i], e);
+            }
+
+            if (realKey) {
+                resolvedMap[id] = realKey;
+                setBtnResolved(group, id, realKey, false);
+
+                // Start the FIRST working API server immediately. Do not
+                // wait for the remaining providers to finish probing.
+                if (!playbackStarted && !window._manualServerSelection) {
+                    activateFixedButton(group, id, audio);
+                }
+            } else {
+                setBtnDead(group, id);
+            }
+        }
+
+        // Preserve the existing visual fallback behavior without doing any
+        // additional network requests.
+        const fallbackId = ids.find(id => resolvedMap[id]);
+        if (fallbackId) {
             ids.forEach(id => {
-                const own = resolvedMap[id];
-                if (own) { setBtnResolved(group, id, own, false); return; }
-                const fb = ids.find(other => other !== id && resolvedMap[other]);
-                if (fb) setBtnResolved(group, id, resolvedMap[fb], true);
-                else setBtnDead(group, id);
+                if (!resolvedMap[id]) {
+                    setBtnResolved(group, id, resolvedMap[fallbackId], true);
+                }
             });
-            return resolvedMap;
-        });
+        }
+
+        return resolvedMap;
     }
     function firstPlayable(defs, resolvedMap) {
         for (let i = 0; i < defs.length; i++) {
@@ -1222,48 +1251,61 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         return btn;
     }
     let multiPending = 0, multiHasAny = false;
-    function multiTaskDone() {
-        multiPending--;
-        if (multiPending === 0) {
-            const loading = document.getElementById('servers-dub-multi-loading');
-            if (multiHasAny) { if (loading) loading.remove(); }
-            else { const grp = document.getElementById('dub-multi-group'); if (grp) grp.remove(); }
+    function finishMultiUI() {
+        const loading = document.getElementById('servers-dub-multi-loading');
+        if (multiHasAny) { if (loading) loading.remove(); }
+        else {
+            const grp = document.getElementById('dub-multi-group');
+            if (grp) grp.remove();
         }
     }
-    MULTI_LANG_SOURCES.forEach(source => {
-        multiPending++;
-        getDubListOnce(source).then(list => {
+
+    // Multi-language discovery is sequential too: one source/list/provider
+    // request at a time, preventing a burst against the scraper API.
+    (async function probeMultiSequentially() {
+        for (const source of MULTI_LANG_SOURCES) {
+            let list = [];
+            try {
+                list = await getDubListOnce(source);
+            } catch (e) {
+                console.error('[AniVault player] multi list failed', source, e);
+            }
+
             const multiList = list.filter(s => {
                 const b = langBucket(s.lang);
                 if (b === 'en') return false;
-                // WatchAnimeWorld's Hindi servers are handled by the fixed
-                // Hindi group instead — don't also show them here.
                 if (b === 'hindi' && source === 'watchanimeworld') return false;
                 return true;
             });
-            multiList.forEach(s => {
-                const pKey = s.name.toLowerCase().trim();
-                const langKey = s.lang;
+
+            for (const entry of multiList) {
                 multiPending++;
-                checkSourceProvider(source, s.name, 'dub', langKey).then(ok => {
-                    if (ok) {
-                        const body = document.getElementById('servers-dub-multi-body');
-                        const loading = document.getElementById('servers-dub-multi-loading');
-                        const grp = document.getElementById('dub-multi-group');
-                        const label = \`\${SOURCE_LABELS[source]}-\${s.name} (\${prettyLang(s.lang)})\`;
-                        const inserted = insertPriorityBtn(body, loading, grp, \`\${source}:dub:\${langKey}:\${pKey}\`, label, prettyLang(s.lang), priorityOf(MULTI_PRIORITY, source));
-                        if (inserted) multiHasAny = true;
-                    }
-                    multiTaskDone();
-                });
-            });
-            multiTaskDone();
-        });
-    });
+                const pKey = entry.name.toLowerCase().trim();
+                const langKey = entry.lang;
+                const ok = await checkSourceProvider(source, entry.name, 'dub', langKey);
+                multiPending--;
+
+                if (!ok) continue;
+
+                const body = document.getElementById('servers-dub-multi-body');
+                const loading = document.getElementById('servers-dub-multi-loading');
+                const grp = document.getElementById('dub-multi-group');
+                const label = \`\${SOURCE_LABELS[source]}-\${entry.name} (\${prettyLang(entry.lang)})\`;
+                const inserted = insertPriorityBtn(
+                    body, loading, grp,
+                    \`\${source}:dub:\${langKey}:\${pKey}\`,
+                    label, prettyLang(entry.lang), priorityOf(MULTI_PRIORITY, source)
+                );
+                if (inserted) multiHasAny = true;
+            }
+        }
+
+        finishMultiUI();
+    })();
 
     // Debug hook — inspect live group resolution from the console
     // (window._debugPending() at any time) if a button seems stuck.
-    window._debugPending = () => ({ playbackStarted, multiPending, multiHasAny });
+    window._debugPending = () => ({ playbackStarted, multiPending, multiHasAny, probeMode: 'sequential' });
     } catch (e) {
       _showFatalClientError('probeAndRenderServers crashed: ' + (e && e.message ? e.message : e));
     }
