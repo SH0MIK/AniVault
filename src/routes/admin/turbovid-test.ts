@@ -184,8 +184,30 @@ function renderPlayer(data, direct) {
   // is removed client-side by FlixUnwrapLoader.
   // Subtitles stay proxied either way — they're small text files, not the
   // thing under test; only the video path matters here.
+  // Plain MP4 TurboVid embeds (including uploaded .mkv files) use the same
+  // JWPlayer page but expose a direct .mp4 in var urlPlay instead of m3u8.
+  if (!data.m3u8 && data.videoUrl) {
+    const videoUrl = direct ? data.videoUrl : (data.videoProxyUrl || data.videoUrl);
+    ep.innerHTML = '<video id="turbovidCfPreview" controls playsinline crossorigin="anonymous" style="width:100%;height:100%;"></video>';
+    const video = document.getElementById('turbovidCfPreview');
+    video.src = videoUrl;
+    video.addEventListener('loadedmetadata', () => setStatus('MP4 loaded ✓ — ' + (video.videoWidth || '?') + '×' + (video.videoHeight || '?'), 'ok'));
+    video.addEventListener('canplay', () => setStatus('MP4 ready ✓ — press play', 'ok'));
+    video.addEventListener('error', () => setStatus('MP4 playback failed (check the upstream URL/CORS or proxy response).', 'error'));
+    video.play().catch(() => {});
+    renderSubtitleBar(video, data.subtitles);
+    document.getElementById('meta').innerHTML =
+      '<div><b>Mode:</b> ' + (direct ? 'DIRECT MP4' : 'PROXIED MP4') + '</div>' +
+      '<div><b>Title:</b> ' + h(data.title || '—') + '</div>' +
+      '<div><b>Embed:</b> ' + h(data.embedUrl || '—') + '</div>' +
+      '<div><b>MP4:</b> ' + h(data.videoUrl || '—') + '</div>' +
+      '<div><b>Referer used:</b> ' + h(data.referer || '—') + '</div>' +
+      '<div><b>Subtitles:</b> ' + ((data.subtitles||[]).length ? data.subtitles.map(s=>h(s.lang)).join(', ') : 'none') + '</div>';
+    return;
+  }
+
   const hlsUrl = direct ? data.m3u8 : (data.hlsProxyUrl || data.m3u8);
-  if (!hlsUrl) { ep.innerHTML = '<span style="color:var(--accent);font-size:0.85rem;">No m3u8 in the resolved response</span>'; return; }
+  if (!hlsUrl) { ep.innerHTML = '<span style="color:var(--accent);font-size:0.85rem;">No playable stream found in resolved response</span>'; return; }
 
   ep.innerHTML = '<video id="turbovidCfPreview" controls playsinline crossorigin="anonymous" style="width:100%;height:100%;"></video>';
   const video = document.getElementById('turbovidCfPreview');
@@ -339,7 +361,7 @@ adminTurbovidRoutes.get('/admin/turbovid_resolve.php', async (c) => {
   const result = await resolveTurbovidCF(embedUrl);
   await session.save(c, lifetime);
   if (!result) return c.json({ error: 'Failed to resolve turbovid embed' }, 502);
-  if (!result.m3u8) return c.json({ error: 'No m3u8 found in embed page', embedUrl, title: result.title }, 502);
+  if (!result.m3u8 && !result.videoUrl) return c.json({ error: 'No playable stream found in embed page', embedUrl, title: result.title }, 502);
 
   const base = new URL(c.req.url);
   const hlsProxyBase = `${base.origin}/admin/turbovid_hls_proxy.php`;
@@ -348,6 +370,8 @@ adminTurbovidRoutes.get('/admin/turbovid_resolve.php', async (c) => {
   return c.json({
     embedUrl: result.embedUrl,
     m3u8: result.m3u8,
+    videoUrl: result.videoUrl,
+    videoProxyUrl: result.videoUrl ? proxiedHlsUrl(hlsProxyBase, result.videoUrl, result.referer) : null,
     hlsProxyUrl: proxiedHlsUrl(hlsProxyBase, result.m3u8, result.referer),
     subtitles: result.subtitles.map((s) => ({ lang: s.lang, url: proxiedHlsUrl(subProxyBase, s.url, result.referer) })),
     poster: result.poster,
