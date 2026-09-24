@@ -897,12 +897,32 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     // AniVault TurboVid is the primary server when one is saved for this
     // episode. Start it immediately instead of waiting for the slower
     // third-party server probes. The button remains first in every group.
-    const initialAvSub = document.querySelector('#tab-panel-sub .turbovid-server-btn');
-    if (initialAvSub) {
+    // Start the first saved AniVault source immediately. Prefer Sub, then
+    // English Dub, Hindi Dub, and finally Multi Dub. Hindi/Multi buttons live
+    // inside the Dub tab, so they use the "dub" playback bucket.
+    let initialAv = document.querySelector('#tab-panel-sub .turbovid-server-btn');
+    let initialAvAudio = 'sub';
+    if (!initialAv) {
+        initialAv = document.querySelector('#servers-dub-body .turbovid-server-btn');
+        initialAvAudio = 'dub';
+    }
+    if (!initialAv) {
+        initialAv = document.querySelector('#servers-dub-hindi-body .turbovid-server-btn');
+        initialAvAudio = 'dub';
+    }
+    if (!initialAv) {
+        initialAv = document.querySelector('#servers-dub-multi-body .turbovid-server-btn');
+        initialAvAudio = 'dub';
+    }
+    if (initialAv) {
         playbackStarted = true;
         document.querySelectorAll('.server-btn').forEach(b => b.classList.remove('active'));
-        initialAvSub.classList.add('active');
-        switchToServer(initialAvSub.dataset.server, 'sub', initialAvSub.dataset.server);
+        initialAv.classList.add('active');
+        if (initialAvAudio === 'dub') {
+            document.querySelectorAll('.server-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'dub'));
+            document.querySelectorAll('.server-tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-panel-dub'));
+        }
+        switchToServer(initialAv.dataset.server, initialAvAudio, initialAv.dataset.server);
     }
 
     // Plain fetch() has no timeout: if the scraper backend hangs on one
