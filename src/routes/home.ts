@@ -19,7 +19,7 @@ import { CONTINUE_WATCHING_CSS } from '../render/home-css';
 import { continueWatchingScript, heroSliderScript, rowNavScript } from '../render/home-js';
 import type { NormalisedAnime } from '../lib/mal-api';
 import { getBannerData } from '../lib/settings';
-import { getEpisodeThumbnail } from '../lib/episode-thumb';
+import { getAnimeEpisodeThumbnails } from '../lib/episode-thumb';
 
 export const homeRoutes = new Hono<{ Bindings: Env }>();
 
@@ -104,24 +104,28 @@ homeRoutes.get('/', async (c) => {
 
       const missing = watchHistory.filter((r) => !episodeThumbOverrides[`${r.anime_id}:${r.episode_num}`]);
       if (missing.length > 0) {
-        // Look up each distinct show's status first (mal.getAnime is itself
-        // KV-cached, so this is cheap on a warm cache) so a finished-airing
-        // show's thumbnail gets written to the permanent cache tier instead
-        // of the 6h one -- same as the anime detail/watch pages.
+        // Use the same bulk thumbnail resolver as the anime detail page.
+        // That endpoint seeds/reads one D1 cache entry per anime, while the
+        // old home-page path asked the scraper once per history card. Besides
+        // being slower, that meant a cold individual lookup could miss while
+        // the anime page's already-populated bulk cache had the thumbnail.
+        // Resolve each distinct show once, then pick the watched episode.
         const distinctIds = [...new Set(missing.map((r) => r.anime_id))];
-        const statusMap = new Map<number, string | undefined>();
         await Promise.all(distinctIds.map(async (id) => {
-          const res = await mal.getAnime(id, true).catch(() => null);
-          statusMap.set(id, res?.data?.status);
+          const animeData = await mal.getAnime(id, true).catch(() => null);
+          const thumbs = await getAnimeEpisodeThumbnails(
+            c.env,
+            db,
+            id,
+            animeData?.data?.status,
+            animeData?.data?.episodes ?? null
+          );
+          for (const row of missing) {
+            if (row.anime_id !== id) continue;
+            const thumb = thumbs[row.episode_num];
+            if (thumb) episodeThumbOverrides[`${row.anime_id}:${row.episode_num}`] = thumb;
+          }
         }));
-
-        const scraped = await Promise.all(
-          missing.map((r) => getEpisodeThumbnail(c.env, db, r.anime_id, r.episode_num, statusMap.get(r.anime_id)))
-        );
-        missing.forEach((r, i) => {
-          const thumb = scraped[i];
-          if (thumb) episodeThumbOverrides[`${r.anime_id}:${r.episode_num}`] = thumb;
-        });
       }
     }
   }
