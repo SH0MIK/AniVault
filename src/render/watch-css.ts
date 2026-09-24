@@ -92,6 +92,30 @@ export const WATCH_CSS = `/* ═════════════════
 }
 .wp-player-shell iframe { width:100%; height:100%; display:block; border:none; }
 
+.wp-player-loading {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: .65rem;
+  color: var(--text-muted);
+  font-size: .78rem;
+  font-weight: 600;
+  letter-spacing: .03em;
+  background: #000;
+}
+.wp-player-loading-ring {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2.5px solid rgba(255,255,255,.12);
+  border-top-color: var(--accent);
+  box-shadow: 0 0 14px rgba(124,58,237,.25);
+  animation: wpfsSpin .75s linear infinite;
+}
+
 .wp-player-accent-line {
   height: 2px;
   background: linear-gradient(90deg, transparent 0%, var(--accent) 30%, rgba(124,58,237,.4) 70%, transparent 100%);
