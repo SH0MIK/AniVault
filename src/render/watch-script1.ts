@@ -1195,9 +1195,11 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         return null;
     }
 
+    // Run the groups themselves in sequence as well. This keeps the
+    // scraper API from receiving Sub + Dub + Hindi resolver bursts.
     const subMapPromise = resolveGroupUI('sub', SUB_PROVIDERS, 'sub');
-    const dubMapPromise = resolveGroupUI('dub', DUB_PROVIDERS, 'dub');
-    const hindiMapPromise = resolveGroupUI('hindi', HINDI_PROVIDERS, 'dub');
+    const dubMapPromise = subMapPromise.then(() => resolveGroupUI('dub', DUB_PROVIDERS, 'dub'));
+    const hindiMapPromise = dubMapPromise.then(() => resolveGroupUI('hindi', HINDI_PROVIDERS, 'dub'));
 
     // Autoplay priority: Sub first; if Sub has nothing at all for this
     // episode, fall to English Dub; if that's also empty, fall to Hindi
