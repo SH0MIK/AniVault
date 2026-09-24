@@ -379,11 +379,6 @@ watchRoutes.get('/watch', async (c) => {
 
   html += renderFooter({ siteUrl, currentUser: layoutUser });
 
-    // One-time toast (handled in app.js) so the visitor sees their generated
-    // credentials immediately; the same details also live in their
-    // notifications bell (see Auth.autoRegister) in case they miss this.
-    html += `<script>window.__autoAccountInfo=${JSON.stringify(justAutoCreated)};</script>`;
-  }
 
   await session.save(c, session.data.auto_created ? AUTO_SESSION_LIFETIME_SECONDS : lifetime);
   return c.html(html);
