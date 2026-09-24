@@ -449,6 +449,7 @@ export class MalAPI {
     if (this.kv && this.cacheEnabled()) {
       const cached = await this.safeKvGet(cacheKey, 'json') as typeof empty | null;
       if (cached) return cached;
+    }
 
     if (!liveFetch) return empty;
 
@@ -473,6 +474,7 @@ export class MalAPI {
   async clearScraperArtCache(malId: number): Promise<void> {
     if (!malId || !this.kv) return;
     await Promise.all([
+      this.kv.delete(`scraper_art_v2_${malId}`).catch(() => {}),
       this.kv.delete(`scraper_art_${malId}`).catch(() => {}),
       this.kv.delete(`scraper_art_${malId}_list`).catch(() => {}),
       this.kv.delete(`scraper_art_${malId}_full`).catch(() => {}),
