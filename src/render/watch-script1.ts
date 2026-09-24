@@ -862,6 +862,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
 // Hits the real stream endpoints for this anime/episode (not just a
 // provider listing) so broken/404 servers never show up as clickable.
 (function probeAndRenderServers() {
+  function startServerProbe() {
     // The server tab panels only exist for logged-in users with a video
     // (see the Auth::check() && ($video || $megaplayEmbed) guard above).
     // For everyone else #watch-player-wrap holds the sign-in gate — don't
@@ -1243,8 +1244,18 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     // Debug hook — inspect live group resolution from the console
     // (window._debugPending() at any time) if a button seems stuck.
     window._debugPending = () => ({ playbackStarted, multiPending, multiHasAny });
-  } catch (e) {
-    _showFatalClientError('probeAndRenderServers crashed: ' + (e && e.message ? e.message : e));
+    } catch (e) {
+      _showFatalClientError('probeAndRenderServers crashed: ' + (e && e.message ? e.message : e));
+    }
+  }
+
+  // watchScript1 is emitted before the hidden Senshi player markup. Wait
+  // until the DOM is complete so the AV primary can start with a real
+  // player element instead of playing behind the initial finding-server gate.
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startServerProbe, { once: true });
+  } else {
+    startServerProbe();
   }
 })();
 
