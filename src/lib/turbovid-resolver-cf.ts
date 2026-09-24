@@ -20,11 +20,12 @@ export interface TurbovidSubtitle {
 export interface TurbovidResult {
   embedUrl: string;
   m3u8: string | null;
+  videoUrl: string | null;
   subtitles: TurbovidSubtitle[];
   poster: string | null;
   title: string | null;
   referer: string;
-  type: 'hls' | 'iframe';
+  type: 'hls' | 'mp4' | 'iframe';
 }
 
 const BROWSER_HEADERS: Record<string, string> = {
@@ -97,6 +98,14 @@ export async function resolveTurbovidCF(embedUrl: string): Promise<TurbovidResul
       /var\s+urlPlay\s*=\s*['"]((https?:\/\/[^'"]+\.m3u8[^'"]*))['"]/i,
     ]);
 
+    // Some TurboVid embeds are plain MP4 files (including uploads whose
+    // original filename is .mkv). Those pages use the same JWPlayer shell,
+    // but urlPlay points directly at the .mp4 instead of an HLS playlist.
+    const videoUrl = firstMatch(html, [
+      /var\s+urlPlay\s*=\s*['"](https?:\/\/[^'"]+)['"]/i,
+      /["']file["']\s*:\s*['"](https?:\/\/[^'"]+)['"]/i,
+    ]);
+
     const subtitleFeedUrl = firstMatch(html, [
       /var\s+urlSub\s*=\s*['"](https?:\/\/[^'"]+)['"]/i,
     ]);
@@ -109,11 +118,12 @@ export async function resolveTurbovidCF(embedUrl: string): Promise<TurbovidResul
     return {
       embedUrl,
       m3u8,
+      videoUrl: m3u8 ? null : videoUrl,
       subtitles,
       poster,
       title,
       referer: `${embed.origin}/`,
-      type: m3u8 ? 'hls' : 'iframe',
+      type: m3u8 ? 'hls' : videoUrl ? 'mp4' : 'iframe',
     };
   } catch (e) {
     console.warn('[turbovid-cf] resolveTurbovidCF failed:', (e as Error).message);
