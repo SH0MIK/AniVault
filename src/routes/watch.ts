@@ -323,25 +323,8 @@ watchRoutes.get('/watch', async (c) => {
     videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched, dubbedLangs, turbovidServers,
   });
 
-  // Server-probing/switching script (always present)
-  // NOTE: watchScript1() already returns its own <script>...</script>-wrapped
-  // string — do NOT wrap it again here. Doing so produces nested <script>
-  // tags, which the browser's HTML parser can't handle (it just scans for
-  // the first literal </script>, closing the tag early and handing the JS
-  // engine a stray leftover "<script>" as its first token — an immediate
-  // syntax error that silently kills this entire block before anything,
-  // including the server probe, ever runs).
-  html += watchScript1({
-    anilistId, epNum, resumeParam, animeId, siteUrl, qSub, qDub, isLoggedIn: auth.check(),
-  });
-
-  // Wall-clock progress tracker (logged-in users only, matches the PHP Auth::check() gate)
-  if (auth.check()) {
-    html += watchScript2(animeId, epNum, siteUrl, epDurationSec, totalEps);
-  }
-
-  html += renderFooter({ siteUrl, currentUser: layoutUser });
-
+  // Senshi player is emitted before the startup scripts so the player DOM
+  // is guaranteed to exist when watchScript1 begins its DOM-ready startup.
   // Senshi player -- pre-rendered hidden, moved into #watch-player-wrap by
   // the server-switching script on demand (same DOM-move pattern as the PHP version).
   const watchBase = `${siteUrl}/watch?anime=${animeId}&ep=`;
@@ -373,7 +356,29 @@ watchRoutes.get('/watch', async (c) => {
   html += playerScript(animeId, epNum, siteUrl);
   html += `</div>`;
 
+// Server-probing/switching script (always present)
+  // NOTE: watchScript1() already returns its own <script>...</script>-wrapped
+  // string — do NOT wrap it again here. Doing so produces nested <script>
+  // tags, which the browser's HTML parser can't handle (it just scans for
+  // the first literal </script>, closing the tag early and handing the JS
+  // engine a stray leftover "<script>" as its first token — an immediate
+  // syntax error that silently kills this entire block before anything,
+  // including the server probe, ever runs).
+  html += watchScript1({
+    anilistId, epNum, resumeParam, animeId, siteUrl, qSub, qDub, isLoggedIn: auth.check(),
+  });
+
+  // Wall-clock progress tracker (logged-in users only, matches the PHP Auth::check() gate)
+  if (auth.check()) {
+    html += watchScript2(animeId, epNum, siteUrl, epDurationSec, totalEps);
+  }
+
   if (justAutoCreated) {
+    html += `<script>window.__autoAccountInfo=${JSON.stringify(justAutoCreated)};</script>`;
+  }
+
+  html += renderFooter({ siteUrl, currentUser: layoutUser });
+
     // One-time toast (handled in app.js) so the visitor sees their generated
     // credentials immediately; the same details also live in their
     // notifications bell (see Auth.autoRegister) in case they miss this.
@@ -436,7 +441,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
     // AV source was already playing because watchScript1 ran before the
     // hidden Senshi player DOM was emitted.
     playerHtml = isLoggedIn
-      ? `<div class="wp-player-shell" id="watch-player-wrap" style="position:relative;aspect-ratio:unset;overflow:visible;background:transparent;border:none;box-shadow:none;"></div><div class="wp-player-accent-line"></div>`
+      ? `<div class="wp-player-shell" id="watch-player-wrap"><div class="wp-player-loading" id="wp-player-loading"><div class="wp-player-loading-ring"></div><span>Loading player...</span></div></div><div class="wp-player-accent-line"></div>`
       : renderSignInGate(image, 'wg-play2', 'wg-signin2', 'wg-signup2');
   } else {
     playerHtml = `<div class="wp-no-video"><div class="nv-icon">🎬</div><p>No video available yet.<br>Check back later or explore other episodes.</p><a href="${animePage}" class="btn btn-ghost btn-sm" style="margin-top:.25rem">← Back to Anime</a></div>`;
