@@ -430,9 +430,13 @@ export function renderWatchBody(p: WatchBodyParams): string {
     playerHtml = isLoggedIn
       ? `<div class="wp-player-shell" id="watch-player-wrap">${qSub.length > 0 ? qSub[0].embed : `<iframe id="main-player-iframe" src="${h(video!.video_url ?? '')}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen loading="lazy"></iframe>`}</div><div class="wp-player-accent-line"></div>`
       : renderSignInGate(image, 'wg-play', 'wg-signin', 'wg-signup');
-  } else if (hasMegaplayFallback) {
+  } else if (hasMegaplayFallback || hasTurboVid) {
+    // Keep the player shell present whenever a saved TurboVid source exists.
+    // The old "Finding the best server" gate could remain visible while the
+    // AV source was already playing because watchScript1 ran before the
+    // hidden Senshi player DOM was emitted.
     playerHtml = isLoggedIn
-      ? `<div class="wp-player-shell" id="watch-player-wrap" style="position:relative;aspect-ratio:unset;overflow:visible;background:transparent;border:none;box-shadow:none;"><div class="wp-finding-server" id="wp-finding-server"><div class="wpfs-ring"></div><div class="wpfs-text">Finding the best server<span class="wpfs-dots"><span>.</span><span>.</span><span>.</span></span></div></div></div><div class="wp-player-accent-line"></div>`
+      ? `<div class="wp-player-shell" id="watch-player-wrap" style="position:relative;aspect-ratio:unset;overflow:visible;background:transparent;border:none;box-shadow:none;"></div><div class="wp-player-accent-line"></div>`
       : renderSignInGate(image, 'wg-play2', 'wg-signin2', 'wg-signup2');
   } else {
     playerHtml = `<div class="wp-no-video"><div class="nv-icon">🎬</div><p>No video available yet.<br>Check back later or explore other episodes.</p><a href="${animePage}" class="btn btn-ghost btn-sm" style="margin-top:.25rem">← Back to Anime</a></div>`;
