@@ -715,6 +715,62 @@ function switchToTurboVid(id, audio) {
       });
 }
 
+function ensureInitialAvPlayback() {
+    // The saved AniVault source is the primary server, so its first load
+    // should start without requiring a second click on the AV button.
+    // Browsers may block audible autoplay, so first try normally and then
+    // retry muted when the browser only permits inaudible autoplay.
+    const startedAt = Date.now();
+    const maxWait = 15000;
+
+    const attempt = () => {
+        const vid = document.getElementById('sp-video');
+        if (!vid) {
+            if (Date.now() - startedAt < maxWait) setTimeout(attempt, 200);
+            return;
+        }
+
+        // Keep the native autoplay flag on for browsers that honor it.
+        vid.autoplay = true;
+
+        const tryPlay = () => {
+            const p = vid.play();
+            if (!p || typeof p.then !== 'function') return;
+
+            p.then(() => {
+                // Restore the user's normal audio state after a successful
+                // muted-autoplay fallback. If the browser permits audible
+                // autoplay, this simply leaves the existing state untouched.
+                if (vid.dataset.avAutoMuted === '1') {
+                    vid.muted = false;
+                    delete vid.dataset.avAutoMuted;
+                }
+            }).catch(err => {
+                if (err && err.name === 'NotAllowedError' && !vid.muted) {
+                    // Muted media is generally permitted to autoplay even
+                    // where audible autoplay is blocked.
+                    vid.muted = true;
+                    vid.dataset.avAutoMuted = '1';
+                    const retry = vid.play();
+                    if (retry && typeof retry.catch === 'function') {
+                        retry.catch(() => {});
+                    }
+                }
+            });
+        };
+
+        // Once enough media is available, make the play attempt. We also
+        // retry briefly because HLS attaches MediaSource asynchronously.
+        if (vid.readyState >= 2) {
+            tryPlay();
+        } else if (Date.now() - startedAt < maxWait) {
+            setTimeout(attempt, 200);
+        }
+    };
+
+    attempt();
+}
+
 function switchToServer(serverName, audio = currentAudio, displayKey) {
     const pw = document.getElementById('watch-player-wrap');
     if (!pw) return;
@@ -923,6 +979,10 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             document.querySelectorAll('.server-tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-panel-dub'));
         }
         switchToServer(initialAv.dataset.server, initialAvAudio, initialAv.dataset.server);
+        // AV is the primary source: keep trying the actual video element
+        // until the stream has attached, instead of requiring the user to
+        // click the same AV button again.
+        ensureInitialAvPlayback();
     }
 
     // Plain fetch() has no timeout: if the scraper backend hangs on one
