@@ -1492,6 +1492,8 @@ function filterEps(q){
   if(!nav || !btn || !root || !video) return;
 
   var native=false;
+  var waitingForReswitch=false;
+  var reswitchTimer=null;
 
   function setReady(){
     var ready=!!(window._senshiLastSource && window._senshiLastSource.url);
@@ -1501,35 +1503,38 @@ function filterEps(q){
   function clearTracks(){
     Array.from(video.querySelectorAll('track[data-anivault-native]')).forEach(function(t){ t.remove(); });
   }
+
   function showNative(source){
     if(!source || !source.url) return;
-    // Clone the source because switching/destroying the custom player can
-    // mutate its media state; native mode must use the exact resolved URL
-    // that was actually playing.
     source = {
       url: source.url,
-      type: source.type || (/\.mp4(?:$|[?#])/i.test(source.url) ? 'mp4' : 'hls'),
+      type: source.type || (/\\.mp4(?:$|[?#])/i.test(source.url) ? 'mp4' : 'hls'),
       subtitles: Array.isArray(source.subtitles) ? source.subtitles.slice() : []
     };
+
     native=true;
+    waitingForReswitch=false;
+    if(reswitchTimer){ clearTimeout(reswitchTimer); reswitchTimer=null; }
+
     btn.classList.add('is-on');
     btn.setAttribute('aria-pressed','true');
     root.classList.add('native-player-mode');
-    // For a direct MP4 that is already loaded in the custom player, keep
-    // the existing media element/source alive. Reloading the same URL here
-    // makes some hosts issue a second request and return a transient
-    // corrupted-media response. Native mode should simply take over the
-    // already-loaded MP4 element.
+
     var currentMediaUrl = video.currentSrc || video.src || '';
     var keepCurrentMp4 = source.type === 'mp4' && !!currentMediaUrl &&
       (currentMediaUrl === source.url || currentMediaUrl.split('#')[0] === source.url.split('#')[0]);
 
-    if (!keepCurrentMp4) {
-      try { if(window.SenshiPlayer && window.SenshiPlayer.destroy) window.SenshiPlayer.destroy(); } catch(e){}
-      try { video.pause(); } catch(e){}
-      try { video.srcObject = null; } catch(e){}
+    // If the source is already loaded, take over the exact same media
+    // element. This is the same state reached after switching servers once.
+    if(!keepCurrentMp4){
+      try { if(window.SenshiPlayer && window.SenshiPlayer.destroy) window.SenshiPlayer.destroy(); }catch(e){}
+      try { video.pause(); }catch(e){}
+      try { video.srcObject=null; }catch(e){}
       video.removeAttribute('src');
-      try { video.load(); } catch(e){}
+      try { video.load(); }catch(e){}
+      video.src=source.url;
+      video.preload='metadata';
+      video.load();
     }
 
     clearTracks();
@@ -1537,11 +1542,7 @@ function filterEps(q){
     video.setAttribute('controlsList','nodownload');
     video.setAttribute('disablePictureInPicture','');
     video.setAttribute('playsinline','');
-    if (!keepCurrentMp4) {
-      video.src=source.url;
-      video.preload='metadata';
-      video.load();
-    }
+
     (Array.isArray(source.subtitles) ? source.subtitles : []).forEach(function(s,i){
       if(!s || !s.url) return;
       var tr=document.createElement('track');
@@ -1553,10 +1554,73 @@ function filterEps(q){
       tr.setAttribute('data-anivault-native','1');
       video.appendChild(tr);
     });
+
     video.play().catch(function(){});
   }
+
+  function forceReswitchThenNative(){
+    var source=window._senshiLastSource;
+    if(!source || !source.url) return;
+
+    waitingForReswitch=true;
+    native=false;
+    btn.classList.remove('is-on');
+    btn.setAttribute('aria-pressed','false');
+    root.classList.remove('native-player-mode');
+    clearTracks();
+
+    // Do exactly what a server re-switch does: resolve/load the currently
+    // selected server again, then hand the newly loaded media to native mode.
+    // This is intentionally used instead of trying to mutate the current
+    // custom-player state in place.
+    if(typeof window.retryCurrentServer === 'function'){
+      window.retryCurrentServer();
+    }else if(typeof switchToServer === 'function'){
+      switchToServer(currentServer,currentAudio,currentDisplayServer);
+    }else{
+      waitingForReswitch=false;
+      showNative(source);
+      return;
+    }
+
+    var started=false;
+    function handoff(){
+      if(started || !waitingForReswitch) return;
+      var latest=window._senshiLastSource;
+      if(!latest || !latest.url) return;
+      started=true;
+      video.removeEventListener('playing',handoff);
+      video.removeEventListener('canplay',handoff);
+      showNative(latest);
+    }
+
+    video.addEventListener('playing',handoff);
+    video.addEventListener('canplay',handoff);
+
+    // Some browsers load the MP4 but don't autoplay it. In that case canplay
+    // may still fire; this timeout is a final handoff once media metadata is
+    // available, so the switch never depends on a second manual server tap.
+    reswitchTimer=setTimeout(function(){
+      if(started) return;
+      var latest=window._senshiLastSource;
+      if(latest && latest.url && video.readyState>=1){
+        handoff();
+      }
+    },1500);
+
+    // Hard fallback for hosts that take longer to report media readiness.
+    setTimeout(function(){
+      if(!started && waitingForReswitch){
+        var latest=window._senshiLastSource;
+        if(latest && latest.url) handoff();
+      }
+    },10000);
+  }
+
   function showCustom(){
     var source=window._senshiLastSource;
+    waitingForReswitch=false;
+    if(reswitchTimer){ clearTimeout(reswitchTimer); reswitchTimer=null; }
     native=false;
     btn.classList.remove('is-on');
     btn.setAttribute('aria-pressed','false');
@@ -1567,17 +1631,19 @@ function filterEps(q){
     video.removeAttribute('controlsList');
     video.removeAttribute('disablePictureInPicture');
     video.removeAttribute('src');
-    try { video.load(); } catch(e){}
+    try { video.load(); }catch(e){}
     if(!source || !window.SenshiPlayer) return;
     if(Array.isArray(source.subtitles) && source.subtitles.length && window.SenshiPlayer.loadWithSubs)
       window.SenshiPlayer.loadWithSubs(source.url,source.subtitles);
     else if(window.SenshiPlayer.load)
       window.SenshiPlayer.load(source.url);
   }
+
   btn.addEventListener('click',function(){
     if(native) showCustom();
-    else showNative(window._senshiLastSource);
+    else forceReswitchThenNative();
   });
+
   window.addEventListener('anivault:source-ready',setReady);
   setReady();
 })();\n\n(function initWatchQuickNav(){
