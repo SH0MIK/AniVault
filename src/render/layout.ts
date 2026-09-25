@@ -159,8 +159,9 @@ ${og.type === 'video.episode' ? `
 <script src="${o.siteUrl}/assets/js/app.js" defer></script>
 ${ogBlock}
 <style>
-#av-page-loader{position:fixed;inset:0;z-index:99999;background:#0a0a0f;display:flex;justify-content:center;align-items:center;}
-#av-page-loader.av-loader-hidden{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .4s ease,visibility .4s ease;}
+#av-page-loader{position:fixed;inset:0;z-index:99999;background:#0a0a0f;display:block;opacity:1;visibility:visible;pointer-events:auto;transition:opacity .22s ease,visibility .22s ease;overflow:hidden;}
+#av-page-loader.av-loader-hidden{opacity:0;visibility:hidden;pointer-events:none;}
+.av-skeleton{width:min(1180px,calc(100% - 32px));margin:0 auto;padding:18px 0 40px}.av-skel-bar,.av-skel-line,.av-skel-poster,.av-skel-card{position:relative;overflow:hidden;background:rgba(255,255,255,.065)}.av-skel-bar::after,.av-skel-line::after,.av-skel-poster::after,.av-skel-card::after{content:"";position:absolute;inset:0;background:linear-gradient(100deg,transparent 20%,rgba(255,255,255,.07) 50%,transparent 80%);transform:translateX(-100%);animation:avSkeletonShimmer 1.25s ease-in-out infinite}.av-skel-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:8px 0 24px}.av-skel-logo{width:118px;height:27px;border-radius:8px}.av-skel-actions{display:flex;gap:8px}.av-skel-action{width:70px;height:30px;border-radius:9px}.av-skel-hero{height:190px;border-radius:18px;margin-bottom:25px}.av-skel-title{width:210px;height:24px;border-radius:7px;margin-bottom:14px}.av-skel-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:14px}.av-skel-poster{aspect-ratio:2/3;border-radius:12px}.av-skel-card{height:13px;border-radius:5px;margin-top:9px;width:78%}.av-skel-card.small{width:55%;height:10px;margin-top:7px}@keyframes avSkeletonShimmer{100%{transform:translateX(100%)}}@media(max-width:800px){.av-skel-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.av-skel-hero{height:155px}}@media(max-width:520px){.av-skeleton{width:calc(100% - 20px)}.av-skel-actions{display:none}.av-skel-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.av-skel-hero{height:125px}.av-skel-title{width:160px}}
 /* Episode-count skeleton — shown only when we have nothing cached yet to
    display, while the real count loads in the background (see ep_count.php). */
 .eps-skel{display:inline-block;width:58px;height:11px;border-radius:4px;background:rgba(255,255,255,.09);position:relative;overflow:hidden;vertical-align:middle;}
@@ -244,6 +245,21 @@ ${ogBlock}
 </script>
 </head>
 <body>
+<div id="av-page-loader" aria-hidden="true">
+  <div class="av-skeleton">
+    <div class="av-skel-head"><div class="av-skel-bar av-skel-logo"></div><div class="av-skel-actions"><div class="av-skel-bar av-skel-action"></div><div class="av-skel-bar av-skel-action"></div></div></div>
+    <div class="av-skel-bar av-skel-hero"></div>
+    <div class="av-skel-line av-skel-title"></div>
+    <div class="av-skel-grid">
+      <div><div class="av-skel-poster"></div><div class="av-skel-card"></div><div class="av-skel-card small"></div></div>
+      <div><div class="av-skel-poster"></div><div class="av-skel-card"></div><div class="av-skel-card small"></div></div>
+      <div><div class="av-skel-poster"></div><div class="av-skel-card"></div><div class="av-skel-card small"></div></div>
+      <div><div class="av-skel-poster"></div><div class="av-skel-card"></div><div class="av-skel-card small"></div></div>
+      <div><div class="av-skel-poster"></div><div class="av-skel-card"></div><div class="av-skel-card small"></div></div>
+      <div><div class="av-skel-poster"></div><div class="av-skel-card"></div><div class="av-skel-card small"></div></div>
+    </div>
+  </div>
+</div>
 ${ICON_SPRITE}
 <div id="av-page-loader">
   <div class="av-loader">
