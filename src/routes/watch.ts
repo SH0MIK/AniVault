@@ -679,7 +679,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
         <svg viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6v6M20 4 10 14"/></svg>
         Anime
       </a>
-      <button class="heading-action" type="button" title="Copy watch link" onclick="navigator.clipboard?.writeText(location.href).then(()=>{this.classList.add('copied');setTimeout(()=>this.classList.remove('copied'),1100)})">
+      <button class="heading-action" type="button" title="Copy watch link" onclick="if(navigator.clipboard){navigator.clipboard.writeText(location.href).then(()=>{this.classList.add('copied');setTimeout(()=>this.classList.remove('copied'),1100)})}">
         <svg viewBox="0 0 24 24"><path d="M8 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2M16 9H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Z"/></svg>
         Copy
       </button>
