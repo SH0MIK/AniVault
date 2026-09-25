@@ -1514,20 +1514,33 @@ function filterEps(q){
     btn.classList.add('is-on');
     btn.setAttribute('aria-pressed','true');
     root.classList.add('native-player-mode');
-    try { if(window.SenshiPlayer && window.SenshiPlayer.destroy) window.SenshiPlayer.destroy(); } catch(e){}
+    // For a direct MP4 that is already loaded in the custom player, keep
+    // the existing media element/source alive. Reloading the same URL here
+    // makes some hosts issue a second request and return a transient
+    // corrupted-media response. Native mode should simply take over the
+    // already-loaded MP4 element.
+    var keepCurrentMp4 = source.type === 'mp4' &&
+      !!video.currentSrc &&
+      video.currentSrc === source.url;
+
+    if (!keepCurrentMp4) {
+      try { if(window.SenshiPlayer && window.SenshiPlayer.destroy) window.SenshiPlayer.destroy(); } catch(e){}
+      try { video.pause(); } catch(e){}
+      try { video.srcObject = null; } catch(e){}
+      video.removeAttribute('src');
+      try { video.load(); } catch(e){}
+    }
+
     clearTracks();
-    // Reset any MediaSource/object URL left behind by the custom player.
-    try { video.pause(); } catch(e){}
-    try { video.srcObject = null; } catch(e){}
-    video.removeAttribute('src');
-    try { video.load(); } catch(e){}
     video.controls=true;
     video.setAttribute('controlsList','nodownload');
     video.setAttribute('disablePictureInPicture','');
     video.setAttribute('playsinline','');
-    video.src=source.url;
-    video.preload='metadata';
-    video.load();
+    if (!keepCurrentMp4) {
+      video.src=source.url;
+      video.preload='metadata';
+      video.load();
+    }
     (Array.isArray(source.subtitles) ? source.subtitles : []).forEach(function(s,i){
       if(!s || !s.url) return;
       var tr=document.createElement('track');
