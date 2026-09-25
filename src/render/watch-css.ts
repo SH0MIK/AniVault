@@ -2110,36 +2110,37 @@ export const WATCH_CSS = `/* ═════════════════
   letter-spacing:.09em!important;
   transition:color .22s ease,transform .22s ease!important;
 }
-.server-tab::before{
-  display:inline-flex;
-  align-items:center;
-  justify-content:center;
-  width:17px;
-  height:17px;
-  border:1px solid currentColor;
-  border-radius:5px;
-  font-size:.48rem;
-  font-weight:900;
-  letter-spacing:0;
-  opacity:.7;
-  transition:all .22s ease;
+.server-tab-icon{
+  width:17px!important;
+  height:17px!important;
+  flex:0 0 17px;
+  display:block;
+  color:currentColor!important;
+  fill:none;
+  stroke:currentColor;
+  opacity:.72;
+  transition:opacity .22s ease,transform .22s ease;
 }
-.server-tab[data-tab="sub"]::before{content:'CC';}
-.server-tab[data-tab="dub"]::before{content:'A';}
 .server-tab.active{
   background:transparent!important;
   color:#fff!important;
   box-shadow:none!important;
   transform:translateY(-.5px);
 }
-.server-tab.active::before{
+.server-tab.active .server-tab-icon{
   opacity:1;
-  border-color:rgba(255,255,255,.72);
-  background:rgba(255,255,255,.12);
+  color:#fff!important;
+  stroke:#fff;
+  transform:scale(1.02);
 }
 .server-tab:not(.active):hover{
   color:rgba(255,255,255,.82)!important;
   background:rgba(255,255,255,.045)!important;
+}
+.server-tab:not(.active):hover .server-tab-icon{
+  opacity:.95;
+  color:currentColor!important;
+  stroke:currentColor;
 }
 .server-tab:focus-visible{
   outline:2px solid rgba(167,139,250,.8)!important;
