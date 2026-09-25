@@ -1407,9 +1407,15 @@ if (swIosMode) swIosMode.classList.toggle('active', settings.iosMode);
 root.classList.add('vh-paused');
 
 /* Public API (SenshiPlayer compatibility for AniVault) */
+window._setSenshiLastSource = function(url, subs) {
+  if (!url) return;
+  window._senshiLastSource = { url: url, subtitles: Array.isArray(subs) ? subs.slice() : [] };
+  try { window.dispatchEvent(new CustomEvent('anivault:source-ready')); } catch(e) {}
+};
 window.SenshiPlayer = {
   load: function(url) {
     if (!url) return;
+    window._setSenshiLastSource(url, []);
     if (url.includes('.mp4') || (!url.includes('.m3u8') && !url.includes('/hls/'))) {
       if (hls) { try { hls.destroy(); } catch(e) {} hls = null; }
       vid.src = url;
@@ -1428,6 +1434,8 @@ window.SenshiPlayer = {
     }
   },
   loadWithSubs: function(url, subs, intro, outro) {
+    if (!url) return;
+    window._setSenshiLastSource(url, subs);
     introBand = intro || null;
     outroBand = outro || null;
     subTracks = [];
