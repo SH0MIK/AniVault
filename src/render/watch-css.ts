@@ -2406,4 +2406,28 @@ export const WATCH_CSS = `/* ═════════════════
 @media(max-width:640px){
   .watch-quick-btn .watch-ep-icon{width:17px!important;height:17px!important;flex-basis:17px!important}
 }
+
+/* ── direct episode navigation symbol sizing ── */
+.watch-ep-icon-text{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  font-size:20px!important;
+  line-height:1!important;
+  min-width:20px!important;
+  font-weight:500!important;
+}
+.watch-quick-btn{
+  font-size:15px!important;
+  line-height:1.1!important;
+}
+@media(max-width:640px){
+  .watch-ep-icon-text{
+    font-size:19px!important;
+    min-width:19px!important;
+  }
+  .watch-quick-btn{
+    font-size:14px!important;
+  }
+}
 `;
