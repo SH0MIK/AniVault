@@ -2409,51 +2409,51 @@ export const WATCH_CSS = `/* ═════════════════
 
 /* ── direct episode navigation symbol sizing ── */
 .watch-quick-nav{
-  padding-left:8px!important;
-  padding-right:8px!important;
+  padding-left:18px!important;
+  padding-right:18px!important;
 }
 .watch-auto-next{
-  margin-right:12px!important;
+  margin-right:22px!important;
 }
 .watch-quick-btn{
   margin-left:0!important;
   margin-right:0!important;
-  padding-left:7px!important;
-  padding-right:7px!important;
-  gap:5px!important;
+  padding:4px 4px!important;
+  gap:3px!important;
   display:inline-flex!important;
   align-items:center!important;
   justify-content:center!important;
-  font-size:15px!important;
-  line-height:20px!important;
+  min-width:0!important;
+  font-size:14px!important;
+  line-height:19px!important;
 }
 .watch-quick-btn + .watch-quick-btn{
-  margin-left:2px!important;
+  margin-left:1px!important;
 }
 .watch-quick-btn span:not(.watch-ep-icon-text){
   display:inline-flex!important;
   align-items:center!important;
-  height:20px!important;
-  line-height:20px!important;
+  height:19px!important;
+  line-height:19px!important;
   transform:translateY(1px)!important;
 }
 .watch-ep-icon-text{
   display:inline-flex!important;
   align-items:center!important;
   justify-content:center!important;
-  font-size:20px!important;
-  line-height:20px!important;
-  min-width:20px!important;
-  height:20px!important;
+  font-size:19px!important;
+  line-height:19px!important;
+  min-width:19px!important;
+  height:19px!important;
   font-weight:500!important;
   vertical-align:middle!important;
 }
 @media(max-width:640px){
-  .watch-quick-nav{padding-left:4px!important;padding-right:4px!important;}
-  .watch-auto-next{margin-right:9px!important;}
-  .watch-quick-btn{font-size:14px!important;padding-left:6px!important;padding-right:6px!important;gap:4px!important;line-height:19px!important;}
-  .watch-quick-btn + .watch-quick-btn{margin-left:1px!important;}
-  .watch-quick-btn span:not(.watch-ep-icon-text){height:19px!important;line-height:19px!important;}
-  .watch-ep-icon-text{font-size:19px!important;min-width:19px!important;height:19px!important;line-height:19px!important;}
+  .watch-quick-nav{padding-left:10px!important;padding-right:10px!important;}
+  .watch-auto-next{margin-right:14px!important;}
+  .watch-quick-btn{font-size:13px!important;padding:3px 3px!important;gap:2px!important;line-height:18px!important;}
+  .watch-quick-btn + .watch-quick-btn{margin-left:0!important;}
+  .watch-quick-btn span:not(.watch-ep-icon-text){height:18px!important;line-height:18px!important;}
+  .watch-ep-icon-text{font-size:18px!important;min-width:18px!important;height:18px!important;line-height:18px!important;}
 }
 `;
