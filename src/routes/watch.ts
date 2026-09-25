@@ -668,6 +668,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
         ${navHtml}
       </section>
 
+      <div class="watch-content-flow">
       <section class="watch-episode-card">
         <div class="watch-episode-main">
           <div class="watch-section-eyebrow">EPISODE ${epNum}</div>
@@ -703,6 +704,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
       </section>
 
       ${charsHtml}
+      </div>
     </main>
 
     <aside class="watch-sidebar">
