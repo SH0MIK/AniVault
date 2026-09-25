@@ -675,8 +675,8 @@ export function renderWatchBody(p: WatchBodyParams): string {
             <span class="watch-native-copy">Native</span>
             <span class="watch-native-toggle" aria-hidden="true"><span class="watch-native-knob"></span></span>
           </button>
-          ${prevEp ? `<a class="watch-quick-btn prev" href="${siteUrl}/watch?anime=${animeId}&ep=${prevEp}" aria-label="Previous episode">${icon('chevron-left', 'watch-ep-icon')}<span>Prev</span></a>` : `<span class="watch-quick-btn prev disabled">${icon('chevron-left', 'watch-ep-icon')}<span>Prev</span></span>`}
-          ${nextEp ? `<a class="watch-quick-btn next" href="${siteUrl}/watch?anime=${animeId}&ep=${nextEp}" aria-label="Next episode"><span>Ep ${nextEp}</span>${icon('chevron-right', 'watch-ep-icon')}</a>` : `<span class="watch-quick-btn next disabled"><span>Ep —</span>${icon('chevron-right', 'watch-ep-icon')}</span>`}
+          ${prevEp ? `<a class="watch-quick-btn prev" href="${siteUrl}/watch?anime=${animeId}&ep=${prevEp}" aria-label="Previous episode">${icon('skip-back', 'watch-ep-icon')}<span>Prev</span></a>` : `<span class="watch-quick-btn prev disabled">${icon('skip-back', 'watch-ep-icon')}<span>Prev</span></span>`}
+          ${nextEp ? `<a class="watch-quick-btn next" href="${siteUrl}/watch?anime=${animeId}&ep=${nextEp}" aria-label="Next episode"><span>Ep ${nextEp}</span>${icon('skip-forward', 'watch-ep-icon')}</a>` : `<span class="watch-quick-btn next disabled"><span>Ep —</span>${icon('skip-forward', 'watch-ep-icon')}</span>`}
         </div>     <div class="watch-title-under-player">
           <div class="watch-title-ep">Episode ${epNum}</div>
           <h1>${h(title)}</h1>
