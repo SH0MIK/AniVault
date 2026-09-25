@@ -660,12 +660,12 @@ export function renderWatchBody(p: WatchBodyParams): string {
         <div class="wp-player-glow"></div>
         ${playerHtml}
         <div class="watch-quick-nav" data-next-url="${nextEp ? `${siteUrl}/watch?anime=${animeId}&ep=${nextEp}` : ''}" data-prev-url="${prevEp ? `${siteUrl}/watch?anime=${animeId}&ep=${prevEp}` : ''}">
-          ${prevEp ? `<a class="watch-quick-btn" href="${siteUrl}/watch?anime=${animeId}&ep=${prevEp}" aria-label="Previous episode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6"/></svg><span><b>Previous</b><small>Ep ${prevEp}</small></span></a>` : `<span class="watch-quick-btn disabled"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6"/></svg><span><b>Previous</b><small>—</small></span></span>`}
+          ${prevEp ? `<a class="watch-quick-btn prev" href="${siteUrl}/watch?anime=${animeId}&ep=${prevEp}" aria-label="Previous episode"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6"/></svg><span>Prev <b>Ep ${prevEp}</b></span></a>` : `<span class="watch-quick-btn prev disabled"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span>Prev <b>—</b></span></span>`}
           <button type="button" class="watch-auto-next" id="watch-auto-next" aria-pressed="false" title="Auto play next episode">
-            <span class="watch-auto-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l12-8z"/></svg></span>
-            <span><b>Auto Next</b><small id="watch-auto-next-state">Off</small></span>
+            <span class="watch-auto-copy">Auto Next</span>
+            <span class="watch-toggle" aria-hidden="true"><span class="watch-toggle-knob"></span></span>
           </button>
-          ${nextEp ? `<a class="watch-quick-btn next" href="${siteUrl}/watch?anime=${animeId}&ep=${nextEp}" aria-label="Next episode"><span><b>Next</b><small>Ep ${nextEp}</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></a>` : `<span class="watch-quick-btn next disabled"><span><b>Next</b><small>—</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></span>`}
+          ${nextEp ? `<a class="watch-quick-btn next" href="${siteUrl}/watch?anime=${animeId}&ep=${nextEp}" aria-label="Next episode"><span>Next <b>Ep ${nextEp}</b></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6"/></svg></a>` : `<span class="watch-quick-btn next disabled"><span>Next <b>—</b></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></span>`}
         </div>
         <div class="watch-title-under-player">
           <div class="watch-title-ep">Episode ${epNum}</div>
