@@ -1234,134 +1234,580 @@ export const WATCH_CSS = `/* ═════════════════
   .wp-nav { margin-left: .6rem; margin-right: .6rem; }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   WATCH PAGE — MODERN CINEMATIC UI REFRESH
-   Page chrome only: the player markup/skin is intentionally untouched.
-═══════════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════════════════
+   ANIVAULT WATCH — FULL UI REDESIGN
+   The video player/engine is intentionally not styled or modified here.
+   Everything below is page chrome, controls, metadata and episode browsing.
+═══════════════════════════════════════════════════════════════════ */
 
-.wp-page {
-  max-width: 1520px;
-  padding-left: clamp(.8rem, 2.5vw, 2.25rem);
-  padding-right: clamp(.8rem, 2.5vw, 2.25rem);
+.wp-page{
+  max-width:1500px;
+  margin:0 auto;
+  padding:0 clamp(.75rem,2.4vw,2.25rem) 5rem;
 }
-.wp-crumb {
-  padding: 1rem .15rem .85rem;
-  font-size: .72rem;
-  text-transform: uppercase;
-  letter-spacing: .075em;
+.wp-crumb{
+  max-width:1500px;
+  margin:0 auto;
+  padding:1rem 0 .8rem;
+  font-size:.72rem;
+  text-transform:uppercase;
+  letter-spacing:.09em;
 }
-.wp-grid {
-  grid-template-columns: minmax(0,1fr) 340px;
-  gap: clamp(1rem,2vw,1.5rem);
-}
-.wp-player-zone { filter: drop-shadow(0 28px 60px rgba(0,0,0,.28)); }
-.wp-player-glow { border-radius: 20px; }
-.wp-controls {
-  margin-top: .55rem;
-  padding: .65rem;
-  border-radius: 15px;
-  background: linear-gradient(180deg, rgba(24,27,37,.94), rgba(14,16,23,.96));
-  border-color: rgba(255,255,255,.085);
-  box-shadow: 0 14px 35px rgba(0,0,0,.22), inset 0 1px 0 rgba(255,255,255,.035);
-}
-.wp-controls-top { padding: .15rem .2rem .05rem; }
-.wpc-label { color: rgba(255,255,255,.55); font-size: .64rem; letter-spacing: .12em; }
-.server-panel { border-radius: 13px; background: rgba(8,10,15,.76); }
-.server-panel-head { padding: .55rem .75rem; }
-.server-tabs { margin: .65rem .75rem 0; }
-.server-tab { min-width: 68px; }
-.server-tab-panel { padding: .65rem .75rem .75rem; }
+.wp-crumb a:hover{color:var(--accent)!important}
 
-.wp-info {
-  position: relative;
-  margin-top: .85rem;
-  border-radius: 18px;
-  background: linear-gradient(145deg, rgba(24,27,37,.96), rgba(14,16,23,.96));
-  border-color: rgba(255,255,255,.085);
-  box-shadow: 0 18px 45px rgba(0,0,0,.2), inset 0 1px 0 rgba(255,255,255,.035);
+/* ── top context header ───────────────────────────────────────── */
+.watch-heading{
+  display:grid;
+  grid-template-columns:82px minmax(0,1fr) auto;
+  gap:1rem;
+  align-items:center;
+  padding:1rem 1.15rem;
+  margin-bottom:1rem;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:20px;
+  background:linear-gradient(135deg,rgba(24,27,36,.96),rgba(15,17,23,.94));
+  box-shadow:0 18px 55px rgba(0,0,0,.28);
 }
-.wp-info-banner {
-  position: relative;
-  height: 108px;
-  background-size: cover;
-  background-position: center 35%;
-  overflow: hidden;
-  border-bottom: 1px solid rgba(255,255,255,.06);
+.watch-heading-poster{
+  width:82px;height:112px;
+  position:relative;
+  overflow:hidden;
+  border-radius:12px;
+  background:#101218;
+  box-shadow:0 10px 28px rgba(0,0,0,.45);
 }
-.wp-info-banner-shade {
-  position: absolute; inset: 0;
-  background: linear-gradient(90deg, rgba(11,13,18,.9), rgba(11,13,18,.48) 48%, rgba(11,13,18,.75)), linear-gradient(0deg, rgba(14,16,23,.98), transparent 65%);
+.watch-heading-poster img{width:100%;height:100%;display:block;object-fit:cover}
+.watch-heading-ep{
+  position:absolute;left:7px;bottom:7px;
+  padding:.25rem .42rem;
+  border-radius:6px;
+  background:rgba(8,10,14,.88);
+  border:1px solid rgba(255,255,255,.13);
+  color:#fff;font-size:.62rem;font-weight:800;letter-spacing:.08em;
 }
-.wp-info-banner-copy {
-  position: absolute; inset: auto .95rem .8rem;
-  display: flex; align-items: center; justify-content: space-between; gap: .75rem;
-  z-index: 1; color: rgba(255,255,255,.7);
-  font-size: .61rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase;
+.watch-kicker,.watch-section-eyebrow{
+  color:var(--accent);
+  font-size:.62rem;
+  font-weight:800;
+  letter-spacing:.16em;
+  text-transform:uppercase;
 }
-.wp-info-banner-copy span:last-child {
-  padding: .28rem .55rem; border: 1px solid rgba(255,255,255,.12);
-  border-radius: 999px; background: rgba(255,255,255,.055);
-  backdrop-filter: blur(8px); color: rgba(255,255,255,.82);
+.watch-heading h1{
+  margin:.2rem 0 .2rem;
+  color:var(--text-primary);
+  font-size:clamp(1.15rem,2.2vw,1.75rem);
+  line-height:1.15;
+  letter-spacing:-.035em;
 }
-.wp-info-head { position: relative; padding: 1rem 1rem .8rem; }
-.wp-ep-chip {
-  display: inline-flex; align-items: center; min-height: 24px; padding: .22rem .58rem;
-  border: 1px solid rgba(124,58,237,.3); border-radius: 999px; background: rgba(124,58,237,.1);
-  color: #c4b5fd; font-size: .62rem; font-weight: 800; letter-spacing: .06em; text-transform: uppercase;
+.watch-heading-sub{
+  display:flex;flex-wrap:wrap;gap:.45rem;
+  color:var(--text-muted);
+  font-size:.78rem;
 }
-.wp-ep-title { margin-top: .6rem; font-size: clamp(1.15rem, 2vw, 1.55rem); line-height: 1.2; letter-spacing: -.025em; }
-.wp-ep-meta { margin-top: .48rem; color: rgba(255,255,255,.45); font-size: .72rem; line-height: 1.5; }
-.wp-ep-meta a { color: rgba(255,255,255,.72); font-weight: 700; }
-.wp-actions { padding: .1rem 1rem .9rem; gap: .45rem; }
-.wp-act-btn { border-radius: 10px; padding: .52rem .72rem; background: rgba(255,255,255,.045); border-color: rgba(255,255,255,.075); }
-.wp-act-btn.primary { background: rgba(124,58,237,.13); border-color: rgba(124,58,237,.28); }
+.watch-heading-dot{opacity:.35}
+.watch-heading-tags{
+  display:flex;flex-wrap:wrap;gap:.4rem;
+  margin-top:.65rem;
+}
+.watch-heading-tags span{
+  padding:.27rem .52rem;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:7px;
+  background:rgba(255,255,255,.035);
+  color:var(--text-secondary);
+  font-size:.63rem;font-weight:700;
+}
+.watch-heading-tags .tag-filler{color:#f6c453;border-color:rgba(246,196,83,.2)}
+.watch-heading-tags .tag-recap{color:#67d6ff;border-color:rgba(103,214,255,.2)}
+.watch-heading-actions{
+  display:flex;gap:.45rem;align-self:start;
+}
+.heading-action{
+  display:inline-flex;align-items:center;justify-content:center;gap:.4rem;
+  min-height:36px;padding:0 .7rem;
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:9px;
+  background:rgba(255,255,255,.035);
+  color:var(--text-secondary);
+  text-decoration:none;
+  font-size:.7rem;font-weight:700;
+  cursor:pointer;
+  transition:.18s ease;
+}
+.heading-action svg{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.heading-action:hover{background:rgba(255,255,255,.075);border-color:rgba(255,255,255,.16);color:var(--text-primary);transform:translateY(-1px)}
+.heading-action.copied{color:#67e8a5;border-color:rgba(103,232,165,.3)}
 
-.wp-nav { margin-top: .7rem; gap: .55rem; }
-.wp-nav-btn {
-  min-height: 52px; padding: .62rem .85rem; border-radius: 14px;
-  background: rgba(20,23,31,.88); border-color: rgba(255,255,255,.075);
-  box-shadow: 0 8px 24px rgba(0,0,0,.12);
+/* ── page layout ───────────────────────────────────────────────── */
+.watch-layout{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 390px;
+  gap:1.15rem;
+  align-items:start;
 }
-.wp-nav-btn:hover { transform: translateY(-2px); border-color: rgba(124,58,237,.3); box-shadow: 0 12px 28px rgba(0,0,0,.18); }
+.watch-main{min-width:0}
+.watch-sidebar{
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:1rem;
+  position:sticky;
+  top:12px;
+  align-self:start;
+}
 
-.wp-sidebar { gap: .8rem; top: .8rem; }
-.wp-anime-card, .wp-ep-card, .wp-chars {
-  border-radius: 18px;
-  background: linear-gradient(145deg, rgba(24,27,37,.94), rgba(14,16,23,.95));
-  border-color: rgba(255,255,255,.075);
-  box-shadow: 0 16px 38px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.03);
-}
-.wp-anime-banner { height: 122px; }
-.wp-anime-poster { width: 66px; border-radius: 9px; bottom: -20px; }
-.wp-anime-body { padding: 1.45rem 1rem .95rem; }
-.wp-anime-title { font-size: .98rem; }
-.wp-anime-sub { color: rgba(255,255,255,.43); }
-.wp-score-row { padding: .48rem .55rem; border-radius: 10px; background: rgba(255,255,255,.035); }
-.wp-ep-head, .wp-chars-head { padding: .8rem .75rem; }
-.wp-ep-ttl, .wp-chars-ttl { letter-spacing: .13em; }
-.wp-ep-search-wrap { padding: .6rem .7rem; }
-.wp-ep-search { border-radius: 10px; background: rgba(255,255,255,.035); }
-.wp-ep-list { max-height: 540px; }
-.ep-item { min-height: 58px; padding: .42rem .7rem; border-bottom-color: rgba(255,255,255,.035); }
-.ep-item.active { background: linear-gradient(90deg, rgba(124,58,237,.12), rgba(124,58,237,.035)); }
-.ep-thumb-box { width: 78px; height: 45px; border-radius: 7px; }
-.ep-item.playable:hover { background: rgba(255,255,255,.045); }
-.wp-chars { margin-top: .85rem; }
-.char-v2 { padding: .8rem .35rem .7rem; }
-.char-v2-img-wrap { width: 52px; height: 64px; border-radius: 9px; }
+/* The player container itself is deliberately left alone. */
+.wp-player-zone{min-width:0}
 
-@media (max-width: 1024px) {
-  .wp-page { padding-bottom: 3rem; }
-  .wp-info-banner { height: 92px; }
-  .wp-info-head { padding: .9rem .75rem .7rem !important; }
-  .wp-actions { padding-left: .75rem !important; padding-right: .75rem !important; }
+/* ── server/control console ────────────────────────────────────── */
+.wp-controls{
+  margin-top:.7rem;
+  padding:.85rem;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:15px;
+  background:rgba(18,21,28,.96);
+  box-shadow:0 10px 30px rgba(0,0,0,.18);
 }
-@media (max-width: 600px) {
-  .wp-info-banner { height: 78px; }
-  .wp-info-banner-copy { inset: auto .7rem .6rem; font-size: .55rem; }
-  .wp-ep-title { font-size: 1.05rem; }
-  .wp-ep-meta { font-size: .67rem; }
-  .wp-actions { flex-wrap: wrap; }
-  .wp-act-btn { flex: 1 1 auto; justify-content: center; }
+.wp-controls-top{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:0 .15rem .55rem;
 }
-`;
+.wpc-label{
+  color:var(--text-primary)!important;
+  font-size:.67rem!important;
+  font-weight:800!important;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+}
+.wpc-hint{font-size:.62rem!important;color:var(--text-muted)!important}
+.server-panel{
+  border:1px solid rgba(255,255,255,.07)!important;
+  border-radius:12px!important;
+  background:rgba(255,255,255,.018)!important;
+  overflow:hidden;
+}
+.server-panel-head{
+  min-height:39px!important;
+  padding:.65rem .75rem!important;
+  border-bottom:1px solid rgba(255,255,255,.06)!important;
+}
+.server-panel-dot{width:6px!important;height:6px!important}
+.server-panel-hint{font-size:.61rem!important}
+.server-panel-body{padding:.65rem!important}
+.server-tabs{gap:.35rem!important}
+.server-tab{
+  border-radius:8px!important;
+  min-height:32px!important;
+  font-size:.67rem!important;
+}
+.server-tab-panel{padding:.6rem!important}
+.server-btn-row{gap:.4rem!important}
+.server-btn{
+  min-height:35px!important;
+  border-radius:9px!important;
+  padding:.35rem .65rem!important;
+  font-size:.7rem!important;
+}
+.av-server{
+  border-color:rgba(124,58,237,.25)!important;
+  background:rgba(124,58,237,.08)!important;
+}
+.av-server:hover,.av-server.active{
+  border-color:rgba(124,58,237,.55)!important;
+  background:rgba(124,58,237,.14)!important;
+}
+.av-server-logo{width:18px!important;height:18px!important}
+.av-server-label{margin-left:2px!important}
+.wp-nav{
+  margin-top:.7rem!important;
+  gap:.65rem!important;
+}
+.wp-nav-btn{
+  min-height:48px!important;
+  border-radius:12px!important;
+  border:1px solid rgba(255,255,255,.07)!important;
+  background:rgba(18,21,28,.9)!important;
+}
+
+/* ── episode information ───────────────────────────────────────── */
+.watch-episode-card,
+.watch-discover-card,
+.wp-chars{
+  margin-top:1rem;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;
+  background:linear-gradient(145deg,rgba(22,25,33,.98),rgba(15,17,23,.97));
+  box-shadow:0 14px 40px rgba(0,0,0,.18);
+  overflow:hidden;
+}
+.watch-episode-main{padding:1.2rem 1.25rem .85rem}
+.watch-episode-main h2{
+  margin:.25rem 0 .3rem;
+  color:var(--text-primary);
+  font-size:1.28rem;
+  line-height:1.25;
+  letter-spacing:-.025em;
+}
+.watch-episode-meta{
+  display:flex;flex-wrap:wrap;gap:.42rem;
+  color:var(--text-muted);
+  font-size:.72rem;
+}
+.watch-synopsis{
+  max-width:900px;
+  margin:.85rem 0 0;
+  color:var(--text-secondary);
+  font-size:.78rem;
+  line-height:1.7;
+}
+.watch-synopsis.muted{color:var(--text-muted)}
+.watch-episode-facts{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:1px;
+  border-top:1px solid rgba(255,255,255,.06);
+  border-bottom:1px solid rgba(255,255,255,.06);
+  background:rgba(255,255,255,.055);
+}
+.fact-box{
+  min-width:0;
+  padding:.75rem .85rem;
+  background:rgba(18,21,28,.9);
+}
+.fact-box span{
+  display:block;
+  margin-bottom:.25rem;
+  color:var(--text-muted);
+  font-size:.58rem;
+  text-transform:uppercase;
+  letter-spacing:.1em;
+}
+.fact-box strong{
+  display:block;
+  overflow:hidden;
+  color:var(--text-primary);
+  font-size:.74rem;
+  white-space:nowrap;
+  text-overflow:ellipsis;
+}
+.watch-action-row{
+  display:flex;flex-wrap:wrap;gap:.45rem;
+  padding:.85rem 1.25rem;
+}
+.watch-action{
+  display:inline-flex;align-items:center;justify-content:center;gap:.42rem;
+  min-height:36px;padding:0 .72rem;
+  border:1px solid rgba(255,255,255,.09);
+  border-radius:9px;
+  background:rgba(255,255,255,.035);
+  color:var(--text-secondary);
+  text-decoration:none;
+  font-size:.68rem;font-weight:750;
+  cursor:pointer;
+  transition:.18s ease;
+}
+.watch-action svg{width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+.watch-action:hover{color:var(--text-primary);background:rgba(255,255,255,.075);border-color:rgba(255,255,255,.16);transform:translateY(-1px)}
+.watch-action.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.watch-action.primary:hover{filter:brightness(1.08)}
+.watch-progress-card{
+  margin:0 1.25rem 1.1rem;
+  padding:.75rem .85rem;
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:11px;
+  background:rgba(255,255,255,.025);
+}
+.watch-progress-head,.watch-progress-foot{
+  display:flex;align-items:center;justify-content:space-between;gap:.75rem;
+}
+.watch-progress-head span{font-size:.58rem;letter-spacing:.1em;color:var(--text-muted);font-weight:800}
+.watch-progress-head strong{font-size:.68rem;color:var(--text-secondary)}
+.watch-progress-track{
+  height:5px;margin:.55rem 0;
+  border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;
+}
+.watch-progress-track span{display:block;height:100%;border-radius:inherit;background:var(--accent)}
+.watch-progress-foot{font-size:.61rem;color:var(--text-muted)}
+
+/* ── discovery / genres ────────────────────────────────────────── */
+.watch-discover-card{padding:1rem 1.2rem}
+.watch-discover-head{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem}
+.watch-discover-head h2{margin:.2rem 0 0;font-size:1rem;color:var(--text-primary)}
+.watch-discover-head>a{color:var(--accent);font-size:.68rem;font-weight:700;text-decoration:none;white-space:nowrap}
+.watch-genre-row{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.8rem}
+.watch-genre-row span{
+  padding:.3rem .52rem;
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:7px;
+  background:rgba(255,255,255,.025);
+  color:var(--text-muted);
+  font-size:.62rem;
+}
+.watch-dub-line{
+  display:flex;align-items:center;gap:.4rem;
+  margin-top:.75rem;padding-top:.7rem;
+  border-top:1px solid rgba(255,255,255,.06);
+  color:var(--text-secondary);font-size:.68rem;
+}
+
+/* ── anime card ────────────────────────────────────────────────── */
+.watch-anime-card{
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;
+  background:#151820;
+  box-shadow:0 14px 40px rgba(0,0,0,.22);
+}
+.watch-anime-art{height:205px;position:relative;overflow:hidden;background:#0e1015}
+.watch-anime-art img{width:100%;height:100%;display:block;object-fit:cover}
+.watch-anime-art-shade{
+  position:absolute;inset:0;
+  background:linear-gradient(180deg,rgba(0,0,0,.04),rgba(5,7,10,.88));
+}
+.watch-anime-art-info{
+  position:absolute;left:.9rem;right:.9rem;bottom:.75rem;
+  display:flex;justify-content:space-between;gap:.5rem;
+  color:#fff;font-size:.59rem;font-weight:800;letter-spacing:.08em;
+}
+.watch-anime-body{padding:1rem}
+.watch-anime-title{
+  display:block;
+  color:var(--text-primary);
+  font-size:1rem;font-weight:800;line-height:1.25;
+  text-decoration:none;
+}
+.watch-anime-title:hover{color:var(--accent)}
+.watch-anime-status{margin-top:.25rem;color:var(--text-muted);font-size:.68rem}
+.watch-anime-status span{opacity:.4}
+.watch-dub-badge{
+  display:inline-flex;margin-top:.65rem;
+  padding:.3rem .5rem;
+  border:1px solid rgba(45,212,191,.18);
+  border-radius:7px;
+  background:rgba(45,212,191,.06);
+  color:#6ee7d2;font-size:.62rem;font-weight:700;
+}
+.watch-score-line{
+  display:flex;align-items:center;gap:.6rem;margin-top:.75rem;
+}
+.watch-score-line strong{color:#f6c453;font-size:.72rem}
+.watch-score-line>div{height:4px;flex:1;border-radius:99px;background:rgba(255,255,255,.07);overflow:hidden}
+.watch-score-line>div span{display:block;height:100%;border-radius:inherit;background:#f6c453}
+.watch-anime-open{
+  display:flex;align-items:center;justify-content:space-between;
+  margin-top:.85rem;padding-top:.75rem;
+  border-top:1px solid rgba(255,255,255,.06);
+  color:var(--text-secondary);font-size:.68rem;font-weight:700;text-decoration:none;
+}
+.watch-anime-open:hover{color:var(--accent)}
+
+/* ── episode queue ─────────────────────────────────────────────── */
+.watch-queue-card{
+  overflow:hidden;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:18px;
+  background:rgba(18,21,28,.98);
+  box-shadow:0 14px 40px rgba(0,0,0,.18);
+}
+.watch-queue-head{
+  display:flex;align-items:flex-end;justify-content:space-between;gap:1rem;
+  padding:1rem 1rem .75rem;
+}
+.watch-queue-head h2{margin:.2rem 0 0;font-size:1.05rem;color:var(--text-primary)}
+.watch-queue-count{
+  padding:.28rem .48rem;border-radius:6px;
+  background:rgba(255,255,255,.045);
+  color:var(--text-muted);font-size:.59rem;font-weight:700;
+}
+.watch-queue-search{
+  display:flex;align-items:center;gap:.45rem;
+  margin:0 .85rem .7rem;
+  padding:0 .65rem;
+  min-height:36px;
+  border:1px solid rgba(255,255,255,.08);
+  border-radius:9px;
+  background:rgba(255,255,255,.025);
+}
+.watch-queue-search svg{width:15px;height:15px;fill:currentColor;color:var(--text-muted);flex:none}
+.watch-queue-search input{
+  width:100%;border:0;outline:0;background:transparent;
+  color:var(--text-primary);font-size:.7rem;
+}
+.watch-queue-search input::placeholder{color:var(--text-muted)}
+.watch-queue-card .wp-ep-list{
+  max-height:min(62vh,720px);
+  overflow-y:auto;
+  padding:.25rem .65rem .7rem;
+  scrollbar-width:thin;
+}
+.watch-queue-card .ep-item{
+  display:grid!important;
+  grid-template-columns:142px minmax(0,1fr) auto;
+  gap:.7rem!important;
+  align-items:center;
+  min-height:86px;
+  margin:.18rem 0;
+  padding:.4rem!important;
+  border:1px solid transparent!important;
+  border-radius:11px!important;
+  background:transparent!important;
+}
+.watch-queue-card .ep-item:hover{
+  border-color:rgba(255,255,255,.08)!important;
+  background:rgba(255,255,255,.035)!important;
+}
+.watch-queue-card .ep-item.active{
+  border-color:rgba(124,58,237,.38)!important;
+  background:rgba(124,58,237,.075)!important;
+}
+.watch-queue-card .ep-thumb-box{
+  width:142px!important;height:80px!important;
+  border:0!important;border-radius:8px!important;
+  background:#0b0d11!important;
+  box-shadow:none!important;
+}
+.watch-queue-card .ep-thumb-box img,
+.watch-queue-card .ep-thumb-box img.vis{
+  width:100%!important;height:100%!important;
+  opacity:1!important;filter:none!important;
+  object-fit:cover!important;
+}
+.watch-queue-card .ep-thumb-box::before,
+.watch-queue-card .ep-thumb-box::after{display:none!important;content:none!important}
+.watch-queue-card .ep-play-ov{
+  inset:auto 7px 7px auto!important;
+  width:28px!important;height:28px!important;
+  border-radius:50%!important;
+  background:rgba(7,9,12,.86)!important;
+  border:1px solid rgba(255,255,255,.18)!important;
+  opacity:0!important;
+  transform:scale(.92);
+}
+.watch-queue-card .ep-play-ov svg{width:12px!important;height:12px!important}
+.watch-queue-card .ep-item:hover .ep-play-ov,
+.watch-queue-card .ep-item.active .ep-play-ov{opacity:1!important;transform:scale(1)}
+.watch-queue-card .ep-num-fallback{
+  background:rgba(7,9,12,.82);
+  inset:auto 6px 6px auto;
+  width:30px;height:20px;border-radius:5px;
+  font-size:.6rem;color:#fff;
+}
+.watch-queue-card .ep-meta{padding-right:.15rem}
+.watch-queue-card .ep-num-txt{
+  font-size:.59rem!important;color:var(--text-muted)!important;
+  letter-spacing:.04em;text-transform:uppercase;
+}
+.watch-queue-card .ep-title-txt{
+  margin-top:.18rem;
+  color:var(--text-secondary)!important;
+  font-size:.73rem!important;
+  line-height:1.35!important;
+}
+.watch-queue-card .ep-item.active .ep-title-txt{color:var(--text-primary)!important}
+.watch-queue-card .ep-live-dot{
+  width:7px!important;height:7px!important;
+  margin-right:.25rem;
+}
+
+/* remove old thumbnail dimming/color treatments */
+.watch-queue-card .ep-item.watched:not(.active) .ep-thumb-box{opacity:1!important}
+.watch-queue-card .ep-item.watched:not(.active) .ep-num-txt,
+.watch-queue-card .ep-item.watched:not(.active) .ep-title-txt{opacity:1!important}
+.watch-queue-card .ep-item.watched .ep-thumb-box::after{display:none!important}
+
+/* ── characters: turn the old block into a clean content rail ─── */
+.wp-chars{
+  padding:1rem;
+  margin-top:1rem!important;
+  background:rgba(18,21,28,.98)!important;
+}
+.wp-chars-head{
+  display:flex!important;align-items:center!important;justify-content:space-between!important;
+  margin-bottom:.7rem!important;
+}
+.wp-chars-head a{font-size:.66rem!important;color:var(--accent)!important}
+.char-grid-v2{
+  display:flex!important;
+  gap:.6rem!important;
+  overflow-x:auto;
+  padding-bottom:.25rem;
+  scrollbar-width:thin;
+}
+.char-v2{
+  flex:0 0 88px!important;
+  width:88px!important;
+}
+.char-v2-img-wrap{
+  height:118px!important;
+  border-radius:10px!important;
+  overflow:hidden;
+  background:#0d1015;
+}
+.char-v2-img{width:100%!important;height:100%!important;object-fit:cover!important}
+.char-v2-role-badge{
+  bottom:5px!important;left:5px!important;right:5px!important;
+  width:auto!important;
+  padding:.2rem .28rem!important;
+  border-radius:5px!important;
+  background:rgba(5,7,10,.84)!important;
+  font-size:.52rem!important;
+}
+.char-v2-name{
+  margin-top:.38rem!important;
+  font-size:.62rem!important;
+  line-height:1.3!important;
+}
+
+/* ── mobile ────────────────────────────────────────────────────── */
+@media (max-width:1100px){
+  .watch-layout{grid-template-columns:minmax(0,1fr) 330px;gap:.9rem}
+  .watch-queue-card .ep-item{grid-template-columns:112px minmax(0,1fr) auto}
+  .watch-queue-card .ep-thumb-box{width:112px!important;height:63px!important}
+}
+@media (max-width:900px){
+  .watch-layout{grid-template-columns:1fr}
+  .watch-sidebar{position:static}
+  .watch-anime-card{display:none}
+  .watch-queue-card .wp-ep-list{max-height:620px}
+}
+@media (max-width:640px){
+  .wp-page{padding-left:.65rem;padding-right:.65rem}
+  .wp-crumb{display:none}
+  .watch-heading{
+    grid-template-columns:58px minmax(0,1fr);
+    gap:.75rem;
+    padding:.75rem;
+    border-radius:15px;
+  }
+  .watch-heading-poster{width:58px;height:78px;border-radius:9px}
+  .watch-heading-ep{left:4px;bottom:4px;font-size:.52rem}
+  .watch-heading h1{font-size:1.05rem}
+  .watch-heading-sub{font-size:.68rem}
+  .watch-heading-actions{
+    grid-column:1/-1;
+    display:grid;grid-template-columns:1fr 1fr;
+  }
+  .heading-action{min-height:34px}
+  .watch-episode-main{padding:1rem .85rem .7rem}
+  .watch-episode-main h2{font-size:1.05rem}
+  .watch-episode-facts{grid-template-columns:repeat(2,1fr)}
+  .watch-action-row{padding:.7rem .85rem}
+  .watch-action{flex:1 1 calc(50% - .5rem)}
+  .watch-progress-card{margin:0 .85rem .9rem}
+  .watch-discover-card{padding:.9rem}
+  .watch-queue-head{padding:.85rem .8rem .65rem}
+  .watch-queue-search{margin-left:.7rem;margin-right:.7rem}
+  .watch-queue-card .wp-ep-list{padding-left:.45rem;padding-right:.45rem}
+  .watch-queue-card .ep-item{
+    grid-template-columns:110px minmax(0,1fr) auto;
+    min-height:70px;
+  }
+  .watch-queue-card .ep-thumb-box{width:110px!important;height:62px!important}
+  .watch-queue-card .ep-title-txt{font-size:.67rem!important}
+  .wp-nav{margin-left:0!important;margin-right:0!important}
+}
+@media (max-width:390px){
+  .watch-queue-card .ep-item{grid-template-columns:96px minmax(0,1fr)}
+  .watch-queue-card .ep-thumb-box{width:96px!important;height:54px!important}
+  .watch-queue-card .ep-live-dot{display:none}
+}
