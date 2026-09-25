@@ -1919,4 +1919,51 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-content-flow>.watch-episode-card{order:1!important;}
   .watch-content-flow>.wp-chars{order:2!important;margin-top:1.1rem!important;}
 }
+
+/* ── isolated character section: never affected by legacy .wp-chars layout ── */
+.watch-character-section{
+  display:block!important;
+  position:relative!important;
+  float:none!important;
+  clear:both!important;
+  width:100%!important;
+  margin:1.1rem 0 0!important;
+  padding:0!important;
+  background:transparent!important;
+  border:0!important;
+  border-radius:0!important;
+  box-shadow:none!important;
+  overflow:visible!important;
+  order:2!important;
+}
+.watch-content-flow{
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:stretch!important;
+  width:100%!important;
+}
+.watch-content-flow>.watch-episode-card{
+  order:1!important;
+  width:100%!important;
+  flex:none!important;
+}
+.watch-content-flow>.watch-character-section{
+  order:2!important;
+  flex:none!important;
+}
+.watch-title-under-player{
+  padding-left:1.5rem!important;
+}
+@media(max-width:640px){
+  .watch-title-under-player{
+    padding-left:1.5rem!important;
+    padding-right:.5rem!important;
+  }
+  .watch-content-flow{
+    display:flex!important;
+    flex-direction:column!important;
+  }
+  .watch-content-flow>.watch-episode-card{order:1!important;}
+  .watch-content-flow>.watch-character-section{order:2!important;margin-top:1.25rem!important;}
+}
 `;
