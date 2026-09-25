@@ -414,6 +414,7 @@ function switchToDesidub(providerName, realType) {
         }
         if (d.mp4) {
             if (badge) badge.textContent = 'MP4';
+            if (window._setSenshiLastSource) window._setSenshiLastSource(d.mp4, d.subtitles || []);
             const vid = document.getElementById('sp-video');
             if (!vid) { fail('Player element missing (sp-video not found).'); return; }
             vid.src = d.mp4;
@@ -532,6 +533,7 @@ function switchToGenericSource(source, providerName, realType, langKey) {
         const badge = document.getElementById('sp-hls-badge');
         if (isMp4) {
             if (badge) badge.textContent = 'MP4';
+            if (window._setSenshiLastSource) window._setSenshiLastSource(url, subs || []);
             const vid = document.getElementById('sp-video');
             if (!vid) { fail('Player element missing (sp-video not found).'); return; }
             vid.src = url;
@@ -1501,17 +1503,30 @@ function filterEps(q){
   }
   function showNative(source){
     if(!source || !source.url) return;
+    // Clone the source because switching/destroying the custom player can
+    // mutate its media state; native mode must use the exact resolved URL
+    // that was actually playing.
+    source = {
+      url: source.url,
+      subtitles: Array.isArray(source.subtitles) ? source.subtitles.slice() : []
+    };
     native=true;
     btn.classList.add('is-on');
     btn.setAttribute('aria-pressed','true');
     root.classList.add('native-player-mode');
     try { if(window.SenshiPlayer && window.SenshiPlayer.destroy) window.SenshiPlayer.destroy(); } catch(e){}
     clearTracks();
+    // Reset any MediaSource/object URL left behind by the custom player.
+    try { video.pause(); } catch(e){}
+    try { video.srcObject = null; } catch(e){}
+    video.removeAttribute('src');
+    try { video.load(); } catch(e){}
     video.controls=true;
     video.setAttribute('controlsList','nodownload');
     video.setAttribute('disablePictureInPicture','');
     video.setAttribute('playsinline','');
     video.src=source.url;
+    video.preload='metadata';
     video.load();
     (Array.isArray(source.subtitles) ? source.subtitles : []).forEach(function(s,i){
       if(!s || !s.url) return;
