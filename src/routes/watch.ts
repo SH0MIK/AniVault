@@ -679,8 +679,8 @@ export function renderWatchBody(p: WatchBodyParams): string {
             <span class="watch-auto-copy">Auto Next</span>
             <span class="watch-toggle" aria-hidden="true"><span class="watch-toggle-knob"></span></span>
           </button>
-          ${prevEp ? `<a class="watch-quick-btn prev" href="${siteUrl}/watch?anime=${animeId}&ep=${prevEp}" aria-label="Previous episode"><svg class="watch-ep-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M17 7l-7 5 7 5V7ZM10 7l-7 5 7 5V7Z"/></svg><span>Prev</span></a>` : `<span class="watch-quick-btn prev disabled"><svg class="watch-ep-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M17 7l-7 5 7 5V7ZM10 7l-7 5 7 5V7Z"/></svg><span>Prev</span></span>`}
-          ${nextEp ? `<a class="watch-quick-btn next" href="${siteUrl}/watch?anime=${animeId}&ep=${nextEp}" aria-label="Next episode"><span>Ep ${nextEp}</span><svg class="watch-ep-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M6 7l8 5-8-5V7Z"/></svg></a>` : `<span class="watch-quick-btn next disabled"><span>Ep —</span><svg class="watch-ep-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 5v14M4 7l7 5-7 5V7ZM11 7l7 5-7 5V7Z"/></svg></span>`}
+          ${prevEp ? `<a class="watch-quick-btn prev" href="${siteUrl}/watch?anime=${animeId}&ep=${prevEp}" aria-label="Previous episode"><span class="watch-ep-icon-text" aria-hidden="true">⏮</span><span>Prev</span></a>` : `<span class="watch-quick-btn prev disabled"><span class="watch-ep-icon-text" aria-hidden="true">⏮</span><span>Prev</span></span>`}
+          ${nextEp ? `<a class="watch-quick-btn next" href="${siteUrl}/watch?anime=${animeId}&ep=${nextEp}" aria-label="Next episode"><span>Ep ${nextEp}</span><span class="watch-ep-icon-text" aria-hidden="true">⏭</span></a>` : `<span class="watch-quick-btn next disabled"><span>Ep —</span><span class="watch-ep-icon-text" aria-hidden="true">⏭</span></span>`}
         </div>     <div class="watch-title-under-player">
           <div class="watch-title-ep">Episode ${epNum}</div>
           <h1>${h(title)}</h1>
