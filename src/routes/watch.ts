@@ -657,7 +657,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
       </div>
 
       <div class="wp-info">
-        <div class="wp-info-banner"></div>
+        <div class="wp-info-banner" style="background-image:url('${h(image)}' )"><div class="wp-info-banner-shade"></div><div class="wp-info-banner-copy"><span>NOW WATCHING</span><span>EPISODE ${epNum}</span></div></div>
         <div class="wp-info-head">
           <div class="wp-ep-chip">Episode ${epNum}${totalEps > 0 ? ` of ${totalEps}` : ''}</div>
           <div class="wp-ep-title">${epTitleDisplay}</div>
