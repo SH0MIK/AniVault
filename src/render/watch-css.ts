@@ -2408,13 +2408,27 @@ export const WATCH_CSS = `/* ═════════════════
 }
 
 /* ── direct episode navigation symbol sizing ── */
+.watch-quick-nav{
+  padding-left:8px!important;
+  padding-right:8px!important;
+}
+.watch-auto-next{
+  margin-right:12px!important;
+}
 .watch-quick-btn{
+  margin-left:0!important;
+  margin-right:0!important;
+  padding-left:7px!important;
+  padding-right:7px!important;
+  gap:5px!important;
   display:inline-flex!important;
   align-items:center!important;
   justify-content:center!important;
-  gap:7px!important;
   font-size:15px!important;
   line-height:20px!important;
+}
+.watch-quick-btn + .watch-quick-btn{
+  margin-left:2px!important;
 }
 .watch-quick-btn span:not(.watch-ep-icon-text){
   display:inline-flex!important;
@@ -2435,7 +2449,10 @@ export const WATCH_CSS = `/* ═════════════════
   vertical-align:middle!important;
 }
 @media(max-width:640px){
-  .watch-quick-btn{font-size:14px!important;gap:6px!important;line-height:19px!important;}
+  .watch-quick-nav{padding-left:4px!important;padding-right:4px!important;}
+  .watch-auto-next{margin-right:9px!important;}
+  .watch-quick-btn{font-size:14px!important;padding-left:6px!important;padding-right:6px!important;gap:4px!important;line-height:19px!important;}
+  .watch-quick-btn + .watch-quick-btn{margin-left:1px!important;}
   .watch-quick-btn span:not(.watch-ep-icon-text){height:19px!important;line-height:19px!important;}
   .watch-ep-icon-text{font-size:19px!important;min-width:19px!important;height:19px!important;line-height:19px!important;}
 }
