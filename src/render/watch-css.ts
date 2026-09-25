@@ -2388,4 +2388,22 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-quick-btn span[aria-hidden="true"]{font-size:.98rem!important}
   .watch-quick-btn span:not([aria-hidden="true"]){font-size:.61rem!important}
 }
+
+/* ── episode pager icon refinement ── */
+.watch-quick-btn .watch-ep-icon{
+  display:block!important;
+  width:18px!important;
+  height:18px!important;
+  flex:0 0 18px!important;
+  fill:none!important;
+  stroke:currentColor!important;
+  stroke-width:1.8!important;
+  stroke-linecap:round!important;
+  stroke-linejoin:round!important;
+}
+.watch-quick-btn.prev .watch-ep-icon,
+.watch-quick-btn.next .watch-ep-icon{opacity:.9!important}
+@media(max-width:640px){
+  .watch-quick-btn .watch-ep-icon{width:17px!important;height:17px!important;flex-basis:17px!important}
+}
 `;
