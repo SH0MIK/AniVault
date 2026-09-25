@@ -1862,20 +1862,39 @@ export const WATCH_CSS = `/* ═════════════════
 .watch-episode-card{margin-top:.75rem!important}
 .wp-chars{margin-top:.75rem!important}
 .watch-action,.heading-action,.server-btn,.server-tab,.wpc-q,.wp-nav-btn,.ep-range-btn,.ep-range-row{background:rgba(255,255,255,.045)}
-.watch-title-under-player{padding:.65rem 0 .55rem!important}
+.watch-title-under-player{padding:.65rem 0 .55rem .85rem!important}
 .watch-title-under-player h1{margin:0!important}
 @media (max-width:900px){
-  .watch-main{display:block!important}
-  .watch-main>.wp-player-zone,.watch-main>.watch-info-card,.watch-main>.watch-episode-card,.watch-main>.wp-chars{display:block!important}
-  .watch-main>.wp-player-zone{order:initial!important}
-  .watch-main>.watch-info-card{order:initial!important}
-  .watch-main>.watch-episode-card{order:initial!important}
-  .watch-main>.wp-chars{order:initial!important}
+  /* Explicit mobile DOM flow: player/title -> episode -> characters. */
+  .watch-main{
+    display:grid!important;
+    grid-template-columns:minmax(0,1fr)!important;
+    grid-auto-flow:row!important;
+    align-items:stretch!important;
+  }
+  .watch-main>.wp-player-zone{
+    display:block!important;
+    grid-row:1!important;
+    order:0!important;
+  }
+  .watch-main>.watch-episode-card{
+    display:block!important;
+    grid-row:2!important;
+    order:0!important;
+  }
+  .watch-main>.wp-chars{
+    display:block!important;
+    grid-row:3!important;
+    order:0!important;
+    position:relative!important;
+    float:none!important;
+    clear:both!important;
+  }
   .watch-discover-card{display:none!important}
 }
 @media (max-width:640px){
   .wp-page{padding-left:.6rem!important;padding-right:.6rem!important;padding-bottom:2rem!important}
-  .watch-title-under-player{padding:.6rem 0 .5rem!important}
+  .watch-title-under-player{padding:.6rem 0 .5rem .75rem!important}
   .watch-info-card{padding-top:.7rem!important;padding-bottom:.7rem!important}
   .watch-episode-card{margin-top:.65rem!important;padding-top:.1rem!important}
   .wp-chars{margin-top:.65rem!important;padding-top:.1rem!important}
