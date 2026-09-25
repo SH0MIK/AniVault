@@ -720,7 +720,6 @@ export function renderWatchBody(p: WatchBodyParams): string {
         <div class="watch-anime-body">
           <a class="watch-anime-title" href="${animePage}">${h(title)}</a>
           <div class="watch-anime-status">${h(status || 'Status unavailable')}${score ? ` <span>·</span> ★ ${score}` : ''}</div>
-          ${dubbedLangs.length > 0 ? `<div class="watch-dub-badge">🎙 ${h(dubbedLangs.map((l) => DUB_LANGUAGES[l] ?? l).join(', '))}</div>` : ''}
           ${score ? `<div class="watch-score-line"><strong>★ ${score}</strong><div><span style="width:${Math.min(100, (score / 10) * 100)}%"></span></div></div>` : ''}
           <a class="watch-anime-open" href="${animePage}">Open anime details <span>→</span></a>
         </div>
