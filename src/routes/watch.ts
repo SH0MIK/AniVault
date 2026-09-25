@@ -239,13 +239,28 @@ watchRoutes.get('/watch', async (c) => {
 
   const videoEpNumSet = new Set(allVideos.map((v) => v.episode_num));
 
+  // Episode navigation should follow the actual episode list, not only uploaded
+  // episode_videos. Otherwise Prev/Next become disabled whenever the current
+  // episode is the only one uploaded locally.
+  let navEpNums = allEps
+    .map((ep: any) => Number(ep.mal_id ?? 0))
+    .filter((n: number) => n > 0);
+  if (navEpNums.length === 0) {
+    navEpNums = allVideos.map((v) => Number(v.episode_num)).filter((n) => n > 0);
+  }
+  if (navEpNums.length === 0 && totalEps > 0) {
+    navEpNums = Array.from({ length: totalEps }, (_, i) => i + 1);
+  }
+  navEpNums = Array.from(new Set(navEpNums)).sort((a, b) => a - b);
+
   let prevEp: number | null = null;
   let nextEp: number | null = null;
-  for (const v of allVideos) {
-    const n = v.episode_num;
+  for (const n of navEpNums) {
     if (n < epNum && (prevEp === null || n > prevEp)) prevEp = n;
     if (n > epNum && (nextEp === null || n < nextEp)) nextEp = n;
   }
+  if (prevEp === null && epNum > 1) prevEp = epNum - 1;
+  if (nextEp === null && (totalEps === 0 || epNum < totalEps)) nextEp = epNum + 1;
 
   const currentEpInfo = allEps.find((ep) => Number(ep.mal_id ?? 0) === epNum) ?? null;
 
