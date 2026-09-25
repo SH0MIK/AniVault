@@ -679,9 +679,9 @@ export function renderWatchBody(p: WatchBodyParams): string {
             <span class="watch-auto-copy">Auto Next</span>
             <span class="watch-toggle" aria-hidden="true"><span class="watch-toggle-knob"></span></span>
           </button>
-          ${prevEp ? `<a class="watch-quick-btn prev" href="${siteUrl}/watch?anime=${animeId}&ep=${prevEp}" aria-label="Previous episode"><span aria-hidden="true">⏮️</span><span>Ep ${prevEp}</span></a>` : `<span class="watch-quick-btn prev disabled"><span aria-hidden="true">⏮️</span><span>Ep —</span></span>`}
-          ${nextEp ? `<a class="watch-quick-btn next" href="${siteUrl}/watch?anime=${animeId}&ep=${nextEp}" aria-label="Next episode"><span>Ep ${nextEp}</span><span aria-hidden="true">⏭️</span></a>` : `<span class="watch-quick-btn next disabled"><span>Ep —</span><span aria-hidden="true">⏭️</span></span>`}
-        </div>       <div class="watch-title-under-player">
+          ${prevEp ? `<a class="watch-quick-btn prev" href="${siteUrl}/watch?anime=${animeId}&ep=${prevEp}" aria-label="Previous episode"><svg class="watch-ep-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M18 7l-8 5 8 5V7Z"/></svg><span>Ep ${prevEp}</span></a>` : `<span class="watch-quick-btn prev disabled"><svg class="watch-ep-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M18 7l-8 5 8 5V7Z"/></svg><span>Ep —</span></span>`}
+          ${nextEp ? `<a class="watch-quick-btn next" href="${siteUrl}/watch?anime=${animeId}&ep=${nextEp}" aria-label="Next episode"><span>Ep ${nextEp}</span><svg class="watch-ep-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M6 7l8 5-8-5V7Z"/></svg></a>` : `<span class="watch-quick-btn next disabled"><span>Ep —</span><svg class="watch-ep-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M6 7l8 5-8 5V7Z"/></svg></span>`}
+        </div>     <div class="watch-title-under-player">
           <div class="watch-title-ep">Episode ${epNum}</div>
           <h1>${h(title)}</h1>
           ${currentEpInfo?.title && currentEpInfo.title !== 'TBA' ? `<div class="watch-title-sub">${epTitleDisplay}</div>` : ''}
