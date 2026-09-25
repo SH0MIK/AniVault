@@ -262,7 +262,6 @@ export const WATCH_CSS = `/* ═════════════════
   justify-content: space-between;
   padding: .5rem .8rem;
   border-bottom: 1px solid rgba(255,255,255,.05);
-  background: rgba(255,255,255,.02);
 }
 .server-panel-lbl {
   display: flex;
