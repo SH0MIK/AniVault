@@ -2157,6 +2157,55 @@ export const WATCH_CSS = `/* ═════════════════
   .server-tab-icon{width:15px!important;height:15px!important;flex-basis:15px;}
 }
 
+
+/* ── quick episode navigation ─────────────────────────────────── */
+.watch-quick-nav{
+  display:grid!important;
+  grid-template-columns:1fr auto 1fr!important;
+  align-items:stretch!important;
+  gap:.55rem!important;
+  width:100%!important;
+  padding:.55rem 0 .2rem!important;
+  background:transparent!important;
+}
+.watch-quick-btn,.watch-auto-next{
+  min-height:46px;
+  border:1px solid rgba(255,255,255,.07);
+  border-radius:10px;
+  background:rgba(255,255,255,.035);
+  color:var(--text-primary);
+  display:flex;
+  align-items:center;
+  justify-content:flex-start;
+  gap:.55rem;
+  padding:.55rem .75rem;
+  text-decoration:none;
+  cursor:pointer;
+  transition:background .18s ease,border-color .18s ease,transform .18s ease;
+}
+.watch-quick-btn.next{justify-content:flex-end;text-align:right}
+.watch-quick-btn:not(.disabled):hover,.watch-auto-next:hover{
+  background:rgba(255,255,255,.07);
+  border-color:rgba(255,255,255,.13);
+}
+.watch-quick-btn svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.watch-quick-btn span,.watch-auto-next>span:last-child{display:flex;flex-direction:column;line-height:1.15}
+.watch-quick-btn b,.watch-auto-next b{font-size:.72rem;font-weight:750}
+.watch-quick-btn small,.watch-auto-next small{margin-top:3px;color:var(--text-muted);font-size:.61rem}
+.watch-auto-next{justify-content:center;min-width:126px;color:var(--text-secondary)}
+.watch-auto-icon{width:25px;height:25px;border-radius:7px;display:grid;place-items:center;background:rgba(255,255,255,.055)}
+.watch-auto-icon svg{width:13px;height:13px;fill:currentColor}
+.watch-auto-next.is-on{border-color:rgba(232,69,60,.55);background:rgba(232,69,60,.10);color:var(--text-primary)}
+.watch-auto-next.is-on .watch-auto-icon{background:var(--accent);color:#fff}
+.watch-quick-btn.disabled{opacity:.35;cursor:default;pointer-events:none}
+@media(max-width:640px){
+  .watch-quick-nav{gap:.4rem!important;padding:.4rem 0 .15rem!important}
+  .watch-quick-btn,.watch-auto-next{min-height:43px;padding:.45rem .55rem;border-radius:9px}
+  .watch-quick-btn b,.watch-auto-next b{font-size:.65rem}
+  .watch-quick-btn small,.watch-auto-next small{font-size:.56rem}
+  .watch-auto-next{min-width:0;padding-left:.5rem;padding-right:.5rem}
+  .watch-quick-btn svg{width:16px;height:16px}
+}
 `;
 
 
