@@ -1233,7 +1233,6 @@ export const WATCH_CSS = `/* ═════════════════
   .wp-info, .wp-ep-card, .wp-chars { margin-left: 3px; margin-right: 3px; }
   .wp-nav { margin-left: .6rem; margin-right: .6rem; }
 }
-</style>
 
 /* ═══════════════════════════════════════════════════════════
    WATCH PAGE — MODERN CINEMATIC UI REFRESH
