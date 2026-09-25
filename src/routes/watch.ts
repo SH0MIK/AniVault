@@ -703,7 +703,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
         </div>` : ''}
       </section>
 
-      ${charsHtml}
+      <div class="watch-character-slot">${charsHtml}</div>
       </div>
     </main>
 
