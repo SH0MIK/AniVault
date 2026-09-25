@@ -237,6 +237,7 @@ function switchToAnimeHeaven(audio) {
         }, 12000);
 
         console.log('[AniVault player] setting <video> src to AnimeHeaven proxy URL and calling play()');
+        if (window._setSenshiLastSource) window._setSenshiLastSource(d.mp4, d.subtitles || []);
         vid.src = d.mp4;
         vid.load();
         vid.play().then(() => {
@@ -666,6 +667,7 @@ function switchToTurboVid(id, audio) {
         // TurboVid direct MP4: use the resolved video URL directly.
         // No proxy is needed — the media host is already browser-playable.
         if (d.type === 'mp4' && d.videoUrl) {
+          if (window._setSenshiLastSource) window._setSenshiLastSource(d.videoUrl, d.subtitles || []);
           const vid = document.getElementById('sp-video');
           if (!vid) throw new Error('Player video element not found.');
           const badge = document.getElementById('sp-hls-badge');
@@ -1480,7 +1482,76 @@ function filterEps(q){
   setTimeout(loadThumbs,300);
 })();
 
-(function initWatchQuickNav(){
+(function initNativePlayerSwitch(){
+  var nav=document.querySelector('.watch-quick-nav');
+  var btn=document.getElementById('watch-native-player');
+  var root=document.getElementById('senshi-player-root');
+  var video=document.getElementById('sp-video');
+  if(!nav || !btn || !root || !video) return;
+
+  var native=false;
+
+  function setReady(){
+    var ready=!!(window._senshiLastSource && window._senshiLastSource.url);
+    btn.disabled=!ready;
+    btn.classList.toggle('is-ready',ready);
+  }
+  function clearTracks(){
+    Array.from(video.querySelectorAll('track[data-anivault-native]')).forEach(function(t){ t.remove(); });
+  }
+  function showNative(source){
+    if(!source || !source.url) return;
+    native=true;
+    btn.classList.add('is-on');
+    btn.setAttribute('aria-pressed','true');
+    root.classList.add('native-player-mode');
+    try { if(window.SenshiPlayer && window.SenshiPlayer.destroy) window.SenshiPlayer.destroy(); } catch(e){}
+    clearTracks();
+    video.controls=true;
+    video.setAttribute('controlsList','nodownload');
+    video.setAttribute('disablePictureInPicture','');
+    video.setAttribute('playsinline','');
+    video.src=source.url;
+    video.load();
+    (Array.isArray(source.subtitles) ? source.subtitles : []).forEach(function(s,i){
+      if(!s || !s.url) return;
+      var tr=document.createElement('track');
+      tr.kind='subtitles';
+      tr.label=s.label || s.lang || ('Track '+(i+1));
+      tr.srclang=(s.lang || 'en').slice(0,2);
+      tr.src=s.url;
+      if(i===0) tr.default=true;
+      tr.setAttribute('data-anivault-native','1');
+      video.appendChild(tr);
+    });
+    video.play().catch(function(){});
+  }
+  function showCustom(){
+    var source=window._senshiLastSource;
+    native=false;
+    btn.classList.remove('is-on');
+    btn.setAttribute('aria-pressed','false');
+    root.classList.remove('native-player-mode');
+    clearTracks();
+    video.pause();
+    video.controls=false;
+    video.removeAttribute('controlsList');
+    video.removeAttribute('disablePictureInPicture');
+    video.removeAttribute('src');
+    try { video.load(); } catch(e){}
+    if(!source || !window.SenshiPlayer) return;
+    if(Array.isArray(source.subtitles) && source.subtitles.length && window.SenshiPlayer.loadWithSubs)
+      window.SenshiPlayer.loadWithSubs(source.url,source.subtitles);
+    else if(window.SenshiPlayer.load)
+      window.SenshiPlayer.load(source.url);
+  }
+  btn.addEventListener('click',function(){
+    if(native) showCustom();
+    else showNative(window._senshiLastSource);
+  });
+  window.addEventListener('anivault:source-ready',setReady);
+  setReady();
+})();\n\n(function initWatchQuickNav(){
   var nav=document.querySelector('.watch-quick-nav');
   var toggle=document.getElementById('watch-auto-next');
   if(!nav || !toggle) return;
