@@ -2104,7 +2104,7 @@ export const WATCH_CSS = `/* ═════════════════
   border:0!important;
   border-radius:10px!important;
   background:transparent!important;
-  color:rgba(255,255,255,.48)!important;
+  color:#fff!important;
   font-size:.67rem!important;
   font-weight:800!important;
   letter-spacing:.09em!important;
@@ -2133,13 +2133,13 @@ export const WATCH_CSS = `/* ═════════════════
   stroke:#fff;
   transform:scale(1.02);
 }
-.server-tab:not(.active):hover{
-  color:rgba(255,255,255,.82)!important;
+ .server-tab:not(.active):hover{
+  color:#fff!important;
   background:rgba(255,255,255,.045)!important;
 }
 .server-tab:not(.active):hover .server-tab-icon{
   opacity:.95;
-  color:currentColor!important;
+  color:#fff!important;
   stroke:currentColor;
 }
 .server-tab:focus-visible{
