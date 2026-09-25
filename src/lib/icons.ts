@@ -17,7 +17,7 @@ const ICON_MAP: Record<string, string> = {
   terms: 'terms', 'chart-bar': 'chart-bar', wrench: 'wrench', merge: 'merge', layout: 'layout',
   heal: 'heal', eye: 'eye', tv: 'tv', discord: 'discord', github: 'github', facebook: 'facebook',
   twitter: 'twitter', instagram: 'instagram', youtube: 'youtube', reddit: 'reddit', anilist: 'anilist', mic: 'mic',
-  captions: 'captions', clock: 'clock',
+  captions: 'captions', clock: 'clock', 'skip-back': 'skip-back', 'skip-forward': 'skip-forward',
   airing: 'airing', finished: 'finished', upcoming: 'upcoming',
 };
 
