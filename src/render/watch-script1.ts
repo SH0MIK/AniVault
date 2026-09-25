@@ -1508,6 +1508,7 @@ function filterEps(q){
     // that was actually playing.
     source = {
       url: source.url,
+      type: source.type || (/\.mp4(?:$|[?#])/i.test(source.url) ? 'mp4' : 'hls'),
       subtitles: Array.isArray(source.subtitles) ? source.subtitles.slice() : []
     };
     native=true;
@@ -1519,9 +1520,9 @@ function filterEps(q){
     // makes some hosts issue a second request and return a transient
     // corrupted-media response. Native mode should simply take over the
     // already-loaded MP4 element.
-    var keepCurrentMp4 = source.type === 'mp4' &&
-      !!video.currentSrc &&
-      video.currentSrc === source.url;
+    var currentMediaUrl = video.currentSrc || video.src || '';
+    var keepCurrentMp4 = source.type === 'mp4' && !!currentMediaUrl &&
+      (currentMediaUrl === source.url || currentMediaUrl.split('#')[0] === source.url.split('#')[0]);
 
     if (!keepCurrentMp4) {
       try { if(window.SenshiPlayer && window.SenshiPlayer.destroy) window.SenshiPlayer.destroy(); } catch(e){}
