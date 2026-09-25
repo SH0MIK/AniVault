@@ -654,38 +654,6 @@ export function renderWatchBody(p: WatchBodyParams): string {
     <span class="now">Episode ${epNum}</span>
   </nav>
 
-  <section class="watch-heading">
-    <div class="watch-heading-poster">
-      <img src="${h(coverSm)}" alt="${h(title)}" loading="eager">
-      <span class="watch-heading-ep">EP ${epNum}</span>
-    </div>
-    <div class="watch-heading-copy">
-      <div class="watch-kicker">NOW PLAYING</div>
-      <h1>${h(title)}</h1>
-      <div class="watch-heading-sub">
-        <span>Episode ${epNum}${totalEps > 0 ? ` / ${totalEps}` : ''}</span>
-        ${currentEpInfo?.title && currentEpInfo.title !== 'TBA' ? `<span class="watch-heading-dot">•</span><span>${epTitleDisplay}</span>` : ''}
-      </div>
-      <div class="watch-heading-tags">
-        ${animeType ? `<span>${h(animeType)}</span>` : ''}
-        ${status ? `<span>${h(status)}</span>` : ''}
-        ${score ? `<span>★ ${score}</span>` : ''}
-        ${currentEpInfo?.filler ? '<span class="tag-filler">Filler</span>' : ''}
-        ${currentEpInfo?.recap ? '<span class="tag-recap">Recap</span>' : ''}
-      </div>
-    </div>
-    <div class="watch-heading-actions">
-      <a class="heading-action" href="${animePage}" title="Open anime page">
-        <svg viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6v6M20 4 10 14"/></svg>
-        Anime
-      </a>
-      <button class="heading-action" type="button" title="Copy watch link" onclick="if(navigator.clipboard){navigator.clipboard.writeText(location.href).then(()=>{this.classList.add('copied');setTimeout(()=>this.classList.remove('copied'),1100)})}">
-        <svg viewBox="0 0 24 24"><path d="M8 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2M16 9H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Z"/></svg>
-        Copy
-      </button>
-    </div>
-  </section>
-
   <div class="watch-layout">
     <main class="watch-main">
       <section class="wp-player-zone">
@@ -704,7 +672,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
             ${currentEpInfo?.aired ? `<span>•</span><span>${new Date(currentEpInfo.aired).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>` : ''}
             ${currentEpInfo?.score ? `<span>•</span><span>★ ${currentEpInfo.score}</span>` : ''}
           </div>
-          ${currentEpInfo?.synopsis ? `<p class="watch-synopsis">${h(currentEpInfo.synopsis)}</p>` : '<p class="watch-synopsis muted">You are watching this episode on AniVault. Use the server controls above to switch between available streams and audio versions.</p>'}
+          ${currentEpInfo?.synopsis ? `<p class="watch-synopsis">${h(currentEpInfo.synopsis)}</p>` : ''}
         </div>
 
         <div class="watch-episode-facts">
