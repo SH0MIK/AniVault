@@ -2290,6 +2290,102 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-toggle-knob{width:14px!important;height:14px!important}
   .watch-auto-next.is-on .watch-toggle-knob{transform:translateX(11px)!important}
 }
+
+/* ── simple episode navigation: auto-next first + emoji controls ── */
+.watch-quick-nav{
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:.9rem!important;
+  width:100%!important;
+  padding:.35rem 0 .15rem!important;
+  background:transparent!important;
+}
+.watch-auto-next{
+  order:1!important;
+  height:34px!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  color:var(--text-secondary)!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:.45rem!important;
+  cursor:pointer!important;
+  box-shadow:none!important;
+}
+.watch-auto-next:hover{
+  background:transparent!important;
+  color:var(--text-primary)!important;
+  transform:none!important;
+  box-shadow:none!important;
+}
+.watch-auto-copy{font-size:.68rem!important;font-weight:700!important}
+.watch-toggle{
+  width:28px!important;
+  height:17px!important;
+  padding:2px!important;
+  border-radius:999px!important;
+  background:rgba(255,255,255,.16)!important;
+}
+.watch-toggle-knob{
+  width:13px!important;
+  height:13px!important;
+  background:#fff!important;
+  box-shadow:none!important;
+}
+.watch-auto-next.is-on{background:transparent!important;color:var(--text-primary)!important}
+.watch-auto-next.is-on .watch-toggle{background:var(--accent)!important}
+.watch-auto-next.is-on .watch-toggle-knob{transform:translateX(11px)!important}
+
+.watch-quick-btn{
+  order:2!important;
+  min-width:auto!important;
+  height:34px!important;
+  padding:0 .15rem!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  color:var(--text-secondary)!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:.35rem!important;
+  font-size:.68rem!important;
+  font-weight:700!important;
+  box-shadow:none!important;
+}
+.watch-quick-btn:hover:not(.disabled){
+  background:transparent!important;
+  border-color:transparent!important;
+  color:var(--text-primary)!important;
+  transform:none!important;
+}
+.watch-quick-btn span[aria-hidden="true"]{
+  font-size:1.05rem!important;
+  line-height:1!important;
+}
+.watch-quick-btn span:not([aria-hidden="true"]){
+  color:inherit!important;
+  font-size:.66rem!important;
+  font-weight:700!important;
+}
+.watch-quick-btn b{display:none!important}
+.watch-quick-btn svg{display:none!important}
+.watch-quick-btn.disabled{opacity:.28!important}
+.watch-quick-btn.prev{order:2!important}
+.watch-quick-btn.next{order:3!important}
+@media(max-width:640px){
+  .watch-quick-nav{gap:.7rem!important;padding:.3rem 0 .1rem!important}
+  .watch-auto-next{height:32px!important}
+  .watch-auto-copy{font-size:.62rem!important}
+  .watch-toggle{width:26px!important;height:16px!important}
+  .watch-toggle-knob{width:12px!important;height:12px!important}
+  .watch-auto-next.is-on .watch-toggle-knob{transform:translateX(10px)!important}
+  .watch-quick-btn{height:32px!important;padding:0!important}
+  .watch-quick-btn span[aria-hidden="true"]{font-size:.98rem!important}
+  .watch-quick-btn span:not([aria-hidden="true"]){font-size:.61rem!important}
+}
 `;
-
-
