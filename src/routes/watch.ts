@@ -660,6 +660,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
         <div class="wp-player-glow"></div>
         ${playerHtml}
         <div class="watch-title-under-player">
+          <div class="watch-title-ep">Episode ${epNum}</div>
           <h1>${h(title)}</h1>
           ${currentEpInfo?.title && currentEpInfo.title !== 'TBA' ? `<div class="watch-title-sub">${epTitleDisplay}</div>` : ''}
         </div>
@@ -670,7 +671,6 @@ export function renderWatchBody(p: WatchBodyParams): string {
       <div class="watch-content-flow">
       <section class="watch-episode-card">
         <div class="watch-episode-main">
-          <div class="watch-section-eyebrow">EPISODE ${epNum}</div>
           ${currentEpInfo?.synopsis ? `<p class="watch-synopsis">${h(currentEpInfo.synopsis)}</p>` : ''}
         </div>
         <div class="watch-action-row">
