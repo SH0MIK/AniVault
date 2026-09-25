@@ -445,7 +445,6 @@ export function renderWatchBody(p: WatchBodyParams): string {
 
   const serverControlsHtml = (isLoggedIn && (video || hasMegaplayFallback || hasTurboVid)) ? `
         <div class="wp-controls">
-          <div class="wp-controls-top"><span class="wpc-label">Server</span><span class="wpc-hint">F = fullscreen</span></div>
           ${qSub.length > 0 ? `
           <div class="wp-quality-row">
             <span class="wpc-label">Quality</span>
