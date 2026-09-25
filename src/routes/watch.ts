@@ -504,14 +504,6 @@ export function renderWatchBody(p: WatchBodyParams): string {
           </div>
         </div>` : '';
 
-  const navHtml = (prevEp || nextEp) ? `
-        <div class="wp-nav">
-          ${prevEp ? `<a href="${siteUrl}/watch?anime=${animeId}&ep=${prevEp}" class="wp-nav-btn"><svg viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/></svg><div class="wp-nav-inner"><span class="wp-nav-lbl">Previous</span><span class="wp-nav-ep">Episode ${prevEp}</span></div></a>`
-            : `<div class="wp-nav-btn disabled"><svg viewBox="0 0 24 24"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6z"/></svg><div class="wp-nav-inner"><span class="wp-nav-lbl">Previous</span><span class="wp-nav-ep">—</span></div></div>`}
-          ${nextEp ? `<a href="${siteUrl}/watch?anime=${animeId}&ep=${nextEp}" class="wp-nav-btn next"><div class="wp-nav-inner"><span class="wp-nav-lbl">Next</span><span class="wp-nav-ep">Episode ${nextEp}</span></div><svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg></a>`
-            : `<div class="wp-nav-btn next disabled"><div class="wp-nav-inner"><span class="wp-nav-lbl">Next</span><span class="wp-nav-ep">—</span></div><svg viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6z"/></svg></div>`}
-        </div>` : '';
-
   const epTitleDisplay = currentEpInfo?.title && currentEpInfo.title !== 'TBA' ? h(currentEpInfo.title) : `Episode ${epNum}`;
 
   const jTitle = JSON.stringify(title);
@@ -691,7 +683,6 @@ export function renderWatchBody(p: WatchBodyParams): string {
           ${currentEpInfo?.title && currentEpInfo.title !== 'TBA' ? `<div class="watch-title-sub">${epTitleDisplay}</div>` : ''}
         </div>
         ${serverControlsHtml}
-        ${navHtml}
       </section>
 
       <div class="watch-content-flow">
