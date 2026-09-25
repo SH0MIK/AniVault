@@ -413,7 +413,7 @@ interface WatchBodyParams {
 
 export function renderWatchBody(p: WatchBodyParams): string {
   const { anime, image, coverSm, title, animeId, epNum, totalEps, video, qSub, hasMegaplayFallback,
-    isLoggedIn, prevEp, nextEp, currentEpInfo, chars, allEps, allVideos, videoEpNumSet, layoutUser, siteUrl,
+    isLoggedIn, prevEp, nextEp, currentEpInfo, chars, allEps, allVideos, videoEpNumSet, resumeT, layoutUser, siteUrl,
     episodesWatched, dubbedLangs, turbovidServers } = p;
 
   const genres = (anime.genres ?? []).slice(0, 6);
