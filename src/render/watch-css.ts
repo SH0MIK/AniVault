@@ -1996,10 +1996,8 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-content-flow>.watch-character-slot{flex:0 0 auto!important;order:2!important}
   .watch-character-slot>.wp-chars{margin-top:1.25rem!important}
 }
-`;
 
 
-/* ── mobile: move the entire episode queue above characters ─────── */
 /*
    The episode queue lives in .watch-sidebar while characters live in
    .watch-main. On small displays we flatten both wrappers so they share
@@ -2052,3 +2050,4 @@ export const WATCH_CSS = `/* ═════════════════
     margin-top:.75rem!important;
   }
 }
+`;
