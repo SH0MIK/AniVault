@@ -2294,7 +2294,7 @@ export const WATCH_CSS = `/* ═════════════════
 .watch-quick-nav{
   display:flex!important;
   align-items:center!important;
-  justify-content:center!important;
+  justify-content:flex-start!important;
   gap:.9rem!important;
   width:100%!important;
   padding:.35rem 0 .15rem!important;
@@ -2372,7 +2372,6 @@ export const WATCH_CSS = `/* ═════════════════
   font-weight:700!important;
 }
 .watch-quick-btn b{display:none!important}
-.watch-quick-btn svg{display:none!important}
 .watch-quick-btn.disabled{opacity:.28!important}
 .watch-quick-btn.prev{order:2!important}
 .watch-quick-btn.next{order:3!important}
