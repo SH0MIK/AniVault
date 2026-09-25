@@ -2052,3 +2052,6 @@ export const WATCH_CSS = `/* ═════════════════
   }
 }
 `;
+
+/* Hide play overlay on episode thumbnails */
+.ep-play-ov{display:none!important;}
