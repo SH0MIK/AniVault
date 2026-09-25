@@ -668,17 +668,6 @@ export function renderWatchBody(p: WatchBodyParams): string {
         ${navHtml}
       </section>
 
-      <section class="watch-info-card">
-        <div class="watch-info-head"><div class="watch-section-eyebrow">INFO</div><a href="${animePage}">Anime details →</a></div>
-        <div class="watch-episode-facts">
-          <div class="fact-box"><span>Type</span><strong>${h(animeType || '—')}</strong></div>
-          <div class="fact-box"><span>Status</span><strong>${h(status || '—')}</strong></div>
-          <div class="fact-box"><span>Score</span><strong>${score ? `★ ${score}` : '—'}</strong></div>
-          <div class="fact-box"><span>Episodes</span><strong>${totalEps || '—'}</strong></div>
-        </div>
-
-
-      </section>
       <section class="watch-episode-card">
         <div class="watch-episode-main">
           <div class="watch-section-eyebrow">EPISODE ${epNum}</div>
