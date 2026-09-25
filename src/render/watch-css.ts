@@ -1966,4 +1966,34 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-content-flow>.watch-episode-card{order:1!important;}
   .watch-content-flow>.watch-character-section{order:2!important;margin-top:1.25rem!important;}
 }
+
+.watch-character-slot{
+  display:block!important;
+  width:100%!important;
+  min-width:0!important;
+  height:auto!important;
+  position:relative!important;
+  order:2!important;
+  clear:both!important;
+  float:none!important;
+}
+.watch-character-slot>.wp-chars{
+  display:block!important;
+  width:100%!important;
+  height:auto!important;
+  position:relative!important;
+  top:auto!important;left:auto!important;right:auto!important;bottom:auto!important;
+  transform:none!important;
+  order:initial!important;
+  float:none!important;
+  clear:both!important;
+  margin-top:1.1rem!important;
+}
+@media(max-width:640px){
+  .watch-title-under-player{padding-left:1.5rem!important;padding-right:.5rem!important}
+  .watch-content-flow{display:flex!important;flex-direction:column!important}
+  .watch-content-flow>.watch-episode-card{flex:0 0 auto!important;order:1!important}
+  .watch-content-flow>.watch-character-slot{flex:0 0 auto!important;order:2!important}
+  .watch-character-slot>.wp-chars{margin-top:1.25rem!important}
+}
 `;
