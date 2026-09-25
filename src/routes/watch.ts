@@ -710,7 +710,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
     <aside class="watch-sidebar">
       <section class="watch-anime-card">
         <div class="watch-anime-art">
-          <img src="${h(coverSm)}" alt="${h(title)}" loading="lazy">
+          <img src="${h(anime.cover_image || coverSm)}" alt="${h(title)}" loading="lazy">
           <div class="watch-anime-art-shade"></div>
           <div class="watch-anime-art-info">
             <span>${h(animeType || 'ANIME')}</span>
