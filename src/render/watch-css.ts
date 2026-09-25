@@ -1771,6 +1771,8 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-queue-card .wp-ep-list{max-height:620px}
 }
 @media (max-width:640px){
+  /* Keep mobile watch pages compact: no duplicate discovery panel. Characters follow episode info directly. */
+  .watch-discover-card{display:none!important}
   .wp-page{padding-left:.65rem;padding-right:.65rem}
   .wp-crumb{display:none}
   .watch-heading{
@@ -1791,6 +1793,9 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-episode-main{padding:1rem .85rem .7rem}
   .watch-episode-main h2{font-size:1.05rem}
   .watch-episode-facts{grid-template-columns:repeat(2,1fr)}
+  .watch-episode-facts .fact-box{padding:.75rem .7rem}
+  .watch-episode-facts .fact-box span{font-size:.58rem}
+  .watch-episode-facts .fact-box strong{font-size:.9rem}
   .watch-action-row{padding:.7rem .85rem}
   .watch-action{flex:1 1 calc(50% - .5rem)}
   .watch-progress-card{margin:0 .85rem .9rem}
