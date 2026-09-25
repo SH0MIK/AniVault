@@ -2016,24 +2016,25 @@ export const WATCH_CSS = `/* ═════════════════
     display:contents!important;
   }
 
+  .watch-layout .watch-content-flow{
+    display:contents!important;
+  }
+
   .watch-layout .wp-player-zone{
     order:1!important;
   }
-  .watch-layout .watch-info-card{
+  .watch-layout .watch-episode-card{
     order:2!important;
   }
-  .watch-layout .watch-episode-card{
-    order:3!important;
-  }
   .watch-layout .watch-queue-card{
-    order:4!important;
+    order:3!important;
     width:100%!important;
     margin-top:.85rem!important;
   }
   .watch-layout .wp-chars,
   .watch-layout .watch-character-section,
   .watch-layout .watch-character-slot{
-    order:5!important;
+    order:4!important;
   }
 
   .watch-layout .watch-anime-card,
