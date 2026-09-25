@@ -261,12 +261,6 @@ ${ogBlock}
   </div>
 </div>
 ${ICON_SPRITE}
-<div id="av-page-loader">
-  <div class="av-loader">
-    <div class="particle p1"></div><div class="particle p2"></div><div class="particle p3"></div>
-    <div class="logo-wrap"><img src="${o.siteUrl}/assets/img/site-img/logo.png" class="logo" alt="AniVault"></div>
-  </div>
-</div>
 ${bannerBlock}
 <div id="toast-container"></div>
 
