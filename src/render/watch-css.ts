@@ -2055,6 +2055,106 @@ export const WATCH_CSS = `/* ═════════════════
 
   /* Hide play overlay on episode thumbnails */
 .ep-play-ov{display:none!important;}
+
+/* ── enhanced SUB / DUB segmented switch ───────────────────────── */
+.server-tabs{
+  position:relative!important;
+  display:grid!important;
+  grid-template-columns:1fr 1fr!important;
+  align-items:center!important;
+  width:174px!important;
+  height:42px!important;
+  box-sizing:border-box!important;
+  padding:3px!important;
+  margin:.7rem .85rem .05rem!important;
+  border:1px solid rgba(255,255,255,.11)!important;
+  border-radius:13px!important;
+  background:rgba(8,10,15,.82)!important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.045),0 5px 18px rgba(0,0,0,.18)!important;
+  overflow:hidden!important;
+}
+.server-tabs::before{
+  content:'';
+  position:absolute;
+  z-index:0;
+  top:3px;
+  left:3px;
+  width:calc(50% - 3px);
+  height:34px;
+  border-radius:10px;
+  background:linear-gradient(135deg,#8b5cf6,#6d28d9);
+  box-shadow:0 4px 14px rgba(124,58,237,.35),inset 0 1px 0 rgba(255,255,255,.14);
+  transition:transform .28s cubic-bezier(.16,1,.3,1),background .28s ease,box-shadow .28s ease;
+}
+.server-tabs:has(.server-tab[data-tab="dub"].active)::before{
+  transform:translateX(100%);
+  background:linear-gradient(135deg,#3b82f6,#1d4ed8);
+  box-shadow:0 4px 14px rgba(37,99,235,.35),inset 0 1px 0 rgba(255,255,255,.14);
+}
+.server-tab{
+  position:relative!important;
+  z-index:1!important;
+  width:100%!important;
+  height:34px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:.38rem!important;
+  padding:0 .55rem!important;
+  border:0!important;
+  border-radius:10px!important;
+  background:transparent!important;
+  color:rgba(255,255,255,.48)!important;
+  font-size:.67rem!important;
+  font-weight:800!important;
+  letter-spacing:.09em!important;
+  transition:color .22s ease,transform .22s ease!important;
+}
+.server-tab::before{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  width:17px;
+  height:17px;
+  border:1px solid currentColor;
+  border-radius:5px;
+  font-size:.48rem;
+  font-weight:900;
+  letter-spacing:0;
+  opacity:.7;
+  transition:all .22s ease;
+}
+.server-tab[data-tab="sub"]::before{content:'CC';}
+.server-tab[data-tab="dub"]::before{content:'A';}
+.server-tab.active{
+  background:transparent!important;
+  color:#fff!important;
+  box-shadow:none!important;
+  transform:translateY(-.5px);
+}
+.server-tab.active::before{
+  opacity:1;
+  border-color:rgba(255,255,255,.72);
+  background:rgba(255,255,255,.12);
+}
+.server-tab:not(.active):hover{
+  color:rgba(255,255,255,.82)!important;
+  background:rgba(255,255,255,.045)!important;
+}
+.server-tab:focus-visible{
+  outline:2px solid rgba(167,139,250,.8)!important;
+  outline-offset:1px;
+}
+@media (max-width:640px){
+  .server-tabs{
+    width:190px!important;
+    height:44px!important;
+    margin:.65rem .7rem .05rem!important;
+  }
+  .server-tabs::before{height:36px;}
+  .server-tab{height:36px!important;font-size:.68rem!important;}
+}
+
 `;
 
 
