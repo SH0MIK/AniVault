@@ -445,10 +445,39 @@ export class MalAPI {
     const empty = { poster: '', cover: '', logo: '' };
     if (!malId) return empty;
 
-    const cacheKey = `scraper_art_v2_${malId}`;
+    const cacheKey = `scraper_art_${malId}`;
     if (this.kv && this.cacheEnabled()) {
       const cached = await this.safeKvGet(cacheKey, 'json') as typeof empty | null;
       if (cached) return cached;
+
+      // Migration fallback: this key used to be split into `_full`/`_list`
+      // variants. Reusing whichever of those is still warm (up to a week
+      // post-rename) means a title only ever needs ONE live scraper fetch
+      // to migrate onto the unified key, instead of every title on the
+      // site going cold at once -- which is exactly what blew through the
+      // Worker's per-request subrequest limit on the first home page load
+      // right after this rename shipped. Safe to remove this block once
+      // enough time has passed that the old keys have all expired (a week
+      // after deploy, or once clearScraperArtCache has touched everything).
+      // Cheap KV reads, so worth doing even when liveFetch is false --
+      // it's only the network call below that's gated. Only trust a legacy
+      // entry if it actually has something in it -- a bare `if (legacy)`
+      // is true even for a fully-empty {poster:'',cover:'',logo:''}
+      // object (any parsed JSON object is truthy), so a title that once
+      // had a transient scraper failure cached under the old keys would
+      // get that emptiness "migrated" forward and locked in for a week,
+      // never even attempting a live fetch despite the scraper having real
+      // data right now. Ignore an empty legacy entry and fall through to a
+      // live fetch instead (still gated by liveFetch below, same as a
+      // normal cache miss).
+      let legacy = await this.safeKvGet(`scraper_art_${malId}_full`, 'json') as typeof empty | null;
+      if (!legacy || !(legacy.poster || legacy.cover || legacy.logo)) {
+        legacy = await this.safeKvGet(`scraper_art_${malId}_list`, 'json') as typeof empty | null;
+      }
+      if (legacy && (legacy.poster || legacy.cover || legacy.logo)) {
+        await this.safeKvPut(cacheKey, JSON.stringify(legacy), { expirationTtl: 604800 });
+        return legacy;
+      }
     }
 
     if (!liveFetch) return empty;
@@ -474,7 +503,6 @@ export class MalAPI {
   async clearScraperArtCache(malId: number): Promise<void> {
     if (!malId || !this.kv) return;
     await Promise.all([
-      this.kv.delete(`scraper_art_v2_${malId}`).catch(() => {}),
       this.kv.delete(`scraper_art_${malId}`).catch(() => {}),
       this.kv.delete(`scraper_art_${malId}_list`).catch(() => {}),
       this.kv.delete(`scraper_art_${malId}_full`).catch(() => {}),
