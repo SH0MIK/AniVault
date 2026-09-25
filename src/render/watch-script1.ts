@@ -1480,6 +1480,43 @@ function filterEps(q){
   setTimeout(loadThumbs,300);
 })();
 
+(function initWatchQuickNav(){
+  var nav=document.querySelector('.watch-quick-nav');
+  var toggle=document.getElementById('watch-auto-next');
+  if(!nav || !toggle) return;
+  var nextUrl=nav.getAttribute('data-next-url') || '';
+  var key='anivault:auto-next';
+  var enabled=localStorage.getItem(key)==='1';
+  function paint(){
+    toggle.classList.toggle('is-on',enabled);
+    toggle.setAttribute('aria-pressed',enabled?'true':'false');
+    var state=document.getElementById('watch-auto-next-state');
+    if(state) state.textContent=enabled?'On':'Off';
+  }
+  toggle.addEventListener('click',function(){
+    enabled=!enabled;
+    localStorage.setItem(key,enabled?'1':'0');
+    paint();
+  });
+  paint();
+  if(!nextUrl) return;
+  var attached=null;
+  function bindVideo(){
+    var video=document.getElementById('sp-video');
+    if(!video || video===attached) return;
+    attached=video;
+    video.addEventListener('ended',function(){
+      if(enabled && nextUrl){
+        window.location.href=nextUrl;
+      }
+    });
+  }
+  bindVideo();
+  var observer=new MutationObserver(bindVideo);
+  observer.observe(document.body,{childList:true,subtree:true});
+  setTimeout(function(){observer.disconnect();},120000);
+})();
+
 </script>
 `;
 }
