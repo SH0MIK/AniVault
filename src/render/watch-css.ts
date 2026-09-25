@@ -2082,14 +2082,14 @@ export const WATCH_CSS = `/* ═════════════════
   width:calc(50% - 3px);
   height:34px;
   border-radius:10px;
-  background:linear-gradient(135deg,#8b5cf6,#6d28d9);
-  box-shadow:0 4px 14px rgba(124,58,237,.35),inset 0 1px 0 rgba(255,255,255,.14);
+  background:#fff;
+  box-shadow:0 4px 14px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.8);
   transition:transform .28s cubic-bezier(.16,1,.3,1),background .28s ease,box-shadow .28s ease;
 }
 .server-tabs:has(.server-tab[data-tab="dub"].active)::before{
   transform:translateX(100%);
-  background:linear-gradient(135deg,#3b82f6,#1d4ed8);
-  box-shadow:0 4px 14px rgba(37,99,235,.35),inset 0 1px 0 rgba(255,255,255,.14);
+  background:#fff;
+  box-shadow:0 4px 14px rgba(0,0,0,.24),inset 0 1px 0 rgba(255,255,255,.8);
 }
 .server-tab{
   position:relative!important;
@@ -2104,7 +2104,7 @@ export const WATCH_CSS = `/* ═════════════════
   border:0!important;
   border-radius:10px!important;
   background:transparent!important;
-  color:#fff!important;
+  color:#a7adb8!important;
   font-size:.67rem!important;
   font-weight:800!important;
   letter-spacing:.09em!important;
@@ -2123,7 +2123,7 @@ export const WATCH_CSS = `/* ═════════════════
 }
 .server-tab.active{
   background:transparent!important;
-  color:#fff!important;
+  color:#111827!important;
   box-shadow:none!important;
   transform:translateY(-.5px);
 }
@@ -2134,12 +2134,12 @@ export const WATCH_CSS = `/* ═════════════════
   transform:scale(1.02);
 }
  .server-tab:not(.active):hover{
-  color:#fff!important;
+  color:#d7dbe2!important;
   background:rgba(255,255,255,.045)!important;
 }
 .server-tab:not(.active):hover .server-tab-icon{
   opacity:.95;
-  color:#fff!important;
+  color:#d7dbe2!important;
   stroke:currentColor;
 }
 .server-tab:focus-visible{
