@@ -1811,3 +1811,4 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-queue-card .ep-thumb-box{width:96px!important;height:54px!important}
   .watch-queue-card .ep-live-dot{display:none}
 }
+`;
