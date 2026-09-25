@@ -1816,4 +1816,37 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-queue-card .ep-thumb-box{width:96px!important;height:54px!important}
   .watch-queue-card .ep-live-dot{display:none}
 }
+
+/* ── watch page: plain dark layout + mobile section order ───────── */
+.av-ambient{display:none!important}
+.watch-title-under-player{padding:1rem 0 .85rem}
+.watch-title-ep{font-size:.68rem;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);margin-bottom:.28rem}
+.watch-title-under-player h1{margin:0;color:var(--text-primary);font-size:1.45rem;line-height:1.18;font-weight:800}
+.watch-title-sub{margin-top:.28rem;color:var(--text-muted);font-size:.86rem;line-height:1.4}
+.watch-info-card,.watch-episode-card,.watch-discover-card,.wp-chars,.watch-anime-card,.watch-queue-card{background:transparent!important;box-shadow:none!important}
+.watch-info-card,.watch-episode-card,.watch-discover-card,.wp-chars{border-radius:0!important}
+.watch-info-card{padding:1rem 0;border-top:1px solid rgba(255,255,255,.07);border-bottom:1px solid rgba(255,255,255,.07)}
+.watch-info-head{display:flex;align-items:center;justify-content:space-between;gap:1rem;margin-bottom:.7rem}
+.watch-info-head a{font-size:.7rem;color:var(--accent);text-decoration:none;font-weight:700}
+.watch-episode-card{margin-top:.9rem}
+.watch-episode-main{padding-left:0!important;padding-right:0!important}
+.watch-episode-facts{border:0!important}
+@media (max-width:900px){
+  .watch-main{display:flex!important;flex-direction:column!important}
+  .watch-main>.wp-player-zone{order:1}
+  .watch-main>.watch-info-card{order:2}
+  .watch-main>.watch-episode-card{order:3}
+  .watch-main>.watch-discover-card{order:4}
+  .watch-main>.wp-chars{order:5}
+  .watch-discover-card{display:none!important}
+  .wp-chars{margin-top:.9rem!important;padding-top:0!important}
+}
+@media (max-width:640px){
+  .watch-title-under-player{padding:.8rem .1rem .7rem}
+  .watch-title-under-player h1{font-size:1.2rem}
+  .watch-title-sub{font-size:.76rem}
+  .watch-info-card{padding:.85rem 0}
+  .watch-episode-card{margin-top:.7rem}
+  .watch-info-head{margin-bottom:.55rem}
+}
 `;
