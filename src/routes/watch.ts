@@ -679,6 +679,10 @@ export function renderWatchBody(p: WatchBodyParams): string {
             <span class="watch-auto-copy">Auto Next</span>
             <span class="watch-toggle" aria-hidden="true"><span class="watch-toggle-knob"></span></span>
           </button>
+          <button type="button" class="watch-native-player" id="watch-native-player" aria-pressed="false" title="Use the browser's native video player">
+            <span class="watch-native-copy">Native</span>
+            <span class="watch-native-toggle" aria-hidden="true"><span class="watch-native-knob"></span></span>
+          </button>
           ${prevEp ? `<a class="watch-quick-btn prev" href="${siteUrl}/watch?anime=${animeId}&ep=${prevEp}" aria-label="Previous episode"><span class="watch-ep-icon-text" aria-hidden="true">⏮</span><span>Prev</span></a>` : `<span class="watch-quick-btn prev disabled"><span class="watch-ep-icon-text" aria-hidden="true">⏮</span><span>Prev</span></span>`}
           ${nextEp ? `<a class="watch-quick-btn next" href="${siteUrl}/watch?anime=${animeId}&ep=${nextEp}" aria-label="Next episode"><span>Ep ${nextEp}</span><span class="watch-ep-icon-text" aria-hidden="true">⏭</span></a>` : `<span class="watch-quick-btn next disabled"><span>Ep —</span><span class="watch-ep-icon-text" aria-hidden="true">⏭</span></span>`}
         </div>     <div class="watch-title-under-player">
