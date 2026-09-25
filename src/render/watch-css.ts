@@ -2456,4 +2456,74 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-quick-btn span:not(.watch-ep-icon-text){height:18px!important;line-height:18px!important;}
   .watch-ep-icon-text{font-size:18px!important;min-width:18px!important;height:18px!important;line-height:18px!important;}
 }
+
+/* ── native player fallback ───────────────────────────────────── */
+.watch-native-player{
+  order:2!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:5px!important;
+  height:34px!important;
+  padding:0!important;
+  margin-right:18px!important;
+  border:0!important;
+  background:transparent!important;
+  color:var(--text-secondary)!important;
+  font-size:13px!important;
+  font-weight:700!important;
+  line-height:1!important;
+  cursor:pointer!important;
+  opacity:.9!important;
+}
+.watch-native-player:disabled{opacity:.3!important;cursor:default!important;}
+.watch-native-player:not(:disabled):hover{color:var(--text-primary)!important;}
+.watch-native-toggle{
+  width:26px!important;
+  height:16px!important;
+  padding:2px!important;
+  border-radius:999px!important;
+  background:rgba(255,255,255,.16)!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:flex-start!important;
+  transition:background .18s ease!important;
+}
+.watch-native-knob{
+  width:12px!important;
+  height:12px!important;
+  border-radius:50%!important;
+  background:#fff!important;
+  transition:transform .18s ease!important;
+}
+.watch-native-player.is-on .watch-native-toggle{background:var(--accent)!important;}
+.watch-native-player.is-on .watch-native-knob{transform:translateX(10px)!important;}
+#senshi-player-root.native-player-mode{
+  background:#000!important;
+}
+#senshi-player-root.native-player-mode .vh-main-ui,
+#senshi-player-root.native-player-mode .vh-gradient-overlay,
+#senshi-player-root.native-player-mode #sp-spinner,
+#senshi-player-root.native-player-mode #sp-error,
+#senshi-player-root.native-player-mode #vh-sub-container{
+  display:none!important;
+}
+#senshi-player-root.native-player-mode #sp-video{
+  display:block!important;
+  width:100%!important;
+  height:100%!important;
+  object-fit:contain!important;
+  background:#000!important;
+}
+@media(max-width:640px){
+  .watch-native-player{
+    height:32px!important;
+    margin-right:10px!important;
+    gap:4px!important;
+    font-size:12px!important;
+  }
+  .watch-native-toggle{width:24px!important;height:15px!important;}
+  .watch-native-knob{width:11px!important;height:11px!important;}
+  .watch-native-player.is-on .watch-native-knob{transform:translateX(9px)!important;}
+}
 `;
