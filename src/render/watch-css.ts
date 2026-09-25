@@ -2524,7 +2524,6 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-native-knob{width:11px!important;height:11px!important;}
   .watch-native-player.is-on .watch-native-knob{transform:translateX(9px)!important;}
 }
-`;
 
 
 /* ── unified episode control bar ─────────────────────────────── */
@@ -2710,3 +2709,5 @@ export const WATCH_CSS = `/* ═════════════════
     flex-basis:15px!important;
   }
 }
+
+`;
