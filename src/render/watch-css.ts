@@ -1901,4 +1901,22 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-info-head{padding:0!important}
   .watch-episode-main{padding:0!important}
 }
+
+/* ── locked episode/character flow ─────────────────────────────── */
+.watch-content-flow{
+  display:flex!important;
+  flex-direction:column!important;
+  width:100%!important;
+  min-width:0!important;
+  gap:0!important;
+}
+.watch-content-flow>.watch-episode-card{order:1!important;position:relative!important;float:none!important;grid-area:auto!important;}
+.watch-content-flow>.wp-chars{order:2!important;position:relative!important;float:none!important;grid-area:auto!important;clear:both!important;}
+.watch-title-under-player{padding-left:1.25rem!important;}
+@media (max-width:640px){
+  .watch-title-under-player{padding-left:1.15rem!important;padding-right:.35rem!important;}
+  .watch-content-flow{display:flex!important;flex-direction:column!important;}
+  .watch-content-flow>.watch-episode-card{order:1!important;}
+  .watch-content-flow>.wp-chars{order:2!important;margin-top:1.1rem!important;}
+}
 `;
