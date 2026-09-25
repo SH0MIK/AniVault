@@ -1997,3 +1997,58 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-character-slot>.wp-chars{margin-top:1.25rem!important}
 }
 `;
+
+
+/* ── mobile: move the entire episode queue above characters ─────── */
+/*
+   The episode queue lives in .watch-sidebar while characters live in
+   .watch-main. On small displays we flatten both wrappers so they share
+   one vertical flex flow. This makes the DOM-independent visual order:
+   player -> info -> episode info -> episode queue -> characters.
+*/
+@media (max-width:900px){
+  .watch-layout{
+    display:flex!important;
+    flex-direction:column!important;
+    align-items:stretch!important;
+    gap:0!important;
+  }
+  .watch-layout>.watch-main,
+  .watch-layout>.watch-sidebar{
+    display:contents!important;
+  }
+
+  .watch-layout .wp-player-zone{
+    order:1!important;
+  }
+  .watch-layout .watch-info-card{
+    order:2!important;
+  }
+  .watch-layout .watch-episode-card{
+    order:3!important;
+  }
+  .watch-layout .watch-queue-card{
+    order:4!important;
+    width:100%!important;
+    margin-top:.85rem!important;
+  }
+  .watch-layout .wp-chars,
+  .watch-layout .watch-character-section,
+  .watch-layout .watch-character-slot{
+    order:5!important;
+  }
+
+  .watch-layout .watch-anime-card,
+  .watch-layout .watch-discover-card{
+    display:none!important;
+  }
+}
+
+@media (max-width:640px){
+  .watch-layout .watch-queue-card{
+    margin-top:.65rem!important;
+  }
+  .watch-layout .wp-chars{
+    margin-top:.75rem!important;
+  }
+}
