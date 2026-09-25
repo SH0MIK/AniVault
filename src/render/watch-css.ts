@@ -2129,8 +2129,8 @@ export const WATCH_CSS = `/* ═════════════════
 }
 .server-tab.active .server-tab-icon{
   opacity:1;
-  color:#fff!important;
-  stroke:#fff;
+  color:#111827!important;
+  stroke:#111827!important;
   transform:scale(1.02);
 }
  .server-tab:not(.active):hover{
