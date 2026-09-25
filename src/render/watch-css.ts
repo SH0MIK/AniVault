@@ -2148,12 +2148,13 @@ export const WATCH_CSS = `/* ═════════════════
 }
 @media (max-width:640px){
   .server-tabs{
-    width:190px!important;
-    height:44px!important;
-    margin:.65rem .7rem .05rem!important;
+    width:166px!important;
+    height:40px!important;
+    margin:.55rem .6rem .05rem!important;
   }
-  .server-tabs::before{height:36px;}
-  .server-tab{height:36px!important;font-size:.68rem!important;}
+  .server-tabs::before{height:32px;}
+  .server-tab{height:32px!important;font-size:.64rem!important;gap:.3rem!important;}
+  .server-tab-icon{width:15px!important;height:15px!important;flex-basis:15px;}
 }
 
 `;
