@@ -634,6 +634,13 @@ export function renderWatchBody(p: WatchBodyParams): string {
     epListHtml = `<div style="padding:.9rem;color:var(--text-muted);font-size:.85rem;">No episode data available.</div>`;
   }
 
+  const resumeLabel = resumeT > 0
+    ? `${Math.floor(resumeT / 60)}:${String(resumeT % 60).padStart(2, '0')}`
+    : '';
+  const watchProgress = totalEps > 0 && episodesWatched > 0
+    ? Math.min(100, Math.round((episodesWatched / totalEps) * 100))
+    : 0;
+
   return `
 <div class="av-ambient">
   <div class="av-ambient-img" style="background-image:url('${h(image)}')"></div>
@@ -647,80 +654,149 @@ export function renderWatchBody(p: WatchBodyParams): string {
     <span class="now">Episode ${epNum}</span>
   </nav>
 
-  <div class="wp-grid">
-    <div class="wp-left">
-      <div class="wp-player-zone">
+  <section class="watch-heading">
+    <div class="watch-heading-poster">
+      <img src="${h(coverSm)}" alt="${h(title)}" loading="eager">
+      <span class="watch-heading-ep">EP ${epNum}</span>
+    </div>
+    <div class="watch-heading-copy">
+      <div class="watch-kicker">NOW PLAYING</div>
+      <h1>${h(title)}</h1>
+      <div class="watch-heading-sub">
+        <span>Episode ${epNum}${totalEps > 0 ? ` / ${totalEps}` : ''}</span>
+        ${currentEpInfo?.title && currentEpInfo.title !== 'TBA' ? `<span class="watch-heading-dot">•</span><span>${epTitleDisplay}</span>` : ''}
+      </div>
+      <div class="watch-heading-tags">
+        ${animeType ? `<span>${h(animeType)}</span>` : ''}
+        ${status ? `<span>${h(status)}</span>` : ''}
+        ${score ? `<span>★ ${score}</span>` : ''}
+        ${currentEpInfo?.filler ? '<span class="tag-filler">Filler</span>' : ''}
+        ${currentEpInfo?.recap ? '<span class="tag-recap">Recap</span>' : ''}
+      </div>
+    </div>
+    <div class="watch-heading-actions">
+      <a class="heading-action" href="${animePage}" title="Open anime page">
+        <svg viewBox="0 0 24 24"><path d="M10 6H6a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4M14 4h6v6M20 4 10 14"/></svg>
+        Anime
+      </a>
+      <button class="heading-action" type="button" title="Copy watch link" onclick="navigator.clipboard?.writeText(location.href).then(()=>{this.classList.add('copied');setTimeout(()=>this.classList.remove('copied'),1100)})">
+        <svg viewBox="0 0 24 24"><path d="M8 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2M16 9H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Z"/></svg>
+        Copy
+      </button>
+    </div>
+  </section>
+
+  <div class="watch-layout">
+    <main class="watch-main">
+      <section class="wp-player-zone">
         <div class="wp-player-glow"></div>
         ${playerHtml}
         ${serverControlsHtml}
         ${navHtml}
-      </div>
+      </section>
 
-      <div class="wp-info">
-        <div class="wp-info-banner" style="background-image:url('${h(image)}' )"><div class="wp-info-banner-shade"></div><div class="wp-info-banner-copy"><span>NOW WATCHING</span><span>EPISODE ${epNum}</span></div></div>
-        <div class="wp-info-head">
-          <div class="wp-ep-chip">Episode ${epNum}${totalEps > 0 ? ` of ${totalEps}` : ''}</div>
-          <div class="wp-ep-title">${epTitleDisplay}</div>
-          <div class="wp-ep-meta">
-            <a href="${animePage}">${h(title)}</a>
-            ${currentEpInfo?.aired ? `<span class="dot">·</span><span>${new Date(currentEpInfo.aired).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>` : ''}
-            ${currentEpInfo?.score ? `<span class="dot">·</span><span>⭐ ${currentEpInfo.score}</span>` : ''}
-            ${currentEpInfo?.filler ? `<span class="ep-tag filler">Filler</span>` : ''}
-            ${currentEpInfo?.recap ? `<span class="ep-tag recap">Recap</span>` : ''}
+      <section class="watch-episode-card">
+        <div class="watch-episode-main">
+          <div class="watch-section-eyebrow">EPISODE ${epNum}</div>
+          <h2>${epTitleDisplay}</h2>
+          <div class="watch-episode-meta">
+            <span>${h(title)}</span>
+            ${currentEpInfo?.aired ? `<span>•</span><span>${new Date(currentEpInfo.aired).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>` : ''}
+            ${currentEpInfo?.score ? `<span>•</span><span>★ ${currentEpInfo.score}</span>` : ''}
           </div>
+          ${currentEpInfo?.synopsis ? `<p class="watch-synopsis">${h(currentEpInfo.synopsis)}</p>` : '<p class="watch-synopsis muted">You are watching this episode on AniVault. Use the server controls above to switch between available streams and audio versions.</p>'}
         </div>
 
-        <div class="wp-actions">
-          <a href="${animePage}" class="wp-act-btn primary"><svg viewBox="0 0 24 24"><path d="M13 3L4 14h7v7l9-11h-7V3z"/></svg>Anime Page</a>
-          ${isLoggedIn ? `<button class="wp-act-btn" onclick='addToList(${animeId}, ${jTitle}, ${jImage}, ${totalEps})'><svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>My List</button>` : ''}
-          <a href="https://myanimelist.net/anime/${animeId}" target="_blank" rel="noopener" class="wp-act-btn"><svg viewBox="0 0 24 24"><path d="M19 19H5V5h7V3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>MAL</a>
+        <div class="watch-episode-facts">
+          <div class="fact-box"><span>Type</span><strong>${h(animeType || '—')}</strong></div>
+          <div class="fact-box"><span>Status</span><strong>${h(status || '—')}</strong></div>
+          <div class="fact-box"><span>Score</span><strong>${score ? `★ ${score}` : '—'}</strong></div>
+          <div class="fact-box"><span>Episodes</span><strong>${totalEps || '—'}</strong></div>
+        </div>
+
+        <div class="watch-action-row">
+          <a href="${animePage}" class="watch-action primary">
+            <svg viewBox="0 0 24 24"><path d="M13 3 4 14h7v7l9-11h-7V3Z"/></svg> Anime page
+          </a>
+          ${isLoggedIn ? `<button class="watch-action" type="button" onclick='addToList(${animeId}, ${jTitle}, ${jImage}, ${totalEps})'>
+            <svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> My List
+          </button>` : ''}
+          <a href="https://myanimelist.net/anime/${animeId}" target="_blank" rel="noopener" class="watch-action">
+            <svg viewBox="0 0 24 24"><path d="M14 3h7v7M21 3l-9 9M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6"/></svg> MAL
+          </a>
+          <button class="watch-action" type="button" onclick="navigator.clipboard?.writeText(location.href).then(()=>{this.innerHTML='<svg viewBox=\\"0 0 24 24\\"><path d=\\"m5 12 4 4L19 6\\"/></svg> Copied';setTimeout(()=>location.reload(),900)})">
+            <svg viewBox="0 0 24 24"><path d="M8 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2M16 9H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Z"/></svg> Share
+          </button>
         </div>
 
         ${isLoggedIn ? `
-        <div class="wp-prog-wrap" id="wp-prog">
-          <div class="wp-prog-header"><span class="wp-prog-lbl">Progress</span><span class="wp-prog-time" id="wp-prog-time">—</span></div>
-          <div class="wp-prog-track"><div class="wp-prog-fill" id="wp-prog-fill"></div></div>
+        <div class="watch-progress-card">
+          <div class="watch-progress-head">
+            <span>YOUR WATCH PROGRESS</span>
+            <strong>${episodesWatched > 0 ? `Episode ${episodesWatched} of ${totalEps || '—'}` : 'Start watching'}</strong>
+          </div>
+          <div class="watch-progress-track"><span style="width:${watchProgress}%"></span></div>
+          <div class="watch-progress-foot">
+            <span>${resumeLabel ? `Resume point: ${resumeLabel}` : 'Progress is saved automatically while you watch.'}</span>
+            ${watchProgress > 0 ? `<span>${watchProgress}%</span>` : ''}
+          </div>
         </div>` : ''}
-      </div>
+      </section>
+
+      ${genres.length > 0 ? `
+      <section class="watch-discover-card">
+        <div class="watch-discover-head">
+          <div>
+            <div class="watch-section-eyebrow">DISCOVER MORE</div>
+            <h2>About ${h(title)}</h2>
+          </div>
+          <a href="${animePage}">View anime <span>→</span></a>
+        </div>
+        <div class="watch-genre-row">${genres.map((g) => `<span>${h(g.name)}</span>`).join('')}</div>
+        ${dubbedLangs.length > 0 ? `<div class="watch-dub-line"><span>🎙</span><strong>Available dubs:</strong> ${h(dubbedLangs.map((l) => DUB_LANGUAGES[l] ?? l).join(' · '))}</div>` : ''}
+      </section>` : ''}
 
       ${charsHtml}
-    </div>
+    </main>
 
-    <div class="wp-sidebar">
-      <div class="wp-anime-card">
-        <div class="wp-anime-banner">
-          <div class="wp-anime-banner-bg" style="background-image:url('${h(image)}')"></div>
-          <div class="wp-anime-banner-grad"></div>
-          <img src="${h(coverSm)}" class="wp-anime-poster" alt="${h(title)}" loading="lazy">
+    <aside class="watch-sidebar">
+      <section class="watch-anime-card">
+        <div class="watch-anime-art">
+          <img src="${h(coverSm)}" alt="${h(title)}" loading="lazy">
+          <div class="watch-anime-art-shade"></div>
+          <div class="watch-anime-art-info">
+            <span>${h(animeType || 'ANIME')}</span>
+            <span>${totalEps > 0 ? `${totalEps} EPISODES` : 'EPISODES'}</span>
+          </div>
         </div>
-        <div class="wp-anime-body">
-          <div class="wp-anime-title"><a href="${animePage}">${h(title)}</a></div>
-          <div class="wp-anime-sub">${h(animeType)}${animeType && status ? ' · ' : ''}${h(status)}${totalEps > 0 ? ` · ${totalEps} eps` : ''}</div>
-          ${dubbedLangs.length > 0 ? `<div class="wp-anime-sub" style="color:var(--teal,#2dd4bf);font-size:0.78rem;margin-top:2px;">🎙️ Dubbed: ${h(dubbedLangs.map((l) => DUB_LANGUAGES[l] ?? l).join(', '))} <span style="color:var(--text-muted);">(© <a href="https://mydublist.com" target="_blank" rel="noopener" style="color:inherit;">MyDubList</a>)</span></div>` : ''}
-          ${score ? `
-          <div class="wp-score-row">
-            <div class="wp-score"><svg viewBox="0 0 24 24"><path d="M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z"/></svg>${score}</div>
-            <div class="wp-score-bar-wrap"><div class="wp-score-bar" style="width:${Math.min(100, (score / 10) * 100)}%"></div></div>
-          </div>` : ''}
-          ${genres.length > 0 ? `<div class="wp-genres">${genres.map((g) => `<span class="wp-genre">${h(g.name)}</span>`).join('')}</div>` : ''}
+        <div class="watch-anime-body">
+          <a class="watch-anime-title" href="${animePage}">${h(title)}</a>
+          <div class="watch-anime-status">${h(status || 'Status unavailable')}${score ? ` <span>·</span> ★ ${score}` : ''}</div>
+          ${dubbedLangs.length > 0 ? `<div class="watch-dub-badge">🎙 ${h(dubbedLangs.map((l) => DUB_LANGUAGES[l] ?? l).join(', '))}</div>` : ''}
+          ${score ? `<div class="watch-score-line"><strong>★ ${score}</strong><div><span style="width:${Math.min(100, (score / 10) * 100)}%"></span></div></div>` : ''}
+          <a class="watch-anime-open" href="${animePage}">Open anime details <span>→</span></a>
         </div>
-      </div>
+      </section>
 
-      <div class="wp-ep-card">
-        <div class="wp-ep-head">
-          <span class="wp-ep-ttl">Episodes</span>
-          ${allVideos.length > 0 ? `<span class="wp-ep-count">${allVideos.length} available</span>` : ''}
+      <section class="watch-queue-card">
+        <div class="watch-queue-head">
+          <div>
+            <div class="watch-section-eyebrow">QUEUE</div>
+            <h2>Episodes</h2>
+          </div>
+          ${allVideos.length > 0 ? `<span class="watch-queue-count">${allVideos.length} ready</span>` : ''}
         </div>
         ${epRangeWrapHtml}
-        <div class="wp-ep-search-wrap">
-          <div class="wp-ep-search-ico"><svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0016 9.5 6.5 6.5 0 109.5 16a6.471 6.471 0 004.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg></div>
-          <input type="text" class="wp-ep-search" id="ep-search" placeholder="Search episodes…" oninput="filterEps(this.value)">
+        <div class="watch-queue-search">
+          <svg viewBox="0 0 24 24"><path d="M15.5 14h-.79l-.27-.27A6.47 6.47 0 1 0 14 15.5l.27.27v.79l5 5L20.5 20l-5-5Zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14Z"/></svg>
+          <input type="text" id="ep-search" placeholder="Find an episode…" oninput="filterEps(this.value)">
         </div>
         <div class="wp-ep-list" id="ep-list">${epListHtml}</div>
-      </div>
-    </div>
+      </section>
+    </aside>
   </div>
 </div>`;
+
 }
 
 function renderSignInGate(image: string, playId: string, signinId: string, signupId: string): string {
