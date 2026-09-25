@@ -659,27 +659,35 @@ export function renderWatchBody(p: WatchBodyParams): string {
       <section class="wp-player-zone">
         <div class="wp-player-glow"></div>
         ${playerHtml}
+        <div class="watch-title-under-player">
+          <div class="watch-title-ep">Episode ${epNum}</div>
+          <h1>${h(title)}</h1>
+          ${currentEpInfo?.title && currentEpInfo.title !== 'TBA' ? `<div class="watch-title-sub">${epTitleDisplay}</div>` : ''}
+        </div>
         ${serverControlsHtml}
         ${navHtml}
       </section>
 
-      <section class="watch-episode-card">
-        <div class="watch-episode-main">
-          <div class="watch-section-eyebrow">EPISODE ${epNum}</div>
-          <h2>${epTitleDisplay}</h2>
-          <div class="watch-episode-meta">
-            <span>${h(title)}</span>
-            ${currentEpInfo?.aired ? `<span>•</span><span>${new Date(currentEpInfo.aired).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>` : ''}
-            ${currentEpInfo?.score ? `<span>•</span><span>★ ${currentEpInfo.score}</span>` : ''}
-          </div>
-          ${currentEpInfo?.synopsis ? `<p class="watch-synopsis">${h(currentEpInfo.synopsis)}</p>` : ''}
-        </div>
-
+      <section class="watch-info-card">
+        <div class="watch-info-head"><div class="watch-section-eyebrow">INFO</div><a href="${animePage}">Anime details →</a></div>
         <div class="watch-episode-facts">
           <div class="fact-box"><span>Type</span><strong>${h(animeType || '—')}</strong></div>
           <div class="fact-box"><span>Status</span><strong>${h(status || '—')}</strong></div>
           <div class="fact-box"><span>Score</span><strong>${score ? `★ ${score}` : '—'}</strong></div>
           <div class="fact-box"><span>Episodes</span><strong>${totalEps || '—'}</strong></div>
+        </div>
+
+
+      </section>
+      <section class="watch-episode-card">
+        <div class="watch-episode-main">
+          <div class="watch-section-eyebrow">EPISODE ${epNum}</div>
+          <h2>${epTitleDisplay}</h2>
+          <div class="watch-episode-meta">
+            ${currentEpInfo?.aired ? `<span>•</span><span>${new Date(currentEpInfo.aired).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>` : ''}
+            ${currentEpInfo?.score ? `<span>•</span><span>★ ${currentEpInfo.score}</span>` : ''}
+          </div>
+          ${currentEpInfo?.synopsis ? `<p class="watch-synopsis">${h(currentEpInfo.synopsis)}</p>` : ''}
         </div>
 
         <div class="watch-action-row">
