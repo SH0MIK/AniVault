@@ -1849,4 +1849,37 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-episode-card{margin-top:.7rem}
   .watch-info-head{margin-bottom:.55rem}
 }
+
+/* ── final flat watch UI overrides ───────────────────────────── */
+.av-ambient,.watch-heading{display:none!important}
+.wp-page{padding-top:0!important}
+.wp-player-zone,.wp-player-glow,.wp-controls,.server-panel,.server-panel-body,.server-tab-panel,.watch-info-card,.watch-episode-card,.watch-discover-card,.wp-chars,.watch-anime-card,.watch-queue-card{background:transparent!important;box-shadow:none!important}
+.wp-player-zone,.wp-controls,.server-panel,.watch-info-card,.watch-episode-card,.watch-discover-card,.wp-chars{border-color:transparent!important}
+.wp-player-zone{padding-left:0!important;padding-right:0!important}
+.watch-main{background:transparent!important}
+.watch-info-card,.watch-episode-card,.wp-chars{padding-left:0!important;padding-right:0!important}
+.watch-info-card{margin-top:.35rem!important}
+.watch-episode-card{margin-top:.75rem!important}
+.wp-chars{margin-top:.75rem!important}
+.watch-action,.heading-action,.server-btn,.server-tab,.wpc-q,.wp-nav-btn,.ep-range-btn,.ep-range-row{background:rgba(255,255,255,.045)}
+.watch-title-under-player{padding:.65rem 0 .55rem!important}
+.watch-title-under-player h1{margin:0!important}
+@media (max-width:900px){
+  .watch-main{display:block!important}
+  .watch-main>.wp-player-zone,.watch-main>.watch-info-card,.watch-main>.watch-episode-card,.watch-main>.wp-chars{display:block!important}
+  .watch-main>.wp-player-zone{order:initial!important}
+  .watch-main>.watch-info-card{order:initial!important}
+  .watch-main>.watch-episode-card{order:initial!important}
+  .watch-main>.wp-chars{order:initial!important}
+  .watch-discover-card{display:none!important}
+}
+@media (max-width:640px){
+  .wp-page{padding-left:.6rem!important;padding-right:.6rem!important;padding-bottom:2rem!important}
+  .watch-title-under-player{padding:.6rem 0 .5rem!important}
+  .watch-info-card{padding-top:.7rem!important;padding-bottom:.7rem!important}
+  .watch-episode-card{margin-top:.65rem!important;padding-top:.1rem!important}
+  .wp-chars{margin-top:.65rem!important;padding-top:.1rem!important}
+  .watch-info-head{padding:0!important}
+  .watch-episode-main{padding:0!important}
+}
 `;
