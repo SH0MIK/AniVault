@@ -503,7 +503,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
   const jImage = JSON.stringify(coverSm);
 
   const charsHtml = chars.length > 0 ? `
-      <div class="wp-chars">
+      <section class="watch-character-section">
         <div class="wp-chars-head"><span class="wp-chars-ttl">Characters</span><a href="${animePage}#tab-characters">All →</a></div>
         <div class="char-grid-v2">
           ${chars.map((chEntry) => {
@@ -521,7 +521,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
           </a>`;
           }).join('')}
         </div>
-      </div>` : '';
+      </section>` : '';
 
   // Sidebar episode list -- prefer Jikan's episode list (has real titles),
   // falling back to just the anime_list rows we actually have videos for.
