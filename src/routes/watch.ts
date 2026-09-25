@@ -682,14 +682,8 @@ export function renderWatchBody(p: WatchBodyParams): string {
       <section class="watch-episode-card">
         <div class="watch-episode-main">
           <div class="watch-section-eyebrow">EPISODE ${epNum}</div>
-          <h2>${epTitleDisplay}</h2>
-          <div class="watch-episode-meta">
-            ${currentEpInfo?.aired ? `<span>•</span><span>${new Date(currentEpInfo.aired).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>` : ''}
-            ${currentEpInfo?.score ? `<span>•</span><span>★ ${currentEpInfo.score}</span>` : ''}
-          </div>
           ${currentEpInfo?.synopsis ? `<p class="watch-synopsis">${h(currentEpInfo.synopsis)}</p>` : ''}
         </div>
-
         <div class="watch-action-row">
           <a href="${animePage}" class="watch-action primary">
             <svg viewBox="0 0 24 24"><path d="M13 3 4 14h7v7l9-11h-7V3Z"/></svg> Anime page
@@ -718,19 +712,6 @@ export function renderWatchBody(p: WatchBodyParams): string {
           </div>
         </div>` : ''}
       </section>
-
-      ${genres.length > 0 ? `
-      <section class="watch-discover-card">
-        <div class="watch-discover-head">
-          <div>
-            <div class="watch-section-eyebrow">DISCOVER MORE</div>
-            <h2>About ${h(title)}</h2>
-          </div>
-          <a href="${animePage}">View anime <span>→</span></a>
-        </div>
-        <div class="watch-genre-row">${genres.map((g) => `<span>${h(g.name)}</span>`).join('')}</div>
-        ${dubbedLangs.length > 0 ? `<div class="watch-dub-line"><span>🎙</span><strong>Available dubs:</strong> ${h(dubbedLangs.map((l) => DUB_LANGUAGES[l] ?? l).join(' · '))}</div>` : ''}
-      </section>` : ''}
 
       ${charsHtml}
     </main>
