@@ -9,7 +9,6 @@
             </div>
           </div>` : ''}
           <div class="server-panel" id="server-grid">
-            <div class="server-panel-head"><span class="server-panel-lbl"><span class="server-panel-dot"></span>Servers</span><span class="server-panel-hint">Click to switch</span></div>
             <div class="server-panel-body">
               <div class="server-tabs"><button class="server-tab active" data-tab="sub">${icon('captions', 'server-tab-icon')}<span>Sub</span></button><button class="server-tab" data-tab="dub">${icon('mic', 'server-tab-icon')}<span>Dub</span></button></div>
               <div class="server-tab-panel active" id="tab-panel-sub" data-audio="sub">
