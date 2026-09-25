@@ -724,7 +724,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
           <a href="https://myanimelist.net/anime/${animeId}" target="_blank" rel="noopener" class="watch-action">
             <svg viewBox="0 0 24 24"><path d="M14 3h7v7M21 3l-9 9M19 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h6"/></svg> MAL
           </a>
-          <button class="watch-action" type="button" onclick="navigator.clipboard?.writeText(location.href).then(()=>{this.innerHTML='<svg viewBox=\\"0 0 24 24\\"><path d=\\"m5 12 4 4L19 6\\"/></svg> Copied';setTimeout(()=>location.reload(),900)})">
+          <button class="watch-action" type="button" onclick="if(navigator.clipboard){navigator.clipboard.writeText(location.href).then(()=>{this.textContent='Copied';setTimeout(()=>this.textContent='Share',1000)})}"><path d=\\"m5 12 4 4L19 6\\"/></svg> Copied';setTimeout(()=>location.reload(),900)})">
             <svg viewBox="0 0 24 24"><path d="M8 7V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2M16 9H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Z"/></svg> Share
           </button>
         </div>
