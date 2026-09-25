@@ -1409,7 +1409,12 @@ root.classList.add('vh-paused');
 /* Public API (SenshiPlayer compatibility for AniVault) */
 window._setSenshiLastSource = function(url, subs) {
   if (!url) return;
-  window._senshiLastSource = { url: url, subtitles: Array.isArray(subs) ? subs.slice() : [] };
+  const isMp4 = /\\.mp4(?:$|[?#])/i.test(url) || (!/\\.m3u8(?:$|[?#])/i.test(url) && !/\\/hls\\//i.test(url));
+  window._senshiLastSource = {
+    url: url,
+    type: isMp4 ? 'mp4' : 'hls',
+    subtitles: Array.isArray(subs) ? subs.slice() : []
+  };
   try { window.dispatchEvent(new CustomEvent('anivault:source-ready')); } catch(e) {}
 };
 window.SenshiPlayer = {
