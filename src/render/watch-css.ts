@@ -2051,7 +2051,10 @@ export const WATCH_CSS = `/* ═════════════════
     margin-top:.75rem!important;
   }
 }
+
+
+  /* Hide play overlay on episode thumbnails */
+.ep-play-ov{display:none!important;}
 `;
 
-/* Hide play overlay on episode thumbnails */
-.ep-play-ov{display:none!important;}
+
