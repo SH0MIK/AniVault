@@ -1321,6 +1321,7 @@ function loadHLS(m3u8Url) {
   }
 
   currentM3u8 = m3u8Url;
+  window._senshiHlsLoadedUrl = m3u8Url;
   if (spinner) spinner.classList.remove('hide');
   if (errBox) errBox.classList.remove('show');
 
@@ -1423,6 +1424,7 @@ window.SenshiPlayer = {
     window._setSenshiLastSource(url, []);
     if (url.includes('.mp4') || (!url.includes('.m3u8') && !url.includes('/hls/'))) {
       if (hls) { try { hls.destroy(); } catch(e) {} hls = null; }
+      window._senshiHlsLoadedUrl = null;
       vid.src = url;
       vid.load();
       if (settings.autoplay) {
@@ -1470,6 +1472,7 @@ window.SenshiPlayer = {
 
     if (url && (url.includes('.mp4') || (!url.includes('.m3u8') && !url.includes('/hls/')))) {
       if (hls) { try { hls.destroy(); } catch(e) {} hls = null; }
+      window._senshiHlsLoadedUrl = null;
       vid.src = url;
       vid.load();
       if (settings.autoplay) {
@@ -1507,6 +1510,7 @@ window.SenshiPlayer = {
       try { hls.destroy(); } catch(e) {}
       hls = null;
     }
+    window._senshiHlsLoadedUrl = null;
     stopAmbient();
     clearTimeout(idleTimer);
     clearTimeout(sleepTimer);

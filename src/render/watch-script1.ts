@@ -1523,18 +1523,30 @@ function filterEps(q){
     var currentMediaUrl = video.currentSrc || video.src || '';
     var keepCurrentMp4 = source.type === 'mp4' && !!currentMediaUrl &&
       (currentMediaUrl === source.url || currentMediaUrl.split('#')[0] === source.url.split('#')[0]);
+    var keepCurrentHls = source.type === 'hls' && window._senshiHlsLoadedUrl === source.url;
 
     // If the source is already loaded, take over the exact same media
     // element. This is the same state reached after switching servers once.
-    if(!keepCurrentMp4){
-      try { if(window.SenshiPlayer && window.SenshiPlayer.destroy) window.SenshiPlayer.destroy(); }catch(e){}
-      try { video.pause(); }catch(e){}
-      try { video.srcObject=null; }catch(e){}
-      video.removeAttribute('src');
-      try { video.load(); }catch(e){}
-      video.src=source.url;
-      video.preload='metadata';
-      video.load();
+    if(!keepCurrentMp4 && !keepCurrentHls){
+      if(source.type === 'hls'){
+        // Don't set video.src to the m3u8 directly: most browsers besides
+        // Safari can't parse HLS natively, and our own TurboVid servers
+        // wrap segments as fake PNGs that only the custom TurboVidFragmentLoader
+        // (used inside hls.js via SenshiPlayer) knows how to unwrap. Route
+        // through the same pipeline the custom player uses instead.
+        if(window.SenshiPlayer && window.SenshiPlayer.loadWithSubs){
+          window.SenshiPlayer.loadWithSubs(source.url, source.subtitles);
+        }
+      } else {
+        try { if(window.SenshiPlayer && window.SenshiPlayer.destroy) window.SenshiPlayer.destroy(); }catch(e){}
+        try { video.pause(); }catch(e){}
+        try { video.srcObject=null; }catch(e){}
+        video.removeAttribute('src');
+        try { video.load(); }catch(e){}
+        video.src=source.url;
+        video.preload='metadata';
+        video.load();
+      }
     }
 
     clearTracks();
