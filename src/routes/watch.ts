@@ -470,35 +470,64 @@ export function renderWatchBody(p: WatchBodyParams): string {
           <div class="server-panel" id="server-grid">
             <div class="server-panel-head"><span class="server-panel-lbl"><span class="server-panel-dot"></span>Servers</span><span class="server-panel-hint">Click to switch</span></div>
             <div class="server-panel-body">
-              <div class="server-tabs"><button class="server-tab active" data-tab="sub">${icon('captions', 'server-tab-icon')}<span>Sub</span></button><button class="server-tab" data-tab="dub">${icon('mic', 'server-tab-icon')}<span>Dub</span></button></div>
               <div class="server-tab-panel active" id="tab-panel-sub" data-audio="sub">
-                <div class="server-btn-row" id="servers-sub-body">
-                  ${turbovidServers.filter(v=>v.audio_group==='sub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Sub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Sub</span></button>`).join('')}
-                  ${SUB_PROVIDERS.map(p => fixedServerBtn('sub', p.source, p.provider, p.label)).join('')}
+                <div class="source-tabs" role="tablist" aria-label="Subtitle source type">
+                  <button type="button" class="source-tab active" data-source-tab="hls" data-audio="sub">HLS</button>
+                  <button type="button" class="source-tab" data-source-tab="embed" data-audio="sub">Embed</button>
                 </div>
-              </div>
-              <div class="server-tab-panel" id="tab-panel-dub" data-audio="dub">
-                <div class="server-btn-row" id="servers-dub-body">
-                  ${turbovidServers.filter(v=>v.audio_group==='dub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Dub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Dub</span></button>`).join('')}
-                  ${DUB_PROVIDERS.map(p => fixedServerBtn('dub', p.source, p.provider, p.label)).join('')}
-                </div>
-                <div class="server-group" id="dub-hindi-group">
-                  <div class="server-group-label">Hindi Dub</div>
-                  <div class="server-group-body" id="servers-dub-hindi-body">
-                    ${turbovidServers.filter(v=>v.audio_group==='hindi').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Hindi"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Hindi</span></button>`).join('')}
-                    ${HINDI_PROVIDERS.map(p => fixedServerBtn('hindi', p.source, p.provider, p.label)).join('')}
+                <div class="source-panel active" id="source-panel-sub-hls">
+                  <div class="server-btn-row" id="servers-sub-body">
+                    ${turbovidServers.filter(v=>v.audio_group==='sub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Sub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Sub</span></button>`).join('')}
+                    ${SUB_PROVIDERS.map(p => fixedServerBtn('sub', p.source, p.provider, p.label)).join('')}
                   </div>
                 </div>
-                <div class="server-group" id="dub-multi-group" style="${turbovidServers.some(v=>v.audio_group==='multi') ? '' : 'display:none'}">
-                  <div class="server-group-label">Multi Dub</div>
-                  <div class="server-group-body" id="servers-dub-multi-body">
-                    ${turbovidServers.filter(v=>v.audio_group==='multi').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Multi"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">${h(v.language || 'dub')}</span></button>`).join('')}
-                    <div class="server-skel-group" id="servers-dub-multi-loading">
-                      <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:64px"></span></span>
-                      <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:50px"></span></span>
+                <div class="source-panel" id="source-panel-sub-embed">
+                  <div class="server-btn-row">
+                    <button type="button" class="embed-server-btn" data-embed-url="https://babastream.top/embed/${animeId}/${epNum}/sub" title="BabaStream — embedded player with downloading available">
+                      <span class="embed-server-name">BabaStream</span>
+                      <span class="embed-server-badge">↓ Download</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+              </div>
+              <div class="server-tab-panel" id="tab-panel-dub" data-audio="dub">
+                <div class="source-tabs" role="tablist" aria-label="Dub source type">
+                  <button type="button" class="source-tab active" data-source-tab="hls" data-audio="dub">HLS</button>
+                  <button type="button" class="source-tab" data-source-tab="embed" data-audio="dub">Embed</button>
+                </div>
+                <div class="source-panel active" id="source-panel-dub-hls">
+                  <div class="server-btn-row" id="servers-dub-body">
+                    ${turbovidServers.filter(v=>v.audio_group==='dub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Dub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Dub</span></button>`).join('')}
+                    ${DUB_PROVIDERS.map(p => fixedServerBtn('dub', p.source, p.provider, p.label)).join('')}
+                  </div>
+                  <div class="server-group" id="dub-hindi-group">
+                    <div class="server-group-label">Hindi Dub</div>
+                    <div class="server-group-body" id="servers-dub-hindi-body">
+                      ${turbovidServers.filter(v=>v.audio_group==='hindi').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Hindi"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Hindi</span></button>`).join('')}
+                      ${HINDI_PROVIDERS.map(p => fixedServerBtn('hindi', p.source, p.provider, p.label)).join('')}
+                    </div>
+                  </div>
+                  <div class="server-group" id="dub-multi-group" style="${turbovidServers.some(v=>v.audio_group==='multi') ? '' : 'display:none'}">
+                    <div class="server-group-label">Multi Dub</div>
+                    <div class="server-group-body" id="servers-dub-multi-body">
+                      ${turbovidServers.filter(v=>v.audio_group==='multi').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Multi"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">${h(v.language || 'dub')}</span></button>`).join('')}
+                      <div class="server-skel-group" id="servers-dub-multi-loading">
+                        <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:64px"></span></span>
+                        <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:50px"></span></span>
+                      </div>
                     </div>
                   </div>
                 </div>
+                <div class="source-panel" id="source-panel-dub-embed">
+                  <div class="server-btn-row">
+                    <button type="button" class="embed-server-btn" data-embed-url="https://babastream.top/embed/${animeId}/${epNum}/dub" title="BabaStream — embedded player with downloading available">
+                      <span class="embed-server-name">BabaStream</span>
+                      <span class="embed-server-badge">↓ Download</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
               </div>
             </div>
           </div>
