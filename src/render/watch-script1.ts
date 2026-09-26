@@ -882,13 +882,84 @@ window.retryCurrentServer = function() {
     if (el) el.addEventListener('click', function() { requireLogin('signup'); });
 });
 
+// ── HLS / Embed source switching ──────────────────────────────────────────
+function setSourceType(audio, type) {
+    const panel = document.getElementById('tab-panel-' + audio);
+    if (!panel) return;
+    panel.querySelectorAll('.source-tab').forEach(t => {
+        t.classList.toggle('active', t.dataset.sourceTab === type);
+    });
+    panel.querySelectorAll('.source-panel').forEach(p => p.classList.remove('active'));
+    const sourcePanel = document.getElementById('source-panel-' + audio + '-' + type);
+    if (sourcePanel) sourcePanel.classList.add('active');
+}
+
+function showBabaStream(url) {
+    const pw = document.getElementById('watch-player-wrap');
+    if (!pw || !url) return;
+
+    // Keep the existing HLS/Senshi player in the DOM so switching back from
+    // BabaStream does not destroy the current player instance.
+    const senshi = document.getElementById('senshi-player-root');
+    if (senshi) senshi.style.display = 'none';
+
+    const nativeIframe = document.getElementById('main-player-iframe');
+    if (nativeIframe) nativeIframe.style.display = 'none';
+
+    let iframe = document.getElementById('babastream-embed-frame');
+    if (!iframe) {
+        iframe = document.createElement('iframe');
+        iframe.id = 'babastream-embed-frame';
+        iframe.className = 'babastream-embed-frame';
+        iframe.setAttribute('allow', 'autoplay; fullscreen; picture-in-picture; encrypted-media');
+        iframe.setAttribute('allowfullscreen', '');
+        iframe.setAttribute('loading', 'eager');
+        iframe.setAttribute('referrerpolicy', 'origin');
+        pw.appendChild(iframe);
+    }
+    iframe.src = url;
+    iframe.style.display = 'block';
+}
+
+document.querySelectorAll('.source-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+        const audio = tab.dataset.audio;
+        const type = tab.dataset.sourceTab;
+        if (!audio || !type) return;
+        window._manualServerSelection = true;
+        setSourceType(audio, type);
+    });
+});
+
+document.querySelectorAll('.embed-server-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+        const url = btn.dataset.embedUrl;
+        if (!url) return;
+        window._manualServerSelection = true;
+        const audio = btn.closest('.server-tab-panel')?.dataset.audio;
+        if (audio) {
+            document.querySelectorAll('.server-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === audio));
+            document.querySelectorAll('.server-tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-panel-' + audio));
+            setSourceType(audio, 'embed');
+        }
+        showBabaStream(url);
+    });
+});
+
 // ── Tab switching ─────────────────────────────────────────────────────────
 document.querySelectorAll('.server-tab').forEach(tab => {
     tab.addEventListener('click', () => {
         document.querySelectorAll('.server-tab').forEach(t => t.classList.remove('active'));
         document.querySelectorAll('.server-tab-panel').forEach(p => p.classList.remove('active'));
         tab.classList.add('active');
-        document.getElementById('tab-panel-' + tab.dataset.tab)?.classList.add('active');
+        const audio = tab.dataset.tab;
+        document.getElementById('tab-panel-' + audio)?.classList.add('active');
+        // Switching SUB/DUB returns to that audio group's HLS sources.
+        setSourceType(audio, 'hls');
+        const baba = document.getElementById('babastream-embed-frame');
+        if (baba) baba.style.display = 'none';
+        const senshi = document.getElementById('senshi-player-root');
+        if (senshi) senshi.style.display = '';
     });
 });
 
