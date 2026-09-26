@@ -536,11 +536,8 @@ export function renderWatchBody(p: WatchBodyParams): string {
                   </div>
                 </div>
               </div>
-              </div>
-              </div>
             </div>
-          </div>
-        </div>` : '';
+          </div>` : '';
 
   const epTitleDisplay = currentEpInfo?.title && currentEpInfo.title !== 'TBA' ? h(currentEpInfo.title) : `Episode ${epNum}`;
 
