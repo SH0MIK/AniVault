@@ -490,7 +490,6 @@ export function renderWatchBody(p: WatchBodyParams): string {
                   </div>
                 </div>
               </div>
-              </div>
               <div class="server-tab-panel" id="tab-panel-dub" data-audio="dub">
                 <div class="source-tabs" role="tablist" aria-label="Dub source type">
                   <button type="button" class="source-tab active" data-source-tab="hls" data-audio="dub">HLS</button>
