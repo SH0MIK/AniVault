@@ -2527,3 +2527,90 @@ export const WATCH_CSS = `/* ═════════════════
 
 
 `;
+
+
+/* ── HLS / Embed source selector ───────────────────────────────── */
+.source-tabs{
+  display:inline-flex!important;
+  align-items:center!important;
+  gap:3px!important;
+  margin:.55rem .85rem .35rem!important;
+  padding:3px!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  border-radius:9px!important;
+  background:rgba(255,255,255,.025)!important;
+}
+.source-tab{
+  height:28px!important;
+  padding:0 .7rem!important;
+  border:0!important;
+  border-radius:7px!important;
+  background:transparent!important;
+  color:var(--text-muted)!important;
+  font-size:.61rem!important;
+  font-weight:800!important;
+  letter-spacing:.08em!important;
+  text-transform:uppercase!important;
+  cursor:pointer!important;
+  transition:all .18s ease!important;
+}
+.source-tab:hover{color:var(--text-primary)!important;background:rgba(255,255,255,.045)!important}
+.source-tab.active{
+  color:#111827!important;
+  background:#fff!important;
+  box-shadow:0 2px 8px rgba(0,0,0,.18)!important;
+}
+.source-panel{display:none!important}
+.source-panel.active{display:block!important}
+
+.embed-server-btn{
+  min-height:38px!important;
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:.55rem!important;
+  padding:0 .8rem!important;
+  border:1px solid rgba(232,69,60,.28)!important;
+  border-radius:9px!important;
+  background:rgba(232,69,60,.07)!important;
+  color:var(--text-primary)!important;
+  cursor:pointer!important;
+  font-size:.68rem!important;
+  font-weight:800!important;
+  transition:background .18s ease,border-color .18s ease,transform .18s ease!important;
+}
+.embed-server-btn:hover{
+  background:rgba(232,69,60,.13)!important;
+  border-color:rgba(232,69,60,.48)!important;
+  transform:translateY(-1px)!important;
+}
+.embed-server-name{letter-spacing:.02em!important}
+.embed-server-badge{
+  display:inline-flex!important;
+  align-items:center!important;
+  min-height:20px!important;
+  padding:0 .42rem!important;
+  border-radius:999px!important;
+  background:rgba(255,255,255,.09)!important;
+  color:rgba(255,255,255,.72)!important;
+  font-size:.56rem!important;
+  font-weight:850!important;
+  letter-spacing:.04em!important;
+  text-transform:uppercase!important;
+}
+.babastream-embed-frame{
+  display:block;
+  width:100%;
+  height:100%;
+  min-height:420px;
+  border:0;
+  border-radius:inherit;
+  background:#000;
+}
+@media(max-width:640px){
+  .source-tabs{margin:.45rem .6rem .3rem!important}
+  .source-tab{height:27px!important;padding:0 .6rem!important;font-size:.58rem!important}
+  .embed-server-btn{min-height:36px!important;padding:0 .68rem!important;font-size:.64rem!important}
+  .embed-server-badge{font-size:.52rem!important}
+  .babastream-embed-frame{min-height:240px}
+}
