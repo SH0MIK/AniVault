@@ -2528,6 +2528,48 @@ export const WATCH_CSS = `/* ═════════════════
 
 
 
+
+.source-section{
+  margin-top:.45rem!important;
+}
+.source-section + .source-section{
+  margin-top:1rem!important;
+}
+.source-section-head{
+  display:flex!important;
+  align-items:center!important;
+  gap:.55rem!important;
+  margin:0 .85rem .45rem!important;
+  color:var(--text-primary)!important;
+  font-size:.74rem!important;
+  font-weight:900!important;
+  letter-spacing:.06em!important;
+  text-transform:uppercase!important;
+}
+.source-section-icon{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  width:24px!important;
+  height:24px!important;
+  font-size:1.35rem!important;
+  line-height:1!important;
+  font-weight:900!important;
+}
+.source-section-icon-hls{
+  color:#42dff5!important;
+  text-shadow:0 0 12px rgba(66,223,245,.28)!important;
+  transform:rotate(-8deg)!important;
+}
+.source-section-icon-embed{
+  color:#b79cff!important;
+  font-size:1.55rem!important;
+  text-shadow:0 0 12px rgba(183,156,255,.24)!important;
+}
+.source-section-embed .server-btn-row{
+  padding-bottom:.15rem!important;
+}
+
 .source-tabs{
   display:inline-flex!important;
   align-items:center!important;
