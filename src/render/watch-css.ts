@@ -2526,10 +2526,8 @@ export const WATCH_CSS = `/* ═════════════════
 }
 
 
-`;
 
 
-/* ── HLS / Embed source selector ───────────────────────────────── */
 .source-tabs{
   display:inline-flex!important;
   align-items:center!important;
@@ -2614,3 +2612,4 @@ export const WATCH_CSS = `/* ═════════════════
   .embed-server-badge{font-size:.52rem!important}
   .babastream-embed-frame{min-height:240px}
 }
+`;
