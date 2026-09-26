@@ -472,17 +472,21 @@ export function renderWatchBody(p: WatchBodyParams): string {
             <div class="server-panel-body">
               <div class="server-tabs"><button class="server-tab active" data-tab="sub">${icon('captions', 'server-tab-icon')}<span>Sub</span></button><button class="server-tab" data-tab="dub">${icon('mic', 'server-tab-icon')}<span>Dub</span></button></div>
               <div class="server-tab-panel active" id="tab-panel-sub" data-audio="sub">
-                <div class="source-tabs" role="tablist" aria-label="Subtitle source type">
-                  <button type="button" class="source-tab active" data-source-tab="hls" data-audio="sub">HLS</button>
-                  <button type="button" class="source-tab" data-source-tab="embed" data-audio="sub">Embed</button>
-                </div>
-                <div class="source-panel active" id="source-panel-sub-hls">
+                <div class="source-section source-section-hls">
+                  <div class="source-section-head">
+                    <span class="source-section-icon source-section-icon-hls" aria-hidden="true">ϟ</span>
+                    <span>HLS</span>
+                  </div>
                   <div class="server-btn-row" id="servers-sub-body">
                     ${turbovidServers.filter(v=>v.audio_group==='sub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Sub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Sub</span></button>`).join('')}
                     ${SUB_PROVIDERS.map(p => fixedServerBtn('sub', p.source, p.provider, p.label)).join('')}
                   </div>
                 </div>
-                <div class="source-panel" id="source-panel-sub-embed">
+                <div class="source-section source-section-embed">
+                  <div class="source-section-head">
+                    <span class="source-section-icon source-section-icon-embed" aria-hidden="true">◎</span>
+                    <span>EMBED</span>
+                  </div>
                   <div class="server-btn-row">
                     <button type="button" class="embed-server-btn" data-embed-url="https://babastream.top/embed/${animeId}/${epNum}/sub" title="BabaStream — embedded player with downloading available">
                       <span class="embed-server-name">BabaStream</span>
@@ -492,11 +496,11 @@ export function renderWatchBody(p: WatchBodyParams): string {
                 </div>
               </div>
               <div class="server-tab-panel" id="tab-panel-dub" data-audio="dub">
-                <div class="source-tabs" role="tablist" aria-label="Dub source type">
-                  <button type="button" class="source-tab active" data-source-tab="hls" data-audio="dub">HLS</button>
-                  <button type="button" class="source-tab" data-source-tab="embed" data-audio="dub">Embed</button>
-                </div>
-                <div class="source-panel active" id="source-panel-dub-hls">
+                <div class="source-section source-section-hls">
+                  <div class="source-section-head">
+                    <span class="source-section-icon source-section-icon-hls" aria-hidden="true">ϟ</span>
+                    <span>HLS</span>
+                  </div>
                   <div class="server-btn-row" id="servers-dub-body">
                     ${turbovidServers.filter(v=>v.audio_group==='dub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Dub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Dub</span></button>`).join('')}
                     ${DUB_PROVIDERS.map(p => fixedServerBtn('dub', p.source, p.provider, p.label)).join('')}
@@ -519,7 +523,11 @@ export function renderWatchBody(p: WatchBodyParams): string {
                     </div>
                   </div>
                 </div>
-                <div class="source-panel" id="source-panel-dub-embed">
+                <div class="source-section source-section-embed">
+                  <div class="source-section-head">
+                    <span class="source-section-icon source-section-icon-embed" aria-hidden="true">◎</span>
+                    <span>EMBED</span>
+                  </div>
                   <div class="server-btn-row">
                     <button type="button" class="embed-server-btn" data-embed-url="https://babastream.top/embed/${animeId}/${epNum}/dub" title="BabaStream — embedded player with downloading available">
                       <span class="embed-server-name">BabaStream</span>
@@ -527,6 +535,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
                     </button>
                   </div>
                 </div>
+              </div>
               </div>
               </div>
             </div>
