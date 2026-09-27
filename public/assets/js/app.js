@@ -1144,7 +1144,16 @@ async function markChatRead() {
 
 function isGroupedContinuation(prevMsg, m) {
   if (!prevMsg) return false;
-  return prevMsg.user_id === m.user_id && (m.ts - prevMsg.ts) >= 0 && (m.ts - prevMsg.ts) <= CHAT_GROUP_WINDOW;
+
+  // Keep separate headers when the same user replies to different people/messages.
+  // Normal consecutive messages (both without a reply target) still group as before.
+  const prevReplyId = prevMsg.reply_to?.id ?? null;
+  const currentReplyId = m.reply_to?.id ?? null;
+  if (prevReplyId !== currentReplyId) return false;
+
+  return prevMsg.user_id === m.user_id
+    && (m.ts - prevMsg.ts) >= 0
+    && (m.ts - prevMsg.ts) <= CHAT_GROUP_WINDOW;
 }
 
 function lastChatMessageEl() {
