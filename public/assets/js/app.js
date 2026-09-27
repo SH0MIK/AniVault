@@ -1145,11 +1145,12 @@ async function markChatRead() {
 function isGroupedContinuation(prevMsg, m) {
   if (!prevMsg) return false;
 
-  // Keep separate headers when the same user replies to different people/messages.
-  // Normal consecutive messages (both without a reply target) still group as before.
-  const prevReplyId = prevMsg.reply_to?.id ?? null;
-  const currentReplyId = m.reply_to?.id ?? null;
-  if (prevReplyId !== currentReplyId) return false;
+  // Group consecutive messages from the same sender when they are in the
+  // same reply context. Compare the replied-to USER, not the individual
+  // message ID, so multiple replies to the same person stay together.
+  const prevReplyUser = prevMsg.reply_to_username ?? null;
+  const currentReplyUser = m.reply_to?.username ?? null;
+  if (prevReplyUser !== currentReplyUser) return false;
 
   return prevMsg.user_id === m.user_id
     && (m.ts - prevMsg.ts) >= 0
@@ -1171,6 +1172,7 @@ function buildChatMessageEl(m, grouped) {
   wrap.id = 'chat-msg-' + m.id;
   wrap.setAttribute('data-user-id', m.user_id);
   wrap.setAttribute('data-ts', m.ts);
+  wrap.setAttribute('data-reply-to-username', m.reply_to?.username || '');
   const profileUrl = (window.__siteUrl || '') + '/u/' + encodeURIComponent(m.username);
   const deleteBtn = m.can_delete
     ? `<button type="button" class="chat-msg-delete" title="Delete" onclick="deleteChatMessage(${m.id})">✕</button>`
@@ -1271,7 +1273,11 @@ function appendChatMessage(m) {
   const list = document.getElementById('chat-messages');
   if (!list || document.getElementById('chat-msg-' + m.id)) return;
   const prevEl = lastChatMessageEl();
-  const prevMsg = prevEl ? { user_id: parseInt(prevEl.getAttribute('data-user-id'), 10), ts: parseInt(prevEl.getAttribute('data-ts'), 10) } : null;
+  const prevMsg = prevEl ? {
+    user_id: parseInt(prevEl.getAttribute('data-user-id'), 10),
+    ts: parseInt(prevEl.getAttribute('data-ts'), 10),
+    reply_to_username: prevEl.getAttribute('data-reply-to-username') || null
+  } : null;
   list.appendChild(buildChatMessageEl(m, isGroupedContinuation(prevMsg, m)));
 }
 
