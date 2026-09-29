@@ -713,15 +713,23 @@ export function renderWatchBody(p: WatchBodyParams): string {
           ${prevEp ? `<a class="watch-quick-btn prev" href="${siteUrl}/watch?anime=${animeId}&ep=${prevEp}" aria-label="Previous episode">${icon('skip-back', 'watch-ep-icon')}<span>Prev</span></a>` : `<span class="watch-quick-btn prev disabled">${icon('skip-back', 'watch-ep-icon')}<span>Prev</span></span>`}
           ${nextEp ? `<a class="watch-quick-btn next" href="${siteUrl}/watch?anime=${animeId}&ep=${nextEp}" aria-label="Next episode"><span>Ep ${nextEp}</span>${icon('skip-forward', 'watch-ep-icon')}</a>` : `<span class="watch-quick-btn next disabled"><span>Ep —</span>${icon('skip-forward', 'watch-ep-icon')}</span>`}
         </div>
-        <div class="watch-report-bug" style="margin:8px 0 2px;text-align:center;font-size:.78rem;color:var(--text-muted);line-height:1.4;">
-          Having a problem while watching? <a href="${siteUrl}/bug-reports" style="color:#a855f7;font-weight:700;text-decoration:none;">Report a bug</a>
-        </div>
         <div class="watch-title-under-player">
           <div class="watch-title-ep">Episode ${epNum}</div>
           <h1>${h(title)}</h1>
           ${currentEpInfo?.title && currentEpInfo.title !== 'TBA' ? `<div class="watch-title-sub">${epTitleDisplay}</div>` : ''}
         </div>
         ${serverControlsHtml}
+        <div class="watch-report-card">
+          <div class="watch-report-icon" aria-hidden="true">${icon('flag', 'watch-report-icon-svg')}</div>
+          <div class="watch-report-copy">
+            <strong>Something not working?</strong>
+            <span>If you’re having trouble with this episode or any part of the player, let us know.</span>
+          </div>
+          <a class="watch-report-link" href="${siteUrl}/bug-reports">
+            Report a bug
+            <span aria-hidden="true">→</span>
+          </a>
+        </div>
       </section>
 
       <div class="watch-content-flow">
