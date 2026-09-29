@@ -61,6 +61,7 @@ ${o.impersonating ? `
     <a href="banner.php" class="${active('banner')}">${icon('layout', 'icon-small')} Sitewide Banner</a>
     <a href="reviews.php" class="${active('reviews')}">${icon('star', 'icon-small')} Reviews</a>
     <a href="feedback.php" class="${active('feedback')}">${icon('message', 'icon-small')} Feedback</a>
+    <a href="bug-reports.php" class="${active('bug_reports')}">${icon('alert', 'icon-small')} Bug Reports</a>
     <a href="survey.php" class="${active('survey')}">${icon('chart-bar', 'icon-small')} Hosting Survey</a>
     <a href="episodes.php" class="${active('episodes')}">${icon('edit', 'icon-small')} Episode Overrides</a>
     <a href="videos.php" class="${active('videos')}">${icon('play', 'icon-small')} Episode Videos</a>
