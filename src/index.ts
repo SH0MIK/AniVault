@@ -36,6 +36,7 @@ import { adminMergeUsersRoutes } from './routes/admin/merge-users';
 import { adminUsernameFixerRoutes } from './routes/admin/username-fixer';
 import { adminAnalyticsRoutes } from './routes/admin/analytics';
 import { adminFeedbackRoutes } from './routes/admin/feedback';
+import { adminBugReportRoutes } from './routes/admin/bug-reports';
 import { adminBadgesRoutes } from './routes/admin/badges';
 import { adminSurveyRoutes } from './routes/admin/survey';
 import { adminCacheRoutes } from './routes/admin/cache';
@@ -50,6 +51,7 @@ import { legalRoutes } from './routes/legal';
 import { watchNowRoutes } from './routes/watch-now';
 import { legacyRedirectRoutes } from './routes/legacy-redirects';
 import { apiChatRoutes } from './routes/api-chat';
+import { bugReportRoutes } from './routes/bug-reports';
 import { healthRoutes } from './routes/health';
 import { handleScheduled } from './scheduled';
 
@@ -123,6 +125,7 @@ app.route('/', adminMergeUsersRoutes);
 app.route('/', adminUsernameFixerRoutes);
 app.route('/', adminAnalyticsRoutes);
 app.route('/', adminFeedbackRoutes);
+app.route('/', adminBugReportRoutes);
 app.route('/', adminBadgesRoutes);
 app.route('/', adminSurveyRoutes);
 app.route('/', adminCacheRoutes);
@@ -137,6 +140,7 @@ app.route('/', legalRoutes);
 app.route('/', watchNowRoutes);
 app.route('/', legacyRedirectRoutes);
 app.route('/', apiChatRoutes);
+app.route('/', bugReportRoutes);
 
 app.onError((err, c) => {
   console.error(`[unhandled] ${c.req.method} ${c.req.url} — ${err.message}\n${err.stack ?? ''}`);
