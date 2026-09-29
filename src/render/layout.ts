@@ -516,6 +516,7 @@ export function renderFooter(o: { siteUrl: string; currentUser: CurrentUser | nu
         <li><a href="${o.siteUrl}/announcements">${icon('megaphone', 'icon-inline')} Announcements</a></li>
         <li><a href="${o.siteUrl}/terms">${icon('terms', 'icon-inline')} Terms of Use</a></li>
         <li><a href="${o.siteUrl}/privacy">${icon('shield', 'icon-inline')} Privacy Policy</a></li>
+        ${cu ? `<li><a href="${o.siteUrl}/bug-reports">${icon('alert', 'icon-inline')} Report a Bug</a></li>` : ``}
         <li><a href="mailto:abdullahalmahim585@gmail.com">${icon('mail', 'icon-inline')} Contact</a></li>
       </ul>
     </div>
