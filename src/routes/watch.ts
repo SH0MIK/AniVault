@@ -719,16 +719,9 @@ export function renderWatchBody(p: WatchBodyParams): string {
           ${currentEpInfo?.title && currentEpInfo.title !== 'TBA' ? `<div class="watch-title-sub">${epTitleDisplay}</div>` : ''}
         </div>
         ${serverControlsHtml}
-        <div class="watch-report-card">
-          <div class="watch-report-icon" aria-hidden="true">${icon('flag', 'watch-report-icon-svg')}</div>
-          <div class="watch-report-copy">
-            <strong>Something not working?</strong>
-            <span>If you’re having trouble with this episode or any part of the player, let us know.</span>
-          </div>
-          <a class="watch-report-link" href="${siteUrl}/bug-reports">
-            Report a bug
-            <span aria-hidden="true">→</span>
-          </a>
+        <div class="watch-report-card" style="width:fit-content;max-width:100%;margin:10px auto 4px;padding:7px 12px;border:1px solid rgba(168,85,247,.18);border-radius:999px;background:rgba(168,85,247,.05);display:flex;align-items:center;gap:8px;font-size:.74rem;line-height:1.2;">
+          <span style="color:var(--text-muted);">Having trouble?</span>
+          <a href="${siteUrl}/bug-reports" style="color:#a855f7;font-weight:700;text-decoration:none;white-space:nowrap;">Report a bug <span aria-hidden="true">→</span></a>
         </div>
       </section>
 
