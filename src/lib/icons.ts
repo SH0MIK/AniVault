@@ -18,7 +18,7 @@ const ICON_MAP: Record<string, string> = {
   heal: 'heal', eye: 'eye', tv: 'tv', discord: 'discord', github: 'github', facebook: 'facebook',
   twitter: 'twitter', instagram: 'instagram', youtube: 'youtube', reddit: 'reddit', anilist: 'anilist', mic: 'mic',
   captions: 'captions', clock: 'clock', 'skip-back': 'skip-back', 'skip-forward': 'skip-forward',
-  airing: 'airing', finished: 'finished', upcoming: 'upcoming',
+  airing: 'airing', finished: 'finished', upcoming: 'upcoming', bug: 'alert',
 };
 
 export function icon(name: string, cls = '', size: string | number = '1em'): string {
