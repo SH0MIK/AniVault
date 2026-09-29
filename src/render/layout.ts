@@ -121,6 +121,7 @@ ${og.type === 'video.episode' ? `
         <a href="${o.siteUrl}/profile">${icon('edit', 'icon-small')} Edit Profile</a>
         <a href="${o.siteUrl}/mylist">${icon('list', 'icon-small')} My List</a>
         <a href="${o.siteUrl}/announcements">${icon('megaphone', 'icon-small')} Announcements</a>
+        <a href="${o.siteUrl}/bug-reports">${icon('alert', 'icon-small')} Bug Reports</a>
         <a href="${o.siteUrl}/favorites">${icon('heart', 'icon-small')} Favorites</a>
         <a href="${o.siteUrl}/importexport">${icon('box', 'icon-small')} Import / Export</a>
         ${(cu.role === 'admin' || cu.role === 'owner') ? `<div class="dropdown-divider"></div><a href="${o.siteUrl}/admin/index.php">${icon('shield', 'icon-small')} Admin Panel</a>` : ''}
