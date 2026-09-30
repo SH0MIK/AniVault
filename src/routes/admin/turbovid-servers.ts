@@ -53,7 +53,7 @@ adminTurbovidServerRoutes.get('/admin/turbovid_servers.php', async (c) => {
   ) : [];
 
   let html = renderAdminHeader({siteUrl,pageTitle:'TurboVid Servers',adminPage:'turbovid_servers',isOwner,impersonating});
-  html += renderTurboVidAdmin({siteUrl,series,selected,episodes,selectedAnime,turbovidEnabled});
+  html += renderTurboVidAdmin({siteUrl,series,selected,episodes,selectedAnime,globalTurboEnabled});
   html += renderAdminFooter(siteUrl);
   await session.save(c,lifetime);
   return c.html(html);
