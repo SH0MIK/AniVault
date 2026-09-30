@@ -15,7 +15,7 @@ adminTurbovidServerRoutes.get('/admin/turbovid_servers.php', async (c) => {
   if (!ctx) return c.redirect(siteUrl + '/');
   const { db, session, lifetime, isOwner, impersonating } = ctx;
   const selectedAnime = Number(c.req.query('anime') || 0) || 0;
-  const turboVidEnabled = (await new Settings(db).get('turbovid_enabled', '1')) === '1';
+  const globalTurboEnabled = (await new Settings(db).get('turbovid_enabled', '1')) === '1';
   const json = c.req.query('json') === '1';
   if (json) {
     const anime = Number(c.req.query('anime') || 0);
