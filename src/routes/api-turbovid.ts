@@ -4,6 +4,7 @@ import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
 import { resolveTurbovidCF } from '../lib/turbovid-resolver-cf';
+import { Settings } from '../lib/settings';
 
 export const turbovidApiRoutes = new Hono<{ Bindings: Env }>();
 
@@ -13,6 +14,8 @@ turbovidApiRoutes.get('/api/turbovid_stream.php', async (c) => {
   const session=await Session.load(c,db,lifetime);
   const auth=new Auth(db,session,c.env as any,c.req.header('cf-connecting-ip')||'unknown');
   if(!auth.check()){await session.save(c,lifetime);return c.json({error:'Unauthorized'},401);}
+  const turboVidEnabled = (await new Settings(db).get('turbovid_enabled', '1')) === '1';
+  if(!turboVidEnabled){await session.save(c,lifetime);return c.json({error:'TurboVid is temporarily disabled'},503);}
   const id=Number(c.req.query('id')||0);
   if(!id){await session.save(c,lifetime);return c.json({error:'Missing id'},400);}
   const row=await db.fetchOne<any>('SELECT * FROM turbovid_servers WHERE id=? AND is_active=1',[id]);
