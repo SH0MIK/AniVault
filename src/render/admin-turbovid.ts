@@ -8,9 +8,9 @@ export interface TurboEpisodeView { episode_num:number; source_count:number; sou
 
 export function renderTurboVidAdmin(o:{
   siteUrl:string; series:TurboSeriesView[]; selected:TurboSeriesView|null;
-  episodes:TurboEpisodeView[]; selectedAnime:number; turbovidEnabled:boolean;
+  episodes:TurboEpisodeView[]; selectedAnime:number; globalTurboEnabled:boolean;
 }):string {
-  const {siteUrl,series,selected,episodes,selectedAnime,turbovidEnabled}=o;
+  const {siteUrl,series,selected,episodes,selectedAnime,globalTurboEnabled}=o;
   const cards=series.map(s=>{
     const total=Number(s.totalEps||0), uploaded=Number(s.episode_count||0);
     const pct=total?Math.min(100,Math.round(uploaded/total*100)):100;
@@ -21,13 +21,13 @@ export function renderTurboVidAdmin(o:{
       <div class="tv-progress"><div class="tv-progress-head"><span>Episodes</span><span>${String(uploaded).padStart(2,'0')}/${total||'?'}</span></div><div class="tv-track"><i style="width:${pct}%"></i></div></div></div></a>`;
   }).join('');
 
-  const turboBorder = turbovidEnabled ? 'rgba(34,197,94,.28)' : 'rgba(248,113,113,.28)';
-  const turboBg = turbovidEnabled ? 'rgba(34,197,94,.06)' : 'rgba(248,113,113,.06)';
-  const turboTitle = turbovidEnabled ? '🟢 TurboVid is enabled' : '🔴 TurboVid is disabled';
-  const turboDescription = turbovidEnabled ? 'Global switch — AV/TurboVid server buttons are visible to users.' : 'Global switch — all AV/TurboVid server buttons are hidden sitewide and direct playback is blocked.';
-  const turboNext = turbovidEnabled ? '0' : '1';
-  const turboButtonBg = turbovidEnabled ? 'linear-gradient(135deg,#dc2626,#ef4444)' : 'linear-gradient(135deg,#16a34a,#22c55e)';
-  const turboButtonText = turbovidEnabled ? 'Disable All TurboVid' : 'Enable All TurboVid';
+  const turboBorder = globalTurboEnabled ? 'rgba(34,197,94,.28)' : 'rgba(248,113,113,.28)';
+  const turboBg = globalTurboEnabled ? 'rgba(34,197,94,.06)' : 'rgba(248,113,113,.06)';
+  const turboTitle = globalTurboEnabled ? '🟢 TurboVid is enabled' : '🔴 TurboVid is disabled';
+  const turboDescription = globalTurboEnabled ? 'Global switch — AV/TurboVid server buttons are visible to users.' : 'Global switch — all AV/TurboVid server buttons are hidden sitewide and direct playback is blocked.';
+  const turboNext = globalTurboEnabled ? '0' : '1';
+  const turboButtonBg = globalTurboEnabled ? 'linear-gradient(135deg,#dc2626,#ef4444)' : 'linear-gradient(135deg,#16a34a,#22c55e)';
+  const turboButtonText = globalTurboEnabled ? 'Disable All TurboVid' : 'Enable All TurboVid';
 
   const epRows=episodes.map(ep=>`<tr class="tv-ep-row" data-episode="${ep.episode_num}" data-tv-expand="1">
     <td><button class="tv-ep-toggle" type="button" aria-label="Expand episode" data-tv-expand="1">›</button><strong>EP ${ep.episode_num}</strong></td>
