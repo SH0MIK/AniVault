@@ -23,7 +23,7 @@ import { watchScript2 } from '../render/watch-script2';
 import { PLAYER_CSS } from '../render/player-css';
 import { playerScript } from '../render/player-script';
 import { playerBody } from '../render/player-body';
-import { getBannerData } from '../lib/settings';
+import { getBannerData, Settings } from '../lib/settings';
 import { AnimeTracker } from '../lib/tracker';
 import { EpisodeAir, AiredInfo } from '../lib/episode-air';
 import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
@@ -224,7 +224,10 @@ watchRoutes.get('/watch', async (c) => {
   const resumeT = Math.max(0, parseInt(c.req.query('t') ?? '0', 10) || 0);
   const resumeParam = resumeT >= 30 ? resumeT : 0;
   const hasMegaplayFallback = !video;
-  const turbovidServers = await db.fetchAll<TurboVidServerRow>('SELECT id,anime_id,episode_num,audio_group,language,label,embed_url,is_active FROM turbovid_servers WHERE anime_id=? AND episode_num=? AND is_active=1 ORDER BY audio_group, language, id',[animeId,epNum]);
+  const turboVidEnabled = (await new Settings(db).get('turbovid_enabled', '1')) === '1';
+  const turbovidServers = turboVidEnabled
+    ? await db.fetchAll<TurboVidServerRow>('SELECT id,anime_id,episode_num,audio_group,language,label,embed_url,is_active FROM turbovid_servers WHERE anime_id=? AND episode_num=? AND is_active=1 ORDER BY audio_group, language, id',[animeId,epNum])
+    : [];
 
   const anilistId = await getAnilistIdFromMal(db, animeId, c.env);
 
