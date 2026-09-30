@@ -5,6 +5,7 @@ import { h } from '../../lib/helpers';
 import { MalAPI } from '../../lib/mal-api';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
 import { renderTurboVidAdmin } from '../../render/admin-turbovid';
+import { Settings } from '../../lib/settings';
 
 export const adminTurbovidServerRoutes = new Hono<{ Bindings: Env }>();
 
@@ -14,6 +15,7 @@ adminTurbovidServerRoutes.get('/admin/turbovid_servers.php', async (c) => {
   if (!ctx) return c.redirect(siteUrl + '/');
   const { db, session, lifetime, isOwner, impersonating } = ctx;
   const selectedAnime = Number(c.req.query('anime') || 0) || 0;
+  const turboVidEnabled = (await new Settings(db).get('turbovid_enabled', '1')) === '1';
   const json = c.req.query('json') === '1';
   if (json) {
     const anime = Number(c.req.query('anime') || 0);
@@ -51,7 +53,7 @@ adminTurbovidServerRoutes.get('/admin/turbovid_servers.php', async (c) => {
   ) : [];
 
   let html = renderAdminHeader({siteUrl,pageTitle:'TurboVid Servers',adminPage:'turbovid_servers',isOwner,impersonating});
-  html += renderTurboVidAdmin({siteUrl,series,selected,episodes,selectedAnime});
+  html += renderTurboVidAdmin({siteUrl,series,selected,episodes,selectedAnime,turbovidEnabled});
   html += renderAdminFooter(siteUrl);
   await session.save(c,lifetime);
   return c.html(html);
@@ -61,7 +63,15 @@ async function adminOnly(c:any){ return await buildAdminCtx(c); }
 
 adminTurbovidServerRoutes.post('/admin/turbovid_servers.php', async (c) => {
   const ctx=await adminOnly(c); if(!ctx)return c.json({error:'Forbidden'},403);
-  const body:any=await c.req.json().catch(()=>null);
+  const contentType=c.req.header('content-type')||'';
+  const body:any=contentType.includes('application/json')
+    ? await c.req.json().catch(()=>null)
+    : Object.fromEntries((await c.req.parseBody()) as any);
+  if(body?.action==='toggle_global'){
+    const enabled=String(body?.enabled||'')==='1';
+    await new Settings(ctx.db).set('turbovid_enabled',enabled?'1':'0');
+    return c.redirect(c.env.SITE_URL+'/admin/turbovid_servers.php');
+  }
   const sourceId=Number(body?.id||0),animeId=Number(body?.anime_id||0),ep=Number(body?.episode_num||0),group=String(body?.audio_group||''),lang=String(body?.language||'').trim(),url=String(body?.embed_url||'').trim();
   if(!animeId||!ep||!/^https?:\/\//i.test(url)||!['sub','dub','hindi','multi'].includes(group)||(group==='multi'&&!lang))return c.json({error:'Invalid source data'},400);
   const label=group==='multi'?'AV-'+lang:group==='sub'?'AV-sub':group==='hindi'?'AV-hindi':'AV-dub';
