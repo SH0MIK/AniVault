@@ -66,7 +66,7 @@ adminTurbovidServerRoutes.post('/admin/turbovid_servers.php', async (c) => {
   const contentType=c.req.header('content-type')||'';
   const body:any=contentType.includes('application/json')
     ? await c.req.json().catch(()=>null)
-    : Object.fromEntries((await c.req.parseBody()) as any);
+    : await c.req.parseBody().catch(()=>null);
   if(body?.action==='toggle_global'){
     const enabled=String(body?.enabled||'')==='1';
     await new Settings(ctx.db).set('turbovid_enabled',enabled?'1':'0');
