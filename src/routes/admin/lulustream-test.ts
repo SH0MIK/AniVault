@@ -102,6 +102,30 @@ input.addEventListener('keydown',e=>{if(e.key==='Enter')resolve();});
   return c.html(html);
 });
 
+adminLuluStreamRoutes.get('/admin/lulustream_resolve.php', async (c) => {
+  const ctx = await buildAdminCtx(c);
+  if (!ctx) return c.json({ error: 'Forbidden' }, 403);
+  const { session, lifetime } = ctx;
+  const embedUrl = c.req.query('url');
+  if (!embedUrl) {
+    await session.save(c, lifetime);
+    return c.json({ error: 'Missing ?url=' }, 400);
+  }
+  try {
+    const result = await resolveLuluStream(embedUrl);
+    await session.save(c, lifetime);
+    return c.json({ success: true, ...result });
+  } catch (e) {
+    await session.save(c, lifetime);
+    return c.json({
+      success: false,
+      provider: 'lulustream',
+      embedUrl,
+      error: e instanceof Error ? e.message : String(e),
+    }, 502);
+  }
+});
+
 adminLuluStreamRoutes.get('/admin/lulustream_cdn_test.php', async (c) => {
   const ctx = await buildAdminCtx(c);
   if (!ctx) return c.json({ error: 'Forbidden' }, 403);
