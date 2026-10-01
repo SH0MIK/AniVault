@@ -30,7 +30,8 @@ import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
 import { getEpisodeThumbnail } from '../lib/episode-thumb';
 import { SUB_PROVIDERS, DUB_PROVIDERS, HINDI_PROVIDERS, fixedServerBtn } from '../lib/stream-sources';
 
-interface TurboVidServerRow { id:number; anime_id:number; episode_num:number; audio_group:string; language:string; label:string; embed_url:string; is_active:number; }\ninterface LuluStreamServerRow { id:number; anime_id:number; episode_num:number; label:string; embed_url:string; is_active:number; }
+interface TurboVidServerRow { id:number; anime_id:number; episode_num:number; audio_group:string; language:string; label:string; embed_url:string; is_active:number; }
+interface LuluStreamServerRow { id:number; anime_id:number; episode_num:number; label:string; embed_url:string; is_active:number; }
 
 export const watchRoutes = new Hono<{ Bindings: Env }>();
 
