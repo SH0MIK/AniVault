@@ -37,6 +37,9 @@ async function probe(url: string, referer: string) {
       contentLength: res.headers.get('content-length'),
       elapsedMs: Date.now() - started,
       bodyPreview: text.slice(0, 1200),
+      bodyLength: text.length,
+      manifestLines: text.split(/\r?\n/).filter(Boolean).slice(0, 250),
+      nonTagUris: text.split(/\r?\n/).map((line) => line.trim()).filter((line) => line && !line.startsWith('#')).slice(0, 100),
       looksLikeHls: /#EXTM3U/.test(text),
       looksBlocked: res.status === 401 || res.status === 403 || /access denied|forbidden|blocked|cloudflare/i.test(text),
     };
@@ -213,13 +216,16 @@ adminLuluStreamRoutes.get('/admin/lulustream_cdn_test.php', async (c) => {
     let hls = { mediaUris: [] as string[], variantUris: [] as string[] };
 
     if (master.ok && master.looksLikeHls) {
-      hls = extractHlsUris(master.bodyPreview, master.finalUrl);
+      hls = extractHlsUris(master.manifestLines.join('\n'), master.finalUrl);
+      if (!hls.variantUris.length && master.nonTagUris?.length) {
+        hls.variantUris = master.nonTagUris.filter((uri) => /\.m3u8(?:\?|$)/i.test(uri)).map((uri) => withInheritedQuery(uri, master.finalUrl));
+      }
 
       const variantUrl = hls.variantUris[0];
       if (variantUrl) {
         variant = await probe(variantUrl, resolved.referer);
         if (variant.ok && variant.looksLikeHls) {
-          const segmentUrl = extractFirstSegment(variant.bodyPreview, variant.finalUrl);
+          const segmentUrl = extractFirstSegment(variant.manifestLines?.join('\n') || variant.bodyPreview, variant.finalUrl);
           if (segmentUrl) segment = await probeSegment(segmentUrl, resolved.referer);
         }
       }
