@@ -21,8 +21,9 @@ luluStreamApiRoutes.get('/api/lulustream_stream.php', async (c) => {
   if(!id){await session.save(c,lifetime);return c.json({error:'Missing id'},400);}
   const row=await db.fetchOne<any>('SELECT * FROM lulustream_servers WHERE id=? AND is_active=1',[id]);
   if(!row){await session.save(c,lifetime);return c.json({error:'LuluStream server not found'},404);}
-  const result=await resolveLuluStream(String(row.embed_url));
-  if(!result){await session.save(c,lifetime);return c.json({error:'LuluStream resolve failed'},502);}
+  let result;
+  try { result=await resolveLuluStream(String(row.embed_url)); }
+  catch (e:any) { await session.save(c,lifetime); return c.json({error:'LuluStream resolve failed',detail:e?.message||'Resolver error'},502); }
   const origin=new URL(c.req.url).origin;
   await session.save(c,lifetime);
   return c.json({
