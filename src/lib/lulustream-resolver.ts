@@ -20,10 +20,10 @@ export interface LuluResolveResult {
 
 function decodeHtml(value: string): string {
   return value
-    .replace(/\\u0026/g, '&')
-    .replace(/\\u003d/g, '=')
-    .replace(/\\u002f/g, '/')
-    .replace(/\\\//g, '/')
+    .replace(/\u0026/g, '&')
+    .replace(/\u003d/g, '=')
+    .replace(/\u002f/g, '/')
+    .replace(/\\//g, '/')
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&#x27;/gi, "'");
@@ -31,9 +31,9 @@ function decodeHtml(value: string): string {
 
 function unescapeJs(value: string): string {
   return decodeHtml(value)
-    .replace(/\\\\/g, '\\')
-    .replace(/\\"/g, '"')
-    .replace(/\\'/g, "'");
+    .replace(/\\/g, '\')
+    .replace(/\"/g, '"')
+    .replace(/\'/g, "'");
 }
 
 function absoluteUrl(value: string, base: string): string | null {
@@ -63,17 +63,17 @@ function parseHtmlTracks(html: string, base: string): { audio: LuluTrack[]; subt
     list.push({ lang, label, url });
   };
 
-  const trackRe = /(?:tracks|captions|subtitles|subtitleTracks)\\s*:\\s*\\[([\\s\\S]*?)\\]/gi;
+  const trackRe = /(?:tracks|captions|subtitles|subtitleTracks)\s*:\s*\[([\s\S]*?)\]/gi;
   for (const block of html.matchAll(trackRe)) {
     const text = block[1];
-    const itemRe = /\\{([\\s\\S]*?)\\}/g;
+    const itemRe = /\{([\s\S]*?)\}/g;
     for (const item of text.matchAll(itemRe)) {
       const obj = item[1];
-      const url = /(?:file|src|url)\\s*:\\s*["']([^"']+)["']/i.exec(obj)?.[1];
+      const url = /(?:file|src|url)\s*:\s*["']([^"']+)["']/i.exec(obj)?.[1];
       if (!url) continue;
-      const label = /(?:label|name|title)\\s*:\\s*["']([^"']+)["']/i.exec(obj)?.[1];
-      const lang = /(?:srclang|language|lang)\\s*:\\s*["']([^"']+)["']/i.exec(obj)?.[1];
-      const kind = /kind\\s*:\\s*["']([^"']+)["']/i.exec(obj)?.[1]?.toLowerCase();
+      const label = /(?:label|name|title)\s*:\s*["']([^"']+)["']/i.exec(obj)?.[1];
+      const lang = /(?:srclang|language|lang)\s*:\s*["']([^"']+)["']/i.exec(obj)?.[1];
+      const kind = /kind\s*:\s*["']([^"']+)["']/i.exec(obj)?.[1]?.toLowerCase();
       push(kind === 'audio' ? 'audio' : 'subtitles', url, label, lang);
     }
   }
@@ -84,7 +84,7 @@ function parseHtmlTracks(html: string, base: string): { audio: LuluTrack[]; subt
 function parseM3u8Tracks(manifest: string, manifestUrl: string): { audio: LuluTrack[]; subtitles: LuluTrack[] } {
   const audio: LuluTrack[] = [];
   const subtitles: LuluTrack[] = [];
-  const lines = manifest.split(/\\r?\\n/);
+  const lines = manifest.split(/\r?\n/);
 
   for (const line of lines) {
     if (!line.startsWith('#EXT-X-MEDIA:')) continue;
@@ -115,7 +115,7 @@ function parseM3u8Tracks(manifest: string, manifestUrl: string): { audio: LuluTr
 export async function resolveLuluStream(embedUrl: string): Promise<LuluResolveResult> {
   const input = new URL(embedUrl);
   if (!/^https?:$/.test(input.protocol)) throw new Error('Only http(s) URLs are supported');
-  if (!/(^|\\.)lulust\\.com$/i.test(input.hostname)) {
+  if (!/(^|\.)lulust\.com$/i.test(input.hostname)) {
     throw new Error('Only lulust.com embed URLs are supported');
   }
 
@@ -133,9 +133,9 @@ export async function resolveLuluStream(embedUrl: string): Promise<LuluResolveRe
   const finalUrl = res.url || input.toString();
 
   const rawVideo = extractFirst(html, [
-    /sources\\s*:\\s*\\[\\s*\\{\\s*file\\s*:\\s*["']([^"']+)["']/i,
-    /["']file["']\\s*:\\s*["'](https?:\\/\\/[^"']+)["']/i,
-    /(?:file|src|source)\\s*[:=]\\s*["'](https?:\\/\\/[^"']+)["']/i,
+    /sources\s*:\s*\[\s*\{\s*file\s*:\s*["']([^"']+)["']/i,
+    /["']file["']\s*:\s*["'](https?:\/\/[^"']+)["']/i,
+    /(?:file|src|source)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i,
   ]);
   const videoUrl = rawVideo ? absoluteUrl(rawVideo, finalUrl) : null;
   if (!videoUrl) throw new Error('No video source found in LuluStream page');
@@ -144,7 +144,7 @@ export async function resolveLuluStream(embedUrl: string): Promise<LuluResolveRe
   let audio = htmlTracks.audio;
   let subtitles = htmlTracks.subtitles;
 
-  if (/\\.m3u8(?:[?#]|$)/i.test(videoUrl)) {
+  if (/\.m3u8(?:[?#]|$)/i.test(videoUrl)) {
     const manifestRes = await fetch(videoUrl, {
       headers: {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36',
@@ -162,20 +162,20 @@ export async function resolveLuluStream(embedUrl: string): Promise<LuluResolveRe
   }
 
   const poster = extractFirst(html, [
-    /poster\\s*[:=]\\s*["']([^"']+)["']/i,
+    /poster\s*[:=]\s*["']([^"']+)["']/i,
     /property=["']og:image["'][^>]+content=["']([^"']+)["']/i,
   ]);
 
   const title = extractFirst(html, [
     /property=["']og:title["'][^>]+content=["']([^"']+)["']/i,
-    /<title[^>]*>([^<]+)<\\/title>/i,
+    /<title[^>]*>([^<]+)<\/title>/i,
   ]);
 
   return {
     provider: 'lulustream',
     embedUrl: input.toString(),
     finalUrl,
-    video: { url: videoUrl, type: /\\.m3u8(?:[?#]|$)/i.test(videoUrl) ? 'hls' : 'mp4' },
+    video: { url: videoUrl, type: /\.m3u8(?:[?#]|$)/i.test(videoUrl) ? 'hls' : 'mp4' },
     audio,
     subtitles,
     poster: poster ? absoluteUrl(poster, finalUrl) : null,
