@@ -49,6 +49,61 @@ function extractFirst(html: string, patterns: RegExp[]): string | null {
   return null;
 }
 
+
+const PACKED_RE =
+  /eval\(function\(p,a,c,k,e,d\)\{[\s\S]*?\}\('([\s\S]*?)',(\d+),(\d+),'([\s\S]*?)'\.split\('\|'\)/;
+
+const PACK_CHARS = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+function unpackPacked(html: string): string | null {
+  const m = html.match(PACKED_RE);
+  if (!m) return null;
+
+  const payload = m[1].replace(/\\'/g, "'");
+  const radix = Number(m[2]);
+  const count = Number(m[3]);
+  const words = m[4].split('|');
+
+  const toBase = (n: number): string => {
+    if (n === 0) return '0';
+    let out = '';
+    while (n > 0) {
+      out = PACK_CHARS[n % radix] + out;
+      n = Math.floor(n / radix);
+    }
+    return out;
+  };
+
+  const map = new Map<string, string>();
+  for (let i = 0; i < count; i++) {
+    const token = toBase(i);
+    map.set(token, words[i] || token);
+  }
+
+  return payload.replace(/\b\w+\b/g, (token) => map.get(token) ?? token);
+}
+
+function findMediaUrl(html: string, base: string): string | null {
+  const sources = [html, unpackPacked(html)].filter(Boolean) as string[];
+
+  for (const source of sources) {
+    const decoded = decodeHtml(source);
+    const candidates = [
+      ...decoded.matchAll(/https?:\/\/[^\s"'\\<>]+\.m3u8(?:\?[^\s"'\\<>]*)?/gi),
+      ...decoded.matchAll(/(?:file|src|source)\s*[:=]\s*["'](https?:\/\/[^"']+\.(?:m3u8|mp4)(?:\?[^"']*)?)["']/gi),
+      ...decoded.matchAll(/["']file["']\s*:\s*["'](https?:\/\/[^"']+)["']/gi),
+    ];
+
+    for (const match of candidates) {
+      const raw = match[1] || match[0];
+      const url = absoluteUrl(raw, base);
+      if (url && /\.(?:m3u8|mp4)(?:[?#]|$)/i.test(url)) return url;
+    }
+  }
+
+  return null;
+}
+
 function parseHtmlTracks(html: string, base: string): { audio: LuluTrack[]; subtitles: LuluTrack[] } {
   const audio: LuluTrack[] = [];
   const subtitles: LuluTrack[] = [];
@@ -132,13 +187,8 @@ export async function resolveLuluStream(embedUrl: string): Promise<LuluResolveRe
   const html = await res.text();
   const finalUrl = res.url || input.toString();
 
-  const rawVideo = extractFirst(html, [
-    /sources\s*:\s*\[\s*\{\s*file\s*:\s*["']([^"']+)["']/i,
-    /["']file["']\s*:\s*["'](https?:\/\/[^"']+)["']/i,
-    /(?:file|src|source)\s*[:=]\s*["'](https?:\/\/[^"']+)["']/i,
-  ]);
-  const videoUrl = rawVideo ? absoluteUrl(rawVideo, finalUrl) : null;
-  if (!videoUrl) throw new Error('No video source found in LuluStream page');
+  const videoUrl = findMediaUrl(html, finalUrl);
+  if (!videoUrl) throw new Error('No playable media source found in LuluStream page');
 
   const htmlTracks = parseHtmlTracks(html, finalUrl);
   let audio = htmlTracks.audio;
