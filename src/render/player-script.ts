@@ -1331,13 +1331,17 @@ function loadHLS(m3u8Url) {
   }
 
   if (window.Hls && window.Hls.isSupported()) {
-    hls = new window.Hls({
+    const isLuluStream = /lulustream_proxy\\.php/i.test(m3u8Url);
+    const hlsConfig = {
       enableWorker: true,
       lowLatencyMode: false,
       backBufferLength: 90,
       capLevelToPlayerSize: false,
-      fLoader: TurboVidFragmentLoader,
-    });
+    };
+    // TurboVid needs its custom fragment unwrap loader; normal HLS sources
+    // (including LuluStream) must use hls.js's native fragment loader.
+    if (!isLuluStream) hlsConfig.fLoader = TurboVidFragmentLoader;
+    hls = new window.Hls(hlsConfig);
 
     hls.loadSource(m3u8Url);
     hls.attachMedia(vid);
