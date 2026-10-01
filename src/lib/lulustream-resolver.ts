@@ -23,7 +23,7 @@ function decodeHtml(value: string): string {
     .replace(/\u0026/g, '&')
     .replace(/\u003d/g, '=')
     .replace(/\u002f/g, '/')
-    .replace(/\\//g, '/')
+    .replace(/\\\//g, '/')
     .replace(/&amp;/g, '&')
     .replace(/&quot;/g, '"')
     .replace(/&#x27;/gi, "'");
@@ -31,9 +31,9 @@ function decodeHtml(value: string): string {
 
 function unescapeJs(value: string): string {
   return decodeHtml(value)
-    .replace(/\\/g, '\')
-    .replace(/\"/g, '"')
-    .replace(/\'/g, "'");
+    .replace(/\\/g, '\\')
+    .replace(/\\"/g, '"')
+    .replace(/\\'/g, "'");
 }
 
 function absoluteUrl(value: string, base: string): string | null {
