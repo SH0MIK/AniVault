@@ -339,7 +339,7 @@ watchRoutes.get('/watch', async (c) => {
   html += renderWatchBody({
     anime, image, coverSm, title, animeId, epNum, totalEps, video, qSub, hasMegaplayFallback,
     isLoggedIn: auth.check(), prevEp, nextEp, currentEpInfo, chars, allEps, allVideos,
-    videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched, dubbedLangs, turbovidServers,
+    videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched, dubbedLangs, turbovidServers, lulustreamServers,
   });
 
   // Senshi player is emitted before the startup scripts so the player DOM
@@ -442,7 +442,8 @@ export function renderWatchBody(p: WatchBodyParams): string {
   const animePage = `${siteUrl}/anime?id=${animeId}`;
 
   const hasRealVideo = !!video && (qSub.length > 0 || !!video.video_url);
-  const hasTurboVid = turbovidServers.length > 0;\n  const hasLuluStream = lulustreamServers.length > 0;
+  const hasTurboVid = turbovidServers.length > 0;
+  const hasLuluStream = lulustreamServers.length > 0;
 
   let playerHtml: string;
   if (hasRealVideo) {
