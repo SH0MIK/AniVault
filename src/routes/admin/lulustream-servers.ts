@@ -16,12 +16,13 @@ function validLuluUrl(value: string): boolean {
   } catch { return false; }
 }
 function trackGroup(track: { label?: string; lang?: string; default?: boolean }): 'sub'|'dub'|'hindi'|'multi' {
-  const text = String(track.label || '') + ' ' + String(track.lang || '');
-  const lower = text.toLowerCase();
-  if (/\bhindi\b/.test(lower)) return 'hindi';
-  if (/\benglish\b|\ben\b/.test(lower)) return 'dub';
-  if (/\b(sub|subtitle|original|japanese|ja)\b/.test(lower)) return 'sub';
-  return 'multi';
+  const label = String(track.label || '').trim().toLowerCase();
+  const lang = String(track.lang || '').trim().toLowerCase();
+  const text = label + ' ' + lang;
+  if (/^hi$|^hin$|hindi|हिन्दी|हिंदी/.test(text)) return 'hindi';
+  if (/^en$|^eng$|english/.test(text)) return 'dub';
+  if (/^ja$|^jpn$|japanese|日本語|\b(sub|subtitle|original)\b/.test(text)) return 'sub';
+  return track.default ? 'sub' : 'multi';
 }
 function trackKey(track: { label?: string; lang?: string; default?: boolean }, occurrence: number): string {
   return [String(track.label || '').trim().toLowerCase(), String(track.lang || '').trim().toLowerCase(), trackGroup(track), occurrence].join('|');
