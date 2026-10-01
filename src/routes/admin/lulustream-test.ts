@@ -3,6 +3,9 @@ import type { Env } from '../../index';
 import { buildAdminCtx } from '../../lib/admin-ctx';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
 import { resolveLuluStream } from '../../lib/lulustream-resolver';
+import { PLAYER_CSS } from '../../render/player-css';
+import { playerBody } from '../../render/player-body';
+import { playerScript } from '../../render/player-script';
 
 export const adminLuluStreamRoutes = new Hono<{ Bindings: Env }>();
 
@@ -345,7 +348,13 @@ adminLuluStreamRoutes.get('/admin/lulustream_play.php', async (c) => {
 
   try {
     const resolved = await resolveLuluStream(embedUrl);
-    const playbackUrl = proxyUrl(resolved.video.url, new URL(c.req.url).origin);
+    const origin = new URL(c.req.url).origin;
+    const playbackUrl = proxyUrl(resolved.video.url, origin);
+    const subtitles = resolved.subtitles.map((track) => ({
+      ...track,
+      url: proxyUrl(track.url, origin),
+    }));
+
     let html = renderAdminHeader({
       siteUrl: c.env.SITE_URL,
       pageTitle: 'LuluStream Playback Test',
@@ -358,45 +367,125 @@ adminLuluStreamRoutes.get('/admin/lulustream_play.php', async (c) => {
       '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
     }[ch] || ch));
 
+    const player = playerBody({
+      title: resolved.title || 'LuluStream',
+      epNum: 1,
+      currentEpTitle: 'LuluStream Test',
+      prevEpNum: null,
+      nextEpNum: null,
+      watchBase: c.env.SITE_URL + '/watch?anime=0&ep=',
+      epNums: [1],
+      curEp: 1,
+      totalEpsN: 1,
+      episodesWatched: 0,
+    });
+
+    const audioPanel = `
+<div class="card card-body mt-2" style="padding:12px">
+  <div style="font-size:.85rem;font-weight:700;margin-bottom:8px">Audio Tracks</div>
+  <div id="lulu-audio-tracks" style="display:flex;flex-wrap:wrap;gap:8px">
+    <span id="lulu-audio-status" class="text-muted" style="font-size:.8rem">Waiting for HLS audio tracks…</span>
+  </div>
+</div>
+<div class="card card-body mt-2" style="padding:12px">
+  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">
+    <strong style="font-size:.85rem">Resolver JSON</strong>
+    <button id="lulu-copy-json" class="btn btn-secondary" type="button">📋 Copy JSON</button>
+  </div>
+  <pre id="lulu-json" style="white-space:pre-wrap;word-break:break-all;font-size:.76rem;line-height:1.5;max-height:55vh;overflow:auto;margin:0"></pre>
+</div>`;
+
+    const safeJson = JSON.stringify({
+      success: true,
+      provider: 'lulustream',
+      embedUrl: resolved.embedUrl,
+      title: resolved.title,
+      video: resolved.video,
+      audio: resolved.audio,
+      subtitles: resolved.subtitles,
+      referer: resolved.referer,
+    });
+
     html += `
 <div class="admin-header">
-  <h1>▶ LuluStream Playback Test</h1>
+  <h1>▶ LuluStream Watch Player Test</h1>
 </div>
 <div class="alert alert-info mb-2" style="font-size:.85rem">
-  Standalone playback test only. Production watch routing is unchanged.
+  This is the real AniVault watch player UI. Production <code>watch.ts</code> is untouched.
 </div>
 <div class="card card-body mb-2">
   <strong>${safeTitle}</strong>
   <div class="text-muted mt-1" style="font-size:.8rem;word-break:break-all">${embedUrl.replace(/[&<>"']/g, (ch) => ({
-    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
-  }[ch] || ch))}</div>
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+    }[ch] || ch))}</div>
 </div>
-<div class="card card-body" style="padding:12px">
-  <video id="video" controls playsinline style="width:100%;max-height:70vh;background:#000;border-radius:10px"></video>
-  <div id="status" class="text-muted mt-1" style="font-size:.85rem">Loading HLS…</div>
+<div id="lulu-player-test" style="width:100%;background:#000;border-radius:12px;overflow:hidden">
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&family=Exo+2:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>${PLAYER_CSS}</style>
+  ${player}
 </div>
-<script src="https://cdn.jsdelivr.net/npm/hls.js@1.6.2/dist/hls.min.js"></script>
+${audioPanel}
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.8/dist/hls.min.js"></script>
+${playerScript(0, 1, c.env.SITE_URL)}
 <script>
-const video=document.getElementById('video'),status=document.getElementById('status');
-const src=${JSON.stringify(playbackUrl)};
-function fail(message){status.textContent=message;status.style.color='var(--accent)';}
-if(video.canPlayType('application/vnd.apple.mpegurl')){
-  video.src=src;
-  video.addEventListener('loadedmetadata',()=>status.textContent='HLS loaded ✓');
-  video.addEventListener('error',()=>fail('Video element reported a playback error.'));
-}else if(window.Hls && Hls.isSupported()){
-  const hls=new Hls({enableWorker:true});
-  hls.loadSource(src);
-  hls.attachMedia(video);
-  hls.on(Hls.Events.MANIFEST_PARSED,(_,data)=>{
-    status.textContent='HLS loaded ✓ — '+data.levels.length+' video level(s)';
+(function(){
+  const source=${JSON.stringify(playbackUrl)};
+  const subs=${JSON.stringify(subtitles)};
+  const jsonEl=document.getElementById('lulu-json');
+  const audioEl=document.getElementById('lulu-audio-tracks');
+  const statusEl=document.getElementById('lulu-audio-status');
+  const rawJson=${JSON.stringify(safeJson)};
+  jsonEl.textContent=JSON.stringify(JSON.parse(rawJson),null,2);
+
+  function renderAudioTracks(tracks){
+    audioEl.innerHTML='';
+    if(!Array.isArray(tracks)||!tracks.length){
+      const empty=document.createElement('span');
+      empty.className='text-muted';
+      empty.style.fontSize='.8rem';
+      empty.textContent='No HLS audio tracks detected.';
+      audioEl.appendChild(empty);
+      return;
+    }
+    tracks.forEach((track,i)=>{
+      const btn=document.createElement('button');
+      btn.type='button';
+      btn.className='btn btn-secondary';
+      btn.textContent=(track.name||track.lang||('Audio '+(i+1)))+(track.lang?' · '+track.lang.toUpperCase():'');
+      btn.dataset.index=String(track.index);
+      btn.onclick=function(){
+        if(window.SenshiPlayer && window.SenshiPlayer.setAudioTrack(Number(this.dataset.index))){
+          [...audioEl.querySelectorAll('button')].forEach(b=>b.classList.remove('btn-primary'));
+          this.classList.add('btn-primary');
+          statusEl.textContent='Selected: '+(track.name||track.lang||('Audio '+(i+1)));
+        }
+      };
+      if(track.default) btn.classList.add('btn-primary');
+      audioEl.appendChild(btn);
+    });
+    statusEl.textContent=tracks.length+' audio track(s) detected';
+  }
+
+  window.addEventListener('anivault:audio-tracks-ready',function(e){
+    renderAudioTracks(e.detail && e.detail.tracks ? e.detail.tracks : []);
   });
-  hls.on(Hls.Events.ERROR,(_,data)=>{
-    if(data.fatal) fail('HLS fatal error: '+data.details);
+
+  document.getElementById('lulu-copy-json')?.addEventListener('click',async function(){
+    try{
+      await navigator.clipboard.writeText(jsonEl.textContent);
+      const old=this.textContent; this.textContent='✓ Copied';
+      setTimeout(()=>this.textContent=old,1500);
+    }catch(e){}
   });
-}else{
-  fail('This browser does not support HLS playback.');
-}
+
+  if(window.SenshiPlayer){
+    window.SenshiPlayer.loadWithSubs(source,subs);
+    setTimeout(function(){
+      const tracks=window.SenshiPlayer.getAudioTracks ? window.SenshiPlayer.getAudioTracks() : [];
+      if(tracks.length) renderAudioTracks(tracks);
+    },1000);
+  }
+})();
 </script>`;
     html += renderAdminFooter(c.env.SITE_URL);
     await session.save(c, lifetime);
@@ -406,7 +495,6 @@ if(video.canPlayType('application/vnd.apple.mpegurl')){
     return c.html(`<h1>LuluStream resolve failed</h1><pre>${String(e).replace(/[&<>]/g, '')}</pre>`, 502);
   }
 });
-
 adminLuluStreamRoutes.get('/admin/lulustream_proxy.php', async (c) => {
   const ctx = await buildAdminCtx(c);
   if (!ctx) return c.json({ error: 'Forbidden' }, 403);
