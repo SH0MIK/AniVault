@@ -719,6 +719,41 @@ function switchToTurboVid(id, audio) {
       });
 }
 
+function switchToLuluStream(id, audio) {
+    const pw = document.getElementById('watch-player-wrap');
+    if (!pw) return;
+    stopCurrentVideo();
+    clearDynQualityRow();
+    preparePlayerShell();
+    if (window.SenshiPlayer) window.SenshiPlayer.destroy();
+    const spinEl = document.getElementById('sp-spinner');
+    const errEl = document.getElementById('sp-error');
+    if (spinEl) spinEl.classList.remove('hide');
+    if (errEl) errEl.classList.remove('show');
+
+    fetch(SITE_URL + '/api/lulustream_stream.php?id=' + encodeURIComponent(id))
+      .then(r => r.json())
+      .then(d => {
+        if (d.error) throw new Error(d.error);
+        if (!d.m3u8) throw new Error('LuluStream did not return a playable HLS stream.');
+        const badge = document.getElementById('sp-hls-badge');
+        if (badge) badge.textContent = 'HLS · LuluStream';
+        if (window.SenshiPlayer && window.SenshiPlayer.loadWithSubs) {
+          window.SenshiPlayer.loadWithSubs(d.m3u8, d.subtitles || []);
+        } else if (window.SenshiPlayer) {
+          window.SenshiPlayer.load(d.m3u8);
+        } else {
+          const vid = document.getElementById('sp-video');
+          if (vid) { vid.src = d.m3u8; vid.load(); vid.play().catch(()=>{}); }
+        }
+      })
+      .catch(e => {
+        const msg = document.getElementById('sp-err-msg');
+        if (msg) msg.textContent = 'LuluStream: ' + (e.message || 'Resolve failed');
+        if (errEl) errEl.classList.add('show');
+        if (spinEl) spinEl.classList.add('hide');
+      });
+}
 function ensureInitialAvPlayback() {
     // The saved AniVault source is the primary server, so its first load
     // should start without requiring a second click on the AV button.
@@ -779,6 +814,15 @@ function switchToServer(serverName, audio = currentAudio, displayKey) {
     const pw = document.getElementById('watch-player-wrap');
     if (!pw) return;
     const dKey = displayKey || serverName;
+
+    if (serverName.startsWith('lulustream:')) {
+        switchToLuluStream(serverName.slice('lulustream:'.length), audio);
+        currentServer = serverName;
+        currentDisplayServer = dKey;
+        currentAudio = audio;
+        updateActiveServerButton(dKey, audio);
+        return;
+    }
 
     // ── Saved TurboVid sources ───────────────────────────────────────────
     if (serverName.startsWith('turbovid:')) {
@@ -1025,16 +1069,16 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
 
     let playbackStarted = false;
 
-    // AniVault TurboVid is the primary server when one is saved for this
+    // An AniVault-hosted source is the primary server when one is saved for this
     // episode. Start it immediately instead of waiting for the slower
     // third-party server probes. The button remains first in every group.
     // Start the first saved AniVault source immediately. Prefer Sub, then
     // English Dub, Hindi Dub, and finally Multi Dub. Hindi/Multi buttons live
     // inside the Dub tab, so they use the "dub" playback bucket.
-    let initialAv = document.querySelector('#tab-panel-sub .turbovid-server-btn');
+    let initialAv = document.querySelector('#tab-panel-sub .turbovid-server-btn, #tab-panel-sub .lulustream-server-btn');
     let initialAvAudio = 'sub';
     if (!initialAv) {
-        initialAv = document.querySelector('#servers-dub-body .turbovid-server-btn');
+        initialAv = document.querySelector('#servers-dub-body .turbovid-server-btn, #servers-dub-body .lulustream-server-btn');
         initialAvAudio = 'dub';
     }
     if (!initialAv) {
