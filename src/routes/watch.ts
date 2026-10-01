@@ -30,7 +30,7 @@ import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
 import { getEpisodeThumbnail } from '../lib/episode-thumb';
 import { SUB_PROVIDERS, DUB_PROVIDERS, HINDI_PROVIDERS, fixedServerBtn } from '../lib/stream-sources';
 
-interface TurboVidServerRow { id:number; anime_id:number; episode_num:number; audio_group:string; language:string; label:string; embed_url:string; is_active:number; }
+interface TurboVidServerRow { id:number; anime_id:number; episode_num:number; audio_group:string; language:string; label:string; embed_url:string; is_active:number; }\ninterface LuluStreamServerRow { id:number; anime_id:number; episode_num:number; label:string; embed_url:string; is_active:number; }
 
 export const watchRoutes = new Hono<{ Bindings: Env }>();
 
@@ -433,7 +433,7 @@ interface WatchBodyParams {
 export function renderWatchBody(p: WatchBodyParams): string {
   const { anime, image, coverSm, title, animeId, epNum, totalEps, video, qSub, hasMegaplayFallback,
     isLoggedIn, prevEp, nextEp, currentEpInfo, chars, allEps, allVideos, videoEpNumSet, resumeT, layoutUser, siteUrl,
-    episodesWatched, dubbedLangs, turbovidServers } = p;
+    episodesWatched, dubbedLangs, turbovidServers, lulustreamServers } = p;
 
   const genres = (anime.genres ?? []).slice(0, 6);
   const score = anime.score;
@@ -442,14 +442,14 @@ export function renderWatchBody(p: WatchBodyParams): string {
   const animePage = `${siteUrl}/anime?id=${animeId}`;
 
   const hasRealVideo = !!video && (qSub.length > 0 || !!video.video_url);
-  const hasTurboVid = turbovidServers.length > 0;
+  const hasTurboVid = turbovidServers.length > 0;\n  const hasLuluStream = lulustreamServers.length > 0;
 
   let playerHtml: string;
   if (hasRealVideo) {
     playerHtml = isLoggedIn
       ? `<div class="wp-player-shell" id="watch-player-wrap">${qSub.length > 0 ? qSub[0].embed : `<iframe id="main-player-iframe" src="${h(video!.video_url ?? '')}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen loading="lazy"></iframe>`}</div><div class="wp-player-accent-line"></div>`
       : renderSignInGate(image, 'wg-play', 'wg-signin', 'wg-signup');
-  } else if (hasMegaplayFallback || hasTurboVid) {
+  } else if (hasMegaplayFallback || hasTurboVid || hasLuluStream) {
     // Keep the player shell present whenever a saved TurboVid source exists.
     // The old "Finding the best server" gate could remain visible while the
     // AV source was already playing because watchScript1 ran before the
@@ -461,7 +461,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
     playerHtml = `<div class="wp-no-video"><div class="nv-icon">🎬</div><p>No video available yet.<br>Check back later or explore other episodes.</p><a href="${animePage}" class="btn btn-ghost btn-sm" style="margin-top:.25rem">← Back to Anime</a></div>`;
   }
 
-  const serverControlsHtml = (isLoggedIn && (video || hasMegaplayFallback || hasTurboVid)) ? `
+  const serverControlsHtml = (isLoggedIn && (video || hasMegaplayFallback || hasTurboVid || hasLuluStream)) ? `
         <div class="wp-controls">
           ${qSub.length > 0 ? `
           <div class="wp-quality-row">
@@ -481,7 +481,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
                     <span>HLS</span>
                   </div>
                   <div class="server-btn-row" id="servers-sub-body">
-                    ${turbovidServers.filter(v=>v.audio_group==='sub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Sub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Sub</span></button>`).join('')}
+                    ${lulustreamServers.map(v=>` <button class="server-btn lulustream-server-btn av-server" data-server="lulustream:${v.id}" data-lulustream-id="${v.id}" title="AniVault LuluStream — dynamic multi-audio"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">LuluStream</span></button>`).join('')}\n                    ${turbovidServers.filter(v=>v.audio_group==='sub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Sub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Sub</span></button>`).join('')}
                     ${SUB_PROVIDERS.map(p => fixedServerBtn('sub', p.source, p.provider, p.label)).join('')}
                   </div>
                 </div>
@@ -505,7 +505,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
                     <span>HLS</span>
                   </div>
                   <div class="server-btn-row" id="servers-dub-body">
-                    ${turbovidServers.filter(v=>v.audio_group==='dub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Dub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Dub</span></button>`).join('')}
+                    ${lulustreamServers.map(v=>` <button class="server-btn lulustream-server-btn av-server" data-server="lulustream:${v.id}" data-lulustream-id="${v.id}" title="AniVault LuluStream — dynamic multi-audio"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">LuluStream</span></button>`).join('')}\n                    ${turbovidServers.filter(v=>v.audio_group==='dub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Dub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Dub</span></button>`).join('')}
                     ${DUB_PROVIDERS.map(p => fixedServerBtn('dub', p.source, p.provider, p.label)).join('')}
                   </div>
                   <div class="server-group" id="dub-hindi-group">
