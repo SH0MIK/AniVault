@@ -28,9 +28,8 @@ luluStreamApiRoutes.get('/api/lulustream_stream.php', async (c) => {
   return c.json({
     id:row.id, label:row.label, embedUrl:result.embedUrl,
     m3u8:proxy(origin,result.video.url),
-    rawM3u8:result.video.url,
     subtitles:(result.subtitles||[]).map((s:any)=>({lang:s.lang,url:proxy(origin,s.url)})),
-    audios:(result.audioTracks||[]).map((a:any)=>({lang:a.lang,name:a.name,groupId:a.groupId,url:a.url})),
+    audios:(result.audio||[]).map((a:any)=>({lang:a.lang,name:a.label,groupId:a.groupId,url:a.url})),
     type:result.video.type, title:result.title||''
   });
 });
