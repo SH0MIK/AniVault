@@ -31,9 +31,10 @@ import { getEpisodeThumbnail } from '../lib/episode-thumb';
 import { SUB_PROVIDERS, DUB_PROVIDERS, HINDI_PROVIDERS, fixedServerBtn } from '../lib/stream-sources';
 
 interface TurboVidServerRow { id:number; anime_id:number; episode_num:number; audio_group:string; language:string; label:string; embed_url:string; is_active:number; }
-interface LuluStreamServerRow { id:number; anime_id:number; episode_num:number; label:string; embed_url:string; is_active:number; }
+interface LuluStreamServerRow { id:number; anime_id:number; episode_num:number; label:string; embed_url:string; audio_tracks:string; is_active:number; }
 
 export const watchRoutes = new Hono<{ Bindings: Env }>();
+function parseLuluTracks(row: LuluStreamServerRow): any[] { try { const v=JSON.parse(row.audio_tracks||'[]'); return Array.isArray(v)?v:[]; } catch { return []; } }
 
 interface EpisodeVideoRow {
   [key: string]: unknown;
@@ -229,7 +230,7 @@ watchRoutes.get('/watch', async (c) => {
   const turbovidServers = turboVidEnabled
     ? await db.fetchAll<TurboVidServerRow>('SELECT id,anime_id,episode_num,audio_group,language,label,embed_url,is_active FROM turbovid_servers WHERE anime_id=? AND episode_num=? AND is_active=1 ORDER BY audio_group, language, id',[animeId,epNum])
     : [];
-  const lulustreamServers = await db.fetchAll<LuluStreamServerRow>('SELECT id,anime_id,episode_num,label,embed_url,is_active FROM lulustream_servers WHERE anime_id=? AND episode_num=? AND is_active=1 ORDER BY id',[animeId,epNum]);
+  const lulustreamServers = await db.fetchAll<LuluStreamServerRow>('SELECT id,anime_id,episode_num,label,embed_url,audio_tracks,is_active FROM lulustream_servers WHERE anime_id=? AND episode_num=? AND is_active=1 ORDER BY id',[animeId,epNum]);
 
   const anilistId = await getAnilistIdFromMal(db, animeId, c.env);
 
@@ -485,7 +486,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
                     <span>HLS</span>
                   </div>
                   <div class="server-btn-row" id="servers-sub-body">
-                    ${lulustreamServers.map(v=>` <button class="server-btn lulustream-server-btn av-server lulustream-placeholder" data-server="lulustream:${v.id}" data-lulustream-id="${v.id}" title="AniVault LuluStream — dynamic multi-audio"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">LuluStream</span></button>`).join('')}
+                    \${lulustreamServers.flatMap(v=>parseLuluTracks(v).filter(t=>t.group==='sub').map(t=>` <button class="server-btn lulustream-server-btn av-server" data-server="lulustream:\${v.id}" data-lulustream-id="\${v.id}" data-lulu-track-key="\${h(t.key||'')}"><img class="av-server-logo" src="\${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">\${h(t.label||'Audio')}</span></button>`)).join('')}
                     ${turbovidServers.filter(v=>v.audio_group==='sub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Sub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Sub</span></button>`).join('')}
                     ${SUB_PROVIDERS.map(p => fixedServerBtn('sub', p.source, p.provider, p.label)).join('')}
                   </div>
@@ -510,20 +511,22 @@ export function renderWatchBody(p: WatchBodyParams): string {
                     <span>HLS</span>
                   </div>
                   <div class="server-btn-row" id="servers-dub-body">
-                    ${lulustreamServers.map(v=>` <button class="server-btn lulustream-server-btn av-server lulustream-placeholder" data-server="lulustream:${v.id}" data-lulustream-id="${v.id}" title="AniVault LuluStream — dynamic multi-audio"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">LuluStream</span></button>`).join('')}\n                    ${turbovidServers.filter(v=>v.audio_group==='dub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Dub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Dub</span></button>`).join('')}
+                    \${lulustreamServers.flatMap(v=>parseLuluTracks(v).filter(t=>t.group==='dub').map(t=>` <button class="server-btn lulustream-server-btn av-server" data-server="lulustream:\${v.id}" data-lulustream-id="\${v.id}" data-lulu-track-key="\${h(t.key||'')}"><img class="av-server-logo" src="\${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">\${h(t.label||'Audio')}</span></button>`)).join('')}\n                    ${turbovidServers.filter(v=>v.audio_group==='dub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Dub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Dub</span></button>`).join('')}
                     ${DUB_PROVIDERS.map(p => fixedServerBtn('dub', p.source, p.provider, p.label)).join('')}
                   </div>
                   <div class="server-group" id="dub-hindi-group">
                     <div class="server-group-label">Hindi Dub</div>
                     <div class="server-group-body" id="servers-dub-hindi-body">
-                      ${turbovidServers.filter(v=>v.audio_group==='hindi').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Hindi"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Hindi</span></button>`).join('')}
+                      \${lulustreamServers.flatMap(v=>parseLuluTracks(v).filter(t=>t.group==='hindi').map(t=>` <button class="server-btn lulustream-server-btn av-server" data-server="lulustream:\${v.id}" data-lulustream-id="\${v.id}" data-lulu-track-key="\${h(t.key||'')}"><img class="av-server-logo" src="\${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">\${h(t.label||'Hindi')}</span></button>`)).join('')}
+                      \${turbovidServers.filter(v=>v.audio_group==='hindi').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Hindi"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Hindi</span></button>`).join('')}
                       ${HINDI_PROVIDERS.map(p => fixedServerBtn('hindi', p.source, p.provider, p.label)).join('')}
                     </div>
                   </div>
-                  <div class="server-group" id="dub-multi-group" style="${turbovidServers.some(v=>v.audio_group==='multi') ? '' : 'display:none'}">
+                  <div class="server-group" id="dub-multi-group" style="\${turbovidServers.some(v=>v.audio_group==='multi') || lulustreamServers.some(v=>parseLuluTracks(v).some(t=>t.group==='multi')) ? '' : 'display:none'}">
                     <div class="server-group-label">Multi Dub</div>
                     <div class="server-group-body" id="servers-dub-multi-body">
-                      ${turbovidServers.filter(v=>v.audio_group==='multi').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Multi"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">${h(v.language || 'dub')}</span></button>`).join('')}
+                      \${lulustreamServers.flatMap(v=>parseLuluTracks(v).filter(t=>t.group==='multi').map(t=>` <button class="server-btn lulustream-server-btn av-server" data-server="lulustream:\${v.id}" data-lulustream-id="\${v.id}" data-lulu-track-key="\${h(t.key||'')}"><img class="av-server-logo" src="\${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">\${h(t.label||'Audio')}</span></button>`)).join('')}
+                      \${turbovidServers.filter(v=>v.audio_group==='multi').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Multi"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">${h(v.language || 'dub')}</span></button>`).join('')}
                       <div class="server-skel-group" id="servers-dub-multi-loading">
                         <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:64px"></span></span>
                         <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:50px"></span></span>
