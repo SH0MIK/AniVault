@@ -771,6 +771,11 @@ function switchToLuluStream(id, audio, trackKey) {
     if (spinEl) spinEl.classList.remove('hide');
     if (errEl) errEl.classList.remove('show');
 
+    // Set the requested track before the HLS manifest is loaded.
+    if (window.SenshiPlayer && window.SenshiPlayer.setPreferredAudioTrack) {
+        window.SenshiPlayer.setPreferredAudioTrack(trackKey || '');
+    }
+
     fetch(SITE_URL + '/api/lulustream_stream.php?id=' + encodeURIComponent(id))
       .then(r => r.json())
       .then(d => {
