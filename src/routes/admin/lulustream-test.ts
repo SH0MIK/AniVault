@@ -146,10 +146,17 @@ adminLuluStreamRoutes.get('/admin/lulustream_test.php', async (c) => {
   </div>
   <div id="status" class="text-muted mt-1" style="min-height:18px;font-size:.85rem"></div>
 </div>
-<pre id="result" class="card card-body" style="white-space:pre-wrap;word-break:break-all;font-size:.78rem;line-height:1.55;max-height:70vh;overflow:auto">Paste an embed URL and press Test CDN.</pre>
+<div class="card card-body" style="padding:12px">
+  <div class="flex" style="justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px">
+    <strong style="font-size:.85rem">Diagnostic Output</strong>
+    <button id="copyBtn" class="btn btn-secondary" type="button" disabled>📋 Copy JSON</button>
+  </div>
+  <pre id="result" style="white-space:pre-wrap;word-break:break-all;font-size:.78rem;line-height:1.55;max-height:70vh;overflow:auto;margin:0">Paste an embed URL and press Test CDN.</pre>
+</div>
 <script>
-const btn=document.getElementById('resolveBtn'), input=document.getElementById('embedUrl');
+const btn=document.getElementById('resolveBtn'), copyBtn=document.getElementById('copyBtn'), input=document.getElementById('embedUrl');
 const status=document.getElementById('status'), result=document.getElementById('result');
+let lastJson='';
 function setStatus(t,ok){status.textContent=t;status.style.color=ok?'#2ecc71':'var(--accent)';}
 async function resolve(){
   const url=input.value.trim();
@@ -159,11 +166,28 @@ async function resolve(){
   try{
     const r=await fetch('lulustream_cdn_test.php?url='+encodeURIComponent(url));
     const data=await r.json();
-    result.textContent=JSON.stringify(data,null,2);
+    lastJson=JSON.stringify(data,null,2);
+    result.textContent=lastJson;
+    copyBtn.disabled=false;
     setStatus(r.ok?'Diagnostic complete ✓':'Diagnostic failed',r.ok);
   }catch(e){result.textContent=String(e);setStatus('Request failed',false);}
   finally{btn.disabled=false;}
 }
+copyBtn.onclick=async()=>{
+  if(!lastJson)return;
+  try{
+    await navigator.clipboard.writeText(lastJson);
+    const old=copyBtn.textContent;
+    copyBtn.textContent='✓ Copied';
+    setTimeout(()=>copyBtn.textContent=old,1500);
+  }catch(e){
+    const ta=document.createElement('textarea');
+    ta.value=lastJson; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); ta.remove();
+    copyBtn.textContent='✓ Copied';
+    setTimeout(()=>copyBtn.textContent='📋 Copy JSON',1500);
+  }
+};
 btn.onclick=resolve;
 input.addEventListener('keydown',e=>{if(e.key==='Enter')resolve();});
 </script>`;
