@@ -36,9 +36,76 @@ async function probe(url: string, referer: string) {
       contentType: res.headers.get('content-type'),
       contentLength: res.headers.get('content-length'),
       elapsedMs: Date.now() - started,
-      bodyPreview: text.slice(0, 1000),
+      bodyPreview: text.slice(0, 1200),
       looksLikeHls: /#EXTM3U/.test(text),
       looksBlocked: res.status === 401 || res.status === 403 || /access denied|forbidden|blocked|cloudflare/i.test(text),
+    };
+  } catch (e) {
+    return {
+      requestedUrl: url,
+      status: null,
+      ok: false,
+      elapsedMs: Date.now() - started,
+      error: e instanceof Error ? e.message : String(e),
+      looksBlocked: false,
+    };
+  }
+}
+
+function extractHlsUris(manifest: string, baseUrl: string) {
+  const mediaUris = [...manifest.matchAll(/#EXT-X-MEDIA:[^\r\n]*URI="([^"]+\.m3u8(?:\?[^"]*)?)"/gi)]
+    .map((m) => withInheritedQuery(m[1], baseUrl));
+
+  const variantUris: string[] = [];
+  const lines = manifest.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (let i = 0; i < lines.length; i++) {
+    if (lines[i].startsWith('#EXT-X-STREAM-INF')) {
+      const next = lines.slice(i + 1).find((line) => !line.startsWith('#'));
+      if (next) variantUris.push(withInheritedQuery(next, baseUrl));
+    }
+  }
+
+  return {
+    mediaUris: [...new Set(mediaUris)],
+    variantUris: [...new Set(variantUris)],
+  };
+}
+
+function extractFirstSegment(manifest: string, baseUrl: string) {
+  const lines = manifest.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    if (!line.startsWith('#') && !/\.m3u8(?:\?|$)/i.test(line)) {
+      return withInheritedQuery(line, baseUrl);
+    }
+  }
+  return null;
+}
+
+async function probeSegment(url: string, referer: string) {
+  const started = Date.now();
+  try {
+    const res = await fetch(url, {
+      headers: {
+        'User-Agent': UA,
+        'Accept': '*/*',
+        'Range': 'bytes=0-1023',
+        'Referer': referer,
+        'Origin': 'https://lulust.com',
+      },
+      redirect: 'follow',
+    });
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    return {
+      requestedUrl: url,
+      finalUrl: res.url || url,
+      status: res.status,
+      ok: res.ok,
+      contentType: res.headers.get('content-type'),
+      contentLength: res.headers.get('content-length'),
+      contentRange: res.headers.get('content-range'),
+      elapsedMs: Date.now() - started,
+      bytesReceived: bytes.byteLength,
+      looksBlocked: res.status === 401 || res.status === 403,
     };
   } catch (e) {
     return {
@@ -140,14 +207,25 @@ adminLuluStreamRoutes.get('/admin/lulustream_cdn_test.php', async (c) => {
     const resolved = await resolveLuluStream(embedUrl);
     const master = await probe(resolved.video.url, resolved.referer);
 
-    let child = null;
-    if (master.ok && master.bodyPreview) {
-      const lines = master.bodyPreview.split(/\\r?\\n/);
-      const firstUri = lines.find((line) => line && !line.startsWith('#'));
-      if (firstUri) {
-        const childUrl = withInheritedQuery(firstUri.trim(), master.finalUrl);
-        child = await probe(childUrl, resolved.referer);
+    let variant = null;
+    let audio = null;
+    let segment = null;
+    let hls = { mediaUris: [] as string[], variantUris: [] as string[] };
+
+    if (master.ok && master.looksLikeHls) {
+      hls = extractHlsUris(master.bodyPreview, master.finalUrl);
+
+      const variantUrl = hls.variantUris[0];
+      if (variantUrl) {
+        variant = await probe(variantUrl, resolved.referer);
+        if (variant.ok && variant.looksLikeHls) {
+          const segmentUrl = extractFirstSegment(variant.bodyPreview, variant.finalUrl);
+          if (segmentUrl) segment = await probeSegment(segmentUrl, resolved.referer);
+        }
       }
+
+      const audioUrl = hls.mediaUris[0];
+      if (audioUrl) audio = await probe(audioUrl, resolved.referer);
     }
 
     await session.save(c, lifetime);
@@ -158,18 +236,25 @@ adminLuluStreamRoutes.get('/admin/lulustream_cdn_test.php', async (c) => {
       title: resolved.title,
       cdnHost: new URL(resolved.video.url).hostname,
       master,
-      child,
+      hls,
+      variant,
+      audio,
+      segment,
       extractedTracks: {
         audio: resolved.audio.length,
         subtitles: resolved.subtitles.length,
       },
-      diagnosis: master.status === 403
-        ? 'CDN returned HTTP 403 for the master playlist from the Worker.'
-        : master.status === 401
-          ? 'CDN returned HTTP 401 for the master playlist from the Worker.'
-          : master.ok && master.looksLikeHls
-            ? 'Master playlist is reachable from the Worker; if playback still fails, inspect child playlist/segment responses.'
-            : 'Master playlist did not return a usable HLS manifest.',
+      diagnosis: !master.ok
+        ? 'Master playlist request failed; CDN access is the first failure point.'
+        : !master.looksLikeHls
+          ? 'Master request succeeded but did not return an HLS playlist.'
+          : !hls.variantUris.length
+            ? 'Master has no #EXT-X-STREAM-INF video variant; inspect the extracted audio playlists.'
+            : !variant?.ok
+              ? 'Master is reachable, but the first video variant playlist failed.'
+              : !segment?.ok
+                ? 'Video variant is reachable, but the first media segment failed.'
+                : 'Master → video variant → media segment all respond successfully from the Worker.' 
     });
   } catch (e) {
     await session.save(c, lifetime);
