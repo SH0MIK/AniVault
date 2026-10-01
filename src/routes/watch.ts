@@ -429,6 +429,7 @@ interface WatchBodyParams {
   episodesWatched: number;
   dubbedLangs: string[];
   turbovidServers: TurboVidServerRow[];
+  lulustreamServers: LuluStreamServerRow[];
 }
 
 export function renderWatchBody(p: WatchBodyParams): string {
