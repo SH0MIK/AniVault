@@ -34,7 +34,30 @@ interface TurboVidServerRow { id:number; anime_id:number; episode_num:number; au
 interface LuluStreamServerRow { id:number; anime_id:number; episode_num:number; label:string; embed_url:string; audio_tracks:string; is_active:number; }
 
 export const watchRoutes = new Hono<{ Bindings: Env }>();
-function parseLuluTracks(row: LuluStreamServerRow): any[] { try { const v=JSON.parse(row.audio_tracks||'[]'); return Array.isArray(v)?v:[]; } catch { return []; } }
+function luluTrackGroup(track: any): 'sub'|'dub'|'hindi'|'multi' {
+  const label = String(track?.label || track?.name || '').trim().toLowerCase();
+  const lang = String(track?.lang || '').trim().toLowerCase();
+  const text = label + ' ' + lang;
+  if (/^hi$|^hin$|hindi|हिन्दी|हिंदी/.test(text)) return 'hindi';
+  if (/^en$|^eng$|english/.test(text)) return 'dub';
+  if (/^ja$|^jpn$|japanese|日本語|\\b(sub|subtitle|original)\\b/.test(text)) return 'sub';
+  return track?.default ? 'sub' : 'multi';
+}
+function parseLuluTracks(row: LuluStreamServerRow): any[] {
+  try {
+    const v=JSON.parse(row.audio_tracks||'[]');
+    if (!Array.isArray(v)) return [];
+    const seen: Record<string,number> = {};
+    return v.map((t:any) => {
+      const group=luluTrackGroup(t);
+      const label=String(t?.label || t?.name || '').trim().toLowerCase();
+      const lang=String(t?.lang || '').trim().toLowerCase();
+      const base=[label,lang,group].join('|');
+      const occurrence=seen[base]||0; seen[base]=occurrence+1;
+      return {...t, group, key:[label,lang,group,occurrence].join('|')};
+    });
+  } catch { return []; }
+}
 function renderLuluTrackButtons(servers: LuluStreamServerRow[], group: string, siteUrl: string): string {
   return servers.flatMap(v => parseLuluTracks(v).filter(t => t.group === group).map(t =>
     '<button class="server-btn lulustream-server-btn av-server" data-server="lulustream:' + v.id + '" data-lulustream-id="' + v.id + '" data-lulu-track-key="' + h(t.key || '') + '"><img class="av-server-logo" src="' + siteUrl + '/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">' + h(t.label || (group === 'hindi' ? 'Hindi' : 'Audio')) + '</span></button>'
