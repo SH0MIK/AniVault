@@ -1337,6 +1337,7 @@ function loadHLS(m3u8Url) {
       lowLatencyMode: false,
       backBufferLength: 90,
       capLevelToPlayerSize: false,
+      autoStartLoad: !isLuluStream,
     };
     // TurboVid needs its custom fragment unwrap loader; normal HLS sources
     // (including LuluStream) must use hls.js's native fragment loader.
@@ -1357,10 +1358,48 @@ function loadHLS(m3u8Url) {
           default: !!track.default,
           forced: !!track.forced,
         }));
+
+        // LuluStream exposes signed audio playlists in whatever order the
+        // provider chooses. Select the requested saved track BEFORE starting
+        // segment loading, so the default English track never starts first.
+        if (isLuluStream && window._senshiPreferredAudioTrack) {
+          const wanted = String(window._senshiPreferredAudioTrack);
+          const parts = wanted.split('|');
+          const wantedLabel = (parts[0] || '').trim().toLowerCase();
+          const wantedLang = (parts[1] || '').trim().toLowerCase();
+          const wantedGroup = (parts[2] || '').trim().toLowerCase();
+          const wantedOccurrence = Number(parts[3] || 0);
+          const seen = {};
+          let selected = -1;
+          for (let i = 0; i < hls.audioTracks.length; i++) {
+            const t = hls.audioTracks[i] || {};
+            const label = String(t.name || t.lang || '').trim().toLowerCase();
+            const lang = String(t.lang || '').trim().toLowerCase();
+            const groupText = (label + ' ' + lang);
+            let group = 'multi';
+            if (/^hi$|^hin$|hindi|हिन्दी|हिंदी/.test(lang + ' ' + label)) group = 'hindi';
+            else if (/^en$|^eng$|english/.test(lang + ' ' + label)) group = 'dub';
+            else if (/^ja$|^jpn$|japanese|日本語|\\b(sub|subtitle|original)\\b/.test(groupText)) group = 'sub';
+            else if (t.default) group = 'sub';
+            const base = [label, lang, group].join('|');
+            const occurrence = seen[base] || 0;
+            seen[base] = occurrence + 1;
+            if (label === wantedLabel && lang === wantedLang && group === wantedGroup && occurrence === wantedOccurrence) {
+              selected = i;
+              break;
+            }
+          }
+          if (selected >= 0) hls.audioTrack = selected;
+        }
+
         window.dispatchEvent(new CustomEvent('anivault:audio-tracks-ready', {
           detail: { tracks: window._senshiAudioTracks.slice() }
         }));
       } catch (e) {}
+
+      if (isLuluStream) {
+        try { hls.startLoad(); } catch (e) {}
+      }
       if (spinner) spinner.classList.remove('hide');
       buildQualityMenu();
       if (settings.autoplay) {
@@ -1437,6 +1476,9 @@ window._setSenshiLastSource = function(url, subs) {
   try { window.dispatchEvent(new CustomEvent('anivault:source-ready')); } catch(e) {}
 };
 window.SenshiPlayer = {
+  setPreferredAudioTrack: function(trackKey) {
+    window._senshiPreferredAudioTrack = trackKey ? String(trackKey) : '';
+  },
   load: function(url) {
     if (!url) return;
     window._setSenshiLastSource(url, []);
