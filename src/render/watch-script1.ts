@@ -725,10 +725,11 @@ function luluTrackKey(track, group, occurrence) {
     return [label, lang, group, occurrence].join('|');
 }
 function luluGroup(track) {
-    const text = (String((track && (track.name || track.label || '')) || '') + ' ' + String((track && track.lang) || '')).toLowerCase();
-    if (/\\bhindi\\b/.test(text)) return 'hindi';
-    if (/\\benglish\\b|\\ben\\b/.test(text)) return 'dub';
-    if (/\\b(sub|subtitle|original)\\b/.test(text)) return 'sub';
+    const label = String((track && (track.name || track.label || '')) || '').trim().toLowerCase();
+    const lang = String((track && track.lang) || '').trim().toLowerCase();
+    if (/^hi$|^hin$|hindi|हिन्दी|हिंदी/.test(lang + ' ' + label)) return 'hindi';
+    if (/^en$|^eng$|english/.test(lang + ' ' + label)) return 'dub';
+    if (/^ja$|^jpn$|japanese|日本語|\\b(sub|subtitle|original)\\b/.test(lang + ' ' + label)) return 'sub';
     return track && track.default ? 'sub' : 'multi';
 }
 function findLuluTrackIndex(tracks, wantedKey) {
@@ -744,13 +745,19 @@ function findLuluTrackIndex(tracks, wantedKey) {
     }
     return -1;
 }
-function selectLuluAudioAfterLoad(trackIndex) {
-    if (trackIndex === null || trackIndex === undefined || trackIndex < 0) return;
+function selectLuluAudioAfterLoad(wantedKey) {
+    if (!wantedKey) return;
+    let applied = false;
     const apply = () => {
-        if (window.SenshiPlayer && window.SenshiPlayer.setAudioTrack) window.SenshiPlayer.setAudioTrack(trackIndex);
+        if (applied || !window.SenshiPlayer || !window.SenshiPlayer.getAudioTracks || !window.SenshiPlayer.setAudioTrack) return;
+        const actual = window.SenshiPlayer.getAudioTracks() || [];
+        const index = findLuluTrackIndex(actual, wantedKey);
+        if (index < 0) return;
+        applied = !!window.SenshiPlayer.setAudioTrack(index);
     };
     apply();
     window.addEventListener('anivault:audio-tracks-ready', apply, { once: true });
+    [100, 300, 800, 1500].forEach(ms => setTimeout(apply, ms));
 }
 function switchToLuluStream(id, audio, trackKey) {
     const pw = document.getElementById('watch-player-wrap');
@@ -770,7 +777,7 @@ function switchToLuluStream(id, audio, trackKey) {
         if (d.error) throw new Error(d.error);
         if (!d.m3u8) throw new Error('LuluStream did not return a playable HLS stream.');
 
-        const trackIndex = findLuluTrackIndex(Array.isArray(d.audios) ? d.audios : [], trackKey);
+        const trackIndex = trackKey ? findLuluTrackIndex(Array.isArray(d.audios) ? d.audios : [], trackKey) : -1;
         const badge = document.getElementById('sp-hls-badge');
         if (badge) badge.textContent = 'HLS · LuluStream';
         if (window.SenshiPlayer && window.SenshiPlayer.loadWithSubs) {
@@ -781,7 +788,7 @@ function switchToLuluStream(id, audio, trackKey) {
           const vid = document.getElementById('sp-video');
           if (vid) { vid.src = d.m3u8; vid.load(); vid.play().catch(()=>{}); }
         }
-        if (trackIndex >= 0) selectLuluAudioAfterLoad(trackIndex);
+        if (trackKey) selectLuluAudioAfterLoad(trackKey);
       })
       .catch(e => {
         const msg = document.getElementById('sp-err-msg');
