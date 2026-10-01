@@ -1343,6 +1343,20 @@ function loadHLS(m3u8Url) {
     hls.attachMedia(vid);
 
     hls.on(window.Hls.Events.MANIFEST_PARSED, (evt, data) => {
+      try {
+        window._senshiAudioTracks = (hls.audioTracks || []).map((track, i) => ({
+          index: i,
+          id: track.id,
+          name: track.name || track.lang || ('Audio ' + (i + 1)),
+          lang: track.lang || '',
+          groupId: track.groupId || '',
+          default: !!track.default,
+          forced: !!track.forced,
+        }));
+        window.dispatchEvent(new CustomEvent('anivault:audio-tracks-ready', {
+          detail: { tracks: window._senshiAudioTracks.slice() }
+        }));
+      } catch (e) {}
       if (spinner) spinner.classList.remove('hide');
       buildQualityMenu();
       if (settings.autoplay) {
@@ -1487,6 +1501,23 @@ window.SenshiPlayer = {
     } else {
       loadHLS(url);
     }
+  },
+  getAudioTracks: function() {
+    if (!hls || !Array.isArray(hls.audioTracks)) return [];
+    return hls.audioTracks.map((track, i) => ({
+      index: i,
+      id: track.id,
+      name: track.name || track.lang || ('Audio ' + (i + 1)),
+      lang: track.lang || '',
+      groupId: track.groupId || '',
+      default: !!track.default,
+      forced: !!track.forced,
+    }));
+  },
+  setAudioTrack: function(index) {
+    if (!hls || !Number.isInteger(index) || index < 0 || index >= hls.audioTracks.length) return false;
+    hls.audioTrack = index;
+    return true;
   },
   retry: function() {
     const errBox = document.getElementById('sp-error');
