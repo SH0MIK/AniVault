@@ -228,6 +228,7 @@ watchRoutes.get('/watch', async (c) => {
   const turbovidServers = turboVidEnabled
     ? await db.fetchAll<TurboVidServerRow>('SELECT id,anime_id,episode_num,audio_group,language,label,embed_url,is_active FROM turbovid_servers WHERE anime_id=? AND episode_num=? AND is_active=1 ORDER BY audio_group, language, id',[animeId,epNum])
     : [];
+  const lulustreamServers = await db.fetchAll<LuluStreamServerRow>('SELECT id,anime_id,episode_num,label,embed_url,is_active FROM lulustream_servers WHERE anime_id=? AND episode_num=? AND is_active=1 ORDER BY id',[animeId,epNum]);
 
   const anilistId = await getAnilistIdFromMal(db, animeId, c.env);
 
