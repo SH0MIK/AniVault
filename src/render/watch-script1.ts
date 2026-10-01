@@ -719,7 +719,92 @@ function switchToTurboVid(id, audio) {
       });
 }
 
-function switchToLuluStream(id, audio) {
+function luluAudioGroup(track) {
+    // Group from LuluStream's actual track metadata. We do not assume that
+    // a language code is automatically Sub/Dub/Hindi. Only explicit metadata
+    // wording is used; anything ambiguous stays in Multi Dub.
+    const text = String((track && (track.name || track.label || track.lang)) || '').trim();
+    const lower = text.toLowerCase();
+    if (/\\bsub(?:title)?s?\\b|\\boriginal\\b/.test(lower)) return 'sub';
+    if (/\\bhindi\\b/.test(lower) && /\\bdub\\b/.test(lower)) return 'hindi';
+    if (/\\bhindi\\b/.test(lower)) return 'hindi';
+    if (/\\benglish\\b/.test(lower) && /\\bdub\\b/.test(lower)) return 'dub';
+    if (/\\benglish\\b/.test(lower)) return 'dub';
+    if (/\\bmulti(?:ple)?\\b.*\\bdub\\b|\\bdub\\b.*\\bmulti(?:ple)?\\b/.test(lower)) return 'multi';
+    if (/\\bdub\\b/.test(lower)) return 'multi';
+    return 'multi';
+}
+
+function luluPrettyAudio(track, index) {
+    const name = String(track && (track.name || track.label || track.lang) || '').trim();
+    const lang = String(track && track.lang || '').trim();
+    if (name && lang && name.toLowerCase() !== lang.toLowerCase()) return name;
+    return name || lang || ('Audio ' + (index + 1));
+}
+
+function renderLuluAudioButtons(id, tracks) {
+    const groups = {
+        sub: document.getElementById('servers-sub-body'),
+        dub: document.getElementById('servers-dub-body'),
+        hindi: document.getElementById('servers-dub-hindi-body'),
+        multi: document.getElementById('servers-dub-multi-body')
+    };
+    const multiGroup = document.getElementById('dub-multi-group');
+    if (!Array.isArray(tracks)) return;
+
+    // Remove only dynamically-created Lulu buttons. The stable saved source
+    // remains available while resolution is happening.
+    document.querySelectorAll('.lulustream-dynamic-btn').forEach(b => b.remove());
+
+    const counts = {sub:0,dub:0,hindi:0,multi:0};
+    tracks.forEach((track, index) => {
+        const group = luluAudioGroup(track);
+        const body = groups[group];
+        if (!body) return;
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'server-btn av-server lulustream-server-btn lulustream-dynamic-btn';
+        btn.dataset.server = 'lulustream:' + id;
+        btn.dataset.lulustreamId = String(id);
+        btn.dataset.luluAudioIndex = String(index);
+        btn.dataset.luluGroup = group;
+        btn.title = 'LuluStream · ' + luluPrettyAudio(track, index);
+        btn.innerHTML = '<img class="av-server-logo" src="' + SITE_URL + '/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">' +
+            luluPrettyAudio(track, index).replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>';
+
+        // Keep the same server-button click delegation used by TurboVid and
+        // the other AniVault sources; only the requested audio-track index is
+        // different.
+        body.appendChild(btn);
+        counts[group]++;
+    });
+
+    if (multiGroup) multiGroup.style.display = counts.multi ? '' : 'none';
+
+    // The original static LuluStream buttons were only placeholders. Once
+    // actual tracks are known, hide them so one source is not duplicated in
+    // multiple groups.
+    document.querySelectorAll('.lulustream-placeholder').forEach(b => {
+        b.style.display = 'none';
+    });
+}
+
+function selectLuluAudioAfterLoad(trackIndex) {
+    if (trackIndex === null || trackIndex === undefined) return;
+    const wanted = Number(trackIndex);
+    if (!Number.isFinite(wanted) || wanted < 0) return;
+
+    const apply = () => {
+        if (window.SenshiPlayer && window.SenshiPlayer.setAudioTrack) {
+            window.SenshiPlayer.setAudioTrack(wanted);
+        }
+    };
+    apply();
+    window.addEventListener('anivault:audio-tracks-ready', apply, { once: true });
+}
+
+function switchToLuluStream(id, audio, trackIndex) {
     const pw = document.getElementById('watch-player-wrap');
     if (!pw) return;
     stopCurrentVideo();
@@ -736,8 +821,18 @@ function switchToLuluStream(id, audio) {
       .then(d => {
         if (d.error) throw new Error(d.error);
         if (!d.m3u8) throw new Error('LuluStream did not return a playable HLS stream.');
+
+        const tracks = Array.isArray(d.audios) ? d.audios : [];
+        renderLuluAudioButtons(id, tracks);
+
         const badge = document.getElementById('sp-hls-badge');
         if (badge) badge.textContent = 'HLS · LuluStream';
+
+        // Let the real HLS master expose the same audio tracks used by the
+        // standalone tester. If a particular track button was clicked, select
+        // that exact HLS track after hls.js has discovered the list.
+        selectLuluAudioAfterLoad(trackIndex);
+
         if (window.SenshiPlayer && window.SenshiPlayer.loadWithSubs) {
           window.SenshiPlayer.loadWithSubs(d.m3u8, d.subtitles || []);
         } else if (window.SenshiPlayer) {
