@@ -1471,8 +1471,10 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     let multiPending = 0, multiHasAny = false;
     function finishMultiUI() {
         const loading = document.getElementById('servers-dub-multi-loading');
-        if (multiHasAny) { if (loading) loading.remove(); }
-        else {
+        const luluHasAny = !!document.querySelector('#servers-dub-multi-body .lulustream-server-btn');
+        if (multiHasAny || luluHasAny) {
+            if (loading) loading.remove();
+        } else {
             const grp = document.getElementById('dub-multi-group');
             if (grp) grp.remove();
         }
