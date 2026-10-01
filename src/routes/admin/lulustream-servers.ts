@@ -18,10 +18,10 @@ function validLuluUrl(value: string): boolean {
 function trackGroup(track: { label?: string; lang?: string; default?: boolean }): 'sub'|'dub'|'hindi'|'multi' {
   const text = String(track.label || '') + ' ' + String(track.lang || '');
   const lower = text.toLowerCase();
-  if (/\\bhindi\\b/.test(lower)) return 'hindi';
-  if (/\\benglish\\b|\\ben\\b/.test(lower)) return 'dub';
-  if (/\\b(sub|subtitle|original)\\b/.test(lower)) return 'sub';
-  return track.default ? 'sub' : 'multi';
+  if (/\bhindi\b/.test(lower)) return 'hindi';
+  if (/\benglish\b|\ben\b/.test(lower)) return 'dub';
+  if (/\b(sub|subtitle|original|japanese|ja)\b/.test(lower)) return 'sub';
+  return 'multi';
 }
 function trackKey(track: { label?: string; lang?: string; default?: boolean }, occurrence: number): string {
   return [String(track.label || '').trim().toLowerCase(), String(track.lang || '').trim().toLowerCase(), trackGroup(track), occurrence].join('|');
