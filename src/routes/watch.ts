@@ -40,7 +40,10 @@ function renderLuluTrackButtons(servers: LuluStreamServerRow[], group: string, s
     '<button class="server-btn lulustream-server-btn av-server" data-server="lulustream:' + v.id + '" data-lulustream-id="' + v.id + '" data-lulu-track-key="' + h(t.key || '') + '"><img class="av-server-logo" src="' + siteUrl + '/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">' + h(t.label || (group === 'hindi' ? 'Hindi' : 'Audio')) + '</span></button>'
   )).join('');
 }
-
+function renderTurboTrackButtons(servers: TurboVidServerRow[], group: string, siteUrl: string): string {
+  return servers.filter(v => v.audio_group === group).map(v => '<button class="server-btn turbovid-server-btn av-server" data-server="turbovid:' + v.id + '" data-turbovid-id="' + v.id + '" title="AniVault ' + (group === 'hindi' ? 'Hindi' : group === 'multi' ? 'Multi' : 'Sub') + '"><img class="av-server-logo" src="' + siteUrl + '/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">' + (group === 'multi' ? h(v.language || 'dub') : (group === 'hindi' ? 'Hindi' : 'Sub')) + '</span></button>').join('');
+}
+function hasTurboGroup(servers: TurboVidServerRow[], group: string): boolean { return servers.some(v => v.audio_group === group); }
 interface EpisodeVideoRow {
   [key: string]: unknown;
   id: number;
@@ -523,15 +526,15 @@ ${renderLuluTrackButtons(lulustreamServers, 'dub', siteUrl)}
                     <div class="server-group-label">Hindi Dub</div>
                     <div class="server-group-body" id="servers-dub-hindi-body">
 ${renderLuluTrackButtons(lulustreamServers, 'hindi', siteUrl)}
-                      \${turbovidServers.filter(v=>v.audio_group==='hindi').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Hindi"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Hindi</span></button>`).join('')}
+                      ${renderTurboTrackButtons(turbovidServers, 'hindi', siteUrl)}
                       ${HINDI_PROVIDERS.map(p => fixedServerBtn('hindi', p.source, p.provider, p.label)).join('')}
                     </div>
                   </div>
-                  <div class="server-group" id="dub-multi-group" style="\${turbovidServers.some(v=>v.audio_group==='multi') || lulustreamServers.some(v=>parseLuluTracks(v).some(t=>t.group==='multi')) ? '' : 'display:none'}">
+                  <div class="server-group" id="dub-multi-group" style="${hasTurboGroup(turbovidServers, 'multi') || lulustreamServers.some(v=>parseLuluTracks(v).some(t=>t.group==='multi')) ? '' : 'display:none'}">
                     <div class="server-group-label">Multi Dub</div>
                     <div class="server-group-body" id="servers-dub-multi-body">
 ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
-                      \${turbovidServers.filter(v=>v.audio_group==='multi').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Multi"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">${h(v.language || 'dub')}</span></button>`).join('')}
+                      ${renderTurboTrackButtons(turbovidServers, 'multi', siteUrl)}
                       <div class="server-skel-group" id="servers-dub-multi-loading">
                         <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:64px"></span></span>
                         <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:50px"></span></span>
