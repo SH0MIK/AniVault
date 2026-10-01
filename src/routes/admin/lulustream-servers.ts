@@ -3,6 +3,7 @@ import type { Env } from '../../index';
 import { buildAdminCtx } from '../../lib/admin-ctx';
 import { MalAPI } from '../../lib/mal-api';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
+import { renderLuluStreamAdmin } from '../../render/admin-lulustream';
 
 export const adminLuluStreamServerRoutes = new Hono<{ Bindings: Env }>();
 
@@ -23,6 +24,7 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
   if (!ctx) return c.redirect(siteUrl + '/');
   const { db, session, lifetime, isOwner, impersonating } = ctx;
   const selectedAnime = Number(c.req.query('anime') || 0) || 0;
+  if (c.req.query('json') === '1') { const anime=Number(c.req.query('anime')||0), episode=Number(c.req.query('episode')||0); if(!anime||!episode)return c.json({error:'Missing anime or episode'},400); const rows=await db.fetchAll<any>('SELECT id,anime_id,episode_num,label,embed_url,is_active,updated_at FROM lulustream_servers WHERE anime_id=? AND episode_num=? ORDER BY id',[anime,episode]); return c.json({success:true,sources:rows}); }
   const seriesRows = await db.fetchAll<any>(
     'SELECT anime_id, COUNT(*) AS episode_count, MAX(updated_at) AS last_updated FROM lulustream_servers WHERE is_active=1 GROUP BY anime_id ORDER BY MAX(updated_at) DESC'
   );
