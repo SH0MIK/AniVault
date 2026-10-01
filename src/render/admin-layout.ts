@@ -78,6 +78,7 @@ ${o.impersonating ? `
     <a href="cache.php" class="${active('cache')}">${icon('database', 'icon-small')} Clear Cache</a>
     <a href="turbovid_test.php" class="${active('turbovid_test')}">${icon('play', 'icon-small')} Turbovid Tester (CF)</a>
     <a href="turbovid_servers.php" class="${active('turbovid_servers')}">${icon('play', 'icon-small')} TurboVid Servers</a>
+    <a href="lulustream_servers.php" class="${active('lulustream_servers')}">${icon('play', 'icon-small')} LuluStream Servers</a>
     <div style="margin-top:auto;padding:1rem 1.5rem;border-top:1px solid var(--border);">
       <a href="${o.siteUrl}/">${icon('arrow-left', 'icon-small')} Back to Site</a>
     </div>
