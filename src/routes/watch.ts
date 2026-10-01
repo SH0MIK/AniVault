@@ -495,7 +495,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
                   </div>
                   <div class="server-btn-row" id="servers-sub-body">
 ${renderLuluTrackButtons(lulustreamServers, 'sub', siteUrl)}
-                    ${turbovidServers.filter(v=>v.audio_group==='sub').map(v=>` <button class="server-btn turbovid-server-btn av-server" data-server="turbovid:${v.id}" data-turbovid-id="${v.id}" title="AniVault Sub"><img class="av-server-logo" src="${siteUrl}/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">Sub</span></button>`).join('')}
+                    ${renderTurboTrackButtons(turbovidServers, 'sub', siteUrl)}
                     ${SUB_PROVIDERS.map(p => fixedServerBtn('sub', p.source, p.provider, p.label)).join('')}
                   </div>
                 </div>
