@@ -138,14 +138,15 @@ adminLuluStreamServerRoutes.post('/admin/lulustream_servers.php', async (c) => {
   const id=Number(body?.id||0), animeId=Number(body?.anime_id||0), ep=Number(body?.episode_num||0), url=String(body?.embed_url||'').trim(), active=Number(body?.is_active?1:0);
   if(!animeId||!ep||!validLuluUrl(url))return c.json({error:'Use an HTTPS lulust.com embed URL'},400);
   let audioTracks='[]';
+  let label='LuluStream';
   try {
     const resolved=await resolveLuluStream(url);
     audioTracks=trackMeta(resolved.audio);
     if (!resolved.audio.length) return c.json({error:'LuluStream resolved, but no audio tracks were found in the master playlist.'},422);
+    label=autoLabel(resolved.audio);
   } catch (e) {
     return c.json({error:'Could not resolve LuluStream while saving: '+(e instanceof Error ? e.message : String(e))},502);
   }
-  const label=autoLabel(resolved.audio);
   if(id) await ctx.db.query("UPDATE lulustream_servers SET anime_id=?,episode_num=?,label=?,embed_url=?,audio_tracks=?,is_active=?,updated_at=datetime('now') WHERE id=?",[animeId,ep,label,url,audioTracks,active,id]);
   else await ctx.db.query("INSERT INTO lulustream_servers (anime_id,episode_num,label,embed_url,audio_tracks,is_active,updated_at) VALUES (?,?,?,?,?,?,datetime('now')) ON CONFLICT(anime_id,episode_num) DO UPDATE SET label=excluded.label,embed_url=excluded.embed_url,audio_tracks=excluded.audio_tracks,is_active=excluded.is_active,updated_at=datetime('now')",[animeId,ep,label,url,audioTracks,active]);
   return c.json({success:true});
