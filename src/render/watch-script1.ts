@@ -905,13 +905,13 @@ function ensureInitialAvPlayback() {
     attempt();
 }
 
-function switchToServer(serverName, audio = currentAudio, displayKey) {
+function switchToServer(serverName, audio = currentAudio, displayKey, luluTrackIndex) {
     const pw = document.getElementById('watch-player-wrap');
     if (!pw) return;
     const dKey = displayKey || serverName;
 
     if (serverName.startsWith('lulustream:')) {
-        switchToLuluStream(serverName.slice('lulustream:'.length), audio);
+        switchToLuluStream(serverName.slice('lulustream:'.length), audio, luluTrackIndex);
         currentServer = serverName;
         currentDisplayServer = dKey;
         currentAudio = audio;
@@ -1124,7 +1124,10 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         const displayKey = btn.dataset.server;
         const realKey = btn.dataset.realServer || displayKey;
         const audio = panel.dataset.audio;
-        switchToServer(realKey, audio, displayKey);
+        const luluTrackIndex = btn.classList.contains('lulustream-server-btn') && btn.dataset.luluAudioIndex != null
+            ? Number(btn.dataset.luluAudioIndex)
+            : undefined;
+        switchToServer(realKey, audio, displayKey, luluTrackIndex);
     });
 });
 
