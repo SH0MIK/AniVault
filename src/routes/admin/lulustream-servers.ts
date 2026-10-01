@@ -4,6 +4,7 @@ import { buildAdminCtx } from '../../lib/admin-ctx';
 import { MalAPI } from '../../lib/mal-api';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
 import { renderLuluStreamAdmin } from '../../render/admin-lulustream';
+import { resolveLuluStream } from '../../lib/lulustream-resolver';
 
 export const adminLuluStreamServerRoutes = new Hono<{ Bindings: Env }>();
 
@@ -13,6 +14,25 @@ function validLuluUrl(value: string): boolean {
     const host = u.hostname.toLowerCase();
     return u.protocol === 'https:' && (host === 'lulust.com' || host.endsWith('.lulust.com'));
   } catch { return false; }
+}
+function trackGroup(track: { label?: string; lang?: string; default?: boolean }): 'sub'|'dub'|'hindi'|'multi' {
+  const text = String(track.label || '') + ' ' + String(track.lang || '');
+  const lower = text.toLowerCase();
+  if (/\\bhindi\\b/.test(lower)) return 'hindi';
+  if (/\\benglish\\b|\\ben\\b/.test(lower)) return 'dub';
+  if (/\\b(sub|subtitle|original)\\b/.test(lower)) return 'sub';
+  return track.default ? 'sub' : 'multi';
+}
+function trackKey(track: { label?: string; lang?: string; default?: boolean }, occurrence: number): string {
+  return [String(track.label || '').trim().toLowerCase(), String(track.lang || '').trim().toLowerCase(), trackGroup(track), occurrence].join('|');
+}
+function trackMeta(audio: any[]): string {
+  const seen: Record<string, number> = {};
+  return JSON.stringify((audio || []).map((a:any) => {
+    const base = String(a.label || '').trim().toLowerCase() + '|' + String(a.lang || '').trim().toLowerCase() + '|' + trackGroup(a);
+    const occurrence = seen[base] || 0; seen[base] = occurrence + 1;
+    return { key: trackKey(a, occurrence), label: a.label || a.lang || 'Audio', lang: a.lang || '', group: trackGroup(a), default: !!a.default };
+  }));
 }
 function esc(value: unknown): string {
   return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
@@ -113,8 +133,16 @@ adminLuluStreamServerRoutes.post('/admin/lulustream_servers.php', async (c) => {
   const body:any=(c.req.header('content-type')||'').includes('application/json') ? await c.req.json().catch(()=>null) : await c.req.parseBody().catch(()=>null);
   const id=Number(body?.id||0), animeId=Number(body?.anime_id||0), ep=Number(body?.episode_num||0), label=String(body?.label||'LuluStream').trim()||'LuluStream', url=String(body?.embed_url||'').trim(), active=Number(body?.is_active?1:0);
   if(!animeId||!ep||!validLuluUrl(url))return c.json({error:'Use an HTTPS lulust.com embed URL'},400);
-  if(id) await ctx.db.query("UPDATE lulustream_servers SET anime_id=?,episode_num=?,label=?,embed_url=?,is_active=?,updated_at=datetime('now') WHERE id=?",[animeId,ep,label,url,active,id]);
-  else await ctx.db.query("INSERT INTO lulustream_servers (anime_id,episode_num,label,embed_url,is_active,updated_at) VALUES (?,?,?,?,?,datetime('now')) ON CONFLICT(anime_id,episode_num) DO UPDATE SET label=excluded.label,embed_url=excluded.embed_url,is_active=excluded.is_active,updated_at=datetime('now')",[animeId,ep,label,url,active]);
+  let audioTracks='[]';
+  try {
+    const resolved=await resolveLuluStream(url);
+    audioTracks=trackMeta(resolved.audio);
+    if (!resolved.audio.length) return c.json({error:'LuluStream resolved, but no audio tracks were found in the master playlist.'},422);
+  } catch (e) {
+    return c.json({error:'Could not resolve LuluStream while saving: '+(e instanceof Error ? e.message : String(e))},502);
+  }
+  if(id) await ctx.db.query("UPDATE lulustream_servers SET anime_id=?,episode_num=?,label=?,embed_url=?,audio_tracks=?,is_active=?,updated_at=datetime('now') WHERE id=?",[animeId,ep,label,url,audioTracks,active,id]);
+  else await ctx.db.query("INSERT INTO lulustream_servers (anime_id,episode_num,label,embed_url,audio_tracks,is_active,updated_at) VALUES (?,?,?,?,?,?,datetime('now')) ON CONFLICT(anime_id,episode_num) DO UPDATE SET label=excluded.label,embed_url=excluded.embed_url,audio_tracks=excluded.audio_tracks,is_active=excluded.is_active,updated_at=datetime('now')",[animeId,ep,label,url,audioTracks,active]);
   return c.json({success:true});
 });
 
