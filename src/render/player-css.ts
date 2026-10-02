@@ -240,7 +240,7 @@ export const PLAYER_CSS = `
 }
 
 .vh-ui-hidden .vh-mini-progress {
-  opacity: 1;
+  opacity: 0 !important;
 }
 
 .vh-mini-track {
