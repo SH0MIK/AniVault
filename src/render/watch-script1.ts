@@ -786,7 +786,7 @@ function switchToLuluStream(id, audio, trackKey) {
         const badge = document.getElementById('sp-hls-badge');
         if (badge) badge.textContent = 'HLS · LuluStream';
         if (window.SenshiPlayer && window.SenshiPlayer.loadWithSubs) {
-          window.SenshiPlayer.loadWithSubs(d.m3u8, d.subtitles || [], null, null, trackKey || '');
+          window.SenshiPlayer.loadWithSubs(d.m3u8, [], null, null, trackKey || '');
         } else if (window.SenshiPlayer) {
           window.SenshiPlayer.load(d.m3u8);
         } else {
