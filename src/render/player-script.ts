@@ -1339,6 +1339,10 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
       backBufferLength: 90,
       capLevelToPlayerSize: false,
       autoStartLoad: !isLuluStream,
+      // LuluStream can advertise an HLS WebVTT subtitle track. Do not let
+      // hls.js/browser render that track natively: AniVault renders subtitles
+      // itself so the user's position, size, background and Off toggle apply.
+      ...(isLuluStream ? { renderTextTracksNatively: false } : {}),
     };
     // TurboVid needs its custom fragment unwrap loader; normal HLS sources
     // (including LuluStream) must use hls.js's native fragment loader.
@@ -1350,6 +1354,18 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
 
     let luluPreferredIndex = -1;
     let luluPlayStarted = false;
+
+    const disableNativeSubtitleTracks = () => {
+      if (!isLuluStream) return;
+      try {
+        if (hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = -1;
+      } catch (e) {}
+      try {
+        Array.from(vid.textTracks || []).forEach(track => {
+          track.mode = 'disabled';
+        });
+      } catch (e) {}
+    };
 
     const startLuluPlayback = () => {
       if (!isLuluStream || luluPlayStarted) return;
@@ -1408,6 +1424,11 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
       } catch (e) {}
 
       if (isLuluStream) {
+        // Keep LuluStream's HLS subtitle track disabled. The separate
+        // subtitle URL is fetched by loadWithSubs() and rendered through
+        // AniVault's own subtitle container, which obeys the player's style
+        // sliders and the captions Off button.
+        disableNativeSubtitleTracks();
         try { hls.startLoad(); } catch (e) {}
         buildQualityMenu();
         // The requested track is selected before HLS starts fetching media.
