@@ -284,28 +284,44 @@ vid.addEventListener('pause', () => {
   resetInactivity();
 });
 
-document.getElementById('sp-video-area')?.addEventListener('click', e => {
+// Unified player-surface interaction.
+// Pointer events are used instead of relying on mobile's synthetic click,
+// which can be swallowed by the overlay layers. This makes a tap reliably
+// reveal the controls on touch devices.
+let surfaceTapTimer = null;
+let surfaceLastTap = 0;
+
+function isPlayerControlTarget(target) {
+  return !!target?.closest?.(
+    '.vh-main-ui, .vh-bottom-container, .vh-top-bar, .vh-sheet-surface, ' +
+    '#sp-error, .vh-lock-overlay, button, input, a, [role="button"]'
+  );
+}
+
+function handleSurfaceTap(e) {
   if (sheetBackdrop && sheetBackdrop.style.display !== 'none') {
     closeSheet();
     return;
   }
-  if (e.target.closest('.vh-bottom-container') || e.target.closest('.vh-top-bar') || e.target.closest('.vh-sheet-surface') || e.target.closest('#sp-error') || e.target.closest('.vh-lock-overlay')) {
-    return;
-  }
+  if (isPlayerControlTarget(e.target)) return;
+
   if (!vid.paused) {
-    // While playing, tapping the video is a UI toggle — never pause playback.
-    // A second tap hides the controls again. The existing inactivity timer
-    // still hides them automatically after a short period.
-    if (root.classList.contains('vh-ui-hidden')) {
-      resetInactivity();
-    } else {
-      clearTimeout(idleTimer);
-      root.classList.add('vh-ui-hidden');
-    }
+    clearTimeout(surfaceTapTimer);
+    surfaceTapTimer = setTimeout(() => {
+      if (root.classList.contains('vh-ui-hidden')) {
+        resetInactivity();
+      } else {
+        clearTimeout(idleTimer);
+        root.classList.add('vh-ui-hidden');
+      }
+    }, 0);
     return;
   }
+
   togglePlay();
-});
+}
+
+document.getElementById('sp-video-area')?.addEventListener('pointerup', handleSurfaceTap, { passive: true });
 
 /* Double Tap 10s Seek Zones */
 function triggerDoubleTap(side) {
@@ -336,11 +352,8 @@ document.getElementById('sp-video-area')?.addEventListener('touchend', e => {
   const w = rect.width;
 
   if (now - lastTapTime < 320 && Math.abs(x - lastTapX) < 80) {
-    if (x < w * 0.38) {
-      seekDelta(-10);
-    } else if (x > w * 0.62) {
-      seekDelta(10);
-    }
+    if (x < w * 0.38) seekDelta(-10);
+    else if (x > w * 0.62) seekDelta(10);
   }
   lastTapTime = now;
   lastTapX = x;
