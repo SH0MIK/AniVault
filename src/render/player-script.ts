@@ -1349,14 +1349,11 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
     hls.attachMedia(vid);
 
     let luluPreferredIndex = -1;
-    let luluAudioReady = false;
     let luluPlayStarted = false;
-    let luluPlayFallback = null;
 
     const startLuluPlayback = () => {
       if (!isLuluStream || luluPlayStarted) return;
       luluPlayStarted = true;
-      if (luluPlayFallback) clearTimeout(luluPlayFallback);
       if (settings.autoplay) {
         vid.play().catch(() => { applyVolume(vid.volume, true, true); vid.play().catch(() => {}); });
       }
@@ -1392,17 +1389,6 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
       }
       return false;
     };
-
-    hls.on(window.Hls.Events.AUDIO_TRACKS_UPDATED, () => {
-      if (isLuluStream) selectLuluTrack();
-    });
-
-    hls.on(window.Hls.Events.AUDIO_TRACK_LOADED, () => {
-      if (isLuluStream && (luluPreferredIndex >= 0 || !window._senshiPreferredAudioTrack)) {
-        luluAudioReady = true;
-        startLuluPlayback();
-      }
-    });
 
     hls.on(window.Hls.Events.MANIFEST_PARSED, (evt, data) => {
       try {
@@ -1532,7 +1518,7 @@ window.SenshiPlayer = {
         }
       }
     } else {
-      loadHLS(url, preferredAudioTrack);
+      loadHLS(url, window._senshiPreferredAudioTrack || '');
     }
   },
   loadWithSubs: function(url, subs, intro, outro, preferredAudioTrack) {
@@ -1580,7 +1566,7 @@ window.SenshiPlayer = {
         }
       }
     } else {
-      loadHLS(url);
+      loadHLS(url, preferredAudioTrack || '');
     }
   },
   getAudioTracks: function() {
