@@ -284,6 +284,18 @@ document.getElementById('sp-video-area')?.addEventListener('click', e => {
   if (e.target.closest('.vh-bottom-container') || e.target.closest('.vh-top-bar') || e.target.closest('.vh-sheet-surface') || e.target.closest('#sp-error') || e.target.closest('.vh-lock-overlay')) {
     return;
   }
+  if (!vid.paused) {
+    // While playing, tapping the video is a UI toggle — never pause playback.
+    // A second tap hides the controls again. The existing inactivity timer
+    // still hides them automatically after a short period.
+    if (root.classList.contains('vh-ui-hidden')) {
+      resetInactivity();
+    } else {
+      clearTimeout(idleTimer);
+      root.classList.add('vh-ui-hidden');
+    }
+    return;
+  }
   togglePlay();
 });
 
