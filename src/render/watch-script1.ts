@@ -1118,39 +1118,24 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
 
     let playbackStarted = false;
 
-    // An AniVault-hosted source is the primary server when one is saved for this
-    // episode. Start it immediately instead of waiting for the slower
-    // third-party server probes. The button remains first in every group.
-    // Start the first saved AniVault source immediately. Prefer Sub, then
-    // English Dub, Hindi Dub, and finally Multi Dub. Hindi/Multi buttons live
-    // inside the Dub tab, so they use the "dub" playback bucket.
-    let initialAv = document.querySelector('#tab-panel-sub .turbovid-server-btn, #tab-panel-sub .lulustream-server-btn');
-    let initialAvAudio = 'sub';
-    if (!initialAv) {
-        initialAv = document.querySelector('#servers-dub-body .turbovid-server-btn, #servers-dub-body .lulustream-server-btn');
-        initialAvAudio = 'dub';
-    }
-    if (!initialAv) {
-        initialAv = document.querySelector('#servers-dub-hindi-body .turbovid-server-btn');
-        initialAvAudio = 'dub';
-    }
-    if (!initialAv) {
-        initialAv = document.querySelector('#servers-dub-multi-body .turbovid-server-btn');
-        initialAvAudio = 'dub';
-    }
-    if (initialAv) {
+    // AniVault Sub is the fastest/most deterministic startup path. Instead
+    // of bypassing the normal server-button handler, trigger the actual AV
+    // Sub button so the exact same code path runs as a real user click.
+    // This is important for LuluStream because the button carries the saved
+    // audio-track key (for example the Japanese/sub track); calling
+    // switchToServer() directly would bypass that button metadata.
+    //
+    // Do this immediately, before any third-party probing starts. The click
+    // handler marks the selection as manual, so later probe results cannot
+    // replace the startup source.
+    const initialAvSub = document.querySelector(
+        '#tab-panel-sub .turbovid-server-btn, ' +
+        '#tab-panel-sub .lulustream-server-btn'
+    );
+    if (initialAvSub) {
         playbackStarted = true;
-        document.querySelectorAll('.server-btn').forEach(b => b.classList.remove('active'));
-        initialAv.classList.add('active');
-        if (initialAvAudio === 'dub') {
-            document.querySelectorAll('.server-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'dub'));
-            document.querySelectorAll('.server-tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab-panel-dub'));
-        }
-        switchToServer(initialAv.dataset.server, initialAvAudio, initialAv.dataset.server);
-        // AV is the primary source: keep trying the actual video element
-        // until the stream has attached, instead of requiring the user to
-        // click the same AV button again.
-        ensureInitialAvPlayback();
+        console.log('[AniVault player] triggering AV Sub startup button', initialAvSub.dataset.server);
+        initialAvSub.click();
     }
 
     // Plain fetch() has no timeout: if the scraper backend hangs on one
