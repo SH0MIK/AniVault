@@ -285,11 +285,10 @@ vid.addEventListener('pause', () => {
 });
 
 // Unified player-surface interaction.
-// Pointer events are used instead of relying on mobile's synthetic click,
-// which can be swallowed by the overlay layers. This makes a tap reliably
-// reveal the controls on touch devices.
-let surfaceTapTimer = null;
-let surfaceLastTap = 0;
+// Keep the whole gesture on Pointer Events. Mixing pointerup with a separate
+// touchend listener can make one physical tap produce two UI state changes.
+let lastSurfaceTapTime = 0;
+let lastSurfaceTapX = 0;
 
 function isPlayerControlTarget(target) {
   return !!target?.closest?.(
@@ -299,29 +298,55 @@ function isPlayerControlTarget(target) {
 }
 
 function handleSurfaceTap(e) {
+  if (e.pointerType === 'mouse' && e.button !== 0) return;
+
   if (sheetBackdrop && sheetBackdrop.style.display !== 'none') {
     closeSheet();
     return;
   }
   if (isPlayerControlTarget(e.target)) return;
 
-  if (!vid.paused) {
-    clearTimeout(surfaceTapTimer);
-    surfaceTapTimer = setTimeout(() => {
-      if (root.classList.contains('vh-ui-hidden')) {
-        resetInactivity();
-      } else {
-        clearTimeout(idleTimer);
-        root.classList.add('vh-ui-hidden');
-      }
-    }, 0);
+  const now = Date.now();
+  const rect = root.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const w = rect.width;
+  const isDoubleTap =
+    now - lastSurfaceTapTime < 320 &&
+    Math.abs(x - lastSurfaceTapX) < 80;
+
+  lastSurfaceTapTime = now;
+  lastSurfaceTapX = x;
+
+  // A second tap is a seek gesture in the left/right zones. Do not let it
+  // toggle the controls again.
+  if (isDoubleTap && !vid.paused) {
+    if (x < w * 0.38) seekDelta(-10);
+    else if (x > w * 0.62) seekDelta(10);
+    else resetInactivity();
     return;
   }
 
-  togglePlay();
+  if (vid.paused) {
+    togglePlay();
+    return;
+  }
+
+  clearTimeout(idleTimer);
+  if (root.classList.contains('vh-ui-hidden')) {
+    // First tap while playing: reveal controls and start the normal
+    // inactivity countdown. Do not hide them again from this same gesture.
+    resetInactivity();
+  } else {
+    // Second single tap while the controls are already visible: hide them.
+    root.classList.add('vh-ui-hidden');
+  }
 }
 
-document.getElementById('sp-video-area')?.addEventListener('pointerup', handleSurfaceTap, { passive: true });
+document.getElementById('sp-video-area')?.addEventListener(
+  'pointerup',
+  handleSurfaceTap,
+  { passive: true }
+);
 
 /* Double Tap 10s Seek Zones */
 function triggerDoubleTap(side) {
@@ -340,24 +365,6 @@ function seekDelta(sec) {
 
 centerRewind?.addEventListener('click', e => { e.stopPropagation(); seekDelta(-10); });
 centerForward?.addEventListener('click', e => { e.stopPropagation(); seekDelta(10); });
-
-let lastTapTime = 0;
-let lastTapX = 0;
-document.getElementById('sp-video-area')?.addEventListener('touchend', e => {
-  const now = Date.now();
-  const touch = e.changedTouches[0];
-  if (!touch) return;
-  const rect = root.getBoundingClientRect();
-  const x = touch.clientX - rect.left;
-  const w = rect.width;
-
-  if (now - lastTapTime < 320 && Math.abs(x - lastTapX) < 80) {
-    if (x < w * 0.38) seekDelta(-10);
-    else if (x > w * 0.62) seekDelta(10);
-  }
-  lastTapTime = now;
-  lastTapX = x;
-}, { passive: true });
 
 /* Seekbar Scrubbing */
 function getSeekPercent(e) {
