@@ -1312,7 +1312,7 @@ class TurboVidFragmentLoader {
 }
 
 /* HLS Stream Loader */
-function loadHLS(m3u8Url) {
+function loadHLS(m3u8Url, preferredAudioTrack) {
   if (!m3u8Url) {
     if (spinner) spinner.classList.add('hide');
     if (errMsg) errMsg.textContent = 'No stream URL provided.';
@@ -1322,6 +1322,7 @@ function loadHLS(m3u8Url) {
 
   currentM3u8 = m3u8Url;
   window._senshiHlsLoadedUrl = m3u8Url;
+  if (preferredAudioTrack !== undefined) window._senshiPreferredAudioTrack = preferredAudioTrack ? String(preferredAudioTrack) : '';
   if (spinner) spinner.classList.remove('hide');
   if (errBox) errBox.classList.remove('show');
 
@@ -1347,6 +1348,62 @@ function loadHLS(m3u8Url) {
     hls.loadSource(m3u8Url);
     hls.attachMedia(vid);
 
+    let luluPreferredIndex = -1;
+    let luluAudioReady = false;
+    let luluPlayStarted = false;
+    let luluPlayFallback = null;
+
+    const startLuluPlayback = () => {
+      if (!isLuluStream || luluPlayStarted) return;
+      luluPlayStarted = true;
+      if (luluPlayFallback) clearTimeout(luluPlayFallback);
+      if (settings.autoplay) {
+        vid.play().catch(() => { applyVolume(vid.volume, true, true); vid.play().catch(() => {}); });
+      }
+    };
+
+    const selectLuluTrack = () => {
+      if (!isLuluStream || !window._senshiPreferredAudioTrack || !hls.audioTracks || !hls.audioTracks.length) return false;
+      const wanted = String(window._senshiPreferredAudioTrack);
+      const parts = wanted.split('|');
+      const wantedLabel = (parts[0] || '').trim().toLowerCase();
+      const wantedLang = (parts[1] || '').trim().toLowerCase();
+      const wantedGroup = (parts[2] || '').trim().toLowerCase();
+      const wantedOccurrence = Number(parts[3] || 0);
+      const seen = {};
+      for (let i = 0; i < hls.audioTracks.length; i++) {
+        const t = hls.audioTracks[i] || {};
+        const label = String(t.name || t.lang || '').trim().toLowerCase();
+        const lang = String(t.lang || '').trim().toLowerCase();
+        const groupText = label + ' ' + lang;
+        let group = 'multi';
+        if (/^hi$|^hin$|hindi|हिन्दी|हिंदी/.test(groupText)) group = 'hindi';
+        else if (/^en$|^eng$|english/.test(groupText)) group = 'dub';
+        else if (/^ja$|^jpn$|japanese|日本語|\b(sub|subtitle|original)\b/.test(groupText)) group = 'sub';
+        else if (t.default) group = 'sub';
+        const base = [label, lang, group].join('|');
+        const occurrence = seen[base] || 0;
+        seen[base] = occurrence + 1;
+        if (label === wantedLabel && lang === wantedLang && group === wantedGroup && occurrence === wantedOccurrence) {
+          luluPreferredIndex = i;
+          hls.audioTrack = i;
+          return true;
+        }
+      }
+      return false;
+    };
+
+    hls.on(window.Hls.Events.AUDIO_TRACKS_UPDATED, () => {
+      if (isLuluStream) selectLuluTrack();
+    });
+
+    hls.on(window.Hls.Events.AUDIO_TRACK_LOADED, () => {
+      if (isLuluStream && (luluPreferredIndex >= 0 || !window._senshiPreferredAudioTrack)) {
+        luluAudioReady = true;
+        startLuluPlayback();
+      }
+    });
+
     hls.on(window.Hls.Events.MANIFEST_PARSED, (evt, data) => {
       try {
         window._senshiAudioTracks = (hls.audioTracks || []).map((track, i) => ({
@@ -1358,40 +1415,7 @@ function loadHLS(m3u8Url) {
           default: !!track.default,
           forced: !!track.forced,
         }));
-
-        // LuluStream exposes signed audio playlists in whatever order the
-        // provider chooses. Select the requested saved track BEFORE starting
-        // segment loading, so the default English track never starts first.
-        if (isLuluStream && window._senshiPreferredAudioTrack) {
-          const wanted = String(window._senshiPreferredAudioTrack);
-          const parts = wanted.split('|');
-          const wantedLabel = (parts[0] || '').trim().toLowerCase();
-          const wantedLang = (parts[1] || '').trim().toLowerCase();
-          const wantedGroup = (parts[2] || '').trim().toLowerCase();
-          const wantedOccurrence = Number(parts[3] || 0);
-          const seen = {};
-          let selected = -1;
-          for (let i = 0; i < hls.audioTracks.length; i++) {
-            const t = hls.audioTracks[i] || {};
-            const label = String(t.name || t.lang || '').trim().toLowerCase();
-            const lang = String(t.lang || '').trim().toLowerCase();
-            const groupText = (label + ' ' + lang);
-            let group = 'multi';
-            if (/^hi$|^hin$|hindi|हिन्दी|हिंदी/.test(lang + ' ' + label)) group = 'hindi';
-            else if (/^en$|^eng$|english/.test(lang + ' ' + label)) group = 'dub';
-            else if (/^ja$|^jpn$|japanese|日本語|\\b(sub|subtitle|original)\\b/.test(groupText)) group = 'sub';
-            else if (t.default) group = 'sub';
-            const base = [label, lang, group].join('|');
-            const occurrence = seen[base] || 0;
-            seen[base] = occurrence + 1;
-            if (label === wantedLabel && lang === wantedLang && group === wantedGroup && occurrence === wantedOccurrence) {
-              selected = i;
-              break;
-            }
-          }
-          if (selected >= 0) hls.audioTrack = selected;
-        }
-
+        if (isLuluStream) selectLuluTrack();
         window.dispatchEvent(new CustomEvent('anivault:audio-tracks-ready', {
           detail: { tracks: window._senshiAudioTracks.slice() }
         }));
@@ -1399,7 +1423,18 @@ function loadHLS(m3u8Url) {
 
       if (isLuluStream) {
         try { hls.startLoad(); } catch (e) {}
+        buildQualityMenu();
+        // Never autoplay LuluStream on the manifest's default English track.
+        // Wait until the selected audio playlist has actually loaded.
+        if (!window._senshiPreferredAudioTrack) startLuluPlayback();
+        else {
+          luluPlayFallback = setTimeout(() => {
+            if (!luluAudioReady) startLuluPlayback();
+          }, 10000);
+        }
+        return;
       }
+
       if (spinner) spinner.classList.remove('hide');
       buildQualityMenu();
       if (settings.autoplay) {
@@ -1497,10 +1532,10 @@ window.SenshiPlayer = {
         }
       }
     } else {
-      loadHLS(url);
+      loadHLS(url, preferredAudioTrack);
     }
   },
-  loadWithSubs: function(url, subs, intro, outro) {
+  loadWithSubs: function(url, subs, intro, outro, preferredAudioTrack) {
     if (!url) return;
     window._setSenshiLastSource(url, subs);
     introBand = intro || null;
