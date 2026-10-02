@@ -969,6 +969,10 @@ export const PLAYER_CSS = `
   font-weight: 500;
 }
 
+.vh-sub-text:empty {
+  display: none !important;
+}
+
 /* ─── Sleep Timer Ended Overlay ────────────────────────────────────────── */
 .vh-sleep-ended-overlay {
   position: absolute;
