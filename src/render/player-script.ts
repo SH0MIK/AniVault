@@ -228,7 +228,15 @@ function resetInactivity() {
 }
 
 root.addEventListener('mousemove', resetInactivity);
-root.addEventListener('touchstart', resetInactivity, { passive: true });
+root.addEventListener('touchstart', e => {
+  // Video taps are handled by the video-area click handler below. Do not
+  // reveal the UI here, otherwise the same tap's synthetic click immediately
+  // sees the UI as visible and hides it again.
+  if (e.target?.closest?.('#sp-video-area') && !e.target.closest('.vh-bottom-container') && !e.target.closest('.vh-top-bar') && !e.target.closest('.vh-sheet-surface') && !e.target.closest('.vh-lock-overlay')) {
+    return;
+  }
+  resetInactivity();
+}, { passive: true });
 root.addEventListener('mouseleave', () => {
   if (!vid.paused && sheetBackdrop?.style.display === 'none' && !isScrubbing) {
     root.classList.add('vh-ui-hidden');
