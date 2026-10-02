@@ -325,7 +325,7 @@ function switchToAnikoto(providerName, audio) {
         // (unlike Senshi) — they come back as a separate \`subtitles\`
         // array that has to be attached as external <track> elements.
         if (window.SenshiPlayer && window.SenshiPlayer.loadWithSubs) {
-            window.SenshiPlayer.loadWithSubs(d.m3u8, d.subtitles || []);
+            window.SenshiPlayer.loadWithSubs(d.m3u8, d.subtitles || [], null, null, trackKey || '');
         } else if (window.SenshiPlayer) {
             window.SenshiPlayer.load(d.m3u8);
         } else {
