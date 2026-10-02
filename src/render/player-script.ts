@@ -292,7 +292,7 @@ let lastSurfaceTapX = 0;
 
 function isPlayerControlTarget(target) {
   return !!target?.closest?.(
-    '.vh-main-ui, .vh-bottom-container, .vh-top-bar, .vh-sheet-surface, ' +
+    '.vh-bottom-container, .vh-top-bar, .vh-sheet-surface, ' +
     '#sp-error, .vh-lock-overlay, button, input, a, [role="button"]'
   );
 }
