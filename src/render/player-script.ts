@@ -1410,14 +1410,9 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
       if (isLuluStream) {
         try { hls.startLoad(); } catch (e) {}
         buildQualityMenu();
-        // Never autoplay LuluStream on the manifest's default English track.
-        // Wait until the selected audio playlist has actually loaded.
-        if (!window._senshiPreferredAudioTrack) startLuluPlayback();
-        else {
-          luluPlayFallback = setTimeout(() => {
-            if (!luluAudioReady) startLuluPlayback();
-          }, 10000);
-        }
+        // The requested track is selected before HLS starts fetching media.
+        // Do not wait for AUDIO_TRACK_LOADED: that can add a long startup delay.
+        startLuluPlayback();
         return;
       }
 
