@@ -1351,7 +1351,11 @@ function luluTrackCues(track) {
     for (let i = 0; i < track.cues.length; i++) {
       const cue = track.cues[i];
       const text = String(cue?.text || '').replace(/\\r\\n/g, '<br>').replace(/\\n/g, '<br>');
-      if (text) cues.push({ start: Number(cue.startTime) || 0, end: Number(cue.endTime) || 0, text });
+      // Some LuluStream subtitle tracks use "_" / "-" / "—" as an empty
+      // dialogue cue. Do not render those as visible subtitles.
+      const plain = text.replace(/<[^>]*>/g, '').replace(/&nbsp;/gi, ' ').trim();
+      if (!plain || /^[\\s_\\-–—−·•]+$/.test(plain)) continue;
+      cues.push({ start: Number(cue.startTime) || 0, end: Number(cue.endTime) || 0, text });
     }
   } catch (e) {}
   return cues;
