@@ -1544,16 +1544,38 @@ window.SenshiPlayer = {
     outroBand = outro || null;
     subTracks = [];
     activeSubIdx = -1;
+    parsedCues = [];
+    if (subText) subText.innerHTML = '';
 
+    // A new server load starts a fresh subtitle session. If the source
+    // explicitly provides subtitles, turn captions back on so a previous
+    // server's "Off" state cannot leave the new LuluStream source silent.
     if (Array.isArray(subs) && subs.length > 0) {
+      settings.captionsEnabled = true;
+      saveSettings();
+
       let pending = subs.length;
-      subs.forEach((s, i) => {
-        fetch(s.url)
-          .then(r => r.text())
-          .then(txt => {
-            subTracks[i] = { label: s.label || s.lang || ('Track ' + (i + 1)), cues: parseVtt(txt) };
+      subs.forEach((track, i) => {
+        if (!track || !track.url) {
+          pending--;
+          return;
+        }
+        fetch(track.url, { cache: 'no-store', credentials: 'same-origin' })
+          .then(r => {
+            if (!r.ok) throw new Error('Subtitle HTTP ' + r.status);
+            return r.text();
           })
-          .catch(() => {})
+          .then(txt => {
+            const cues = parseVtt(txt);
+            subTracks[i] = {
+              label: track.label || track.name || track.lang || ('Track ' + (i + 1)),
+              lang: track.lang || '',
+              cues
+            };
+          })
+          .catch(err => {
+            console.warn('[AniVault player] subtitle load failed', track.url, err);
+          })
           .finally(() => {
             pending--;
             if (pending <= 0) {
