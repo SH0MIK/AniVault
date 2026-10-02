@@ -540,19 +540,6 @@ function renderCurrentSubtitle(time) {
   const adjTime = time + offset;
   const active = parsedCues.find(c => adjTime >= c.start && adjTime <= c.end);
   const nextText = active ? active.text : '';
-  const renderableText = String(nextText || '')
-    .replace(/<[^>]*>/g, '')
-    .replace(/&(?:nbsp|#160|#xA0);/gi, ' ')
-    .replace(/[\\u200B-\\u200D\\u2060\\uFEFF]/g, '')
-    .trim();
-
-  if (!renderableText || /^[\\p{P}\\p{S}_]+$/u.test(renderableText)) {
-    if (lastRenderedSubText !== '') {
-      if (subText) subText.innerHTML = '';
-      lastRenderedSubText = '';
-    }
-    return;
-  }
 
   if (nextText !== lastRenderedSubText) {
     subText.innerHTML = nextText;
@@ -1366,16 +1353,7 @@ function luluTrackCues(track) {
       const text = String(cue?.text || '').replace(/\\r\\n/g, '<br>').replace(/\\n/g, '<br>');
       // Some LuluStream subtitle tracks use "_" / "-" / "—" as an empty
       // dialogue cue. Do not render those as visible subtitles.
-      const plain = text
-        .replace(/<[^>]*>/g, '')
-        .replace(/&(?:nbsp|#160|#xA0);/gi, ' ')
-        .replace(/[\\u200B-\\u200D\\u2060\\uFEFF]/g, '')
-        .trim();
-      // WebVTT can contain zero-width / formatting-only cues that look empty
-      // but still create a visible subtitle box. Treat those as no subtitle.
-      const visible = plain.replace(/[\\s\\u200B-\\u200D\\u2060\\uFEFF]/gu, '');
-      if (!visible || /^[\\p{P}\\p{S}_]+$/u.test(visible)) continue;
-      cues.push({ start: Number(cue.startTime) || 0, end: Number(cue.endTime) || 0, text });
+      if (text) cues.push({ start: Number(cue.startTime) || 0, end: Number(cue.endTime) || 0, text });
     }
   } catch (e) {}
   return cues;
