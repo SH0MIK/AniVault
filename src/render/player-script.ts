@@ -1573,7 +1573,25 @@ window.SenshiPlayer = {
             return r.text();
           })
           .then(txt => {
-            const cues = parseVtt(txt);
+            const isSubtitlePlaylist = /#EXTM3U|#EXTINF:/i.test(txt) || /\\.m3u8(?:[?#]|$)/i.test(track.url);
+            if (isSubtitlePlaylist) {
+              // HLS subtitle tracks are often playlists rather than a single VTT.
+              // Fetch the first subtitle media segment and parse that VTT.
+              const base = new URL(track.url, location.href);
+              const lines = txt.split(/\\r?\\n/).map(x => x.trim()).filter(Boolean);
+              const segment = lines.find(x => x && !x.startsWith('#'));
+              if (!segment) throw new Error('Subtitle playlist has no media segment');
+              const segmentUrl = new URL(segment, base).toString();
+              return fetch(segmentUrl, { cache: 'no-store', credentials: 'same-origin' })
+                .then(sr => {
+                  if (!sr.ok) throw new Error('Subtitle segment HTTP ' + sr.status);
+                  return sr.text();
+                })
+                .then(vtt => parseVtt(vtt));
+            }
+            return parseVtt(txt);
+          })
+          .then(cues => {
             subTracks[i] = {
               label: track.label || track.name || track.lang || ('Track ' + (i + 1)),
               lang: track.lang || '',
