@@ -488,16 +488,18 @@ volSlider?.addEventListener('input', e => {
 /* Subtitles (Parser, Rendering, Styling) */
 function parseVtt(text) {
   const cues = [];
-  const cleanText = String(text || '').replace(/\\r/g, '');
-  const lines = cleanText.split(/\\n\\s*\\n/);
-  const timeRe = /(\\d{1,2}:)?(\\d{2}):(\\d{2})[.,](\\d{3})\\s*-->\\s*(\\d{1,2}:)?(\\d{2}):(\\d{2})[.,](\\d{3})/;
+  const cleanText = String(text || '')
+    .replace(/\\r\\n/g, '\\n')
+    .replace(/\\r/g, '\\n');
+  const blocks = cleanText.split(/\\n\\s*\\n/);
+  const timeRe = /(?:^|\\s)(\\d{1,2}:)?(\\d{2}):(\\d{2})[.,](\\d{3})\\s*-->\\s*(\\d{1,2}:)?(\\d{2}):(\\d{2})[.,](\\d{3})(?:\\s|$)/;
 
-  for (const block of lines) {
-    const bLines = block.split('\\n').map(l => l.trim()).filter(Boolean);
-    const timeIdx = bLines.findIndex(l => timeRe.test(l));
+  for (const block of blocks) {
+    const lines = block.split('\\n').map(l => l.trim()).filter(Boolean);
+    const timeIdx = lines.findIndex(l => timeRe.test(l));
     if (timeIdx === -1) continue;
 
-    const m = bLines[timeIdx].match(timeRe);
+    const m = lines[timeIdx].match(timeRe);
     if (!m) continue;
 
     const parseSeconds = (h, min, sec, ms) => {
@@ -508,9 +510,14 @@ function parseVtt(text) {
     const start = parseSeconds(m[1], m[2], m[3], m[4]);
     const end = parseSeconds(m[5], m[6], m[7], m[8]);
 
-    const cueText = bLines.slice(timeIdx + 1).join('<br>').replace(new RegExp('<(?!/?(i|b|u|font)\\\\b)[^>]+>', 'gi'), '');
+    const cueText = lines
+      .slice(timeIdx + 1)
+      .join('<br>')
+      .replace(new RegExp('<(?!/?(i|b|u|font)\\b)[^>]+>', 'gi'), '');
+
     if (cueText) cues.push({ start, end, text: cueText });
   }
+
   return cues.sort((a, b) => a.start - b.start);
 }
 
