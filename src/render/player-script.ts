@@ -191,6 +191,8 @@ let outroBand = null;
 let subTracks = [];
 let activeSubIdx = -1;
 let parsedCues = [];
+let luluSubtitleActive = false;
+let luluSubtitleTrackIndex = -1;
 let isScrubbing = false;
 let idleTimer = null;
 let sleepTimer = null;
@@ -532,6 +534,8 @@ function renderCurrentSubtitle(time) {
     return;
   }
 
+  if (luluSubtitleActive && activeSubIdx >= 0) syncLuluSubtitleCues(activeSubIdx);
+
   const offset = settings.subSyncEnabled ? (settings.subSyncOffset || 0) : 0;
   const adjTime = time + offset;
   const active = parsedCues.find(c => adjTime >= c.start && adjTime <= c.end);
@@ -546,6 +550,19 @@ function renderCurrentSubtitle(time) {
 function setSubTrack(idx) {
   activeSubIdx = idx;
   lastRenderedSubText = null;
+  if (luluSubtitleActive) {
+    try {
+      const browserTracks = Array.from(vid?.textTracks || []);
+      if (idx === -1) {
+        if (hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = -1;
+        browserTracks.forEach(track => { track.mode = 'disabled'; });
+      } else {
+        if (hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = idx;
+        browserTracks.forEach((track, i) => { track.mode = i === idx ? 'hidden' : 'disabled'; });
+        syncLuluSubtitleCues(idx);
+      }
+    } catch (e) {}
+  }
   if (idx === -1) {
     settings.captionsEnabled = false;
     parsedCues = [];
@@ -1318,6 +1335,66 @@ class TurboVidFragmentLoader {
   destroy() {}
 }
 
+/* LuluStream HLS subtitle bridge */
+function clearLuluSubtitleBridge() {
+  luluSubtitleActive = false;
+  luluSubtitleTrackIndex = -1;
+  subTracks = [];
+  activeSubIdx = -1;
+  parsedCues = [];
+  if (subText) subText.innerHTML = '';
+}
+function luluTrackCues(track) {
+  if (!track || !track.cues) return [];
+  const cues = [];
+  try {
+    for (let i = 0; i < track.cues.length; i++) {
+      const cue = track.cues[i];
+      const text = String(cue?.text || '').replace(/\\r\\n/g, '<br>').replace(/\\n/g, '<br>');
+      if (text) cues.push({ start: Number(cue.startTime) || 0, end: Number(cue.endTime) || 0, text });
+    }
+  } catch (e) {}
+  return cues;
+}
+function syncLuluSubtitleCues(index) {
+  if (!luluSubtitleActive || index < 0) return;
+  const track = Array.from(vid?.textTracks || [])[index];
+  if (!track) return;
+  const cues = luluTrackCues(track);
+  if (!subTracks[index]) subTracks[index] = { label: track.label || track.language || ('Track ' + (index + 1)), lang: track.language || '', cues: [] };
+  subTracks[index].cues = cues;
+  if (activeSubIdx === index) parsedCues = cues;
+}
+function setupLuluSubtitleBridge() {
+  if (!luluSubtitleActive || !hls) return;
+  const tracks = Array.isArray(hls.subtitleTracks) ? hls.subtitleTracks : [];
+  if (!tracks.length) return;
+  subTracks = tracks.map((t, i) => ({ label: t.name || t.lang || ('Track ' + (i + 1)), lang: t.lang || '', cues: [] }));
+  let defaultIndex = tracks.findIndex(t => t.default);
+  if (defaultIndex < 0) defaultIndex = 0;
+  luluSubtitleTrackIndex = defaultIndex;
+  try { hls.subtitleTrack = defaultIndex; } catch (e) {}
+  const bindTextTracks = () => {
+    const browserTracks = Array.from(vid?.textTracks || []);
+    browserTracks.forEach((track, i) => {
+      if (track.kind !== 'subtitles' && track.kind !== 'captions') return;
+      track.mode = i === luluSubtitleTrackIndex ? 'hidden' : 'disabled';
+      if (!track.__anivaultLuluBound) {
+        track.__anivaultLuluBound = true;
+        track.addEventListener('cuechange', () => syncLuluSubtitleCues(i));
+      }
+      syncLuluSubtitleCues(i);
+    });
+    if (activeSubIdx < 0 && settings.captionsEnabled) setSubTrack(defaultIndex);
+    else if (activeSubIdx >= 0) syncLuluSubtitleCues(activeSubIdx);
+    buildCaptionsMenu();
+  };
+  bindTextTracks();
+  setTimeout(bindTextTracks, 100);
+  setTimeout(bindTextTracks, 400);
+  setTimeout(bindTextTracks, 1000);
+}
+
 /* HLS Stream Loader */
 function loadHLS(m3u8Url, preferredAudioTrack) {
   if (!m3u8Url) {
@@ -1345,11 +1422,7 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
       lowLatencyMode: false,
       backBufferLength: 90,
       capLevelToPlayerSize: false,
-      autoStartLoad: !isLuluStream,
-      // LuluStream can advertise an HLS WebVTT subtitle track. Do not let
-      // hls.js/browser render that track natively: AniVault renders subtitles
-      // itself so the user's position, size, background and Off toggle apply.
-      ...(isLuluStream ? { renderTextTracksNatively: false } : {}),
+      autoStartLoad: true,
     };
     // TurboVid needs its custom fragment unwrap loader; normal HLS sources
     // (including LuluStream) must use hls.js's native fragment loader.
@@ -1362,17 +1435,6 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
     let luluPreferredIndex = -1;
     let luluPlayStarted = false;
 
-    const disableNativeSubtitleTracks = () => {
-      if (!isLuluStream) return;
-      try {
-        if (hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = -1;
-      } catch (e) {}
-      try {
-        Array.from(vid.textTracks || []).forEach(track => {
-          track.mode = 'disabled';
-        });
-      } catch (e) {}
-    };
 
     const startLuluPlayback = () => {
       if (!isLuluStream || luluPlayStarted) return;
@@ -1431,15 +1493,9 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
       } catch (e) {}
 
       if (isLuluStream) {
-        // Keep LuluStream's HLS subtitle track disabled. The separate
-        // subtitle URL is fetched by loadWithSubs() and rendered through
-        // AniVault's own subtitle container, which obeys the player's style
-        // sliders and the captions Off button.
-        disableNativeSubtitleTracks();
-        try { hls.startLoad(); } catch (e) {}
+        luluSubtitleActive = true;
+        setupLuluSubtitleBridge();
         buildQualityMenu();
-        // The requested track is selected before HLS starts fetching media.
-        // Do not wait for AUDIO_TRACK_LOADED: that can add a long startup delay.
         startLuluPlayback();
         return;
       }
@@ -1450,6 +1506,11 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
         vid.play().catch(() => { applyVolume(vid.volume, true, true); vid.play().catch(() => {}); });
       }
     });
+
+    if (isLuluStream) {
+      hls.on(window.Hls.Events.SUBTITLE_TRACKS_UPDATED, () => setupLuluSubtitleBridge());
+      hls.on(window.Hls.Events.SUBTITLE_TRACK_LOADED, () => setupLuluSubtitleBridge());
+    }
 
     hls.on(window.Hls.Events.LEVEL_SWITCHED, (evt, data) => {
       const lvl = hls.levels[data.level];
@@ -1554,10 +1615,12 @@ window.SenshiPlayer = {
     parsedCues = [];
     if (subText) subText.innerHTML = '';
 
-    // A new server load starts a fresh subtitle session. If the source
-    // explicitly provides subtitles, turn captions back on so a previous
-    // server's "Off" state cannot leave the new LuluStream source silent.
-    if (Array.isArray(subs) && subs.length > 0) {
+    luluSubtitleActive = /lulustream_proxy\\.php/i.test(url);
+    luluSubtitleTrackIndex = -1;
+    if (luluSubtitleActive) {
+      subTracks = [];
+      saveSettings();
+    } else if (Array.isArray(subs) && subs.length > 0) {
       settings.captionsEnabled = true;
       saveSettings();
 
