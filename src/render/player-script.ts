@@ -168,9 +168,9 @@ let settings = {
   showWhenMuted: false,
   iosMode: false,
   subtitleHorizontal: 0,
-  subtitlePosition: 90,
-  subtitleSize: 22,
-  subtitleBgOpacity: 50,
+  subtitlePosition: 86,
+  subtitleSize: 24,
+  subtitleBgOpacity: 0,
   subtitleColor: '#ffffff',
 };
 
@@ -657,9 +657,9 @@ rangeSubBg?.addEventListener('input', e => { settings.subtitleBgOpacity = Number
 headerReset?.addEventListener('click', e => {
   e.stopPropagation();
   settings.subtitleHorizontal = 0;
-  settings.subtitlePosition = 90;
-  settings.subtitleSize = 22;
-  settings.subtitleBgOpacity = 50;
+  settings.subtitlePosition = 86;
+  settings.subtitleSize = 24;
+  settings.subtitleBgOpacity = 0;
   applySubStyles();
 });
 
