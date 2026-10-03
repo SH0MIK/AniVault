@@ -962,11 +962,24 @@ export const PLAYER_CSS = `
 .vh-sub-text {
   max-width: 85%;
   text-align: center;
-  line-height: 1.375;
+  line-height: 1.28;
   word-break: break-word;
-  padding: 2px 8px;
-  border-radius: 4px;
-  font-weight: 500;
+  padding: 0;
+  border-radius: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  font-weight: 700;
+  letter-spacing: 0;
+  /* Anime-player style: white text with a strong black outline, no box. */
+  text-shadow:
+    -2px -2px 0 #000,
+     0   -2px 0 #000,
+     2px -2px 0 #000,
+    -2px  0   0 #000,
+     2px  0   0 #000,
+    -2px  2px 0 #000,
+     0    2px 0 #000,
+     2px  2px 0 #000,
+     0    3px 4px rgba(0,0,0,.9);
 }
 
 .vh-sub-text:empty {
