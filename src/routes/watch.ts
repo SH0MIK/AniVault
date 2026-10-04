@@ -802,8 +802,8 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
         </div>` : ''}
       </section>
 
-      <div class="watch-character-slot">${charsHtml}</div>
       ${renderWatchComments(animeId, epNum, siteUrl, isLoggedIn)}
+      <div class="watch-character-slot">${charsHtml}</div>
       </div>
     </main>
 
