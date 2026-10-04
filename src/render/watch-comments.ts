@@ -20,19 +20,18 @@ export function renderWatchComments(animeId:number,episodeNum:number,siteUrl:str
     'var root=document.getElementById("watch-comments");if(!root)return;' +
     'var animeId=root.dataset.animeId,episode=root.dataset.episode,isLoggedIn=' + (isLoggedIn?'true':'false') + ',comments=[];' +
     'function esc(s){var d=document.createElement("div");d.textContent=s==null?"":s;return d.innerHTML}' +
-    'function render(){var list=document.getElementById("wc-list"),byParent={};if(!list)return;comments.forEach(function(c){(byParent[c.parent_id||0]||(byParent[c.parent_id||0]=[])).push(c)});' +
+    'function render(){var list=document.getElementById("wc-list"),byParent={};if(!list)return;comments.forEach(function(c){(byParent[c.parent_id||0]||(byParent[c.parent_id||0]=[])).push(c);});' +
       'function draw(parent,depth){return (byParent[parent]||[]).map(function(c){' +
-        'var body=c.deleted?"<span class=\\"wc-deleted\\">Comment deleted</span>":esc(c.body);' +
-        'return "<article class=\\"wc-item "+(depth?"reply":"")+"\\"><div class=\\"wc-top\\">"+(c.avatar_url?"<img class=\\"wc-avatar\\" src=\\""+esc(c.avatar_url)+"\\" alt=\\"\\" loading=\\"lazy\\">":"<div class=\\"wc-avatar\\"></div>")+' +
-        '"<span class=\\"wc-user\\">"+esc(c.username)+"</span>"+(c.badge?"<span class=\\"wc-badge\\">"+c.badge+"</span>":"")+"<span class=\\"wc-time\\">"+esc(c.time)+"</span></div>"+' +
-        '"<div class=\\"wc-body\\">"+body+"</div><div class=\\"wc-actions\\">"+' +
-        '"<button class=\\"wc-btn "+(c.my_vote===1?"on":"")+" onclick=\\"wcVote("+c.id+",1)\\" "+(!isLoggedIn||c.deleted?"disabled":"")+">▲ "+c.likes+"</button>"+' +
-        '"<button class=\\"wc-btn "+(c.my_vote===-1?"on":"")+" onclick=\\"wcVote("+c.id+",-1)\\" "+(!isLoggedIn||c.deleted?"disabled":"")+">▼ "+c.dislikes+"</button>"+' +
-        (isLoggedIn&&!c.deleted?"<button class=\\"wc-btn\\" onclick=\\"wcReply("+c.id+")\\">↩ Reply</button>":"")+
-        (c.can_delete&&!c.deleted?"<button class=\\"wc-btn\\" onclick=\\"wcDelete("+c.id+")\\">Delete</button>":"")+
-        "</div>"+(isLoggedIn&&!c.deleted?"<div class=\\"wc-replybox\\" id=\\"wc-reply-"+c.id+"\\"><input maxlength=\\"1000\\" placeholder=\\"Reply…\\"><button class=\\"btn btn-sm btn-primary\\" onclick=\\"wcSend("+c.id+")\\">Send</button></div>":"")+draw(c.id,depth+1)+"</article>";' +
-      '}).join("")}' +
-      'list.innerHTML=draw(0,0)||"<div class=\\"wc-loading\\">No comments yet. Be the first!</div>";document.getElementById("wc-count").textContent=comments.length?"· "+comments.length:"";}' +
+        'var body=c.deleted?"<span class=\"wc-deleted\">Comment deleted</span>":esc(c.body);' +
+        'var avatar=c.avatar_url?"<img class=\"wc-avatar\" src=\"" + esc(c.avatar_url) + "\" alt=\"\" loading=\"lazy\">":"<div class=\"wc-avatar\"></div>";' +
+        'var voteButtons="<button class=\"wc-btn "+(c.my_vote===1?"on":"")+"\" onclick=\"wcVote("+c.id+",1)\" "+(!isLoggedIn||c.deleted?"disabled":"")+">▲ "+c.likes+"</button>" +' +
+          '"<button class=\"wc-btn "+(c.my_vote===-1?"on":"")+"\" onclick=\"wcVote("+c.id+",-1)\" "+(!isLoggedIn||c.deleted?"disabled":"")+">▼ "+c.dislikes+"</button>";' +
+        'var replyButton=(isLoggedIn&&!c.deleted?"<button class=\"wc-btn\" onclick=\"wcReply("+c.id+")\">↩ Reply</button>":"");' +
+        'var deleteButton=(c.can_delete&&!c.deleted?"<button class=\"wc-btn\" onclick=\"wcDelete("+c.id+")\">Delete</button>":"");' +
+        'var replyBox=(isLoggedIn&&!c.deleted?"<div class=\"wc-replybox\" id=\"wc-reply-"+c.id+"\"><input maxlength=\"1000\" placeholder=\"Reply…\"><button class=\"btn btn-sm btn-primary\" onclick=\"wcSend("+c.id+")\">Send</button></div>":"");' +
+        'return "<article class=\"wc-item "+(depth?"reply":"")+"\"><div class=\"wc-top\">"+avatar+"<span class=\"wc-user\">"+esc(c.username)+"</span>"+(c.badge?"<span class=\"wc-badge\">"+esc(c.badge)+"</span>":"")+"<span class=\"wc-time\">"+esc(c.time)+"</span></div><div class=\"wc-body\">"+body+"</div><div class=\"wc-actions\">"+voteButtons+replyButton+deleteButton+"</div>"+replyBox+draw(c.id,depth+1)+"</article>";' +
+      '}).join("");}' +
+      'list.innerHTML=draw(0,0)||"<div class=\"wc-loading\">No comments yet. Be the first!</div>";document.getElementById("wc-count").textContent=comments.length?"· "+comments.length:"";}' +
     'async function api(action,extra){var p=new URLSearchParams(Object.assign({action:action,anime_id:animeId,episode:episode},extra||{}));var opt=action==="get"?{}:{method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:p};var r=await fetch("/api/anime-comments",opt);var d=await r.json().catch(function(){return{success:false,message:"Request failed"}});if(!r.ok||!d.success)throw new Error(d.message||"Request failed");return d}' +
     'async function load(){try{var d=await api("get");comments=d.comments||[];render()}catch(e){document.getElementById("wc-error").textContent=e.message}}' +
     'window.wcSend=async function(parentId){var input=parentId?document.querySelector("#wc-reply-"+parentId+" input"):document.getElementById("wc-input"),text=input&&input.value.trim();if(!text)return;try{document.getElementById("wc-error").textContent="";var d=await api("send",{message:text,parent_id:String(parentId||0)});comments=d.comments||[];input.value="";render()}catch(e){document.getElementById("wc-error").textContent=e.message}};' +
