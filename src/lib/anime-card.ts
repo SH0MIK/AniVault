@@ -33,6 +33,15 @@ export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus:
   const aid = a.mal_id ?? 0;
   const atitle = a.title_english && a.title_english !== a.title ? a.title_english : (a.title || 'Unknown');
   const aimg = a.images?.jpg?.image_url ?? '';
+
+  // Kitsu exposes size-specific poster variants. List cards are only
+  // ~165px wide, so downloading the 520px "large.jpg" poster wastes bandwidth.
+  const kitsuPoster = aimg.match(/^(https?:\/\/media\.kitsu\.app\/anime\/poster_images\/[^/]+\/)large\.jpg(?:\?.*)?$/i);
+  const cardSrc = kitsuPoster ? `${kitsuPoster[1]}medium.jpg` : aimg;
+  const cardSrcSet = kitsuPoster
+    ? `${kitsuPoster[1]}small.jpg 110w, ${kitsuPoster[1]}medium.jpg 220w, ${kitsuPoster[1]}large.jpg 520w`
+    : '';
+  const cardSizes = '(max-width: 520px) calc((100vw - 40px) / 3), (max-width: 800px) calc((100vw - 48px) / 4), 165px';
   const ascore = a.score;
   const atype = a.type ?? '';
   const aeps = a.episodes ?? 0;
@@ -60,7 +69,7 @@ export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus:
 <div class="anime-card" onclick="window.location.href='${h(aurl)}'">
   <div class="anime-card-poster">
     ${aimg
-      ? `<img src="${h(aimg)}" alt="${h(atitle)}" loading="lazy">`
+      ? `<img src="${h(cardSrc)}" alt="${h(atitle)}" loading="lazy" decoding="async"${cardSrcSet ? ` srcset="${h(cardSrcSet)}" sizes="${cardSizes}"` : ''}>`
       : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:2rem;">${icon('user', 'icon-xl')}</div>`}
     ${ascore ? `<div class="anime-card-score">${icon('star', 'icon-small')} ${ascore.toFixed(1)}</div>` : ''}
     ${userStatus ? `<div class="anime-card-user-status badge ${STATUS_CLASSES[userStatus] ?? 'badge-default'}" data-anime-id="${aid}">${STATUS_LABELS[userStatus] ?? userStatus}</div>` : ''}
