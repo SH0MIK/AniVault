@@ -34,14 +34,7 @@ export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus:
   const atitle = a.title_english && a.title_english !== a.title ? a.title_english : (a.title || 'Unknown');
   const aimg = a.images?.jpg?.image_url ?? '';
 
-  // Kitsu exposes size-specific poster variants. List cards are only
-  // ~165px wide, so downloading the 520px "large.jpg" poster wastes bandwidth.
-  const kitsuPoster = aimg.match(/^(https?:\/\/media\.kitsu\.app\/anime\/poster_images\/[^/]+\/)large\.jpg(?:\?.*)?$/i);
-  const cardSrc = kitsuPoster ? `${kitsuPoster[1]}medium.jpg` : aimg;
-  const cardSrcSet = kitsuPoster
-    ? `${kitsuPoster[1]}small.jpg 110w, ${kitsuPoster[1]}medium.jpg 220w, ${kitsuPoster[1]}large.jpg 520w`
-    : '';
-  const cardSizes = '(max-width: 520px) calc((100vw - 40px) / 3), (max-width: 800px) calc((100vw - 48px) / 4), 165px';
+  const aimg = a.images?.jpg?.image_url ?? '';
   const ascore = a.score;
   const atype = a.type ?? '';
   const aeps = a.episodes ?? 0;
