@@ -25,6 +25,7 @@ export const NOTIFICATION_TYPES: Record<string, { icon: string; color: string; l
   announcement: { icon: '📢', color: 'gold', label: 'new announcement' },
   chat_mention: { icon: '💬', color: 'accent', label: 'mentioned you in chat' },
   chat_reply: { icon: '↩️', color: 'accent', label: 'replied to your message' },
+  comment_reply: { icon: '↩️', color: 'accent', label: 'replied to your comment' },
   auto_account: { icon: '🔑', color: 'gold', label: 'account created for you' },
   bug_report: { icon: icon('alert','icon-small'), color: 'gold', label: 'submitted a bug report' },
   bug_report_solved: { icon: icon('check','icon-small'), color: 'teal', label: 'marked your bug report as solved' },
@@ -110,6 +111,7 @@ export const Notification = {
       case 'anime_update': return `<strong>${actor}</strong> updated their list` + (meta ? `: <em>${meta}</em>` : '');
       case 'chat_mention': return `<strong>${actor}</strong> mentioned you in chat` + (meta ? `: <em>"${meta}"</em>` : '');
       case 'chat_reply': return `<strong>${actor}</strong> replied to your message` + (meta ? `: <em>"${meta}"</em>` : '');
+      case 'comment_reply': return `<strong>${actor}</strong> replied to your comment` + (meta ? `: <em>"${meta}"</em>` : '');
       case 'announcement': return `📢 New announcement<br><strong>${meta || 'Check it out'}</strong>`;
       case 'bug_report': return `<strong>${actor}</strong> submitted a bug report: <em>${meta}</em>`;
       case 'bug_report_solved': return `Your bug report <strong>${meta}</strong> was marked as solved`;
@@ -130,6 +132,7 @@ export const Notification = {
       case 'announcement': return `${siteUrl}/announcements`;
       case 'chat_mention': return `${siteUrl}/?openChat=1`;
       case 'chat_reply': return `${siteUrl}/?openChat=1`;
+      case 'comment_reply': return `${siteUrl}/watch`;
       case 'bug_report': return `${siteUrl}/bug-reports`;
       case 'bug_report_solved': return `${siteUrl}/bug-reports`;
       case 'auto_account': return `${siteUrl}/profile`;
