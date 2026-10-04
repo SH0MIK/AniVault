@@ -29,6 +29,7 @@ import { EpisodeAir, AiredInfo } from '../lib/episode-air';
 import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
 import { getEpisodeThumbnail } from '../lib/episode-thumb';
 import { SUB_PROVIDERS, DUB_PROVIDERS, HINDI_PROVIDERS, fixedServerBtn } from '../lib/stream-sources';
+import { renderWatchComments } from '../render/watch-comments';
 
 interface TurboVidServerRow { id:number; anime_id:number; episode_num:number; audio_group:string; language:string; label:string; embed_url:string; is_active:number; }
 interface LuluStreamServerRow { id:number; anime_id:number; episode_num:number; label:string; embed_url:string; audio_tracks:string; is_active:number; }
@@ -802,6 +803,7 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
       </section>
 
       <div class="watch-character-slot">${charsHtml}</div>
+      ${renderWatchComments(animeId, epNum, siteUrl, isLoggedIn)}
       </div>
     </main>
 
