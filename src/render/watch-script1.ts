@@ -68,7 +68,12 @@ function _showFatalClientError(msg) {
     }
 }
 window.addEventListener('error', function(e) {
-    _showFatalClientError((e && e.message) || 'Unknown script error');
+    // Do not let unrelated page scripts (comments, analytics, widgets, etc.)
+    // overwrite the player with a misleading "Player script error".
+    // Known legacy comment-handler errors are explicitly ignored as well.
+    var msg = (e && e.message) || '';
+    if (/^(wcSend|wcVote|wcReply|wcDelete) is not defined$/.test(msg)) return;
+    _showFatalClientError(msg || 'Unknown script error');
 });
 
 function buildMegaplayUrl(audio) {
