@@ -54,6 +54,7 @@ import { legalRoutes } from './routes/legal';
 import { watchNowRoutes } from './routes/watch-now';
 import { legacyRedirectRoutes } from './routes/legacy-redirects';
 import { apiChatRoutes } from './routes/api-chat';
+import { apiAnimeCommentsRoutes } from './routes/api-anime-comments';
 import { bugReportRoutes } from './routes/bug-reports';
 import { healthRoutes } from './routes/health';
 import { handleScheduled } from './scheduled';
@@ -146,6 +147,7 @@ app.route('/', legalRoutes);
 app.route('/', watchNowRoutes);
 app.route('/', legacyRedirectRoutes);
 app.route('/', apiChatRoutes);
+app.route('/', apiAnimeCommentsRoutes);
 app.route('/', bugReportRoutes);
 
 app.onError((err, c) => {
