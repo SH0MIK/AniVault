@@ -33,8 +33,14 @@ async function all(db:Db,animeId:number,episodeNum:number,userId:number,isAdmin:
 }
 
 apiAnimeCommentsRoutes.on(['GET','POST'],'/api/anime-comments',async c=>{
+  try{
   const {db,session,lifetime,auth}=await ctx(c);
-  const body=c.req.method==='POST'?await c.req.parseBody():{} as Record<string,unknown>;
+  let body:Record<string,unknown>={};
+  if(c.req.method==='POST'){
+    const ct=c.req.header('content-type')??'';
+    if(ct.includes('application/json')) body=await c.req.json().catch(()=>({}));
+    else body=await c.req.parseBody();
+  }
   const get=(k:string)=>String(c.req.query(k)??body[k]??'');
   const action=get('action');
   const animeId=parseInt(get('anime_id'),10)||0;
@@ -82,4 +88,8 @@ apiAnimeCommentsRoutes.on(['GET','POST'],'/api/anime-comments',async c=>{
   }
 
   return c.json({success:false,message:'Unknown action.'},400);
+  }catch(err){
+    console.error('[anime-comments]',err);
+    return c.json({success:false,message:'Comments are temporarily unavailable.'},500);
+  }
 });
