@@ -145,7 +145,7 @@ ${og.type === 'video.episode' ? `
 <meta name="application-name" content="AniVault">
 <link rel="stylesheet" href="${o.siteUrl}/assets/css/style.css">
 <link rel="stylesheet" href="${o.siteUrl}/assets/css/anivexa-theme.css?v=2">
-<link rel="icon" type="image/png" href="${o.siteUrl}/assets/img/site-img/icon.png">
+<link rel="icon" type="image/svg+xml" href="${o.siteUrl}/assets/img/site-img/favicon.svg">
 <link rel="canonical" href="${h(og?.url ?? o.requestUrl)}">
 <script type="application/ld+json">
 {
@@ -479,7 +479,7 @@ export function renderFooter(o: { siteUrl: string; currentUser: CurrentUser | nu
 <footer class="footer">
   <div class="footer-grid">
     <div class="footer-col">
-      <div class="footer-logo"><img src="${o.siteUrl}/assets/img/site-img/icon.png" alt="AniVault" class="footer-logo-img" width="28" height="28"> Ani<span>Vault</span></div>
+      <div class="footer-logo"><img src="${o.siteUrl}/assets/img/site-img/favicon.svg" alt="AniVault" class="footer-logo-img" width="28" height="28" loading="lazy"> Ani<span>Vault</span></div>
       <p class="footer-about">Free & Ad-free anime streaming platform</p>
       <div class="footer-social">
         <a href="https://discord.gg/QK2dAVgK2a" aria-label="Discord" class="social-link">${icon('discord', 'social-icon')}</a>
