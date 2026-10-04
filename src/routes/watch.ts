@@ -802,7 +802,6 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
         </div>` : ''}
       </section>
 
-      ${renderWatchComments(animeId, epNum, siteUrl, isLoggedIn)}
       <div class="watch-character-slot">${charsHtml}</div>
       </div>
     </main>
@@ -841,6 +840,10 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
         <div class="wp-ep-list" id="ep-list">${epListHtml}</div>
       </section>
     </aside>
+  </div>
+
+  <div class="watch-comments-fullwidth">
+    ${renderWatchComments(animeId, epNum, siteUrl, isLoggedIn)}
   </div>
 </div>`;
 
