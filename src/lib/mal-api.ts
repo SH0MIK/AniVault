@@ -526,6 +526,39 @@ export class MalAPI {
     return null;
   }
 
+  // Batched D1 lookup used by list/grid prefetches. A genre page can inspect
+  // up to 100 MAL results before it knows which 20 belong to the requested
+  // genre. Doing one D1 request per title here trips Workers' per-invocation
+  // API request limits even though the data itself is tiny. Keep this as one
+  // query for the whole batch and silently treat D1 failures as cache misses.
+  private async getStoredArtMany(malIds: number[]): Promise<Map<number, { poster: string; cover: string; logo: string }>> {
+    const map = new Map<number, { poster: string; cover: string; logo: string }>();
+    const ids = [...new Set(malIds.filter(Boolean))];
+    if (!ids.length) return map;
+
+    try {
+      const placeholders = ids.map(() => '?').join(',');
+      const rows = await this.db.fetchAll<{ mal_id: number; poster: string; cover: string; logo: string }>(
+        `SELECT mal_id, poster, cover, logo
+         FROM scraper_art_cache
+         WHERE mal_id IN (${placeholders})
+           AND updated_at > ?`,
+        [...ids, Math.floor(Date.now() / 1000) - MalAPI.ART_D1_MAX_AGE_SEC],
+      );
+      for (const row of rows) {
+        if (row.poster || row.cover || row.logo) {
+          map.set(row.mal_id, {
+            poster: row.poster || '',
+            cover: row.cover || '',
+            logo: row.logo || '',
+          });
+        }
+      }
+    } catch { /* D1 hiccup -- treat all rows as cache misses */ }
+
+    return map;
+  }
+
   private async storeArt(malId: number, art: { poster: string; cover: string; logo: string }): Promise<void> {
     try {
       await this.db.query(`INSERT INTO scraper_art_cache (mal_id, poster, cover, logo, updated_at) VALUES (?, ?, ?, ?, ?)
@@ -625,18 +658,32 @@ export class MalAPI {
     const ids = [...new Set(animeIds.filter(Boolean))].filter((id) => !this.artCache.has(id));
     if (!ids.length) return;
 
-    const [priority, posterMap, bannerMap, logoMap, scraperArts] = await Promise.all([
-      this.getImagePriority(),
+    const priority = await this.getImagePriority();
+
+    // List/grid callers deliberately pass liveFetch=false. In that mode,
+    // never call getScraperArt() once per title: its durable D1 fallback is
+    // itself a D1 request, turning a 100-title genre page into 100+ extra
+    // Worker API requests. Resolve all durable art in one query instead.
+    const storedArts = liveFetch ? new Map<number, { poster: string; cover: string; logo: string }>() : await this.getStoredArtMany(ids);
+
+    const [posterMap, bannerMap, logoMap] = await Promise.all([
       this.getLocalAnimeImagesMany(ids),
       this.getLocalAnimeBannerInfoMany(ids),
       this.getLocalAnimeLogosMany(ids),
-      Promise.all(ids.map((id) => this.getScraperArt(id, liveFetch))),
     ]);
+
+    let scraperArts = new Map<number, { poster: string; cover: string; logo: string }>();
+    if (liveFetch) {
+      const resolved = await Promise.all(ids.map((id) => this.getScraperArt(id, true)));
+      scraperArts = new Map(ids.map((id, i) => [id, resolved[i]]));
+    }
 
     const pick = (api: string, saved: string) => (priority === 'api' ? (api || saved) : (saved || api));
 
-    ids.forEach((id, i) => {
-      const scraperArt = scraperArts[i];
+    ids.forEach((id) => {
+      const scraperArt = liveFetch
+        ? (scraperArts.get(id) || { poster: '', cover: '', logo: '' })
+        : (storedArts.get(id) || { poster: '', cover: '', logo: '' });
       const savedPoster = posterMap.get(id) || '';
       const savedCover = bannerMap.get(id)?.image_url || '';
       const savedLogo = logoMap.get(id) || '';
