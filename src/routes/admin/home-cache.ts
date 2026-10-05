@@ -55,13 +55,13 @@ adminHomepageCacheRoutes.on(['GET', 'POST'], '/admin/home-cache.php', async (c) 
   const updated = snapshot?.updatedAt ? new Date(snapshot.updatedAt * 1000).toISOString() : 'Never';
 
   let html = renderAdminHeader({ siteUrl, pageTitle: 'Homepage Cache', adminPage: 'home_cache', isOwner, impersonating });
-  html += \`
+  html += `
 <div class="admin-header">
   <div><h1>Homepage Data Cache</h1><p class="text-muted" style="font-size:.9rem;">D1-backed snapshots for the homepage's external API sections.</p></div>
 </div>
 
-${message ? \\\`<div class="alert alert-success mb-2">${h(message)}</div>\\\` : ''}
-${error ? \\\`<div class="alert alert-error mb-2">${h(error)}</div>\\\` : ''}
+${message ? \\`<div class="alert alert-success mb-2">${h(message)}</div>\\` : ''}
+${error ? \\`<div class="alert alert-error mb-2">${h(error)}</div>\\` : ''}
 
 <div class="grid-2" style="gap:1.5rem;margin-bottom:1.5rem;">
   <div class="card card-body">
@@ -84,7 +84,7 @@ ${error ? \\\`<div class="alert alert-error mb-2">${h(error)}</div>\\\` : ''}
     <form method="POST">
       <input type="hidden" name="action" value="save_interval">
       <select class="form-control" name="refresh_minutes" style="max-width:240px;margin-bottom:12px;">
-        ${Object.entries(labels).map(([value, label]) => \\\`<option value="${value}" ${Number(value) === refreshMinutes ? 'selected' : ''}>${label}</option>\\\`).join('')}
+        ${Object.entries(labels).map(([value, label]) => \\`<option value="${value}" ${Number(value) === refreshMinutes ? 'selected' : ''}>${label}</option>\\`).join('')}
       </select>
       <button class="btn btn-secondary" type="submit">💾 Save Refresh Interval</button>
     </form>
@@ -102,7 +102,7 @@ ${error ? \\\`<div class="alert alert-error mb-2">${h(error)}</div>\\\` : ''}
     Default: 6 hours. Available: 1 hour → 30 days. Manual refresh always replaces the snapshot immediately.
   </p>
 </div>
-\`;
+`;
   html += renderAdminFooter(siteUrl);
   await session.save(c, lifetime);
   return c.html(html);
