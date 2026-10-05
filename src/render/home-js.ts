@@ -148,8 +148,15 @@ export function heroSliderScript(slideCount: number): string {
     var idx = 0, total = ${slideCount}, timer = null;
     var slides = document.querySelectorAll('#hero-slides .hero-slide');
     var dots = document.querySelectorAll('#hero-dots .hero-dot');
+    function loadSlide(s) {
+      if (!s) return;
+      s.querySelectorAll('source[data-srcset]').forEach(function(el){ el.srcset = el.getAttribute('data-srcset'); el.removeAttribute('data-srcset'); });
+      s.querySelectorAll('img[data-src]').forEach(function(el){ el.src = el.getAttribute('data-src'); el.removeAttribute('data-src'); });
+    }
     function show(n) {
       idx = (n + total) % total;
+      loadSlide(slides[idx]);
+      loadSlide(slides[(idx + 1) % total]);
       slides.forEach(function(s, i){ s.classList.toggle('active', i === idx); });
       dots.forEach(function(d, i){ d.classList.toggle('active', i === idx); });
     }
@@ -163,6 +170,8 @@ export function heroSliderScript(slideCount: number): string {
     hero.addEventListener('mouseenter', function(){ clearInterval(timer); });
     hero.addEventListener('mouseleave', restart);
     restart();
+    // Warm up slide 2 once the page is idle so the first auto-rotation is smooth.
+    window.addEventListener('load', function(){ loadSlide(slides[1]); });
   })();
   </script>`;
 }
