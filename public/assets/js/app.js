@@ -2042,28 +2042,13 @@ async function epedSave() {
 
   function attachDropdownToForm(input, formEl) {
     if (!input || !formEl) return null;
-    // Make the form the positioning parent
+    // Keep the dropdown inside the form so CSS can position it without
+    // reading layout geometry on every search update.
     formEl.style.position = 'relative';
     const dropdown = document.createElement('div');
     dropdown.className = 'search-suggestions';
     dropdown.style.display = 'none';
-    // Append AFTER the form so it isn't clipped by any form overflow
-    formEl.parentNode.insertBefore(dropdown, formEl.nextSibling);
-    // Position it to align with the form
-    function positionDropdown() {
-      const fRect = formEl.getBoundingClientRect();
-      const pRect = formEl.parentNode.getBoundingClientRect();
-      dropdown.style.position = 'absolute';
-      dropdown.style.left = (fRect.left - pRect.left) + 'px';
-      dropdown.style.top = (fRect.bottom - pRect.top + 6) + 'px';
-      dropdown.style.width = fRect.width + 'px';
-    }
-    // Make parent relative if it isn't already
-    const parent = formEl.parentNode;
-    if (getComputedStyle(parent).position === 'static') {
-      parent.style.position = 'relative';
-    }
-    input._positionDropdown = positionDropdown;
+    formEl.appendChild(dropdown);
     return dropdown;
   }
 
