@@ -1,5 +1,5 @@
 import { Db } from './db';
-import { MalAPI, NormalisedAnime } from './mal-api';
+import { MalAPI, type NormalisedAnime } from './mal-api';
 
 export const HOME_CACHE_KEYS = ['trending', 'popular', 'upcoming'] as const;
 export type HomeCacheKey = typeof HOME_CACHE_KEYS[number];
