@@ -474,9 +474,17 @@ function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?
 }
 
 // A ranked row in the "Top 10" sidebar widget.
+function toSmallTmdbPoster(url: string): string {
+  if (!url) return '';
+  return url.replace('https://image.tmdb.org/t/p/w500/', 'https://image.tmdb.org/t/p/w185/')
+    .replace('https://image.tmdb.org/t/p/w342/', 'https://image.tmdb.org/t/p/w185/');
+}
+
 function renderSidebarItem(a: NormalisedAnime, rank: number, siteUrl: string): string {
   const title = a.title_english && a.title_english !== a.title ? a.title_english : (a.title || 'Unknown');
-  const img = a.images?.jpg?.image_url || '';
+  // Top-10 sidebar cards are intentionally tiny. Resize only TMDB posters;
+  // never rewrite self-hosted/custom artwork URLs.
+  const img = toSmallTmdbPoster(a.images?.jpg?.image_url || '');
   const aurl = `${siteUrl}/anime?id=${a.mal_id}`;
 
   return `
