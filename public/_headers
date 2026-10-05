@@ -1,0 +1,4 @@
+# Static assets are versioned by deployment and safe to cache aggressively.
+# Keep HTML/API responses out of this rule; it only matches files under /assets/.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
