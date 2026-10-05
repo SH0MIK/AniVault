@@ -35,7 +35,8 @@ animeRoutes.get('/anime', async (c) => {
   const id = parseInt(c.req.query('id') ?? '0', 10) || 0;
   if (!id) return c.redirect(siteUrl + '/');
 
-  const result = await mal.getAnime(id);
+  // Detail pages use the current scraper/TMDB art; saved uploads remain stored untouched as fallbacks/admin data.
+  const result = await mal.getAnime(id, false, true);
   const anime = result.data;
   if (!anime) {
     return c.html(`<script>location.replace(${JSON.stringify(siteUrl + '/')});</script>`);
