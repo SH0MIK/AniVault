@@ -1032,23 +1032,42 @@ export class MalAPI {
   // straight through to the Jikan path above, same "scraper first, Jikan as
   // safety net" shape episode-air.ts already established.
   private async scraperGet(path: string, timeoutMs = 8000): Promise<any | null> {
-    const base = this.env.SCRAPER_API_BASE?.replace(/\/+$/, '').replace(/\/api$/i, '');
-    if (!base) return null;
-    try {
-      const controller = new AbortController();
-      const t = setTimeout(() => controller.abort(), timeoutMs);
-      const res = await fetch(`${base}${path}`, { headers: { Accept: 'application/json' }, signal: controller.signal });
-      clearTimeout(t);
-      if (!res.ok) {
-        console.warn(`[mal-api] scraper API HTTP ${res.status} for ${path} — falling back to Jikan`);
-        return null;
+    const configuredBase = this.env.SCRAPER_API_BASE?.replace(/\/+$/, '').replace(/\/api$/i, '');
+    // This is the currently deployed AniVault scraper service. Keep the
+    // configured variable as the first choice, but recover automatically if
+    // the Worker still has an old/invalid SCRAPER_API_BASE after the Railway
+    // service was moved.
+    const bases = [...new Set([
+      configuredBase,
+      'https://anivault-api-og69.up.railway.app',
+    ].filter(Boolean))] as string[];
+
+    if (!bases.length) return null;
+
+    for (const base of bases) {
+      try {
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), timeoutMs);
+        const res = await fetch(`${base}${path}`, {
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        });
+        clearTimeout(t);
+
+        if (!res.ok) {
+          console.warn(`[mal-api] scraper API HTTP ${res.status} for ${base}${path}`);
+          continue;
+        }
+
+        const json = await res.json().catch(() => null);
+        if (json) return json;
+      } catch (err: any) {
+        const reason = err?.name === 'AbortError' ? `timed out after ${timeoutMs}ms` : String(err?.message ?? err);
+        console.warn(`[mal-api] scraper API call failed for ${base}${path} — ${reason}`);
       }
-      return await res.json().catch(() => null);
-    } catch (err: any) {
-      const reason = err?.name === 'AbortError' ? `timed out after ${timeoutMs}ms` : String(err?.message ?? err);
-      console.warn(`[mal-api] scraper API call failed for ${path} —`, reason, '— falling back to Jikan');
-      return null;
     }
+
+    return null;
   }
 
   async getRecommendations(animeId: number): Promise<{ data: any[] }> {
