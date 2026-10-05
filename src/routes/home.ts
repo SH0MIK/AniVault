@@ -59,6 +59,10 @@ homeRoutes.get('/', async (c) => {
     const rows = await db.fetchAll<{ anime_id: number }>(
       'SELECT DISTINCT anime_id FROM episode_videos WHERE is_active = 1 ORDER BY updated_at DESC LIMIT 12'
     );
+    // Warm all card art in one batched D1 pass before resolving the 12 anime.
+    // Calling getAnime() independently would otherwise repeat the poster,
+    // banner, logo, and scraper-art cache lookups for every row.
+    await mal.prefetchAnimeArt(rows.map((r) => r.anime_id), false);
     const results = await Promise.all(rows.map((r) => mal.getAnime(r.anime_id, true)));
     watchNowList = results.map((r) => r.data).filter(Boolean);
   } catch {
@@ -176,6 +180,10 @@ homeRoutes.get('/', async (c) => {
   let heroCovers: string[] = [];
 
   if (curatedRows.length > 0) {
+    // Same batching rule as Watch Now: resolve all art once before the
+    // per-title normalisation work instead of doing several D1 requests per
+    // curated slide.
+    await mal.prefetchAnimeArt(curatedRows.map((r) => r.anime_id), false);
     const curatedAnime = await Promise.all(curatedRows.map((r) => mal.getAnime(r.anime_id, true)));
     const curatedImageMap = await mal.getLocalAnimeImagesMany(curatedRows.map((r) => r.anime_id));
     for (let i = 0; i < curatedRows.length; i++) {
