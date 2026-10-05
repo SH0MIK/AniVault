@@ -480,6 +480,17 @@ export class MalAPI {
       }
     }
 
+    // Durable copy in D1 (scraper_art_cache): survives KV expiry, so a title
+    // that was already resolved once never needs a live scraper hit again
+    // (until the row ages out). Re-primes KV so the next read is a KV hit.
+    const stored = await this.getStoredArt(malId);
+    if (stored) {
+      if (this.kv && this.cacheEnabled()) {
+        await this.safeKvPut(cacheKey, JSON.stringify(stored), { expirationTtl: 604800 });
+      }
+      return stored;
+    }
+
     if (!liveFetch) return empty;
 
     const fromScraper = await this.scraperGet(`/api/anime?malId=${malId}`, 10000);
@@ -490,7 +501,38 @@ export class MalAPI {
     if (this.kv && this.cacheEnabled()) {
       await this.safeKvPut(cacheKey, JSON.stringify(art), { expirationTtl: hasAnyArt ? 604800 : 300 });
     }
+    // Only real results are stored in D1 -- an empty result is a transient
+    // scraper failure (or a title with no art) and must stay retryable.
+    if (hasAnyArt) await this.storeArt(malId, art);
     return art;
+  }
+
+  // ── Durable D1 copy of scraper art (migrations/0007_scraper_art_cache.sql) ─
+  // TMDB art rarely changes, so rows are trusted for 90 days and then re-fetched.
+  // Every D1 call is wrapped: if the table doesn't exist yet (migration not
+  // run) this silently behaves exactly like before instead of breaking pages.
+  private static readonly ART_D1_MAX_AGE_SEC = 90 * 86400;
+
+  private async getStoredArt(malId: number): Promise<{ poster: string; cover: string; logo: string } | null> {
+    try {
+      const row = await this.db.fetchOne<{ poster: string; cover: string; logo: string }>(
+        'SELECT poster, cover, logo FROM scraper_art_cache WHERE mal_id = ? AND updated_at > ?',
+        [malId, Math.floor(Date.now() / 1000) - MalAPI.ART_D1_MAX_AGE_SEC],
+      );
+      if (row && (row.poster || row.cover || row.logo)) {
+        return { poster: row.poster || '', cover: row.cover || '', logo: row.logo || '' };
+      }
+    } catch { /* table missing / D1 hiccup -- fall through to live fetch */ }
+    return null;
+  }
+
+  private async storeArt(malId: number, art: { poster: string; cover: string; logo: string }): Promise<void> {
+    try {
+      await this.db.query(`INSERT INTO scraper_art_cache (mal_id, poster, cover, logo, updated_at) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(mal_id) DO UPDATE SET poster = excluded.poster, cover = excluded.cover, logo = excluded.logo, updated_at = excluded.updated_at`,
+        [malId, art.poster, art.cover, art.logo, Math.floor(Date.now() / 1000)],
+      );
+    } catch { /* non-fatal -- KV still has it */ }
   }
 
   // Deletes the cached scraper art for a title, so the next page load
@@ -501,6 +543,7 @@ export class MalAPI {
   // from before the cache was unified, so a re-run of this action fully
   // resets a title even if it was last touched by the old code path.
   async clearScraperArtCache(malId: number): Promise<void> {
+    if (malId) await this.db.query('DELETE FROM scraper_art_cache WHERE mal_id = ?', [malId]).catch(() => {});
     if (!malId || !this.kv) return;
     await Promise.all([
       this.kv.delete(`scraper_art_${malId}`).catch(() => {}),
@@ -521,6 +564,7 @@ export class MalAPI {
   // resume from; the admin page renders a "Continue" button when more
   // remain instead of trying to do it all in one click.
   async resetAllScraperArtCache(limit = 40, cursor?: string): Promise<{ deleted: number; done: boolean; cursor?: string }> {
+    if (!cursor) await this.db.query('DELETE FROM scraper_art_cache').catch(() => {});
     if (!this.kv) return { deleted: 0, done: true };
     const listed = await this.kv.list({ prefix: 'scraper_art_', limit, cursor });
     const keys: string[] = (listed.keys ?? []).map((k: any) => k.name);
