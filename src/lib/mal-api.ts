@@ -579,6 +579,26 @@ export class MalAPI {
     return art;
   }
 
+  // Card-only art resolver: always use the current scraper result and never
+  // let admin-saved artwork win the display decision. Saved artwork is not
+  // modified or deleted; it remains available for explicitly curated/legacy
+  // contexts and as data in the admin libraries.
+  async prefetchScraperArtForCards(animeIds: number[]): Promise<void> {
+    const ids = [...new Set(animeIds.filter(Boolean))];
+    if (!ids.length) return;
+
+    const resolved = await Promise.all(
+      ids.map(async (id) => ({
+        id,
+        art: await this.getScraperArtForCards(id).catch(() => ({ poster: '', cover: '', logo: '' })),
+      }))
+    );
+
+    for (const { id, art } of resolved) {
+      this.artCache.set(id, art);
+    }
+  }
+
   // ── Durable D1 copy of scraper art (migrations/0007_scraper_art_cache.sql) ─
   // TMDB art rarely changes, so rows are trusted for 90 days and then re-fetched.
   // Every D1 call is wrapped: if the table doesn't exist yet (migration not
