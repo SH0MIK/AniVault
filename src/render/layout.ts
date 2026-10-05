@@ -143,6 +143,10 @@ ${og.type === 'video.episode' ? `
 <title>${h(o.pageTitle ?? o.siteName)} — AniVault</title>
 <meta name="description" content="${h(og?.description ?? o.pageDescription ?? 'Watch all anime subbed & dubbed Ad-free on Anivault!')}">
 <meta name="application-name" content="AniVault">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Exo+2:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700;800;900&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Exo+2:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700;800;900&display=swap"></noscript>
 <link rel="stylesheet" href="${o.siteUrl}/assets/css/style.css">
 <link rel="stylesheet" href="${o.siteUrl}/assets/css/anivexa-theme.css?v=2">
 <link rel="icon" type="image/svg+xml" href="${o.siteUrl}/assets/img/site-img/favicon.svg">
