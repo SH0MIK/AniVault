@@ -33,6 +33,39 @@ adminHomepageCacheRoutes.on(['GET', 'POST'], '/admin/home-cache.php', async (c) 
         );
         await Logger.log(db, userId, 'homepage_cache_settings', 'Homepage cache auto-refresh set to ' + value + ' minutes');
         message = 'Auto-refresh interval saved.';
+      } else if (action === 'clear_art_cache') {
+        // Wipe the homepage snapshot AND the durable scraper-art cache so the
+        // next refresh actually re-fetches current TMDB URLs instead of
+        // immediately restoring the old w500 poster values.
+        const homepageRows = await db.count('SELECT COUNT(*) as cnt FROM homepage_cache');
+        await db.query('DELETE FROM homepage_cache');
+
+        let artRows = 0;
+        try {
+          artRows = await db.count('SELECT COUNT(*) as cnt FROM scraper_art_cache');
+          await db.query('DELETE FROM scraper_art_cache');
+        } catch {
+          // Keep the admin action usable on installs predating migration 0007.
+        }
+
+        let kvDeleted = 0;
+        if (c.env.API_CACHE) {
+          let cursor: string | undefined;
+          do {
+            const res = await c.env.API_CACHE.list({ prefix: 'scraper_art_', cursor, limit: 1000 });
+            await Promise.all(res.keys.map((k) => c.env.API_CACHE.delete(k.name)));
+            kvDeleted += res.keys.length;
+            cursor = res.list_complete ? undefined : res.cursor;
+          } while (cursor);
+        }
+
+        await Logger.log(
+          db,
+          userId,
+          'homepage_art_cache_clear',
+          `Cleared homepage cache: ${homepageRows} snapshot rows, ${artRows} D1 art rows, ${kvDeleted} KV scraper-art entries`
+        );
+        message = `Homepage art cache cleared. Deleted ${homepageRows} homepage rows, ${artRows} D1 art rows and ${kvDeleted} KV art entries. You can refresh now.`;
       } else if (action === 'refresh_now') {
         const mal = new MalAPI(c.env, c.env.API_CACHE, db);
         const snapshot = await refreshHomepageSnapshot(db, mal);
@@ -72,10 +105,16 @@ ${error ? '<div class="alert alert-error mb-2">' + h(error) + '</div>' : ''}
       <tr><td>Most Popular</td><td>${snapshot?.popular.length ?? 0} cards</td></tr>
       <tr><td>Coming Soon</td><td>${snapshot?.upcoming.length ?? 0} cards</td></tr>
     </tbody></table></div>
-    <form method="POST" style="margin-top:1rem;">
-      <input type="hidden" name="action" value="refresh_now">
-      <button class="btn btn-primary" type="submit">🔄 Refresh Homepage Data Now</button>
-    </form>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:1rem;">
+      <form method="POST" onsubmit="return confirm('Delete ALL homepage art cache data? This removes the homepage snapshot plus stored scraper artwork so the next refresh fetches fresh TMDB URLs.');">
+        <input type="hidden" name="action" value="clear_art_cache">
+        <button class="btn btn-danger" type="submit">🗑️ Delete All Homepage Art Cache</button>
+      </form>
+      <form method="POST">
+        <input type="hidden" name="action" value="refresh_now">
+        <button class="btn btn-primary" type="submit">🔄 Refresh Homepage Data Now</button>
+      </form>
+    </div>
   </div>
 
   <div class="card card-body">
