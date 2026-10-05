@@ -555,6 +555,30 @@ export class MalAPI {
     return art;
   }
 
+  // Homepage/list cards intentionally need fresh scraper art even when the
+  // durable scraper_art_cache still contains artwork from the old saved-art
+  // priority path. Bypass those caches, ask the active scraper directly, and
+  // refresh the shared scraper-art cache with the live result. This does NOT
+  // touch anime_images/anime_banners/anime_logos, so self-uploaded artwork is
+  // left completely untouched for detail/hero contexts.
+  async getScraperArtForCards(malId: number): Promise<{ poster: string; cover: string; logo: string }> {
+    const empty = { poster: '', cover: '', logo: '' };
+    if (!malId) return empty;
+
+    const fromScraper = await this.scraperGet(`/api/anime?malId=${malId}`, 10000);
+    const d = fromScraper?.data;
+    const art = { poster: d?.poster || '', cover: d?.cover || '', logo: d?.logo || '' };
+    const hasAnyArt = !!(art.poster || art.cover || art.logo);
+
+    if (hasAnyArt) {
+      await this.storeArt(malId, art);
+      if (this.kv && this.cacheEnabled()) {
+        await this.safeKvPut(`scraper_art_${malId}`, JSON.stringify(art), { expirationTtl: 604800 });
+      }
+    }
+    return art;
+  }
+
   // ── Durable D1 copy of scraper art (migrations/0007_scraper_art_cache.sql) ─
   // TMDB art rarely changes, so rows are trusted for 90 days and then re-fetched.
   // Every D1 call is wrapped: if the table doesn't exist yet (migration not
