@@ -5,12 +5,13 @@ import { EpisodeAir } from './lib/episode-air';
 import { DubStatus } from './lib/dub-status';
 import { Settings } from './lib/settings';
 import { SCANNER_LAST_RUN_KV_KEY } from './routes/admin/episode-scanner';
+import { refreshHomepageSnapshotIfDue, getHomepageRefreshMinutes } from './lib/home-cache';
 
 const DUB_REFRESH_KV_KEY = 'dub_status_last_refresh';
 const DUB_REFRESH_INTERVAL_MS = 20 * 60 * 60 * 1000; // ~daily, with slack
 
 const ANILIST_SEASON_REFRESH_KV_KEY = 'anilist_season_last_refresh';
-const ANILIST_SEASON_REFRESH_INTERVAL_MS = 55 * 60 * 1000; // just under the season cache's own 2h KV TTL, with slack for a missed tick
+const ANILIST_SEASON_REFRESH_INTERVAL_MS = 6 * 60 * 60 * 1000; // default 6h; homepage data has its own admin-configurable D1 cache
 
 const ART_CACHE_WARM_INTERVAL_MS = 12 * 60 * 1000; // just under the new 15-min cron, with slack for a missed tick
 const ART_CACHE_WARM_BATCH = 20; // stays well inside a single invocation's subrequest budget alongside everything else in this file
@@ -106,6 +107,16 @@ export async function handleScheduled(env: Env, cron?: string): Promise<void> {
     } catch (err: any) {
       console.warn('[scheduled] failed to write dub refresh timestamp (continuing):', String(err?.message ?? err));
     }
+  }
+
+  // Homepage D1 snapshot refresh. The interval is admin-configurable (1 hour to 30 days)
+  // and the scheduled tick only performs the expensive API work when the snapshot is due.
+  try {
+    const homeRefreshMinutes = await getHomepageRefreshMinutes(db);
+    const homeSnapshot = await refreshHomepageSnapshotIfDue(db, mal);
+    if (homeSnapshot) console.log(`[scheduled] homepage cache checked (interval=${homeRefreshMinutes}m, updated=${homeSnapshot.updatedAt})`);
+  } catch (err: any) {
+    console.warn('[scheduled] homepage cache refresh failed (continuing):', String(err?.message ?? err));
   }
 
   const lastSeasonRefreshRaw = await env.API_CACHE.get(ANILIST_SEASON_REFRESH_KV_KEY);
