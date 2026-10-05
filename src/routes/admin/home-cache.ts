@@ -34,38 +34,19 @@ adminHomepageCacheRoutes.on(['GET', 'POST'], '/admin/home-cache.php', async (c) 
         await Logger.log(db, userId, 'homepage_cache_settings', 'Homepage cache auto-refresh set to ' + value + ' minutes');
         message = 'Auto-refresh interval saved.';
       } else if (action === 'clear_art_cache') {
-        // Wipe the homepage snapshot AND the durable scraper-art cache so the
-        // next refresh actually re-fetches current TMDB URLs instead of
-        // immediately restoring the old w500 poster values.
+        // Only wipe the homepage snapshot. scraper_art_cache contains the
+        // full TMDB poster/cover/logo data used by anime detail pages and must
+        // never be deleted as part of a homepage-card refresh.
         const homepageRows = await db.count('SELECT COUNT(*) as cnt FROM homepage_cache');
         await db.query('DELETE FROM homepage_cache');
-
-        let artRows = 0;
-        try {
-          artRows = await db.count('SELECT COUNT(*) as cnt FROM scraper_art_cache');
-          await db.query('DELETE FROM scraper_art_cache');
-        } catch {
-          // Keep the admin action usable on installs predating migration 0007.
-        }
-
-        let kvDeleted = 0;
-        if (c.env.API_CACHE) {
-          let cursor: string | undefined;
-          do {
-            const res = await c.env.API_CACHE.list({ prefix: 'scraper_art_', cursor, limit: 1000 });
-            await Promise.all(res.keys.map((k) => c.env.API_CACHE.delete(k.name)));
-            kvDeleted += res.keys.length;
-            cursor = res.list_complete ? undefined : res.cursor;
-          } while (cursor);
-        }
 
         await Logger.log(
           db,
           userId,
           'homepage_art_cache_clear',
-          `Cleared homepage cache: ${homepageRows} snapshot rows, ${artRows} D1 art rows, ${kvDeleted} KV scraper-art entries`
+          `Cleared homepage cache only: ${homepageRows} snapshot rows; durable scraper artwork was preserved`
         );
-        message = `Homepage art cache cleared. Deleted ${homepageRows} homepage rows, ${artRows} D1 art rows and ${kvDeleted} KV art entries. You can refresh now.`;
+        message = `Homepage cache cleared. Deleted ${homepageRows} homepage rows; full-page TMDB artwork was preserved. You can refresh now.`;
       } else if (action === 'refresh_now') {
         const mal = new MalAPI(c.env, c.env.API_CACHE, db);
         const snapshot = await refreshHomepageSnapshot(db, mal);
