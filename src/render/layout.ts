@@ -148,6 +148,17 @@ ${og.type === 'video.episode' ? `
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Exo+2:wght@300;400;500;600&display=swap" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800&family=Exo+2:wght@300;400;500;600&family=Outfit:wght@300;400;500;600;700;800;900&display=swap"></noscript>
 <link rel="stylesheet" href="${o.siteUrl}/assets/css/style.css">
+${(() => {
+  const pageCss: Record<string, string> = {
+    anime: 'anime',
+    mylist: 'mylist',
+    profile: 'profile',
+    importexport: 'importexport',
+    browse: 'browse',
+  };
+  const cssName = pageCss[o.currentPage];
+  return cssName ? `<link rel="stylesheet" href="${o.siteUrl}/assets/css/${cssName}.css">` : '';
+})()}
 <link rel="stylesheet" href="${o.siteUrl}/assets/css/anivexa-theme.css?v=2">
 <link rel="icon" type="image/svg+xml" href="${o.siteUrl}/assets/img/site-img/favicon.svg">
 <link rel="canonical" href="${h(og?.url ?? o.requestUrl)}">
