@@ -109,16 +109,6 @@ export async function handleScheduled(env: Env, cron?: string): Promise<void> {
     }
   }
 
-  // Homepage D1 snapshot refresh. The interval is admin-configurable (1 hour to 30 days)
-  // and the scheduled tick only performs the expensive API work when the snapshot is due.
-  try {
-    const homeRefreshMinutes = await getHomepageRefreshMinutes(db);
-    const homeSnapshot = await refreshHomepageSnapshotIfDue(db, mal);
-    if (homeSnapshot) console.log(`[scheduled] homepage cache checked (interval=${homeRefreshMinutes}m, updated=${homeSnapshot.updatedAt})`);
-  } catch (err: any) {
-    console.warn('[scheduled] homepage cache refresh failed (continuing):', String(err?.message ?? err));
-  }
-
   const lastSeasonRefreshRaw = await env.API_CACHE.get(ANILIST_SEASON_REFRESH_KV_KEY);
   const lastSeasonRefresh = lastSeasonRefreshRaw ? parseInt(lastSeasonRefreshRaw, 10) : 0;
   const seasonRefreshDue = !lastSeasonRefresh || (Date.now() - lastSeasonRefresh) > ANILIST_SEASON_REFRESH_INTERVAL_MS;
@@ -133,6 +123,16 @@ export async function handleScheduled(env: Env, cron?: string): Promise<void> {
         console.warn('[scheduled] failed to write anilist season refresh timestamp (continuing):', String(err?.message ?? err));
       }
     }
+  }
+
+  // Homepage D1 snapshot refresh. The interval is admin-configurable (1 hour to 30 days)
+  // and the scheduled tick only performs the expensive API work when the snapshot is due.
+  try {
+    const homeRefreshMinutes = await getHomepageRefreshMinutes(db);
+    const homeSnapshot = await refreshHomepageSnapshotIfDue(db, mal);
+    if (homeSnapshot) console.log(`[scheduled] homepage cache checked (interval=${homeRefreshMinutes}m, updated=${homeSnapshot.updatedAt})`);
+  } catch (err: any) {
+    console.warn('[scheduled] homepage cache refresh failed (continuing):', String(err?.message ?? err));
   }
 
   const refreshed = await EpisodeAir.refreshStale(db, env, mal, 20);
