@@ -10,6 +10,7 @@
     "db:sessions": "wrangler d1 execute anivault --file=./d1_sessions.sql",
     "db:push-tokens": "wrangler d1 execute anivault --file=./migrations/0001_push_tokens.sql",
     "db:bug-reports": "wrangler d1 execute anivault --file=./migrations/0003_bug_reports.sql",
+    "db:art-cache": "wrangler d1 execute anivault --remote --file=./migrations/0007_scraper_art_cache.sql",
     "discord:pc": "node tools/discord-rpc-bridge.mjs"
   },
   "dependencies": {
