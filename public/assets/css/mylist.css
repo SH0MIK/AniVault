@@ -1,0 +1,5 @@
+/* Extracted from style.css lines 2111-2114. */
+@media (max-width: 640px) {
+  .mylist-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .mylist-table { min-width: 500px; }
+}
