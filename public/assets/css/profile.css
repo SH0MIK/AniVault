@@ -1,0 +1,5 @@
+/* Extracted from style.css lines 2116-2119. */
+/* Profile page */
+@media (max-width: 640px) {
+  .profile-header { flex-direction: column; align-items: center; text-align: center; }
+  .profile-stats { justify-content: center; }
