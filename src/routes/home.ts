@@ -207,6 +207,19 @@ homeRoutes.get('/', async (c) => {
     heroLogos = heroPool.map((a) => logoMap.get(a.mal_id) || '');
     heroCovers = heroPool.map((a) => imageMap.get(a.mal_id) || '');
   }
+  // Preload slide 0's LCP image so it starts downloading during <head> parsing
+  // instead of after the CSS blocks render. Phone gets the cover, laptop the banner.
+  if (heroPool.length > 0) {
+    const p0 = heroPool[0];
+    const poster0 = p0.images?.jpg?.large_image_url || p0.images?.jpg?.image_url || '';
+    const bg0 = heroBanners[0] || p0.banner_image || poster0;
+    const cover0 = heroCovers[0] || poster0;
+    const pre = [
+      cover0 ? `<link rel="preload" as="image" href="${h(cover0)}" media="(max-width: 768px)" fetchpriority="high">` : '',
+      bg0 ? `<link rel="preload" as="image" href="${h(bg0)}" media="(min-width: 769px)" fetchpriority="high">` : '',
+    ].join('\n');
+    html = html.replace('</head>', pre + '\n</head>');
+  }
   html += `
 <section id="hero">
   <div id="hero-slides">
@@ -382,6 +395,11 @@ function sectionHeader(title: string, rowId: string, viewAllHref?: string, viewA
 // place of the plain text title (Anivexa's desktop still uses plain text —
 // this matches that split exactly). Falls back to plain text if TMDB has
 // no logo for this title.
+// Slides 2+ are stacked on top of slide 1 (opacity:0), so the browser treats
+// them as in-viewport and loading="lazy" never defers them. Park their URLs in
+// data-* attributes instead; the slider script swaps them in before they show.
+const LAZY_PX = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+
 function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?: string, mobileCover?: string, logo?: string, meta?: AnimeCardMeta): string {
   const title = a.title_english && a.title_english !== a.title ? a.title_english : (a.title || 'Unknown');
   const poster = a.images?.jpg?.large_image_url || a.images?.jpg?.image_url || '';
@@ -403,8 +421,8 @@ function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?
 <div class="hero-slide ${i === 0 ? 'active' : ''}" data-idx="${i}">
   <div class="hero-bg${banner ? '' : ' hero-bg-fallback'}">
     <picture>
-      ${cover ? `<source media="(max-width: 768px)" srcset="${h(cover)}">` : ''}
-      ${bg ? `<img src="${h(bg)}" alt="${h(title)}" loading="${i === 0 ? 'eager' : 'lazy'}">` : ''}
+      ${cover ? `<source media="(max-width: 768px)" ${i === 0 ? 'srcset' : 'data-srcset'}="${h(cover)}">` : ''}
+      ${bg ? `${i === 0 ? `<img src="${h(bg)}" alt="${h(title)}" loading="eager" fetchpriority="high" decoding="async">` : `<img src="${LAZY_PX}" data-src="${h(bg)}" alt="${h(title)}" decoding="async">`}` : ''}
     </picture>
   </div>
   <div class="hero-gradient"></div>
@@ -412,7 +430,7 @@ function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?
     <div class="container">
       <div class="hero-info${logo ? ' has-logo' : ''}">
         <h1 class="hero-title">${h(title)}</h1>
-        ${logo ? `<img class="hero-logo" src="${h(logo)}" alt="${h(title)}" loading="${i === 0 ? 'eager' : 'lazy'}">` : ''}
+        ${logo ? `${i === 0 ? `<img class="hero-logo" src="${h(logo)}" alt="${h(title)}" loading="eager" decoding="async">` : `<img class="hero-logo" src="${LAZY_PX}" data-src="${h(logo)}" alt="${h(title)}" decoding="async">`}` : ''}
         ${desc ? `<p class="hero-desc">${h(desc)}</p>` : ''}
         ${genres.length ? `<div class="hero-genres">${genres.map((g) => `<span class="hero-genre-tag">${h(g.name)}</span>`).join('')}</div>` : ''}
         <div class="hero-stat-strip">
