@@ -76,10 +76,10 @@ homeRoutes.get('/', async (c) => {
     const rows = await db.fetchAll<{ anime_id: number }>(
       'SELECT DISTINCT anime_id FROM episode_videos WHERE is_active = 1 ORDER BY updated_at DESC LIMIT 12'
     );
-    // Warm all card art in one batched D1 pass before resolving the 12 anime.
-    // Calling getAnime() independently would otherwise repeat the poster,
-    // banner, logo, and scraper-art cache lookups for every row.
-    await mal.prefetchAnimeArt(rows.map((r) => r.anime_id), false);
+    // Watch Now is a homepage card row too: use the current scraper/TMDB
+    // artwork rather than the global saved-art priority. This does not touch
+    // any admin-uploaded artwork rows.
+    await mal.prefetchScraperArtForCards(rows.map((r) => r.anime_id));
     const results = await Promise.all(rows.map((r) => mal.getAnime(r.anime_id, true)));
     watchNowList = results.map((r) => r.data).filter(Boolean);
   } catch {
