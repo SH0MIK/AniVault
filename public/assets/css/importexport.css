@@ -1,0 +1,5 @@
+/* Extracted from style.css lines 2122-2125. */
+/* Import/Export page */
+@media (max-width: 640px) {
+  .import-grid { grid-template-columns: 1fr !important; }
+}
