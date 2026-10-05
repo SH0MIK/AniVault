@@ -1,0 +1,303 @@
+/* Extracted from style.css lines 1916-1928. */
+/* ── Anime detail page ─────────────────────────────────── */
+.anime-detail-header {
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+.anime-detail-meta-grid {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  gap: 6px 12px;
+  font-size: 0.88rem;
+  margin-bottom: 1.25rem;
+}
+
+
+/* Extracted from style.css lines 2101-2108. */
+/* ── Page-specific responsive fixes ─────────── */
+
+/* Anime detail page header */
+@media (max-width: 600px) {
+  .anime-detail-header { flex-direction: column !important; }
+  .anime-detail-header img { width: 100% !important; max-width: 240px; margin: 0 auto; }
+  .anime-detail-meta-grid { grid-template-columns: 110px 1fr !important; font-size: 0.82rem !important; }
+}
+
+/* Extracted from style.css lines 2139-2416. */
+/* ── Episode Grid ──────────────────────────────────────── */
+.ep-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+}
+.ep-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 0.2s, transform 0.2s;
+}
+.ep-card:hover {
+  border-color: var(--border-accent);
+  transform: translateY(-2px);
+}
+.ep-thumb {
+  position: relative;
+  aspect-ratio: 16/9;
+  background: var(--bg-base);
+  overflow: hidden;
+}
+.ep-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.3s;
+}
+.ep-card:hover .ep-thumb img { transform: scale(1.04); }
+.ep-thumb-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  color: rgba(255,255,255,0.7);
+  font-weight: 700;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+}
+.ep-badge {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ep-badge-filler { background: rgba(124,58,237,0.85); color: #fff; }
+.ep-badge-recap  { background: rgba(90,98,120,0.85); color: #fff; }
+.ep-info {
+  padding: 0.6rem 0.75rem 0.75rem;
+}
+.ep-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.ep-meta {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  margin-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ── Episode range picker (long-running shows) ────────── */
+.ep-range-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: .55rem 1rem;
+  color: var(--text-primary);
+  font-size: .88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .15s;
+}
+.ep-range-btn:hover { border-color: var(--border-accent); }
+.ep-range-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: .85rem 1.5rem;
+  color: var(--text-primary);
+  font-size: .92rem;
+  text-align: left;
+  cursor: pointer;
+  transition: background .12s;
+}
+.ep-range-row:last-child { border-bottom: none; }
+.ep-range-row:hover { background: var(--bg-hover); }
+.ep-range-radio {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2px solid var(--border-accent);
+  flex-shrink: 0;
+  position: relative;
+}
+.ep-range-row.active { color: var(--accent); }
+.ep-range-row.active .ep-range-radio { border-color: var(--accent); }
+.ep-range-row.active .ep-range-radio::after {
+  content: '';
+  position: absolute;
+  inset: 3px;
+  border-radius: 50%;
+  background: var(--accent);
+}
+
+/* Episode modal thumb */
+#ep-modal-thumb-wrap { display: block; }
+#ep-modal-thumb[src=""] { display: none; }
+
+/* ── Episode card skeleton (shimmer loading state) ────────
+   Mirrors .ep-card / .ep-thumb / .ep-info exactly so there's no layout
+   jump when the real cards swap in. Shimmer keyframe (epsSkelShimmer)
+   is defined globally alongside .eps-skel. */
+.ep-card-skel {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.ep-skel-thumb {
+  aspect-ratio: 16/9;
+  background: rgba(255,255,255,.06);
+  position: relative;
+  overflow: hidden;
+}
+.ep-skel-info {
+  padding: 0.6rem 0.75rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: .5rem;
+}
+.ep-skel-line {
+  position: relative;
+  overflow: hidden;
+  height: 10px;
+  border-radius: 4px;
+  background: rgba(255,255,255,.06);
+}
+.ep-skel-line.short { width: 55%; height: 8px; }
+.ep-skel-thumb::after,
+.ep-skel-line::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(124,58,237,.16), transparent);
+  animation: epsSkelShimmer 1.5s ease-in-out infinite;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .ep-grid { grid-template-columns: 1fr; gap: 0; }
+  .ep-card-skel {
+    display: flex;
+    flex-direction: row;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .ep-skel-thumb { width: 140px; min-width: 140px; aspect-ratio: 16/9; border-radius: 0; }
+  .ep-skel-info { flex: 1; justify-content: center; padding: 0.5rem 0.75rem; }
+  .ep-card {
+    display: flex;
+    flex-direction: row;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    border-top: none;
+    border-bottom: 1px solid var(--border);
+  }
+  .ep-card:hover { transform: none; }
+  .ep-thumb {
+    width: 140px;
+    min-width: 140px;
+    aspect-ratio: 16/9;
+    border-radius: 0;
+  }
+  .ep-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    padding: 0.5rem 0.75rem;
+  }
+  .ep-title { font-size: 0.83rem; -webkit-line-clamp: 3; }
+  .ep-meta  { white-space: normal; }
+  #ep-modal-thumb-wrap { aspect-ratio: 16/9; }
+}
+@media (max-width: 480px) {
+  .ep-thumb { width: 110px; min-width: 110px; }
+  .ep-skel-thumb { width: 110px; min-width: 110px; }
+}
+
+/* ── Episode Modal: Watch On ───────────────────────────── */
+.ep-watch-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 0.5rem;
+}
+.ep-watch-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.ep-watch-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: 1px solid;
+  font-size: 0.82rem;
+  font-weight: 600;
+  text-decoration: none;
+  background: transparent;
+  transition: opacity 0.2s;
+}
+.ep-watch-btn:hover { opacity: 0.75; }
+
+/* ── Episode Modal: Watch Links ────────────────────────── */
+.ep-no-watch {
+  font-size: 0.83rem;
+  color: var(--text-muted);
+  margin: 0;
+  font-style: italic;
+}
+
+/* ── Episode Editor Modal ──────────────────────────────── */
+.ep-editor-label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 5px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.ep-editor-rm-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 4px;
+  padding: 3px 8px;
+  cursor: pointer;
+  font-size: 0.8rem;
+  flex-shrink: 0;
+}
+.ep-editor-rm-btn:hover { border-color: #7c3aed; color: #7c3aed; }
