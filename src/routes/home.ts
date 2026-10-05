@@ -20,6 +20,7 @@ import { continueWatchingScript, heroSliderScript, rowNavScript } from '../rende
 import type { NormalisedAnime } from '../lib/mal-api';
 import { getBannerData } from '../lib/settings';
 import { getAnimeEpisodeThumbnails } from '../lib/episode-thumb';
+import { getHomepageSnapshot } from '../lib/home-cache';
 
 export const homeRoutes = new Hono<{ Bindings: Env }>();
 
@@ -44,14 +45,30 @@ homeRoutes.get('/', async (c) => {
   const mal = new MalAPI(c.env, c.env.API_CACHE, db);
   const siteUrl = c.env.SITE_URL;
 
-  const [seasonal, topAnime, upcoming] = await Promise.all([
-    mal.getAniListSeasonNow(),
-    mal.getTopAnime('bypopularity', 1),
-    mal.getSeasonUpcoming(),
-  ]);
-  const seasonalList = (seasonal.data ?? []).slice(0, 12);
-  const topList = (topAnime.data ?? []).slice(0, 12);
-  const upcomingList = (upcoming.data ?? []).slice(0, 8);
+  // Homepage API sections are served from the D1 snapshot. This keeps
+  // AniList/MAL completely off the normal homepage request path once the
+  // cache has been populated. If the cache is genuinely empty (first deploy
+  // before the scheduled job/admin refresh), keep the old live fallback so
+  // the homepage still renders instead of showing empty rows.
+  const homepageSnapshot = await getHomepageSnapshot(db);
+  let seasonalList: NormalisedAnime[];
+  let topList: NormalisedAnime[];
+  let upcomingList: NormalisedAnime[];
+
+  if (homepageSnapshot) {
+    seasonalList = homepageSnapshot.trending.slice(0, 12);
+    topList = homepageSnapshot.popular.slice(0, 12);
+    upcomingList = homepageSnapshot.upcoming.slice(0, 8);
+  } else {
+    const [seasonal, topAnime, upcoming] = await Promise.all([
+      mal.getAniListSeasonNow(),
+      mal.getTopAnime('bypopularity', 1),
+      mal.getSeasonUpcoming(),
+    ]);
+    seasonalList = (seasonal.data ?? []).slice(0, 12);
+    topList = (topAnime.data ?? []).slice(0, 12);
+    upcomingList = (upcoming.data ?? []).slice(0, 8);
+  }
 
   // Watch Now — anime that have episodes available in episode_videos
   let watchNowList: any[] = [];
