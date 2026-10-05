@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS scraper_art_cache (
+  mal_id INTEGER PRIMARY KEY,
+  poster TEXT NOT NULL DEFAULT '',
+  cover TEXT NOT NULL DEFAULT '',
+  logo TEXT NOT NULL DEFAULT '',
+  updated_at INTEGER NOT NULL
+);
