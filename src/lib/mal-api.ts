@@ -888,10 +888,26 @@ export class MalAPI {
   // home page's Watch Now row, which calls this once per item) -- keeps
   // art resolution cache-only for those calls instead of allowing a live
   // scraper fetch per row on top of the MAL detail fetch itself.
-  async getAnime(id: number, isList = false): Promise<{ data: NormalisedAnime | null }> {
+  async getAnime(id: number, isList = false, preferFreshScraperArt = false): Promise<{ data: NormalisedAnime | null }> {
     const raw = await this.get(`/anime/${id}`, { fields: DETAIL_FIELDS });
     if (raw.error) return { data: null };
-    return { data: await this.normalise(raw, isList) };
+
+    const anime = await this.normalise(raw, isList);
+
+    // Detail pages explicitly use the current scraper result for automatic
+    // poster/cover/logo art. This bypasses stale scraper_art D1/KV entries
+    // and the global saved-art priority setting, while leaving all
+    // admin-uploaded anime_images/anime_banners/anime_logos rows untouched.
+    if (preferFreshScraperArt && id) {
+      const fresh = await this.getScraperArtForCards(id);
+      if (fresh.poster) {
+        anime.images = { jpg: { image_url: fresh.poster, large_image_url: fresh.poster } };
+      }
+      if (fresh.cover) anime.cover_image = fresh.cover;
+      if (fresh.logo) anime.logo_image = fresh.logo;
+    }
+
+    return { data: anime };
   }
 
   // Replaces getCharacter + getCharacterAnime + getCharacterVoices (3
