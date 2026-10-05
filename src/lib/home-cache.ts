@@ -86,7 +86,11 @@ export async function refreshHomepageSnapshot(db: Db, mal: MalAPI): Promise<Home
     for (const anime of list) {
       const art = artById.get(anime.mal_id);
       if (!art) continue;
-      if (art.poster) anime.images = { jpg: { image_url: art.poster, large_image_url: art.poster } };
+      // Homepage rows are compact cards. Keep the durable snapshot itself
+      // on TMDB's small poster size so a refresh never repopulates the D1
+      // homepage cache with a w500 image that is only displayed ~80px wide.
+      const poster = toHomepagePoster(art.poster);
+      if (poster) anime.images = { jpg: { image_url: poster, large_image_url: poster } };
       if (art.cover) anime.cover_image = art.cover;
       if (art.logo) anime.logo_image = art.logo;
     }
@@ -102,6 +106,13 @@ export async function refreshHomepageSnapshot(db: Db, mal: MalAPI): Promise<Home
   await db.batch(statements);
 
   return { ...lists, updatedAt };
+}
+
+function toHomepagePoster(url: string): string {
+  if (!url) return '';
+  // Only resize TMDB URLs. Custom/self-hosted artwork must remain untouched.
+  return url.replace('https://image.tmdb.org/t/p/w500/', 'https://image.tmdb.org/t/p/w185/')
+    .replace('https://image.tmdb.org/t/p/w342/', 'https://image.tmdb.org/t/p/w185/');
 }
 
 export async function refreshHomepageSnapshotIfDue(db: Db, mal: MalAPI): Promise<HomepageSnapshot | null> {
