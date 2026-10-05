@@ -243,7 +243,10 @@ homeRoutes.get('/', async (c) => {
       cover0 ? `<link rel="preload" as="image" href="${h(cover0)}" media="(max-width: 768px)" fetchpriority="high">` : '',
       bg0 ? `<link rel="preload" as="image" href="${h(bg0)}" media="(min-width: 769px)" fetchpriority="high">` : '',
     ].join('\n');
-    html = html.replace('</head>', pre + '\n</head>');
+    // Keep the LCP preload at the very start of <head>, before the render-blocking
+    // stylesheets. If it sits after those stylesheets, the browser can delay
+    // discovering the hero image until CSS has finished loading.
+    html = html.replace('<head>', '<head>\\n' + pre);
   }
   html += `
 <section id="hero">
