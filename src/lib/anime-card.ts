@@ -33,8 +33,12 @@ export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus:
   const aid = a.mal_id ?? 0;
   const atitle = a.title_english && a.title_english !== a.title ? a.title_english : (a.title || 'Unknown');
   const aimg = a.images?.jpg?.image_url ?? '';
-
-  const aimg = a.images?.jpg?.image_url ?? '';
+  // Cards display at ~224x336 CSS px, so TMDB's w500 is oversized. Serve w342
+  // by default and let retina screens step up to w500 via srcset.
+  const tmdb = aimg.match(/^(https:\/\/image\.tmdb\.org\/t\/p\/)w\d+(\/.+)$/);
+  const cardSrc = tmdb ? `${tmdb[1]}w342${tmdb[2]}` : aimg;
+  const cardSrcSet = tmdb ? `${tmdb[1]}w342${tmdb[2]} 342w, ${tmdb[1]}w500${tmdb[2]} 500w` : '';
+  const cardSizes = '(max-width: 768px) 38vw, 224px';
   const ascore = a.score;
   const atype = a.type ?? '';
   const aeps = a.episodes ?? 0;
