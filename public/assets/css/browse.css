@@ -1,0 +1,6 @@
+/* Extracted from style.css lines 2127-2131. */
+/* Browse / filter bar */
+@media (max-width: 640px) {
+  .filter-bar { flex-direction: column; gap: 0.5rem; }
+  .filter-bar select, .filter-bar input { width: 100%; }
+}
