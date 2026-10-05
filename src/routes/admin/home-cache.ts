@@ -60,8 +60,8 @@ adminHomepageCacheRoutes.on(['GET', 'POST'], '/admin/home-cache.php', async (c) 
   <div><h1>Homepage Data Cache</h1><p class="text-muted" style="font-size:.9rem;">D1-backed snapshots for the homepage's external API sections.</p></div>
 </div>
 
-${message ? \`<div class="alert alert-success mb-2">${h(message)}</div>\` : ''}
-${error ? \`<div class="alert alert-error mb-2">${h(error)}</div>\` : ''}
+${message ? '<div class="alert alert-success mb-2">' + h(message) + '</div>' : ''}
+${error ? '<div class="alert alert-error mb-2">' + h(error) + '</div>' : ''}
 
 <div class="grid-2" style="gap:1.5rem;margin-bottom:1.5rem;">
   <div class="card card-body">
@@ -84,7 +84,7 @@ ${error ? \`<div class="alert alert-error mb-2">${h(error)}</div>\` : ''}
     <form method="POST">
       <input type="hidden" name="action" value="save_interval">
       <select class="form-control" name="refresh_minutes" style="max-width:240px;margin-bottom:12px;">
-        ${Object.entries(labels).map(([value, label]) => \`<option value="${value}" ${Number(value) === refreshMinutes ? 'selected' : ''}>${label}</option>\`).join('')}
+        ${Object.entries(labels).map(([value, label]) => '<option value="' + value + '" ' + (Number(value) === refreshMinutes ? 'selected' : '') + '>' + label + '</option>').join('')}
       </select>
       <button class="btn btn-secondary" type="submit">💾 Save Refresh Interval</button>
     </form>
