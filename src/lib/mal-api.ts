@@ -59,6 +59,111 @@ export interface NormalisedAnime {
   logo_image?: string;
 }
 
+
+const TMDB_ANIMATION_GENRE_ID = 16;
+
+const TMDB_ROMAN_TO_NUM: Record<string, number> = {
+  ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10,
+};
+
+const TMDB_SEASON_PATTERNS: Array<{ re: RegExp; num: (m: RegExpMatchArray) => number }> = [
+  { re: /\\s+season\\s+(\\d{1,2})\\s*$/i, num: (m) => parseInt(m[1], 10) },
+  { re: /\\s+(\\d{1,2})(?:st|nd|rd|th)\\s+season\\s*$/i, num: (m) => parseInt(m[1], 10) },
+  { re: /\\s+part\\s+(\\d{1,2})\\s*$/i, num: (m) => parseInt(m[1], 10) },
+  { re: /\\s+cour\\s+(\\d{1,2})\\s*$/i, num: (m) => parseInt(m[1], 10) },
+];
+
+function extractTmdbSeasonHint(title: string): { base: string; season: number | null } {
+  for (const { re, num } of TMDB_SEASON_PATTERNS) {
+    const m = title.match(re);
+    if (m) return { base: title.slice(0, m.index).trim(), season: num(m) };
+  }
+  const roman = title.match(/\\s+(I{2,3}|IV|VI{0,3}|IX|X)\\s*$/i);
+  if (roman) {
+    const season = TMDB_ROMAN_TO_NUM[roman[1].toLowerCase()];
+    if (season) return { base: title.slice(0, roman.index).trim().replace(/[:\\-–]\\s*$/, ''), season };
+  }
+  const digit = title.match(/\\s+(\\d{1,2})\\s*$/);
+  if (digit) {
+    const n = parseInt(digit[1], 10);
+    if (n >= 2 && n <= 10) return { base: title.slice(0, digit.index).trim().replace(/[:\\-–]\\s*$/, ''), season: n };
+  }
+  return { base: title, season: null };
+}
+
+function tmdbImagePick(arr: any[], textlessFirst = false): any | null {
+  if (!arr?.length) return null;
+  const sorted = [...arr].sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0));
+  if (textlessFirst) return sorted.find((i) => !i.iso_639_1) || sorted.find((i) => i.iso_639_1 === 'en') || sorted[0];
+  return sorted.find((i) => i.iso_639_1 === 'en') || sorted.find((i) => !i.iso_639_1) || sorted[0];
+}
+
+function computeTmdbCandidates(rawTitles: string[]): { titles: string[]; seasonHint: number | null } {
+  let seasonHint: number | null = null;
+  const bases: string[] = [];
+  for (const title of rawTitles.filter(Boolean)) {
+    const { base, season } = extractTmdbSeasonHint(title);
+    if (season !== null && seasonHint === null) seasonHint = season;
+    bases.push(base);
+  }
+  return { titles: [...new Set([...bases, ...rawTitles.filter(Boolean)])], seasonHint };
+}
+
+async function fetchTmdbArtDirect(
+  apiKey: string,
+  rawTitles: string[],
+): Promise<{ poster: string; cover: string; logo: string }> {
+  const empty = { poster: '', cover: '', logo: '' };
+  if (!apiKey || !rawTitles.length) return empty;
+
+  const { titles, seasonHint } = computeTmdbCandidates(rawTitles);
+
+  for (const title of titles) {
+    try {
+      const search = await fetch('https://api.themoviedb.org/3/search/tv?' + new URLSearchParams({
+        api_key: apiKey, query: title, language: 'en-US',
+      }));
+      if (!search.ok) continue;
+      const results: any[] = (await search.json() as any)?.results ?? [];
+      const animated = (r: any) => Array.isArray(r.genre_ids) && r.genre_ids.includes(TMDB_ANIMATION_GENRE_ID);
+      const japanese = (r: any) => r.original_language === 'ja' || (Array.isArray(r.origin_country) && r.origin_country.includes('JP'));
+      const show = results.find((r) => animated(r) && japanese(r)) || results.find((r) => animated(r));
+      if (!show) continue;
+
+      const imgRes = await fetch('https://api.themoviedb.org/3/tv/' + show.id + '/images?' + new URLSearchParams({
+        api_key: apiKey, include_image_language: 'en,ja,null',
+      }));
+      if (!imgRes.ok) continue;
+      const imgs: any = await imgRes.json();
+      const backdrop = tmdbImagePick(imgs?.backdrops ?? [], true);
+      const logo = tmdbImagePick(imgs?.logos ?? [], false);
+
+      let poster: any = null;
+      const posterSeasons = [...new Set([seasonHint, 1].filter((s): s is number => !!s && s > 0))];
+      for (const season of posterSeasons) {
+        const sr = await fetch('https://api.themoviedb.org/3/tv/' + show.id + '/season/' + season + '/images?' + new URLSearchParams({
+          api_key: apiKey, include_image_language: 'en,ja,null',
+        }));
+        if (!sr.ok) continue;
+        const seasonPosters: any[] = (await sr.json() as any)?.posters ?? [];
+        poster = tmdbImagePick(seasonPosters, false);
+        if (poster) break;
+      }
+      if (!poster) poster = tmdbImagePick(imgs?.posters ?? [], false);
+      if (!poster && !backdrop && !logo) continue;
+
+      return {
+        poster: poster?.file_path ? 'https://image.tmdb.org/t/p/w500' + poster.file_path : '',
+        cover: backdrop?.file_path ? 'https://image.tmdb.org/t/p/w1280' + backdrop.file_path : '',
+        logo: logo?.file_path ? 'https://image.tmdb.org/t/p/w500' + logo.file_path : '',
+      };
+    } catch {
+      // Try the next title candidate; art is non-critical.
+    }
+  }
+  return empty;
+}
+
 export class MalAPI {
   // Per-instance art cache -- see getAnimeArt()/prefetchAnimeArt(). A fresh
   // MalAPI is constructed per request, so this never leaks stale art across
@@ -561,25 +666,38 @@ export class MalAPI {
   // refresh the shared scraper-art cache with the live result. This does NOT
   // touch anime_images/anime_banners/anime_logos, so self-uploaded artwork is
   // left completely untouched for detail/hero contexts.
-  async getScraperArtForCards(malId: number): Promise<{ poster: string; cover: string; logo: string }> {
+  async getTmdbArtForCard(anime: NormalisedAnime): Promise<{ poster: string; cover: string; logo: string }> {
     const empty = { poster: '', cover: '', logo: '' };
-    if (!malId) return empty;
+    if (!anime?.mal_id || !this.env.TMDB_API_KEY) return empty;
 
-    const fromScraper = await this.scraperGet(`/api/anime?malId=${malId}`, 10000);
-    const d = fromScraper?.data;
-    const art = { poster: d?.poster || '', cover: d?.cover || '', logo: d?.logo || '' };
-    const hasAnyArt = !!(art.poster || art.cover || art.logo);
+    const cacheKey = `tmdb_home_art_${anime.mal_id}`;
+    if (this.kv && this.cacheEnabled()) {
+      const cached = await this.safeKvGet<typeof empty>(cacheKey, 'json');
+      if (cached && (cached.poster || cached.cover || cached.logo)) return cached;
+    }
 
-    if (hasAnyArt) {
-      await this.storeArt(malId, art);
+    const rawTitles = [...new Set([anime.title_english, anime.title, anime.title_japanese].filter(Boolean))];
+    const art = await fetchTmdbArtDirect(this.env.TMDB_API_KEY, rawTitles);
+    if (art.poster || art.cover || art.logo) {
+      await this.storeArt(anime.mal_id, art);
       if (this.kv && this.cacheEnabled()) {
-        await this.safeKvPut(`scraper_art_${malId}`, JSON.stringify(art), { expirationTtl: 604800 });
+        await this.safeKvPut(cacheKey, JSON.stringify(art), { expirationTtl: 604800 });
       }
     }
     return art;
   }
 
-  // Card-only art resolver: always use the current scraper result and never
+  async prefetchTmdbArtForCards(anime: NormalisedAnime[]): Promise<void> {
+    const items = anime.filter((a) => a?.mal_id);
+    if (!items.length) return;
+    const resolved = await Promise.all(items.map(async (a) => ({
+      id: a.mal_id,
+      art: await this.getTmdbArtForCard(a).catch(() => ({ poster: '', cover: '', logo: '' })),
+    })));
+    for (const { id, art } of resolved) this.artCache.set(id, art);
+  }
+
+  // Card-only art resolver: always use the current TMDB result and never
   // let admin-saved artwork win the display decision. Saved artwork is not
   // modified or deleted; it remains available for explicitly curated/legacy
   // contexts and as data in the admin libraries.
