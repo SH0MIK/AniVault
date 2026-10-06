@@ -331,7 +331,7 @@ export class MalAPI {
     const arts = await Promise.all(
       targets.map(async (anime) => ({
         id: anime.mal_id,
-        art: await this.getScraperArt(anime.mal_id, true).catch(() => ({ poster: '', cover: '', logo: '' })),
+        art: await this.getTmdbArtForCard(anime).catch(() => ({ poster: '', cover: '', logo: '' })),
       }))
     );
 
