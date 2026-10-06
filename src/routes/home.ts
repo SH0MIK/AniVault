@@ -76,6 +76,11 @@ homeRoutes.get('/', async (c) => {
     upcomingList = (upcoming.data ?? []).slice(0, 8);
   }
 
+  // Resolve homepage posters live from TMDB. Anime metadata still comes from
+  // the D1 homepage snapshot; artwork is never persisted in that snapshot.
+  const homepageArtItems = [...seasonalList, ...topList, ...upcomingList];
+  await mal.prefetchTmdbArtForCards(homepageArtItems);
+
   // Watch Now — anime that have episodes available in episode_videos
   let watchNowList: any[] = [];
   try {
