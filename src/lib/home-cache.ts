@@ -76,9 +76,10 @@ export async function refreshHomepageSnapshot(db: Db, mal: MalAPI): Promise<Home
     ...lists.upcoming.map((a) => a.mal_id),
   ].filter(Boolean))];
 
+  const animeById = new Map([...lists.trending, ...lists.popular, ...lists.upcoming].map((a) => [a.mal_id, a]));
   const artEntries = await Promise.all(ids.map(async (id) => ({
     id,
-    art: await mal.getScraperArtForCards(id).catch(() => ({ poster: '', cover: '', logo: '' })),
+    art: await mal.getTmdbArtForCard(animeById.get(id)!).catch(() => ({ poster: '', cover: '', logo: '' })),
   })));
   const artById = new Map(artEntries.map((x) => [x.id, x.art]));
 
