@@ -697,24 +697,17 @@ export class MalAPI {
     for (const { id, art } of resolved) this.artCache.set(id, art);
   }
 
-  // Card-only art resolver: always use the current TMDB result and never
-  // let admin-saved artwork win the display decision. Saved artwork is not
-  // modified or deleted; it remains available for explicitly curated/legacy
-  // contexts and as data in the admin libraries.
+  // Legacy compatibility: callers that still use this method get the same
+  // direct-TMDB card art path. New homepage code uses prefetchTmdbArtForCards().
   async prefetchScraperArtForCards(animeIds: number[]): Promise<void> {
     const ids = [...new Set(animeIds.filter(Boolean))];
     if (!ids.length) return;
-
-    const resolved = await Promise.all(
-      ids.map(async (id) => ({
-        id,
-        art: await this.getScraperArtForCards(id).catch(() => ({ poster: '', cover: '', logo: '' })),
-      }))
-    );
-
-    for (const { id, art } of resolved) {
-      this.artCache.set(id, art);
-    }
+    const resolved = await Promise.all(ids.map(async (id) => {
+      const result = await this.getAnime(id, true);
+      const anime = result.data;
+      return anime ? { id, art: await this.getTmdbArtForCard(anime).catch(() => ({ poster: '', cover: '', logo: '' })) } : { id, art: { poster: '', cover: '', logo: '' } };
+    }));
+    for (const { id, art } of resolved) this.artCache.set(id, art);
   }
 
   // ── Durable D1 copy of scraper art (migrations/0007_scraper_art_cache.sql) ─
@@ -1037,7 +1030,7 @@ export class MalAPI {
     // and the global saved-art priority setting, while leaving all
     // admin-uploaded anime_images/anime_banners/anime_logos rows untouched.
     if (preferFreshScraperArt && id) {
-      const fresh = await this.getScraperArtForCards(id);
+      const fresh = await this.getTmdbArtForCard(anime);
       if (fresh.poster) {
         anime.images = { jpg: { image_url: fresh.poster, large_image_url: fresh.poster } };
       }
