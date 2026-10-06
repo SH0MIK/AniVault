@@ -677,41 +677,24 @@ export class MalAPI {
     const empty = { poster: '', cover: '', logo: '' };
     if (!anime?.mal_id || !this.env.TMDB_API_KEY) return empty;
 
-    const cacheKey = `tmdb_home_art_${anime.mal_id}`;
-    if (this.kv && this.cacheEnabled()) {
-      const cached = await this.safeKvGet<typeof empty>(cacheKey, 'json');
-      if (cached && (cached.poster || cached.cover || cached.logo)) return cached;
-    }
-
     const rawTitles = [...new Set([anime.title_english, anime.title, anime.title_japanese].filter(Boolean))];
-    const art = await fetchTmdbArtDirect(this.env.TMDB_API_KEY, rawTitles);
-    if (art.poster || art.cover || art.logo) {
-      await this.storeArt(anime.mal_id, art);
-      if (this.kv && this.cacheEnabled()) {
-        await this.safeKvPut(cacheKey, JSON.stringify(art), { expirationTtl: 604800 });
-      }
-    }
-    return art;
+    return fetchTmdbArtDirect(this.env.TMDB_API_KEY, rawTitles);
   }
-
   async prefetchTmdbArtForCards(anime: NormalisedAnime[]): Promise<void> {
     const items = anime.filter((a) => a?.mal_id);
     if (!items.length) return;
-    const resolved = await Promise.all(items.map(async (a) => ({
-      id: a.mal_id,
-      art: await this.getTmdbArtForCard(a).catch(() => ({ poster: '', cover: '', logo: '' })),
+    const resolved = await Promise.all(items.map(async (anime) => ({
+      id: anime.mal_id,
+      art: await this.getTmdbArtForCard(anime).catch(() => ({ poster: '', cover: '', logo: '' })),
+      anime,
     })));
-    for (const { id, art } of resolved) {
+    for (const { id, art, anime } of resolved) {
       this.artCache.set(id, art);
-      const anime = items.find((a) => a.mal_id === id);
-      if (anime) {
-        if (art.poster) anime.images = { jpg: { image_url: art.poster, large_image_url: art.poster } };
-        if (art.cover) anime.cover_image = art.cover;
-        if (art.logo) anime.logo_image = art.logo;
-      }
+      if (art.poster) anime.images = { jpg: { image_url: art.poster, large_image_url: art.poster } };
+      if (art.cover) anime.cover_image = art.cover;
+      if (art.logo) anime.logo_image = art.logo;
     }
   }
-
   // Legacy compatibility: callers that still use this method get the same
   // direct-TMDB card art path. New homepage code uses prefetchTmdbArtForCards().
   async prefetchScraperArtForCards(animeIds: number[]): Promise<void> {
