@@ -70,32 +70,9 @@ export async function refreshHomepageSnapshot(db: Db, mal: MalAPI): Promise<Home
     upcoming: (upcoming.data ?? []).slice(0, 8),
   };
 
-  const ids = [...new Set([
-    ...lists.trending.map((a) => a.mal_id),
-    ...lists.popular.map((a) => a.mal_id),
-    ...lists.upcoming.map((a) => a.mal_id),
-  ].filter(Boolean))];
+  // Homepage snapshot keeps anime metadata in D1, but artwork is resolved
+  // live from TMDB when the homepage renders. Do not persist poster URLs here.
 
-  const animeById = new Map([...lists.trending, ...lists.popular, ...lists.upcoming].map((a) => [a.mal_id, a]));
-  const artEntries = await Promise.all(ids.map(async (id) => ({
-    id,
-    art: await mal.getTmdbArtForCard(animeById.get(id)!).catch(() => ({ poster: '', cover: '', logo: '' })),
-  })));
-  const artById = new Map(artEntries.map((x) => [x.id, x.art]));
-
-  for (const list of Object.values(lists)) {
-    for (const anime of list) {
-      const art = artById.get(anime.mal_id);
-      if (!art) continue;
-      // Homepage rows are compact cards. Keep the durable snapshot itself
-      // on TMDB's small poster size so a refresh never repopulates the D1
-      // homepage cache with a w500 image that is only displayed ~80px wide.
-      const poster = toHomepagePoster(art.poster);
-      if (poster) anime.images = { jpg: { image_url: poster, large_image_url: poster } };
-      if (art.cover) anime.cover_image = art.cover;
-      if (art.logo) anime.logo_image = art.logo;
-    }
-  }
 
   const updatedAt = Math.floor(Date.now() / 1000);
   const statements = HOME_CACHE_KEYS.map((key) =>
