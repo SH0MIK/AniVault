@@ -124,38 +124,45 @@ async function fetchTmdbArtDirect(
         api_key: apiKey, query: title, language: 'en-US',
       }));
       if (!search.ok) continue;
+
       const results: any[] = (await search.json() as any)?.results ?? [];
       const animated = (r: any) => Array.isArray(r.genre_ids) && r.genre_ids.includes(TMDB_ANIMATION_GENRE_ID);
       const japanese = (r: any) => r.original_language === 'ja' || (Array.isArray(r.origin_country) && r.origin_country.includes('JP'));
+
+      // Exact scraper filtering: never accept a same-title live-action show;
+      // prefer Japanese animation, then any animated TV result.
       const show = results.find((r) => animated(r) && japanese(r)) || results.find((r) => animated(r));
       if (!show) continue;
 
-      const imgRes = await fetch('https://api.themoviedb.org/3/tv/' + show.id + '/images?' + new URLSearchParams({
-        api_key: apiKey, include_image_language: 'en,ja,null',
-      }));
-      if (!imgRes.ok) continue;
-      const imgs: any = await imgRes.json();
-      const backdrop = tmdbImagePick(imgs?.backdrops ?? [], true);
-      const logo = tmdbImagePick(imgs?.logos ?? [], false);
+      // TMDB's search result already carries the correctly matched show's
+      // poster/backdrop, so the normal case is ONE TMDB request per anime.
+      let posterPath: string | null = show.poster_path ?? null;
+      const coverPath: string | null = show.backdrop_path ?? null;
 
-      let poster: any = null;
-      const posterSeasons = [...new Set([seasonHint, 1].filter((s): s is number => !!s && s > 0))];
-      for (const season of posterSeasons) {
-        const sr = await fetch('https://api.themoviedb.org/3/tv/' + show.id + '/season/' + season + '/images?' + new URLSearchParams({
-          api_key: apiKey, include_image_language: 'en,ja,null',
-        }));
-        if (!sr.ok) continue;
-        const seasonPosters: any[] = (await sr.json() as any)?.posters ?? [];
-        poster = tmdbImagePick(seasonPosters, false);
-        if (poster) break;
+      // Preserve the scraper's season-aware behavior for titles such as
+      // "Attack on Titan Season 3" / "Youjo Senki II": try that season's
+      // poster first, then season 1, then the show-level search poster.
+      if (seasonHint !== null) {
+        const seasonsToTry = [...new Set([seasonHint, 1].filter((s): s is number => !!s && s > 0))];
+        for (const season of seasonsToTry) {
+          const sr = await fetch('https://api.themoviedb.org/3/tv/' + show.id + '/season/' + season + '/images?' + new URLSearchParams({
+            api_key: apiKey, include_image_language: 'en,ja,null',
+          }));
+          if (!sr.ok) continue;
+          const seasonPosters: any[] = (await sr.json() as any)?.posters ?? [];
+          const best = tmdbImagePick(seasonPosters, false);
+          if (best?.file_path) {
+            posterPath = best.file_path;
+            break;
+          }
+        }
       }
-      if (!poster) poster = tmdbImagePick(imgs?.posters ?? [], false);
-      if (!poster && !backdrop && !logo) continue;
 
+      if (!posterPath && !coverPath) continue;
       return {
-        poster: poster?.file_path ? 'https://image.tmdb.org/t/p/w500' + poster.file_path : '',
-        cover: backdrop?.file_path ? 'https://image.tmdb.org/t/p/w1280' + backdrop.file_path : '',
-        logo: logo?.file_path ? 'https://image.tmdb.org/t/p/w500' + logo.file_path : '',
+        poster: posterPath ? 'https://image.tmdb.org/t/p/w500' + posterPath : '',
+        cover: coverPath ? 'https://image.tmdb.org/t/p/w1280' + coverPath : '',
+        logo: '',
       };
     } catch {
       // Try the next title candidate; art is non-critical.
