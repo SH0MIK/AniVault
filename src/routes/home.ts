@@ -194,37 +194,18 @@ homeRoutes.get('/', async (c) => {
     requestUrl: c.req.url,
   });
 
-  // Hero slider slides. If the admin has curated slides in
-  // home_hero_banners (admin/home_banners.php), those win — in the exact
-  // order set there, with their own banner/logo overrides. Otherwise fall
-  // back to the auto-generated pool: newly-airing anime this season
-  // (sourced from AniList since MAL/Jikan's season/now data is frequently
-  // stale), matching Anivexa's "spotlight" behaviour rather than the
-  // all-time popular list.
-  // This entire hero section is saved-only, by design -- it never calls the
-  // scraper API for banner/logo/cover, even though getAnimeArt() would
-  // technically have those values available. Only home_hero_banners
-  // (curated) and the anime_banners/anime_logos/anime_images libraries
-  // (auto pool) are ever used here.
+  // Hero slider slides. Curated admin banners are authoritative and are
+  // read directly from D1. Auto slides use the local D1 artwork libraries.
   let heroPool: NormalisedAnime[] = [];
   let heroBanners: string[] = [];
   let heroLogos: string[] = [];
   let heroCovers: string[] = [];
 
   if (curatedRows.length > 0) {
-    // Same batching rule as Watch Now: resolve all art once before the
-    // per-title normalisation work instead of doing several D1 requests per
-    // curated slide.
     const snapshotAnime = [...seasonalList, ...topList, ...upcomingList];
     const snapshotById = new Map(snapshotAnime.map((anime) => [anime.mal_id, anime]));
+    const curatedImageMap = await mal.getLocalAnimeImagesMany(curatedRows.map((r) => r.anime_id));
 
-    // NEVER call MAL from the normal homepage just to hydrate curated hero
-    // slides. The homepage must stay within the Worker subrequest budget.
-    // Curated artwork remains authoritative from the admin-saved D1 row.
-    const curatedAnime = curatedRows
-      .map((r) => snapshotById.get(r.anime_id))
-      .filter(Boolean) as NormalisedAnime[];
-    const curatedImageMap = await mal.getLocalAnimeImagesMany(curatedAnime.map((a) => a.mal_id));
     for (const r of curatedRows) {
       const anime = snapshotById.get(r.anime_id);
       if (!anime) continue;
@@ -237,12 +218,6 @@ homeRoutes.get('/', async (c) => {
 
   if (heroPool.length === 0) {
     heroPool = (seasonalList.length > 0 ? seasonalList : topList).slice(0, 6);
-    // Desktop shows the wide banner (your own saved override if there is
-    // one), mobile shows the portrait cover instead via a <picture>
-    // breakpoint swap (no JS needed). Batched into 3 IN(...) queries total
-    // instead of one query per anime per field (was ~18 queries for a
-    // 6-item pool; anime_banners/anime_logos misses each also fell through
-    // to a second home_hero_banners query, so it was closer to ~24-30).
     const heroIds = heroPool.map((a) => a.mal_id);
     const [bannerMap, logoMap, imageMap] = await Promise.all([
       mal.getLocalAnimeBannerInfoMany(heroIds),
@@ -253,8 +228,7 @@ homeRoutes.get('/', async (c) => {
     heroLogos = heroPool.map((a) => logoMap.get(a.mal_id) || '');
     heroCovers = heroPool.map((a) => imageMap.get(a.mal_id) || '');
   }
-  // Preload slide 0's LCP image so it starts downloading during <head> parsing
-  // instead of after the CSS blocks render. Phone gets the cover, laptop the banner.
+  // Preload slide 0's LCP image so it starts downloading during <head> parsing.
   if (heroPool.length > 0) {
     const p0 = heroPool[0];
     const poster0 = p0.images?.jpg?.large_image_url || p0.images?.jpg?.image_url || '';
@@ -264,9 +238,6 @@ homeRoutes.get('/', async (c) => {
       cover0 ? `<link rel="preload" as="image" href="${h(cover0)}" media="(max-width: 768px)" fetchpriority="high">` : '',
       bg0 ? `<link rel="preload" as="image" href="${h(bg0)}" media="(min-width: 769px)" fetchpriority="high">` : '',
     ].join('\n');
-    // Keep the LCP preload at the very start of <head>, before the render-blocking
-    // stylesheets. If it sits after those stylesheets, the browser can delay
-    // discovering the hero image until CSS has finished loading.
     html = html.replace('<head>', '<head>\n' + pre);
   }
   html += `
