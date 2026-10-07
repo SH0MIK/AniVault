@@ -217,14 +217,26 @@ homeRoutes.get('/', async (c) => {
     // curated slide.
     const snapshotAnime = [...seasonalList, ...topList, ...upcomingList];
     const snapshotById = new Map(snapshotAnime.map((anime) => [anime.mal_id, anime]));
+    const missingCuratedIds = curatedRows
+      .map((r) => r.anime_id)
+      .filter((id) => !snapshotById.has(id));
+    const missingCurated = await Promise.all(
+      [...new Set(missingCuratedIds)].map(async (id) => (await mal.getAnime(id, true)).data)
+    );
+    for (const anime of missingCurated) {
+      if (anime) snapshotById.set(anime.mal_id, anime);
+    }
+
+    // IMPORTANT: banner/logo/cover for curated slides always comes from the
+    // admin-saved D1 row. MAL is used only to supply the anime metadata when
+    // that ID is not already present in the homepage snapshot.
     const curatedAnime = curatedRows
       .map((r) => snapshotById.get(r.anime_id))
       .filter(Boolean) as NormalisedAnime[];
     const curatedImageMap = await mal.getLocalAnimeImagesMany(curatedAnime.map((a) => a.mal_id));
-    for (let i = 0; i < curatedRows.length; i++) {
-      const r = curatedRows[i];
+    for (const r of curatedRows) {
       const anime = snapshotById.get(r.anime_id);
-      if (!anime) continue; // keep the homepage request entirely cache/MAL-data driven
+      if (!anime) continue;
       heroPool.push(anime);
       heroBanners.push(r.banner_image_url || '');
       heroLogos.push(r.logo_image_url || '');
