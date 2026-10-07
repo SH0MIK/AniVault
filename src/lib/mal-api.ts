@@ -67,10 +67,10 @@ const TMDB_ROMAN_TO_NUM: Record<string, number> = {
 };
 
 const TMDB_SEASON_PATTERNS: Array<{ re: RegExp; num: (m: RegExpMatchArray) => number }> = [
-  { re: /\\s+season\\s+(\\d{1,2})\\s*$/i, num: (m) => parseInt(m[1], 10) },
-  { re: /\\s+(\\d{1,2})(?:st|nd|rd|th)\\s+season\\s*$/i, num: (m) => parseInt(m[1], 10) },
-  { re: /\\s+part\\s+(\\d{1,2})\\s*$/i, num: (m) => parseInt(m[1], 10) },
-  { re: /\\s+cour\\s+(\\d{1,2})\\s*$/i, num: (m) => parseInt(m[1], 10) },
+  { re: /\s+season\s+(\d{1,2})\s*$/i, num: (m) => parseInt(m[1], 10) },
+  { re: /\s+(\d{1,2})(?:st|nd|rd|th)\s+season\s*$/i, num: (m) => parseInt(m[1], 10) },
+  { re: /\s+part\s+(\d{1,2})\s*$/i, num: (m) => parseInt(m[1], 10) },
+  { re: /\s+cour\s+(\d{1,2})\s*$/i, num: (m) => parseInt(m[1], 10) },
 ];
 
 function extractTmdbSeasonHint(title: string): { base: string; season: number | null } {
@@ -78,40 +78,76 @@ function extractTmdbSeasonHint(title: string): { base: string; season: number | 
     const m = title.match(re);
     if (m) return { base: title.slice(0, m.index).trim(), season: num(m) };
   }
-  const roman = title.match(/\\s+(I{2,3}|IV|VI{0,3}|IX|X)\\s*$/i);
+
+  const roman = title.match(/\s+(I{2,3}|IV|VI{0,3}|IX|X)\s*$/i);
   if (roman) {
     const season = TMDB_ROMAN_TO_NUM[roman[1].toLowerCase()];
-    if (season) return { base: title.slice(0, roman.index).trim().replace(/[:\\-–]\\s*$/, ''), season };
+    if (season) {
+      return {
+        base: title.slice(0, roman.index).trim().replace(/[:\-–]\s*$/, ''),
+        season,
+      };
+    }
   }
-  const digit = title.match(/\\s+(\\d{1,2})\\s*$/);
+
+  const digit = title.match(/\s+(\d{1,2})\s*$/);
   if (digit) {
     const n = parseInt(digit[1], 10);
-    if (n >= 2 && n <= 10) return { base: title.slice(0, digit.index).trim().replace(/[:\\-–]\\s*$/, ''), season: n };
+    if (n >= 2 && n <= 10) {
+      return {
+        base: title.slice(0, digit.index).trim().replace(/[:\-–]\s*$/, ''),
+        season: n,
+      };
+    }
   }
+
   return { base: title, season: null };
 }
 
 function tmdbImagePick(arr: any[], textlessFirst = false): any | null {
   if (!arr?.length) return null;
   const sorted = [...arr].sort((a, b) => (b.vote_average ?? 0) - (a.vote_average ?? 0));
-  if (textlessFirst) return sorted.find((i) => !i.iso_639_1) || sorted.find((i) => i.iso_639_1 === 'en') || sorted[0];
-  return sorted.find((i) => i.iso_639_1 === 'en') || sorted.find((i) => !i.iso_639_1) || sorted[0];
+  if (textlessFirst) {
+    return sorted.find((i) => !i.iso_639_1) ||
+      sorted.find((i) => i.iso_639_1 === 'en') ||
+      sorted[0];
+  }
+  return sorted.find((i) => i.iso_639_1 === 'en') ||
+    sorted.find((i) => !i.iso_639_1) ||
+    sorted[0];
 }
 
 function computeTmdbCandidates(rawTitles: string[]): { titles: string[]; seasonHint: number | null } {
   let seasonHint: number | null = null;
   const bases: string[] = [];
+
   for (const title of rawTitles.filter(Boolean)) {
     const { base, season } = extractTmdbSeasonHint(title);
     if (season !== null && seasonHint === null) seasonHint = season;
     bases.push(base);
   }
-  return { titles: [...new Set([...bases, ...rawTitles.filter(Boolean)])], seasonHint };
+
+  return {
+    titles: [...new Set([...bases, ...rawTitles.filter(Boolean)])],
+    seasonHint,
+  };
 }
 
+/**
+ * Resolve artwork using the same TMDB selection algorithm used by the old
+ * AniVault scraper API:
+ *   1. search the candidate title
+ *   2. require TMDB Animation and prefer Japanese-origin animation
+ *   3. load the show's image collection
+ *   4. for posters, try the hinted season, then Season 1, then show-level
+ *   5. choose English artwork first, then textless, then highest-voted
+ *
+ * Nothing is persisted. The Worker receives the final TMDB image URL directly.
+ */
 async function fetchTmdbArtDirect(
   apiKey: string,
   rawTitles: string[],
+  isList = false,
 ): Promise<{ poster: string; cover: string; logo: string }> {
   const empty = { poster: '', cover: '', logo: '' };
   if (!apiKey || !rawTitles.length) return empty;
@@ -120,54 +156,91 @@ async function fetchTmdbArtDirect(
 
   for (const title of titles) {
     try {
-      const search = await fetch('https://api.themoviedb.org/3/search/tv?' + new URLSearchParams({
-        api_key: apiKey, query: title, language: 'en-US',
-      }));
+      const search = await fetch(
+        'https://api.themoviedb.org/3/search/tv?' +
+        new URLSearchParams({ api_key: apiKey, query: title, language: 'en-US' }),
+      );
       if (!search.ok) continue;
 
       const results: any[] = (await search.json() as any)?.results ?? [];
-      const animated = (r: any) => Array.isArray(r.genre_ids) && r.genre_ids.includes(TMDB_ANIMATION_GENRE_ID);
-      const japanese = (r: any) => r.original_language === 'ja' || (Array.isArray(r.origin_country) && r.origin_country.includes('JP'));
+      const isAnimated = (r: any) =>
+        Array.isArray(r.genre_ids) && r.genre_ids.includes(TMDB_ANIMATION_GENRE_ID);
+      const isJapanese = (r: any) =>
+        r.original_language === 'ja' ||
+        (Array.isArray(r.origin_country) && r.origin_country.includes('JP'));
 
-      // Exact scraper filtering: never accept a same-title live-action show;
-      // prefer Japanese animation, then any animated TV result.
-      const show = results.find((r) => animated(r) && japanese(r)) || results.find((r) => animated(r));
+      const show =
+        results.find((r) => isAnimated(r) && isJapanese(r)) ||
+        results.find((r) => isAnimated(r));
+
       if (!show) continue;
 
-      // TMDB's search result already carries the correctly matched show's
-      // poster/backdrop, so the normal case is ONE TMDB request per anime.
-      let posterPath: string | null = show.poster_path ?? null;
-      const coverPath: string | null = show.backdrop_path ?? null;
+      // Match the old scraper exactly: poster/backdrop/logo are selected
+      // from TMDB's image collections, not from search-result poster_path.
+      const imageRes = await fetch(
+        'https://api.themoviedb.org/3/tv/' + show.id + '/images?' +
+        new URLSearchParams({
+          api_key: apiKey,
+          include_image_language: 'en,ja,null',
+        }),
+      );
+      if (!imageRes.ok) continue;
 
-      // Preserve the scraper's season-aware behavior for titles such as
-      // "Attack on Titan Season 3" / "Youjo Senki II": try that season's
-      // poster first, then season 1, then the show-level search poster.
-      if (seasonHint !== null) {
-        const seasonsToTry = [...new Set([seasonHint, 1].filter((s): s is number => !!s && s > 0))];
-        for (const season of seasonsToTry) {
-          const sr = await fetch('https://api.themoviedb.org/3/tv/' + show.id + '/season/' + season + '/images?' + new URLSearchParams({
-            api_key: apiKey, include_image_language: 'en,ja,null',
-          }));
-          if (!sr.ok) continue;
-          const seasonPosters: any[] = (await sr.json() as any)?.posters ?? [];
+      const imageData: any = await imageRes.json();
+      const showPosters: any[] = imageData?.posters ?? [];
+      const backdrops: any[] = imageData?.backdrops ?? [];
+      const logos: any[] = imageData?.logos ?? [];
+
+      const backdrop = tmdbImagePick(backdrops, true);
+      const logo = tmdbImagePick(logos, false);
+
+      let poster: any | null = null;
+      const seasonsToTry = [
+        ...new Set([seasonHint, 1].filter((s): s is number => !!s && s > 0)),
+      ];
+
+      for (const season of seasonsToTry) {
+        try {
+          const seasonRes = await fetch(
+            'https://api.themoviedb.org/3/tv/' + show.id + '/season/' + season + '/images?' +
+            new URLSearchParams({
+              api_key: apiKey,
+              include_image_language: 'en,ja,null',
+            }),
+          );
+          if (!seasonRes.ok) continue;
+
+          const seasonPosters: any[] = (await seasonRes.json() as any)?.posters ?? [];
           const best = tmdbImagePick(seasonPosters, false);
           if (best?.file_path) {
-            posterPath = best.file_path;
+            poster = best;
             break;
           }
+        } catch {
+          // Keep the exact fallback order: try the next season/show-level art.
         }
       }
 
-      if (!posterPath && !coverPath) continue;
+      if (!poster) poster = tmdbImagePick(showPosters, false);
+
+      if (!poster && !backdrop && !logo) continue;
+
       return {
-        poster: posterPath ? 'https://image.tmdb.org/t/p/w500' + posterPath : '',
-        cover: coverPath ? 'https://image.tmdb.org/t/p/w1280' + coverPath : '',
-        logo: '',
+        poster: poster
+          ? 'https://image.tmdb.org/t/p/' + (isList ? 'w185' : 'w500') + poster.file_path
+          : '',
+        cover: backdrop
+          ? 'https://image.tmdb.org/t/p/w1280' + backdrop.file_path
+          : '',
+        logo: logo
+          ? 'https://image.tmdb.org/t/p/w500' + logo.file_path
+          : '',
       };
     } catch {
-      // Try the next title candidate; art is non-critical.
+      // Try the next title candidate; artwork is non-critical.
     }
   }
+
   return empty;
 }
 
