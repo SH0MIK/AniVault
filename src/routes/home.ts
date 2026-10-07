@@ -174,7 +174,7 @@ homeRoutes.get('/', async (c) => {
   // cache-only cardMeta lookup as everything else, instead of a second
   // query later that the hero slides were silently missing out on.
   const curatedRows = await db
-    .fetchAll<any>('SELECT anime_id, banner_image_url, logo_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
+    .fetchAll<any>('SELECT anime_id, anime_title, banner_image_url, logo_image_url, metadata_json FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
     .catch(() => []);
   const cardMeta = await buildCardMetaMap(db, [...watchNowList, ...seasonalList, ...topList, ...upcomingList, ...curatedRows.map((r) => ({ mal_id: r.anime_id } as NormalisedAnime))]);
 
@@ -213,13 +213,24 @@ homeRoutes.get('/', async (c) => {
     for (const r of curatedRows) {
       const id = Number(r.anime_id);
       const cover = curatedImageMap.get(id) || '';
-      // Reuse the full metadata already present in the D1 homepage snapshot
-      // whenever this curated title is part of that snapshot. This restores
-      // the hero's synopsis/score/episodes/type/genres without making MAL
-      // requests for every curated slide.
-      const cachedAnime = snapshotById.get(id);
+      let storedAnime: NormalisedAnime | null = null;
+      try {
+        const parsed = r.metadata_json ? JSON.parse(r.metadata_json) : null;
+        if (parsed && Number(parsed.mal_id) === id) storedAnime = parsed as NormalisedAnime;
+      } catch { /* malformed/legacy metadata — fall back below */ }
+
+      const cachedAnime = storedAnime || snapshotById.get(id);
       const anime = cachedAnime
-        ? ({ ...cachedAnime, images: { jpg: { image_url: cover || cachedAnime.images?.jpg?.image_url || '', large_image_url: cover || cachedAnime.images?.jpg?.large_image_url || '' } } } as NormalisedAnime)
+        ? ({
+            ...cachedAnime,
+            title: cachedAnime.title || r.anime_title || `Anime #${id}`,
+            images: {
+              jpg: {
+                image_url: cover || cachedAnime.images?.jpg?.image_url || '',
+                large_image_url: cover || cachedAnime.images?.jpg?.large_image_url || '',
+              },
+            },
+          } as NormalisedAnime)
         : ({
             mal_id: id,
             title: r.anime_title || `Anime #${id}`,
