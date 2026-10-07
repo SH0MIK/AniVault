@@ -207,24 +207,32 @@ homeRoutes.get('/', async (c) => {
     // metadata table on the homepage.
     const curatedIds = curatedRows.map((r) => Number(r.anime_id));
     const curatedImageMap = await mal.getLocalAnimeImagesMany(curatedIds);
+    const snapshotAnime = [...seasonalList, ...topList, ...upcomingList];
+    const snapshotById = new Map(snapshotAnime.map((anime) => [anime.mal_id, anime]));
 
     for (const r of curatedRows) {
       const id = Number(r.anime_id);
       const cover = curatedImageMap.get(id) || '';
-      const title = r.anime_title || `Anime #${id}`;
-      const anime = {
-        mal_id: id,
-        title,
-        title_english: '',
-        title_japanese: '',
-        synopsis: '',
-        score: 0,
-        episodes: 0,
-        type: '',
-        status: '',
-        genres: [],
-        images: { jpg: { image_url: cover, large_image_url: cover } },
-      } as NormalisedAnime;
+      // Reuse the full metadata already present in the D1 homepage snapshot
+      // whenever this curated title is part of that snapshot. This restores
+      // the hero's synopsis/score/episodes/type/genres without making MAL
+      // requests for every curated slide.
+      const cachedAnime = snapshotById.get(id);
+      const anime = cachedAnime
+        ? ({ ...cachedAnime, images: { jpg: { image_url: cover || cachedAnime.images?.jpg?.image_url || '', large_image_url: cover || cachedAnime.images?.jpg?.large_image_url || '' } } } as NormalisedAnime)
+        : ({
+            mal_id: id,
+            title: r.anime_title || `Anime #${id}`,
+            title_english: '',
+            title_japanese: '',
+            synopsis: '',
+            score: 0,
+            episodes: 0,
+            type: '',
+            status: '',
+            genres: [],
+            images: { jpg: { image_url: cover, large_image_url: cover } },
+          } as NormalisedAnime);
       heroPool.push(anime);
       heroBanners.push(r.banner_image_url || '');
       heroLogos.push(r.logo_image_url || '');
