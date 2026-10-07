@@ -106,10 +106,32 @@ adminHomeBannersRoutes.on(['GET', 'POST'], '/admin/home_banners.php', async (c) 
 
         const order = await nextDisplayOrder(db);
         await db.query(
-          `INSERT INTO home_hero_banners (anime_id, anime_title, logo_image_url, display_order, source) VALUES (?,?,?,?,?)`,
-          [animeId, title || null, logoUrl || null, order, 'url']
+          `INSERT INTO home_hero_banners (anime_id, anime_title, logo_image_url, metadata_json, display_order, source) VALUES (?,?,?,?,?,?)`,
+          [animeId, title || null, logoUrl || null, JSON.stringify(fetched.data), order, 'url']
         );
         session.setFlash('success', 'Anime added — now add its banner below (logo auto-filled from TMDB if available).');
+      } else if (action === 'sync_metadata') {
+        const rows = await db.fetchAll<any>(
+          'SELECT id, anime_id FROM home_hero_banners WHERE metadata_json IS NULL OR metadata_json = ?',
+          ['']
+        );
+        if (rows.length > 0) {
+          const mal = new MalAPI(c.env, c.env.API_CACHE, db);
+          let synced = 0;
+          for (const row of rows) {
+            const fetched = await mal.getAnime(Number(row.anime_id));
+            if (!fetched.data) continue;
+            const title = fetched.data.title_english || fetched.data.title || null;
+            await db.query(
+              "UPDATE home_hero_banners SET anime_title = COALESCE(anime_title, ?), metadata_json = ?, updated_at=datetime('now') WHERE id = ?",
+              [title, JSON.stringify(fetched.data), row.id]
+            );
+            synced++;
+          }
+          session.setFlash('success', synced ? `Hero metadata synced for ${synced} slide(s).` : 'No hero metadata could be synced.');
+        } else {
+          session.setFlash('success', 'All hero slides already have metadata.');
+        }
       } else if (action === 'set_banner' || action === 'set_logo') {
         // Step 2: add or replace the banner/logo for a specific row. Keyed
         // by row id, so no need to re-enter the Anime ID.
@@ -214,6 +236,15 @@ ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
     <div class="form-group" style="margin-bottom:0;"><label class="form-label">Anime ID (MAL ID)</label><input class="form-control" type="number" name="anime_id" required placeholder="16498"></div>
     <div class="form-group" style="margin-bottom:0;"><label class="form-label">Title</label><input class="form-control" name="anime_title" placeholder="Optional, for searching"></div>
     <button class="btn btn-primary" type="submit">Add Anime</button>
+  </form>
+</div>
+
+<div class="card card-body mb-3">
+  <h2 class="mb-2">🧩 Hero Info</h2>
+  <p class="text-muted" style="font-size:0.82rem;margin-top:-6px;margin-bottom:10px;">Sync full MAL metadata for older hero slides. This is admin-only; the public homepage stays D1-only.</p>
+  <form method="POST">
+    <input type="hidden" name="action" value="sync_metadata">
+    <button class="btn btn-secondary" type="submit">🔄 Sync Hero Info</button>
   </form>
 </div>
 
