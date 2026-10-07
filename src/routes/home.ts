@@ -202,17 +202,40 @@ homeRoutes.get('/', async (c) => {
   let heroCovers: string[] = [];
 
   if (curatedRows.length > 0) {
-    const snapshotAnime = [...seasonalList, ...topList, ...upcomingList];
-    const snapshotById = new Map(snapshotAnime.map((anime) => [anime.mal_id, anime]));
-    const curatedImageMap = await mal.getLocalAnimeImagesMany(curatedRows.map((r) => r.anime_id));
+    // Restore the admin-selected hero list from D1. The curated row itself
+    // remains the source of truth for banner/logo artwork.
+    const curatedIds = curatedRows.map((r) => r.anime_id);
+    const [curatedAnimeRows, curatedImageMap] = await Promise.all([
+      db.fetchAll<any>(
+        `SELECT anime_id, title, title_english, title_japanese, synopsis, score, episodes,
+                type, status, genres, image_url
+         FROM anime WHERE anime_id IN (${curatedIds.map(() => '?').join(',')})`,
+        curatedIds
+      ).catch(() => []),
+      mal.getLocalAnimeImagesMany(curatedIds),
+    ]);
+    const animeById = new Map(curatedAnimeRows.map((r) => [Number(r.anime_id), r]));
 
     for (const r of curatedRows) {
-      const anime = snapshotById.get(r.anime_id);
-      if (!anime) continue;
+      const row = animeById.get(Number(r.anime_id));
+      if (!row) continue;
+      const anime = {
+        mal_id: Number(row.anime_id),
+        title: row.title || '',
+        title_english: row.title_english || '',
+        title_japanese: row.title_japanese || '',
+        synopsis: row.synopsis || '',
+        score: Number(row.score) || 0,
+        episodes: Number(row.episodes) || 0,
+        type: row.type || '',
+        status: row.status || '',
+        genres: typeof row.genres === 'string' ? (() => { try { return JSON.parse(row.genres); } catch { return []; } })() : (row.genres || []),
+        images: { jpg: { image_url: row.image_url || curatedImageMap.get(Number(r.anime_id)) || '', large_image_url: row.image_url || curatedImageMap.get(Number(r.anime_id)) || '' } },
+      } as NormalisedAnime;
       heroPool.push(anime);
       heroBanners.push(r.banner_image_url || '');
       heroLogos.push(r.logo_image_url || '');
-      heroCovers.push(curatedImageMap.get(anime.mal_id) || '');
+      heroCovers.push(row.image_url || curatedImageMap.get(Number(r.anime_id)) || '');
     }
   }
 
