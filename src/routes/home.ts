@@ -217,19 +217,10 @@ homeRoutes.get('/', async (c) => {
     // curated slide.
     const snapshotAnime = [...seasonalList, ...topList, ...upcomingList];
     const snapshotById = new Map(snapshotAnime.map((anime) => [anime.mal_id, anime]));
-    const missingCuratedIds = curatedRows
-      .map((r) => r.anime_id)
-      .filter((id) => !snapshotById.has(id));
-    const missingCurated = await Promise.all(
-      [...new Set(missingCuratedIds)].map(async (id) => (await mal.getAnime(id, true)).data)
-    );
-    for (const anime of missingCurated) {
-      if (anime) snapshotById.set(anime.mal_id, anime);
-    }
 
-    // IMPORTANT: banner/logo/cover for curated slides always comes from the
-    // admin-saved D1 row. MAL is used only to supply the anime metadata when
-    // that ID is not already present in the homepage snapshot.
+    // NEVER call MAL from the normal homepage just to hydrate curated hero
+    // slides. The homepage must stay within the Worker subrequest budget.
+    // Curated artwork remains authoritative from the admin-saved D1 row.
     const curatedAnime = curatedRows
       .map((r) => snapshotById.get(r.anime_id))
       .filter(Boolean) as NormalisedAnime[];
