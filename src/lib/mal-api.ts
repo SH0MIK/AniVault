@@ -758,7 +758,7 @@ export class MalAPI {
     if (!items.length) return;
     const resolved = await Promise.all(items.map(async (anime) => ({
       id: anime.mal_id,
-      art: await this.getTmdbArtForCard(anime).catch(() => ({ poster: '', cover: '', logo: '' })),
+      art: await this.getTmdbArtForCard(anime, true).catch(() => ({ poster: '', cover: '', logo: '' })),
       anime,
     })));
     for (const { id, art, anime } of resolved) {
