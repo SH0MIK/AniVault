@@ -172,7 +172,7 @@ homeRoutes.get('/', async (c) => {
   const curatedRows = await db
     .fetchAll<any>('SELECT anime_id, anime_title, banner_image_url, logo_image_url, metadata_json FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
     .catch(() => []);
-  const cardMeta = await buildCardMetaMap(db, [...watchNowList, ...seasonalList, ...topList, ...upcomingList, ...curatedRows.map((r) => ({ mal_id: r.anime_id } as NormalisedAnime))]);
+  const cardMeta = await buildCardMetaMap(db, [...watchNowList, ...topList, ...upcomingList, ...curatedRows.map((r) => ({ mal_id: r.anime_id } as NormalisedAnime))]);
 
   const layoutUser = currentUser
     ? { id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url, role: currentUser.role }
@@ -344,11 +344,6 @@ ${heroSliderScript(heroPool.length)}
   }
 
       <section class="content-section">
-        ${sectionHeader('Trending Now', 'row-trending', `${siteUrl}/seasonal`)}
-        ${seasonalList.length === 0
-          ? `<p class="text-muted text-center">Could not load seasonal anime. API may be rate limited — try again shortly.</p>`
-          : `<div class="scroll-row" id="row-trending">${seasonalList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}</div>`}
-      </section>
 
       <section class="content-section">
         ${sectionHeader('Most Popular', 'row-popular', `${siteUrl}/top`, 'View Full Rankings')}
