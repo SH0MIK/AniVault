@@ -67,7 +67,7 @@ homeRoutes.get('/', async (c) => {
     upcomingList = homepageSnapshot.upcoming.slice(0, 8);
   } else {
     const [seasonal, topAnime, upcoming] = await Promise.all([
-      mal.getAniListSeasonNow(),
+      mal.getSeasonNow(1),
       mal.getTopAnime('bypopularity', 1),
       mal.getSeasonUpcoming(),
     ]);
@@ -90,8 +90,12 @@ homeRoutes.get('/', async (c) => {
     // Watch Now is a homepage card row too. Resolve its poster art directly
     // from TMDB using the same anime-title matching/filtering as the scraper;
     // Railway is not involved in the homepage request path.
-    const results = await Promise.all(rows.map((r) => mal.getAnime(r.anime_id, true)));
-    watchNowList = results.map((r) => r.data).filter(Boolean);
+    const snapshotAnime = [...seasonalList, ...topList, ...upcomingList];
+    const snapshotById = new Map(snapshotAnime.map((anime) => [anime.mal_id, anime]));
+    watchNowList = rows
+      .map((r) => snapshotById.get(r.anime_id))
+      .filter(Boolean) as NormalisedAnime[];
+    // Only resolve TMDB art for cards we can render from the D1/MAL snapshot.
     await mal.prefetchTmdbArtForCards(watchNowList);
   } catch {
     watchNowList = [];
@@ -211,13 +215,16 @@ homeRoutes.get('/', async (c) => {
     // Same batching rule as Watch Now: resolve all art once before the
     // per-title normalisation work instead of doing several D1 requests per
     // curated slide.
-    await mal.prefetchAnimeArt(curatedRows.map((r) => r.anime_id), false);
-    const curatedAnime = await Promise.all(curatedRows.map((r) => mal.getAnime(r.anime_id, true)));
-    const curatedImageMap = await mal.getLocalAnimeImagesMany(curatedRows.map((r) => r.anime_id));
+    const snapshotAnime = [...seasonalList, ...topList, ...upcomingList];
+    const snapshotById = new Map(snapshotAnime.map((anime) => [anime.mal_id, anime]));
+    const curatedAnime = curatedRows
+      .map((r) => snapshotById.get(r.anime_id))
+      .filter(Boolean) as NormalisedAnime[];
+    const curatedImageMap = await mal.getLocalAnimeImagesMany(curatedAnime.map((a) => a.mal_id));
     for (let i = 0; i < curatedRows.length; i++) {
       const r = curatedRows[i];
-      const anime = curatedAnime[i].data;
-      if (!anime) continue; // skip slides whose Anime ID no longer resolves
+      const anime = snapshotById.get(r.anime_id);
+      if (!anime) continue; // keep the homepage request entirely cache/MAL-data driven
       heroPool.push(anime);
       heroBanners.push(r.banner_image_url || '');
       heroLogos.push(r.logo_image_url || '');
