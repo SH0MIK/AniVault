@@ -411,7 +411,7 @@ export class MalAPI {
     const arts = await Promise.all(
       targets.map(async (anime) => ({
         id: anime.mal_id,
-        art: await this.getTmdbArtForCard(anime).catch(() => ({ poster: '', cover: '', logo: '' })),
+        art: await this.getTmdbArtForCard(anime, true).catch(() => ({ poster: '', cover: '', logo: '' })),
       }))
     );
 
@@ -746,12 +746,12 @@ export class MalAPI {
   // refresh the shared scraper-art cache with the live result. This does NOT
   // touch anime_images/anime_banners/anime_logos, so self-uploaded artwork is
   // left completely untouched for detail/hero contexts.
-  async getTmdbArtForCard(anime: NormalisedAnime): Promise<{ poster: string; cover: string; logo: string }> {
+  async getTmdbArtForCard(anime: NormalisedAnime, isList = false): Promise<{ poster: string; cover: string; logo: string }> {
     const empty = { poster: '', cover: '', logo: '' };
     if (!anime?.mal_id || !this.env.TMDB_API_KEY) return empty;
 
     const rawTitles = [...new Set([anime.title_english, anime.title, anime.title_japanese].filter(Boolean))];
-    return fetchTmdbArtDirect(this.env.TMDB_API_KEY, rawTitles);
+    return fetchTmdbArtDirect(this.env.TMDB_API_KEY, rawTitles, isList);
   }
   async prefetchTmdbArtForCards(anime: NormalisedAnime[]): Promise<void> {
     const items = anime.filter((a) => a?.mal_id);
