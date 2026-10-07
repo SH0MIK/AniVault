@@ -57,28 +57,24 @@ homeRoutes.get('/', async (c) => {
   // before the scheduled job/admin refresh), keep the old live fallback so
   // the homepage still renders instead of showing empty rows.
   const homepageSnapshot = await getHomepageSnapshot(db);
-  let seasonalList: NormalisedAnime[];
   let topList: NormalisedAnime[];
   let upcomingList: NormalisedAnime[];
 
   if (homepageSnapshot) {
-    seasonalList = homepageSnapshot.trending.slice(0, 12);
     topList = homepageSnapshot.popular.slice(0, 12);
     upcomingList = homepageSnapshot.upcoming.slice(0, 8);
   } else {
-    const [seasonal, topAnime, upcoming] = await Promise.all([
-      mal.getSeasonNow(1),
+    const [topAnime, upcoming] = await Promise.all([
       mal.getTopAnime('bypopularity', 1),
       mal.getSeasonUpcoming(),
     ]);
-    seasonalList = (seasonal.data ?? []).slice(0, 12);
     topList = (topAnime.data ?? []).slice(0, 12);
     upcomingList = (upcoming.data ?? []).slice(0, 8);
   }
 
-  // Resolve homepage posters live from TMDB. Anime metadata still comes from
-  // the D1 homepage snapshot; artwork is never persisted in that snapshot.
-  const homepageArtItems = [...seasonalList, ...topList, ...upcomingList];
+  // Trending/seasonal is intentionally not loaded on the homepage.
+  // Resolve only the sections that are actually rendered.
+  const homepageArtItems = [...topList, ...upcomingList];
   await mal.prefetchTmdbArtForCards(homepageArtItems);
 
   // Watch Now — anime that have episodes available in episode_videos
@@ -90,7 +86,7 @@ homeRoutes.get('/', async (c) => {
     // Watch Now is a homepage card row too. Resolve its poster art directly
     // from TMDB using the same anime-title matching/filtering as the scraper;
     // Railway is not involved in the homepage request path.
-    const snapshotAnime = [...seasonalList, ...topList, ...upcomingList];
+    const snapshotAnime = [...topList, ...upcomingList];
     const snapshotById = new Map(snapshotAnime.map((anime) => [anime.mal_id, anime]));
     watchNowList = rows
       .map((r) => snapshotById.get(r.anime_id))
@@ -207,7 +203,7 @@ homeRoutes.get('/', async (c) => {
     // metadata table on the homepage.
     const curatedIds = curatedRows.map((r) => Number(r.anime_id));
     const curatedImageMap = await mal.getLocalAnimeImagesMany(curatedIds);
-    const snapshotAnime = [...seasonalList, ...topList, ...upcomingList];
+    const snapshotAnime = [...topList, ...upcomingList];
     const snapshotById = new Map(snapshotAnime.map((anime) => [anime.mal_id, anime]));
 
     for (const r of curatedRows) {
@@ -252,7 +248,7 @@ homeRoutes.get('/', async (c) => {
   }
 
   if (heroPool.length === 0) {
-    heroPool = (seasonalList.length > 0 ? seasonalList : topList).slice(0, 6);
+    heroPool = topList.slice(0, 6);
     const heroIds = heroPool.map((a) => a.mal_id);
     const [bannerMap, logoMap, imageMap] = await Promise.all([
       mal.getLocalAnimeBannerInfoMany(heroIds),
@@ -347,8 +343,6 @@ ${heroSliderScript(heroPool.length)}
       </section>`;
   }
 
-  // ── Trending Now (seasonal) ─────────────────────────────────────────────
-  html += `
       <section class="content-section">
         ${sectionHeader('Trending Now', 'row-trending', `${siteUrl}/seasonal`)}
         ${seasonalList.length === 0
@@ -447,8 +441,8 @@ function sectionHeader(title: string, rowId: string, viewAllHref?: string, viewA
 </div>`;
 }
 
-// One slide of the hero carousel, built from a currently-airing anime entry.
-// `banner` = wide art for desktop (local override > AniList's bannerImage >
+// One slide of the hero carousel, built from the curated D1 entry or popular fallback.
+// `banner` = wide art for desktop (admin/local override >
 // poster fallback). `mobileCover` = your own saved local cover, shown
 // instead of the banner on small screens (Anivexa does the same) — falls
 // back to the API poster if you haven't saved one for this title yet.
