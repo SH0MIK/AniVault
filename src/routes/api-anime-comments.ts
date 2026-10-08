@@ -22,7 +22,8 @@ function serialize(r:AnimeCommentRow,userId:number,isAdmin:boolean){
     id:r.id, anime_id:r.anime_id, episode_num:r.episode_num, user_id:r.user_id, parent_id:r.parent_id,
     username:h(r.username), avatar_url:r.avatar_url, role:r.role, body:r.is_deleted?'':h(r.body),
     deleted:!!r.is_deleted, likes:Number(r.likes||0), dislikes:Number(r.dislikes||0), my_vote:Number(r.my_vote||0),
-    mine:r.user_id===userId, can_delete:r.user_id===userId||isAdmin, time:timeAgo(r.created_at),
+    mine:r.user_id===userId, can_delete:r.user_id===userId||isAdmin,
+    time:(timeAgo(r.created_at).replace(/<[^>]*>/g,'')),
     badge:r.role==='owner'?'OWNER':r.role==='admin'?'ADMIN':null
   };
 }
