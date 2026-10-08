@@ -16,29 +16,5 @@ export function renderWatchComments(animeId:number,episodeNum:number,siteUrl:str
       : '<div class="avc-login">Want to join the discussion? <a href="' + h(loginUrl) + '">Log in</a> to comment, reply, like or dislike.</div>') +
     '<div class="avc-error" id="avc-error"></div><div class="avc-list" id="avc-list"><div class="avc-loading">Loading comments…</div></div>' +
   '</section>' +
-  '<script>(function(){' +
-    'var root=document.getElementById("watch-comments");if(!root)return;' +
-    'var animeId=root.dataset.animeId,episode=root.dataset.episode,isLoggedIn=' + (isLoggedIn?'true':'false') + ',comments=[];' +
-    'function esc(s){var d=document.createElement("div");d.textContent=s==null?"":s;return d.innerHTML}' +
-    'function render(){var list=document.getElementById("avc-list"),byParent={};if(!list)return;comments.forEach(function(c){(byParent[c.parent_id||0]||(byParent[c.parent_id||0]=[])).push(c);});' +
-      'function draw(parent,depth){return (byParent[parent]||[]).map(function(c){' +
-        'var body=c.deleted?"<span class=\"avc-deleted\">Comment deleted</span>":esc(c.body);' +
-        'var avatar=c.avatar_url?"<img class=\"avc-avatar\" src=\"" + esc(c.avatar_url) + "\" alt=\"\" loading=\"lazy\">":"<div class=\"avc-avatar\"></div>";' +
-        'var voteButtons="<button class=\"avc-btn "+(c.my_vote===1?"on":"")+"\" onclick=\"wcVote("+c.id+",1)\" "+(!isLoggedIn||c.deleted?"disabled":"")+">▲ "+c.likes+"</button>" +' +
-          '"<button class=\"avc-btn "+(c.my_vote===-1?"on":"")+"\" onclick=\"wcVote("+c.id+",-1)\" "+(!isLoggedIn||c.deleted?"disabled":"")+">▼ "+c.dislikes+"</button>";' +
-        'var replyButton=(isLoggedIn&&!c.deleted?"<button type=\"button\" class=\"avc-btn\" data-avc-action=\"reply\" data-comment-id=\""+c.id+"\">↩ Reply</button>":"");' +
-        'var deleteButton=(c.can_delete&&!c.deleted?"<button type=\"button\" class=\"avc-btn\" data-avc-action=\"delete\" data-comment-id=\""+c.id+"\">Delete</button>":"");' +
-        'var replyBox=(isLoggedIn&&!c.deleted?"<div class=\"avc-replybox\" id=\"avc-reply-"+c.id+"\"><input maxlength=\"1000\" placeholder=\"Reply…\"><button type=\"button\" class=\"btn btn-sm btn-primary\" data-avc-action=\"reply-send\" data-comment-id=\""+c.id+"\">Send</button></div>":"");' +
-        'return "<article class=\"avc-item "+(depth?"reply":"")+"\"><div class=\"avc-top\">"+avatar+"<span class=\"avc-user\">"+esc(c.username)+"</span>"+(c.badge?"<span class=\"avc-badge\">"+esc(c.badge)+"</span>":"")+"<span class=\"avc-time\">"+esc(c.time)+"</span></div><div class=\"avc-body\">"+body+"</div><div class=\"avc-actions\">"+voteButtons+replyButton+deleteButton+"</div>"+replyBox+draw(c.id,depth+1)+"</article>";' +
-      '}).join("");}' +
-      'list.innerHTML=draw(0,0)||"<div class=\"avc-loading\">No comments yet. Be the first!</div>";document.getElementById("avc-count").textContent=comments.length?"· "+comments.length:"";}' +
-    'async function api(action,extra){var payload=Object.assign({action:action,anime_id:animeId,episode:episode},extra||{});var opt=action==="get"?{}:{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)};var r=await fetch("/api/anime-comments",opt);var d=await r.json().catch(function(){return{success:false,message:"Request failed ("+r.status+")"}});if(!r.ok||!d.success)throw new Error(d.message||("Request failed ("+r.status+")"));return d}' +
-    'async function load(){var list=document.getElementById("avc-list");try{var d=await api("get");comments=Array.isArray(d.comments)?d.comments:[];render()}catch(e){if(list)list.innerHTML="<div class=\"avc-loading\">Unable to load comments.</div>";var err=document.getElementById("avc-error");if(err)err.textContent=e&&e.message?e.message:"Comments are temporarily unavailable.";}}' +
-    'async function sendComment(parentId){var input=parentId?document.querySelector("#avc-reply-"+parentId+" input"):document.getElementById("avc-input"),text=input&&input.value.trim();if(!text)return;try{document.getElementById("avc-error").textContent="";var d=await api("send",{message:text,parent_id:String(parentId||0)});comments=d.comments||[];if(input)input.value="";render()}catch(e){document.getElementById("avc-error").textContent=e.message||"Could not post comment."}}' +
-    'function replyComment(id){var x=document.getElementById("avc-reply-"+id);if(x){x.classList.toggle("open");var i=x.querySelector("input");if(i)i.focus()}}' +
-    'async function voteComment(id,v){try{var d=await api("vote",{comment_id:String(id),vote:String(v)});comments=d.comments||[];render()}catch(e){document.getElementById("avc-error").textContent=e.message||"Could not update vote."}}' +
-    'async function deleteComment(id){if(!confirm("Delete this comment?"))return;try{var d=await api("delete",{comment_id:String(id)});comments=d.comments||[];render()}catch(e){document.getElementById("avc-error").textContent=e.message||"Could not delete comment."}}' +
-    'root.addEventListener("click",function(e){var target=e.target,el=target&&target.closest?target.closest("[data-avc-action]"):null;if(!el||!root.contains(el))return;var action=el.getAttribute("data-avc-action"),id=Number(el.getAttribute("data-comment-id")||0),v=Number(el.getAttribute("data-vote")||0);if(action==="send")sendComment(0);else if(action==="reply")replyComment(id);else if(action==="reply-send")sendComment(id);else if(action==="vote")voteComment(id,v);else if(action==="delete")deleteComment(id)});root.addEventListener("keydown",function(e){if(e.key!=="Enter"||e.shiftKey)return;var input=e.target;if(!input||input.tagName!=="INPUT"||!input.closest(".avc-replybox"))return;var box=input.closest(".avc-replybox"),id=Number(box.id.replace("avc-reply-",""))||0;if(id){e.preventDefault();sendComment(id)}});' +
-    'load();' +
-  '})();</script>';
+  '';
 }
