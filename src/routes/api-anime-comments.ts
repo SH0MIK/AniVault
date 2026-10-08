@@ -43,8 +43,20 @@ apiAnimeCommentsRoutes.on(['GET','POST'],'/api/anime-comments',async c=>{
   }
   const get=(k:string)=>String(c.req.query(k)??body[k]??'');
   const action=get('action');
-  const animeId=parseInt(get('anime_id'),10)||0;
-  const episodeNum=parseInt(get('episode'),10)||0;
+  let animeId=parseInt(get('anime_id'),10)||0;
+  let episodeNum=parseInt(get('episode'),10)||0;
+  // Gracefully recover identifiers from the watch-page referrer for older
+  // cached clients that may still issue the comments GET without query params.
+  if((!animeId||!episodeNum) && c.req.method==='GET'){
+    try{
+      const ref=c.req.header('referer')||c.req.header('referrer')||'';
+      if(ref){
+        const u=new URL(ref);
+        animeId=animeId||parseInt(u.searchParams.get('anime')||'',10)||0;
+        episodeNum=episodeNum||parseInt(u.searchParams.get('ep')||'',10)||0;
+      }
+    }catch{}
+  }
   if(!animeId||!episodeNum)return c.json({success:false,message:'Invalid anime or episode.'},400);
 
   const writes=new Set(['send','vote','delete']);
