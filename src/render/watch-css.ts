@@ -1849,6 +1849,50 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-info-head{margin-bottom:.55rem}
 }
 
+/* ── episode range modal ─────────────────────────────────────── */
+#ep-range-modal .ep-range-row{
+  box-sizing:border-box!important;
+  display:flex!important;
+  width:100%!important;
+  min-height:46px!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:1rem!important;
+  margin:0!important;
+  padding:.72rem 1rem!important;
+  border:0!important;
+  border-bottom:1px solid rgba(255,255,255,.055)!important;
+  border-radius:0!important;
+  outline:0!important;
+  background:transparent!important;
+  color:var(--text-primary)!important;
+  font:600 .88rem/1.2 var(--font-body)!important;
+  text-align:left!important;
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  cursor:pointer!important;
+}
+#ep-range-modal .ep-range-row:hover{
+  background:rgba(124,58,237,.09)!important;
+}
+#ep-range-modal .ep-range-row.active{
+  background:rgba(124,58,237,.14)!important;
+  color:#a78bfa!important;
+}
+#ep-range-modal .ep-range-radio{
+  width:9px!important;
+  height:9px!important;
+  flex:0 0 9px!important;
+  border:2px solid rgba(255,255,255,.25)!important;
+  border-radius:50%!important;
+  box-sizing:border-box!important;
+}
+#ep-range-modal .ep-range-row.active .ep-range-radio{
+  border-color:#a78bfa!important;
+  background:#a78bfa!important;
+  box-shadow:0 0 0 3px rgba(167,139,250,.12)!important;
+}
+
 /* ── episode queue hardening ─────────────────────────────────── */
 .watch-queue-card .watch-queue-head h2{
   margin:.2rem 0 0!important;
