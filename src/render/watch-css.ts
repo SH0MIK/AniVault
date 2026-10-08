@@ -1849,6 +1849,53 @@ export const WATCH_CSS = `/* ═════════════════
   .watch-info-head{margin-bottom:.55rem}
 }
 
+/* ── episode queue hardening ─────────────────────────────────── */
+.watch-queue-card .watch-queue-head h2{
+  margin:.2rem 0 0!important;
+  font-size:1.05rem!important;
+  line-height:1.2!important;
+  color:var(--text-primary)!important;
+  font-weight:600!important;
+}
+.watch-queue-card .ep-range-wrap{
+  display:block!important;
+  padding:.55rem .6rem!important;
+}
+.watch-queue-card .ep-range-btn{
+  box-sizing:border-box!important;
+  width:100%!important;
+  min-height:36px!important;
+  display:flex!important;
+  align-items:center!important;
+  justify-content:space-between!important;
+  gap:.6rem!important;
+  margin:0!important;
+  padding:.45rem .8rem!important;
+  border:1px solid rgba(255,255,255,.08)!important;
+  border-radius:9px!important;
+  outline:0!important;
+  background:rgba(255,255,255,.05)!important;
+  color:var(--text-primary)!important;
+  font-family:var(--font-body)!important;
+  font-size:.78rem!important;
+  font-weight:600!important;
+  line-height:1.2!important;
+  text-align:left!important;
+  appearance:none!important;
+  -webkit-appearance:none!important;
+  cursor:pointer!important;
+}
+.watch-queue-card .ep-range-btn:hover{
+  background:rgba(255,255,255,.075)!important;
+  border-color:rgba(124,58,237,.3)!important;
+}
+.watch-queue-card .ep-range-btn svg{
+  width:16px!important;
+  height:16px!important;
+  flex:0 0 16px!important;
+  color:var(--text-muted)!important;
+}
+
 /* ── final flat watch UI overrides ───────────────────────────── */
 .av-ambient,.watch-heading{display:none!important}
 .wp-page{padding-top:0!important}
