@@ -151,7 +151,9 @@ export function watchScript2(animeId: number, epNum: number, siteUrl: string, ep
       if(count)count.textContent=comments.length;
       if(head)head.textContent=comments.length+' '+(comments.length===1?'comment':'comments');
       var mine=comments.find(function(c){return c.mine&&c.avatar_url;});
-      var ca=document.getElementById('avc-compose-avatar');if(ca&&mine)ca.innerHTML='<img class="avc-compose-avatar" src="'+esc(mine.avatar_url)+'" alt="" loading="lazy">';
+      var avatarUrl=(currentUser&&currentUser.avatar_url)||(mine&&mine.avatar_url)||'';
+      var ca=document.getElementById('avc-compose-avatar');
+      if(ca&&avatarUrl)ca.innerHTML='<img src="'+esc(avatarUrl)+'" alt="" loading="lazy">';
     }
     async function api(action,extra){
       var payload=Object.assign({action:action,anime_id:animeId,episode:episode},extra||{}),opt;
@@ -166,7 +168,7 @@ export function watchScript2(animeId: number, epNum: number, siteUrl: string, ep
       if(!r2.ok||!d2.success)throw new Error(d2.message||('Request failed ('+r2.status+')'));return d2;
     }
     async function load(){
-      try{var d=await api('get');comments=Array.isArray(d.comments)?d.comments:[];render();err('');}
+      try{var d=await api('get');comments=Array.isArray(d.comments)?d.comments:[];currentUser=d.current_user||null;render();err('');}
       catch(e){err(e&&e.message?e.message:'Comments are temporarily unavailable.');var list=document.getElementById('avc-list');if(list)list.innerHTML='<div class="avc-loading">Unable to load comments.</div>';}
     }
     async function sendComment(parentId){
