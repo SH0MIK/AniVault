@@ -83,7 +83,10 @@ export function watchScript2(animeId: number, epNum: number, siteUrl: string, ep
     var root=document.getElementById('watch-comments');
     if(!root||root.__commentsReady)return;
     root.__commentsReady=true;
-    var animeId=root.dataset.animeId,episode=root.dataset.episode,isLoggedIn=true,comments=[];
+    var params=new URLSearchParams(window.location.search);
+    var animeId=root.getAttribute('data-anime-id')||params.get('anime')||'';
+    var episode=root.getAttribute('data-episode')||params.get('ep')||'';
+    var isLoggedIn=true,comments=[];
     function esc(v){var d=document.createElement('div');d.textContent=v==null?'':String(v);return d.innerHTML;}
     function err(msg){var e=document.getElementById('avc-error');if(e)e.textContent=msg||'Comments are temporarily unavailable.';}
     function render(){
@@ -104,7 +107,19 @@ export function watchScript2(animeId: number, epNum: number, siteUrl: string, ep
     }
     async function api(action,extra){
       var payload=Object.assign({action:action,anime_id:animeId,episode:episode},extra||{});
-      var opt=action==='get'?{cache:'no-store'}:{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)};
+      var opt;
+      if(action==='get'){
+        var qs=new URLSearchParams(payload).toString();
+        opt={cache:'no-store'};
+        var url='/api/anime-comments?'+qs;
+        return fetch(url,opt).then(function(r){
+          return r.json().catch(function(){return{success:false,message:'Request failed ('+r.status+')'};}).then(function(d){
+            if(!r.ok||!d.success)throw new Error(d.message||('Request failed ('+r.status+')'));
+            return d;
+          });
+        });
+      }
+      opt={method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)};
       var r=await fetch('/api/anime-comments',opt);
       var d=await r.json().catch(function(){return{success:false,message:'Request failed ('+r.status+')'}});
       if(!r.ok||!d.success)throw new Error(d.message||('Request failed ('+r.status+')'));
