@@ -88,7 +88,7 @@ export function watchScript2(animeId: number, epNum: number, siteUrl: string, ep
     var episode=root.getAttribute('data-episode')||params.get('ep')||'';
     var isLoggedIn=true,comments=[];
     function esc(v){var d=document.createElement('div');d.textContent=v==null?'':String(v);return d.innerHTML;}
-    function err(msg){var e=document.getElementById('avc-error');if(e)e.textContent=msg||'Comments are temporarily unavailable.';}
+    function err(msg){var e=document.getElementById('avc-error');if(e)e.textContent=msg==null?'Comments are temporarily unavailable.':msg;}
     function render(){
       var list=document.getElementById('avc-list'),count=document.getElementById('avc-count'),byParent={};if(!list)return;
       comments.forEach(function(c){(byParent[c.parent_id||0]||(byParent[c.parent_id||0]=[])).push(c);});
