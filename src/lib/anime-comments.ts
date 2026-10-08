@@ -43,9 +43,27 @@ export const AnimeComments = {
     else await db.query("UPDATE anime_comment_votes SET vote=?,created_at=datetime('now') WHERE comment_id=? AND user_id=?",[vote,commentId,userId]);
   },
   async delete(db:Db,userId:number,commentId:number,isAdmin:boolean){
-    const r=isAdmin
-      ? await db.query("UPDATE anime_comments SET is_deleted=1,body='',updated_at=datetime('now') WHERE id=?",[commentId])
-      : await db.query("UPDATE anime_comments SET is_deleted=1,body='',updated_at=datetime('now') WHERE id=? AND user_id=?",[commentId,userId]);
-    return (r.meta.changes??0)>0;
+    // Hard-delete the comment and its entire reply tree. This intentionally
+    // removes the row instead of leaving a visible "Comment deleted" stub.
+    const owner=isAdmin
+      ? await db.fetchOne<{id:number}>('SELECT id FROM anime_comments WHERE id=?',[commentId])
+      : await db.fetchOne<{id:number}>('SELECT id FROM anime_comments WHERE id=? AND user_id=?',[commentId,userId]);
+    if(!owner) return false;
+
+    const descendants=await db.fetchAll<{id:number}>(`
+      WITH RECURSIVE tree(id) AS (
+        SELECT id FROM anime_comments WHERE id=?
+        UNION ALL
+        SELECT c.id FROM anime_comments c JOIN tree t ON c.parent_id=t.id
+      )
+      SELECT id FROM tree
+    `,[commentId]);
+    const ids=descendants.map(x=>Number(x.id)).filter(Number.isFinite);
+    if(!ids.length) return false;
+
+    const placeholders=ids.map(()=>'?').join(',');
+    await db.query(`DELETE FROM anime_comment_votes WHERE comment_id IN (${placeholders})`,ids);
+    const result=await db.query(`DELETE FROM anime_comments WHERE id IN (${placeholders})`,ids);
+    return (result.meta.changes??0)>0;
   }
 };
