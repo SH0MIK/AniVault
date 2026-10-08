@@ -205,4 +205,5 @@ export function watchScript2(animeId: number, epNum: number, siteUrl: string, ep
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initAniVaultComments);else initAniVaultComments();
 })();
-</script>
+</script>`;
+}
