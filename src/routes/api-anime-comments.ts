@@ -69,7 +69,10 @@ apiAnimeCommentsRoutes.on(['GET','POST'],'/api/anime-comments',async c=>{
   const userId=session.user_id??0;
   const isAdmin=auth.check()&&auth.isAdmin();
 
-  if(action==='get') return c.json({success:true,comments:await all(db,animeId,episodeNum,userId,isAdmin)});
+  if(action==='get'){
+    const currentUser=userId?await db.fetchOne<{avatar_url:string|null;username:string}>('SELECT username,avatar_url FROM users WHERE id=?',[userId]):null;
+    return c.json({success:true,comments:await all(db,animeId,episodeNum,userId,isAdmin),current_user:currentUser?{username:currentUser.username,avatar_url:currentUser.avatar_url}:null});
+  }
 
   if(action==='send'){
     const text=get('message');
