@@ -127,17 +127,17 @@ export function watchScript2(animeId: number, epNum: number, siteUrl: string, ep
     }
     async function load(){
       var list=document.getElementById('avc-list');
-      try{var d=await api('get');comments=Array.isArray(d.comments)?d.comments:[];render();}
+      try{var d=await api('get');comments=Array.isArray(d.comments)?d.comments:[];render();err('');}
       catch(e){if(list)list.innerHTML='<div class="avc-loading">Unable to load comments.</div>';err(e&&e.message?e.message:'Comments are temporarily unavailable.');}
     }
     async function sendComment(parentId){
       var input=parentId?document.querySelector('#avc-reply-'+parentId+' input'):document.getElementById('avc-input'),text=input&&input.value.trim();if(!text)return;
-      try{err('');var d=await api('send',{message:text,parent_id:String(parentId||0)});comments=d.comments||[];if(input)input.value='';render();}
+      try{err('');var d=await api('send',{message:text,parent_id:String(parentId||0)});comments=Array.isArray(d.comments)?d.comments:comments;if(input)input.value='';render();err('');}
       catch(e){err(e&&e.message?e.message:'Could not post comment.');}
     }
     function replyComment(id){var box=document.getElementById('avc-reply-'+id);if(box){box.classList.toggle('open');var input=box.querySelector('input');if(input)input.focus();}}
-    async function voteComment(id,v){try{var d=await api('vote',{comment_id:String(id),vote:String(v)});comments=d.comments||[];render();}catch(e){err(e&&e.message?e.message:'Could not update vote.');}}
-    async function deleteComment(id){if(!window.confirm('Delete this comment?'))return;try{var d=await api('delete',{comment_id:String(id)});comments=d.comments||[];render();}catch(e){err(e&&e.message?e.message:'Could not delete comment.');}}
+    async function voteComment(id,v){try{var d=await api('vote',{comment_id:String(id),vote:String(v)});comments=Array.isArray(d.comments)?d.comments:comments;render();err('');}catch(e){err(e&&e.message?e.message:'Could not update vote.');}}
+    async function deleteComment(id){if(!window.confirm('Delete this comment?'))return;try{var d=await api('delete',{comment_id:String(id)});comments=Array.isArray(d.comments)?d.comments:comments;render();err('');}catch(e){err(e&&e.message?e.message:'Could not delete comment.');}}
     root.addEventListener('click',function(e){
       var el=e.target&&e.target.closest?e.target.closest('[data-avc-action]'):null;if(!el||!root.contains(el))return;
       var action=el.getAttribute('data-avc-action'),id=Number(el.getAttribute('data-comment-id')||0),v=Number(el.getAttribute('data-vote')||0);
