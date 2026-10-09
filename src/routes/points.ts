@@ -75,13 +75,15 @@ pointsRoutes.post('/api/points', async c => {
     const spec = tasks[task];
     if (!spec) return c.json({success:false,message:'Unknown task.'},400);
     if (task === 'profile_complete') {
+      const alreadyCompleted = await db.fetchOne<{id:number}>('SELECT id FROM points_ledger WHERE user_id=? AND event_key=?',[userId,'task:profile_complete']);
+      if (alreadyCompleted) return c.json({success:false,message:'You already earned this one-time reward.'},409);
       const profile = await db.fetchOne<any>('SELECT bio,avatar_url FROM users WHERE id=?',[userId]);
       if (!profile?.bio?.trim() || !profile?.avatar_url) return c.json({success:false,message:'Add a bio and avatar to complete this task.'},400);
     }
     const date = todayUTC();
     const claim = await db.query('INSERT OR IGNORE INTO points_daily_claims(user_id,task_key,claim_date,points) VALUES(?,?,?,?)',[userId,task,date,spec.points]);
     if (!(claim.meta.changes ?? 0)) return c.json({success:false,message:'You already claimed this task today.'},409);
-    const ok = await award(db,userId,spec.points,'task',task+':'+date,spec.description);
+    const ok = await award(db,userId,spec.points,'task',task === 'profile_complete' ? 'task:profile_complete' : task+':'+date,spec.description);
     if (!ok) return c.json({success:false,message:'This task was already credited.'},409);
     const wallet = await ensureWallet(db,userId);
     return c.json({success:true,message:'+'+spec.points+' points earned!',wallet});
@@ -187,12 +189,12 @@ pointsRoutes.get('/points', async c => {
     <h2 class="points-section-title">Daily tasks</h2>
     <div class="points-task-grid">
       <article class="points-card"><div class="points-icon">${icon('calendar-check','icon-medium')}</div><h3>Daily check-in</h3><p>Drop by AniVault every day to keep your points growing.</p><div class="points-card-foot"><span class="points-price">+10 pts</span><button class="points-action" data-action="daily" data-task="daily_login" ${claimedTasks.has('daily_login')?'disabled':''}>${claimedTasks.has('daily_login')?'Claimed':'Claim'}</button></div></article>
-      <article class="points-card"><div class="points-icon">${icon('user-round-check','icon-medium')}</div><h3>Complete your profile</h3><p>Add a profile picture and bio to introduce yourself to the community. One claim per day.</p><div class="points-card-foot"><span class="points-price">+25 pts</span><button class="points-action" data-action="daily" data-task="profile_complete" ${claimedTasks.has('profile_complete')?'disabled':''}>${claimedTasks.has('profile_complete')?'Claimed':'Claim'}</button></div></article>
+      <article class="points-card"><div class="points-icon">${icon('user-round-check','icon-medium')}</div><h3>Complete your profile</h3><p>Add a profile picture and bio to introduce yourself to the community. One-time reward.</p><div class="points-card-foot"><span class="points-price">+25 pts</span><button class="points-action" data-action="daily" data-task="profile_complete" ${claimedTasks.has('profile_complete')?'disabled':''}>${claimedTasks.has('profile_complete')?'Claimed':'Claim'}</button></div></article>
     </div>
     <h2 class="points-section-title">Community activities</h2>
     <div class="points-task-grid">
       <article class="points-card"><div class="points-icon">${icon('message-circle','icon-medium')}</div><h3>Write a comment</h3><p>Join episode discussions. Earn points for eligible comments, subject to daily limits.</p><div class="points-card-foot"><span class="points-price">+2 pts</span><span class="points-muted" style="font-size:.75rem">In episode chat</span></div></article>
-      <article class="points-card"><div class="points-icon">${icon('play-circle','icon-medium')}</div><h3>Watch an episode</h3><p>Watch episodes to earn points. Watch-progress rewards will activate once progress verification is enabled.</p><div class="points-card-foot"><span class="points-price">+5 pts</span><span class="points-muted" style="font-size:.75rem">Progress verified</span></div></article>
+      <article class="points-card"><div class="points-icon">${icon('play-circle','icon-medium')}</div><h3>Watch an episode</h3><p>Watch at least 90% of an episode to earn points. Progress is verified from saved playback data.</p><div class="points-card-foot"><span class="points-price">+5 pts</span><span class="points-muted" style="font-size:.75rem">Progress verified</span></div></article>
     </div>
     <p class="points-note">Task rewards may have daily limits to keep the points economy fair.</p>
   </section>
