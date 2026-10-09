@@ -177,10 +177,10 @@ pointsRoutes.get('/points', async c => {
 .points-preview-avatar.frame-sakura{border-color:#f5a6d2;box-shadow:0 0 0 3px rgba(245,166,210,.18)}
 .points-preview-avatar.frame-gold{border-color:#f5c451;box-shadow:0 0 0 3px rgba(245,196,81,.18)}
 .points-preview-avatar.frame-neon{border-color:#48f5e5;box-shadow:0 0 12px #48f5e5}
-.points-preview-bg{width:100%;min-height:94px;display:grid;place-items:center;font-size:1.9rem}
-.points-preview-bg.bg-constellation{background:radial-gradient(circle at 20% 25%,#fff 1px,transparent 2px),radial-gradient(circle at 75% 30%,#a5b4fc 1px,transparent 2px),radial-gradient(circle at 55% 75%,#fff 1px,transparent 2px),linear-gradient(135deg,#111827,#312e81)}
-.points-preview-bg.bg-sakura{background:radial-gradient(ellipse at 20% 20%,rgba(244,114,182,.45),transparent 40%),linear-gradient(135deg,#321c35,#6b3657)}
-.points-preview-bg.bg-midnight{background:linear-gradient(90deg,rgba(129,140,248,.13) 1px,transparent 1px),linear-gradient(rgba(129,140,248,.13) 1px,transparent 1px),#111827;background-size:14px 14px}
+.points-preview-bg{width:100%;min-height:110px;display:grid;place-items:center;font-size:1.9rem;position:relative;isolation:isolate;overflow:hidden}
+.points-preview-bg.bg-constellation{background-color:#090d1b;background-image:radial-gradient(circle at 20% 25%,#fff 0 1px,transparent 2px),radial-gradient(circle at 75% 30%,#a5b4fc 0 1.5px,transparent 2.5px),radial-gradient(circle at 55% 75%,#fff 0 1px,transparent 2px),radial-gradient(ellipse at 75% 15%,rgba(99,102,241,.42),transparent 48%),linear-gradient(135deg,#090d1b,#312e81)}
+.points-preview-bg.bg-sakura{background-color:#211126;background-image:radial-gradient(ellipse at 18% 18%,rgba(244,114,182,.72),transparent 42%),radial-gradient(ellipse at 80% 75%,rgba(217,70,160,.4),transparent 45%),radial-gradient(circle at 25% 65%,rgba(255,190,220,.8) 0 2px,transparent 3px),radial-gradient(circle at 78% 25%,rgba(255,190,220,.8) 0 2px,transparent 3px),linear-gradient(135deg,#321c35,#6b3657)}
+.points-preview-bg.bg-midnight{background-color:#080c16;background-image:linear-gradient(90deg,rgba(129,140,248,.22) 1px,transparent 1px),linear-gradient(rgba(129,140,248,.22) 1px,transparent 1px),radial-gradient(ellipse at 50% 0,rgba(79,70,229,.32),transparent 65%);background-size:14px 14px,14px 14px,auto}
 .points-preview-name{font-size:1.12rem;font-weight:800;letter-spacing:.02em}
 .points-preview-name.name-gradient{background:linear-gradient(90deg,#f472b6,#a78bfa,#38bdf8);color:transparent;background-clip:text;-webkit-background-clip:text}
 .points-preview-name.name-gold{color:#f5c451;text-shadow:0 0 12px rgba(245,196,81,.35)}
