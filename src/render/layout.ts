@@ -120,6 +120,7 @@ ${og.type === 'video.episode' ? `
         <a href="${o.siteUrl}/u/${h(cu.username)}">${icon('user', 'icon-small')} My Profile</a>
         <a href="${o.siteUrl}/profile">${icon('edit', 'icon-small')} Edit Profile</a>
         <a href="${o.siteUrl}/mylist">${icon('list', 'icon-small')} My List</a>
+        <a href="${o.siteUrl}/points">${icon('sparkles', 'icon-small')} Points Store</a>
         <a href="${o.siteUrl}/announcements">${icon('megaphone', 'icon-small')} Announcements</a>
         <a href="${o.siteUrl}/bug-reports">${icon('alert', 'icon-small')} Bug Reports</a>
         <a href="${o.siteUrl}/favorites">${icon('heart', 'icon-small')} Favorites</a>
