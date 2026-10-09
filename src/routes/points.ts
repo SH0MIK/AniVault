@@ -194,7 +194,7 @@ pointsRoutes.get('/points', async c => {
 .points-action{border:0;border-radius:999px;padding:8px 13px;background:var(--accent);color:white;font-weight:700;cursor:pointer;font-size:.78rem}
 .points-action:disabled{opacity:.55;cursor:not-allowed}
 .points-message{min-height:24px;margin:8px 0;color:var(--text-secondary);font-size:.9rem}
-.points-section-title{font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-secondary);margin:24px 0 12px}
+.points-section-title{display:flex;align-items:center;gap:8px;font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-secondary);margin:24px 0 12px}.points-section-title svg{width:17px;height:17px;flex:0 0 auto}.points-empty-state{display:flex;align-items:center;gap:10px;padding:20px 0}.points-empty-state svg{width:24px;height:24px;flex:0 0 auto;color:var(--accent-2)}
 .points-ledger{width:100%;border-collapse:collapse}.points-ledger td{padding:12px 8px;border-bottom:1px solid var(--border);font-size:.86rem}.points-ledger td:last-child{text-align:right;font-weight:700}.points-positive{color:#57d6a0}.points-negative{color:#ff8b8b}
 .points-note{font-size:.78rem;color:var(--text-secondary);margin:16px 0}
 @media(max-width:760px){.points-task-grid,.points-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.points-page{padding:20px 12px 45px}.points-card{padding:13px}}
