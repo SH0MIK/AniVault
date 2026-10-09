@@ -70,3 +70,17 @@ INSERT OR IGNORE INTO points_catalog(id,category,name,description,icon,price,cos
 ('flair-night-owl','Flair','Night Owl','For late-night episode marathons.','moon',700,'flair','night-owl',20),
 ('effect-sparkle','Effects','Profile Sparkle','A subtle sparkle effect for your profile.','sparkles',2200,'profile_effect','sparkle',10),
 ('badge-pioneer','Badges','Pioneer Badge','A collectible badge for early supporters.','award',2000,'badge','pioneer',10);
+
+-- Server-timed playback progression prevents a single forged 90% progress
+-- request from immediately granting an episode reward.
+CREATE TABLE IF NOT EXISTS points_watch_sessions (
+  user_id INTEGER NOT NULL,
+  anime_id INTEGER NOT NULL,
+  episode_num INTEGER NOT NULL,
+  last_position INTEGER NOT NULL DEFAULT 0,
+  watched_seconds INTEGER NOT NULL DEFAULT 0,
+  last_seen_at INTEGER NOT NULL,
+  rewarded INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY(user_id, anime_id, episode_num),
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
