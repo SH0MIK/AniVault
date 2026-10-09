@@ -8,6 +8,7 @@ import { MalAPI } from '../lib/mal-api';
 import { AnimeTracker } from '../lib/tracker';
 import { pushListSync } from '../lib/list-sync';
 import { Notification } from '../lib/notification';
+import { awardPoints } from '../lib/points';
 import { timeAgo } from '../lib/helpers';
 
 export const apiListRoutes = new Hono<{ Bindings: Env }>();
@@ -55,6 +56,9 @@ apiListRoutes.on(['GET', 'POST'], '/api/list.php', async (c) => {
       result = await AnimeTracker.addOrUpdate(db, mal, userId, body as Record<string, any>);
       if (result.success) {
         const animeId = parseInt((body.anime_id as string) ?? '0', 10) || 0;
+        const alreadyTracked = await db.fetchOne<{id:number}>('SELECT id FROM points_ledger WHERE user_id=? AND event_key=?', [userId, 'add_anime:' + animeId]);
+        const addedToday = await db.count("SELECT COUNT(*) AS cnt FROM points_ledger WHERE user_id=? AND event_type='add_anime' AND created_at >= date('now')", [userId]);
+        if (animeId > 0 && !alreadyTracked && addedToday < 5) await awardPoints(db, userId, 5, 'add_anime', 'add_anime:' + animeId, 'Added anime to your list');
         const status = (body.status as string) || 'plan_to_watch';
         const watched = parseInt((body.episodes_watched as string) ?? '0', 10) || 0;
         const score = body.score ? parseInt(body.score as string, 10) : null;
@@ -241,6 +245,33 @@ apiListRoutes.post('/api/watch_history.php', async (c) => {
       // watched (and "completed" once the last episode is reached).
       if (duration > 0) {
         const pct = watchTime / duration;
+        // Only saved playback progress at 90%+ earns points; event keys prevent
+        // duplicate credits from the player's periodic progress updates.
+        {
+          const now = Math.floor(Date.now() / 1000);
+          const progress = await db.fetchOne<{last_position:number;watched_seconds:number;last_seen_at:number;rewarded:number}>(
+            'SELECT last_position,watched_seconds,last_seen_at,rewarded FROM points_watch_sessions WHERE user_id=? AND anime_id=? AND episode_num=?',
+            [userId, animeId, epNum]
+          );
+          if (!progress) {
+            // Never credit the first progress request: it may be a resume/seek.
+            await db.query('INSERT OR IGNORE INTO points_watch_sessions(user_id,anime_id,episode_num,last_position,watched_seconds,last_seen_at,rewarded) VALUES(?,?,?,?,?,?,0)',
+              [userId, animeId, epNum, watchTime, 0, now]);
+          } else if (!progress.rewarded) {
+            const elapsed = Math.max(0, Math.min(120, now - Number(progress.last_seen_at || now)));
+            const positionDelta = Math.max(0, watchTime - Number(progress.last_position || 0));
+            // Count only playback progress plausible for elapsed server time.
+            const plausibleDelta = Math.min(positionDelta, Math.floor(elapsed * 1.5) + 2);
+            const watchedSeconds = Number(progress.watched_seconds || 0) + plausibleDelta;
+            await db.query('UPDATE points_watch_sessions SET last_position=MAX(last_position,?),watched_seconds=?,last_seen_at=? WHERE user_id=? AND anime_id=? AND episode_num=?',
+              [watchTime, watchedSeconds, now, userId, animeId, epNum]);
+            const earnedToday = await db.count("SELECT COUNT(*) AS cnt FROM points_ledger WHERE user_id=? AND event_type='watch_episode' AND created_at >= date('now')", [userId]);
+            if (pct >= 0.9 && watchedSeconds >= Math.floor(duration * 0.8) && earnedToday < 10) {
+              const awarded = await awardPoints(db, userId, 5, 'watch_episode', 'watch:' + animeId + ':' + epNum, 'Watched an episode');
+              if (awarded) await db.query('UPDATE points_watch_sessions SET rewarded=1 WHERE user_id=? AND anime_id=? AND episode_num=?', [userId, animeId, epNum]);
+            }
+          }
+        }
         const totalEpsParam = parseInt(body.total_eps ?? '0', 10) || 0;
         await AnimeTracker.autoTrackProgress(db, userId, animeId, epNum, pct, totalEpsParam, animeTitle, animeImage);
       }

@@ -12,7 +12,8 @@
     "db:bug-reports": "wrangler d1 execute anivault --file=./migrations/0003_bug_reports.sql",
     "db:art-cache": "wrangler d1 execute anivault --remote --file=./migrations/0007_scraper_art_cache.sql",
     "discord:pc": "node tools/discord-rpc-bridge.mjs",
-    "db:homepage-cache": "wrangler d1 execute anivault --remote --file=./migrations/0008_homepage_cache.sql"
+    "db:homepage-cache": "wrangler d1 execute anivault --remote --file=./migrations/0008_homepage_cache.sql",
+    "db:points": "wrangler d1 execute anivault --remote --file=./migrations/0009_points_store.sql"
   },
   "dependencies": {
     "@xhayper/discord-rpc": "^1.3.4",

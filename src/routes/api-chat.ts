@@ -10,6 +10,7 @@ import { Chat, ChatMessageRow } from '../lib/chat';
 import { Badge, BadgeRow } from '../lib/badges';
 import { Notification } from '../lib/notification';
 import { h, timeAgo } from '../lib/helpers';
+import { awardPoints } from '../lib/points';
 
 export const apiChatRoutes = new Hono<{ Bindings: Env }>();
 
@@ -135,6 +136,8 @@ apiChatRoutes.on(['GET', 'POST'], '/api/chat', async (c) => {
       }
       await Chat.markRead(db, userId, sent.row!.id);
       await Chat.ping(db, userId, false); // sending implicitly stops "typing"
+      const chatPointsToday = await db.count("SELECT COUNT(*) AS cnt FROM points_ledger WHERE user_id=? AND event_type='chat' AND created_at >= date('now')", [userId]);
+      if (chatPointsToday < 10 && text.trim().length >= 8) await awardPoints(db, userId, 2, 'chat', 'chat:' + sent.row!.id, 'Community chat message');
 
       // @mentions and replies both notify someone about this message — skip anyone
       // who's got the chat panel open right now, since they'll see it live instead.

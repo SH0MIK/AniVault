@@ -6,6 +6,7 @@ import { Auth } from '../lib/auth';
 import { AnimeComments, AnimeCommentRow } from '../lib/anime-comments';
 import { Notification } from '../lib/notification';
 import { timeAgo, h } from '../lib/helpers';
+import { awardPoints } from '../lib/points';
 
 export const apiAnimeCommentsRoutes = new Hono<{Bindings:Env}>();
 
@@ -79,6 +80,13 @@ apiAnimeCommentsRoutes.on(['GET','POST'],'/api/anime-comments',async c=>{
     const parentId=parseInt(get('parent_id'),10)||undefined;
     const sent=await AnimeComments.create(db,userId,animeId,episodeNum,text,parentId);
     if(!sent.success)return c.json({success:false,message:sent.error},400);
+
+    // Reward eligible community activity, with a daily cap. The comment ID is
+    // a unique ledger key, so retries can never credit the same comment twice.
+    if (sent.row?.id) {
+      const earnedToday = await db.count("SELECT COUNT(*) AS cnt FROM points_ledger WHERE user_id=? AND event_type='comment' AND created_at >= date('now')", [userId]);
+      if (earnedToday < 10) await awardPoints(db, userId, 2, 'comment', 'comment:' + sent.row.id, 'Episode comment');
+    }
 
     if(parentId){
       const parent=await db.fetchOne<{user_id:number}>('SELECT user_id FROM anime_comments WHERE id=?',[parentId]);
