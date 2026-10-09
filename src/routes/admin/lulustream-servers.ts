@@ -22,7 +22,7 @@ function normalizeLuluUrl(value: string): string {
     if (u.protocol !== 'https:' || !['lulust.com', 'luluvido.com'].some(root => host === root || host.endsWith('.' + root))) return value.trim();
     const match = u.pathname.match(/^\/(?:d|e)\/([^/]+)\/?$/i);
     if (match) u.pathname = '/e/' + match[1];
-    return u.toString().replace(/\\/$/, '');
+    return u.toString().replace(/\/$/, '');
   } catch { return value.trim(); }
 }
 function trackGroup(track: { label?: string; lang?: string; default?: boolean }): 'sub'|'dub'|'hindi'|'multi' {
