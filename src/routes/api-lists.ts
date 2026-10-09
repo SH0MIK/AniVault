@@ -56,6 +56,9 @@ apiListRoutes.on(['GET', 'POST'], '/api/list.php', async (c) => {
       result = await AnimeTracker.addOrUpdate(db, mal, userId, body as Record<string, any>);
       if (result.success) {
         const animeId = parseInt((body.anime_id as string) ?? '0', 10) || 0;
+        const alreadyTracked = await db.fetchOne<{id:number}>('SELECT id FROM points_ledger WHERE user_id=? AND event_key=?', [userId, 'add_anime:' + animeId]);
+        const addedToday = await db.count("SELECT COUNT(*) AS cnt FROM points_ledger WHERE user_id=? AND event_type='add_anime' AND created_at >= date('now')", [userId]);
+        if (animeId > 0 && !alreadyTracked && addedToday < 5) await awardPoints(db, userId, 5, 'add_anime', 'add_anime:' + animeId, 'Added anime to your list');
         const status = (body.status as string) || 'plan_to_watch';
         const watched = parseInt((body.episodes_watched as string) ?? '0', 10) || 0;
         const score = body.score ? parseInt(body.score as string, 10) : null;
