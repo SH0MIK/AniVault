@@ -20,7 +20,7 @@ function normalizeLuluUrl(value: string): string {
     const u = new URL(value.trim());
     const host = u.hostname.toLowerCase();
     if (u.protocol !== 'https:' || !['lulust.com', 'luluvido.com'].some(root => host === root || host.endsWith('.' + root))) return value.trim();
-    const match = u.pathname.match(/^\\/(?:d|e)\\/([^/]+)\\/?$/i);
+    const match = u.pathname.match(/^\/(?:d|e)\/([^/]+)\/?$/i);
     if (match) u.pathname = '/e/' + match[1];
     return u.toString().replace(/\\/$/, '');
   } catch { return value.trim(); }
