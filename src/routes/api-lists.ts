@@ -245,8 +245,29 @@ apiListRoutes.post('/api/watch_history.php', async (c) => {
         // Only saved playback progress at 90%+ earns points; event keys prevent
         // duplicate credits from the player's periodic progress updates.
         if (pct >= 0.9) {
-          const earnedToday = await db.count("SELECT COUNT(*) AS cnt FROM points_ledger WHERE user_id=? AND event_type='watch_episode' AND created_at >= date('now')", [userId]);
-          if (earnedToday < 10) await awardPoints(db, userId, 5, 'watch_episode', 'watch:' + animeId + ':' + epNum, 'Watched an episode');
+          const now = Math.floor(Date.now() / 1000);
+          const progress = await db.fetchOne<{last_position:number;watched_seconds:number;last_seen_at:number;rewarded:number}>(
+            'SELECT last_position,watched_seconds,last_seen_at,rewarded FROM points_watch_sessions WHERE user_id=? AND anime_id=? AND episode_num=?',
+            [userId, animeId, epNum]
+          );
+          if (!progress) {
+            // Never credit the first progress request: it may be a resume/seek.
+            await db.query('INSERT OR IGNORE INTO points_watch_sessions(user_id,anime_id,episode_num,last_position,watched_seconds,last_seen_at,rewarded) VALUES(?,?,?,?,?,?,0)',
+              [userId, animeId, epNum, watchTime, 0, now]);
+          } else if (!progress.rewarded) {
+            const elapsed = Math.max(0, Math.min(120, now - Number(progress.last_seen_at || now)));
+            const positionDelta = Math.max(0, watchTime - Number(progress.last_position || 0));
+            // Count only playback progress plausible for elapsed server time.
+            const plausibleDelta = Math.min(positionDelta, Math.floor(elapsed * 1.5) + 2);
+            const watchedSeconds = Number(progress.watched_seconds || 0) + plausibleDelta;
+            await db.query('UPDATE points_watch_sessions SET last_position=MAX(last_position,?),watched_seconds=?,last_seen_at=? WHERE user_id=? AND anime_id=? AND episode_num=?',
+              [watchTime, watchedSeconds, now, userId, animeId, epNum]);
+            const earnedToday = await db.count("SELECT COUNT(*) AS cnt FROM points_ledger WHERE user_id=? AND event_type='watch_episode' AND created_at >= date('now')", [userId]);
+            if (watchedSeconds >= Math.floor(duration * 0.8) && earnedToday < 10) {
+              const awarded = await awardPoints(db, userId, 5, 'watch_episode', 'watch:' + animeId + ':' + epNum, 'Watched an episode');
+              if (awarded) await db.query('UPDATE points_watch_sessions SET rewarded=1 WHERE user_id=? AND anime_id=? AND episode_num=?', [userId, animeId, epNum]);
+            }
+          }
         }
         const totalEpsParam = parseInt(body.total_eps ?? '0', 10) || 0;
         await AnimeTracker.autoTrackProgress(db, userId, animeId, epNum, pct, totalEpsParam, animeTitle, animeImage);
