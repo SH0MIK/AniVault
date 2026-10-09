@@ -13,25 +13,25 @@ async function eligibleCounts(db: any) {
   const queries = [
     `WITH ranked AS (
        SELECT a.id,a.user_id,ROW_NUMBER() OVER(PARTITION BY a.user_id ORDER BY COALESCE(a.created_at,''),a.id) rn
-       FROM anime_list a
+       FROM anime_list a JOIN users valid_user ON valid_user.id=a.user_id
        WHERE a.user_id IS NOT NULL AND NOT EXISTS (
          SELECT 1 FROM points_ledger p WHERE p.user_id=a.user_id AND p.event_key='add_anime:'||a.anime_id
        )
      ) SELECT COUNT(*) AS cnt FROM ranked WHERE rn<=100 AND NOT EXISTS (SELECT 1 FROM points_ledger old WHERE old.user_id=ranked.user_id AND old.event_key='legacy:list:'||ranked.id)`,
     `WITH ranked AS (
        SELECT w.id,w.user_id,ROW_NUMBER() OVER(PARTITION BY w.user_id ORDER BY COALESCE(w.watched_at,''),w.id) rn
-       FROM watch_history w
+       FROM watch_history w JOIN users valid_user ON valid_user.id=w.user_id
        WHERE w.user_id IS NOT NULL AND w.episode_duration>=30 AND w.watch_time>=CAST(w.episode_duration*0.8 AS INTEGER)
        AND NOT EXISTS (SELECT 1 FROM points_ledger p WHERE p.user_id=w.user_id AND p.event_key='watch:'||w.anime_id||':'||w.episode_num)
      ) SELECT COUNT(*) AS cnt FROM ranked WHERE rn<=100 AND NOT EXISTS (SELECT 1 FROM points_ledger old WHERE old.user_id=ranked.user_id AND old.event_key='legacy:watch:'||ranked.id)`,
     `WITH ranked AS (
        SELECT a.id,a.user_id,ROW_NUMBER() OVER(PARTITION BY a.user_id ORDER BY COALESCE(a.created_at,''),a.id) rn
-       FROM anime_comments a WHERE a.user_id IS NOT NULL AND a.is_deleted=0 AND LENGTH(TRIM(a.body))>=8
+       FROM anime_comments a JOIN users valid_user ON valid_user.id=a.user_id WHERE a.user_id IS NOT NULL AND a.is_deleted=0 AND LENGTH(TRIM(a.body))>=8
        AND NOT EXISTS (SELECT 1 FROM points_ledger p WHERE p.user_id=a.user_id AND p.event_key='comment:'||a.id)
      ) SELECT COUNT(*) AS cnt FROM ranked WHERE rn<=50 AND NOT EXISTS (SELECT 1 FROM points_ledger old WHERE old.user_id=ranked.user_id AND old.event_key='legacy:comment:'||ranked.id)`,
     `WITH ranked AS (
        SELECT m.id,m.user_id,ROW_NUMBER() OVER(PARTITION BY m.user_id ORDER BY COALESCE(m.created_at,''),m.id) rn
-       FROM chat_messages m WHERE m.user_id IS NOT NULL AND LENGTH(TRIM(m.message))>=8
+       FROM chat_messages m JOIN users valid_user ON valid_user.id=m.user_id WHERE m.user_id IS NOT NULL AND LENGTH(TRIM(m.message))>=8
        AND NOT EXISTS (SELECT 1 FROM points_ledger p WHERE p.user_id=m.user_id AND p.event_key='chat:'||m.id)
      ) SELECT COUNT(*) AS cnt FROM ranked WHERE rn<=50 AND NOT EXISTS (SELECT 1 FROM points_ledger old WHERE old.user_id=ranked.user_id AND old.event_key='legacy:chat:'||ranked.id)`
   ];
@@ -74,28 +74,28 @@ adminPointsRoutes.on(['GET','POST'], '/admin/points.php', async c => {
         const statements = [
           `WITH ranked AS (
              SELECT a.id,a.user_id,a.anime_id,ROW_NUMBER() OVER(PARTITION BY a.user_id ORDER BY COALESCE(a.created_at,''),a.id) rn
-             FROM anime_list a WHERE a.user_id IS NOT NULL
+             FROM anime_list a JOIN users valid_user ON valid_user.id=a.user_id WHERE a.user_id IS NOT NULL
              AND NOT EXISTS (SELECT 1 FROM points_ledger p WHERE p.user_id=a.user_id AND p.event_key='add_anime:'||a.anime_id)
            )
            INSERT OR IGNORE INTO points_ledger(user_id,amount,balance_after,event_type,event_key,description)
            SELECT user_id,5,0,'legacy_list','legacy:list:'||id,'Legacy reward: anime in your list' FROM ranked WHERE rn<=100`,
           `WITH ranked AS (
              SELECT w.id,w.user_id,w.anime_id,w.episode_num,ROW_NUMBER() OVER(PARTITION BY w.user_id ORDER BY COALESCE(w.watched_at,''),w.id) rn
-             FROM watch_history w WHERE w.user_id IS NOT NULL AND w.episode_duration>=30 AND w.watch_time>=CAST(w.episode_duration*0.8 AS INTEGER)
+             FROM watch_history w JOIN users valid_user ON valid_user.id=w.user_id WHERE w.user_id IS NOT NULL AND w.episode_duration>=30 AND w.watch_time>=CAST(w.episode_duration*0.8 AS INTEGER)
              AND NOT EXISTS (SELECT 1 FROM points_ledger p WHERE p.user_id=w.user_id AND p.event_key='watch:'||w.anime_id||':'||w.episode_num)
            )
            INSERT OR IGNORE INTO points_ledger(user_id,amount,balance_after,event_type,event_key,description)
            SELECT user_id,5,0,'legacy_watch','legacy:watch:'||id,'Legacy reward: watched episode' FROM ranked WHERE rn<=100`,
           `WITH ranked AS (
              SELECT a.id,a.user_id,ROW_NUMBER() OVER(PARTITION BY a.user_id ORDER BY COALESCE(a.created_at,''),a.id) rn
-             FROM anime_comments a WHERE a.user_id IS NOT NULL AND a.is_deleted=0 AND LENGTH(TRIM(a.body))>=8
+             FROM anime_comments a JOIN users valid_user ON valid_user.id=a.user_id WHERE a.user_id IS NOT NULL AND a.is_deleted=0 AND LENGTH(TRIM(a.body))>=8
              AND NOT EXISTS (SELECT 1 FROM points_ledger p WHERE p.user_id=a.user_id AND p.event_key='comment:'||a.id)
            )
            INSERT OR IGNORE INTO points_ledger(user_id,amount,balance_after,event_type,event_key,description)
            SELECT user_id,2,0,'legacy_comment','legacy:comment:'||id,'Legacy reward: episode comment' FROM ranked WHERE rn<=50`,
           `WITH ranked AS (
              SELECT m.id,m.user_id,ROW_NUMBER() OVER(PARTITION BY m.user_id ORDER BY COALESCE(m.created_at,''),m.id) rn
-             FROM chat_messages m WHERE m.user_id IS NOT NULL AND LENGTH(TRIM(m.message))>=8
+             FROM chat_messages m JOIN users valid_user ON valid_user.id=m.user_id WHERE m.user_id IS NOT NULL AND LENGTH(TRIM(m.message))>=8
              AND NOT EXISTS (SELECT 1 FROM points_ledger p WHERE p.user_id=m.user_id AND p.event_key='chat:'||m.id)
            )
            INSERT OR IGNORE INTO points_ledger(user_id,amount,balance_after,event_type,event_key,description)
