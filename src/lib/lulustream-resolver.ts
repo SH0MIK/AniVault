@@ -170,8 +170,9 @@ function parseM3u8Tracks(manifest: string, manifestUrl: string): { audio: LuluTr
 export async function resolveLuluStream(embedUrl: string): Promise<LuluResolveResult> {
   const input = new URL(embedUrl);
   if (!/^https?:$/.test(input.protocol)) throw new Error('Only http(s) URLs are supported');
-  if (!/(^|\.)lulust\.com$/i.test(input.hostname)) {
-    throw new Error('Only lulust.com embed URLs are supported');
+  const supportedHosts = [/(^|\\.)lulust\\.com$/i, /(^|\\.)luluvido\\.com$/i];
+  if (!supportedHosts.some(pattern => pattern.test(input.hostname))) {
+    throw new Error('Only supported LuluStream-family embed URLs are allowed');
   }
 
   const res = await fetch(input.toString(), {
