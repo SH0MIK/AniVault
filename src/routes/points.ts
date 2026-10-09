@@ -18,6 +18,16 @@ async function context(c: any) {
   const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
   return { db, session, lifetime, auth };
 }
+function renderRewardPreview(item: any) {
+  const type=String(item.cosmetic_type||''), value=String(item.cosmetic_value||'');
+  if(type==='avatar_frame') return `<div class="points-preview"><div class="points-preview-avatar frame-${h(value)}">👤</div></div>`;
+  if(type==='profile_background') return `<div class="points-preview"><div class="points-preview-bg bg-${h(value)}">${value==='sakura'?'🌸':value==='constellation'?'✦':'▦'}</div></div>`;
+  if(type==='name_style') return `<div class="points-preview"><span class="points-preview-name name-${h(value)}">AniVault</span></div>`;
+  if(type==='flair') return `<div class="points-preview"><span class="points-preview-label" style="font-size:1rem">✦ ${h(value.replace(/-/g,' '))} ✦</span></div>`;
+  if(type==='profile_effect') return `<div class="points-preview"><span style="font-size:2rem">✨ ✧ ✨</span></div>`;
+  if(type==='badge') return `<div class="points-preview"><span style="font-size:2rem">🏅</span></div>`;
+  return `<div class="points-preview"><span style="font-size:2rem">✦</span></div>`;
+}
 function todayUTC() { return new Date().toISOString().slice(0, 10); }
 
 async function ensureWallet(db: Db, userId: number) {
@@ -160,6 +170,24 @@ pointsRoutes.get('/points', async c => {
 .points-task-grid,.points-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:13px}
 .points-card{background:var(--card-bg,rgba(255,255,255,.035));border:1px solid var(--border);border-radius:15px;padding:17px;min-width:0}
 .points-icon{width:40px;height:40px;display:grid;place-items:center;border-radius:12px;background:rgba(124,58,237,.12);color:var(--accent-2);margin-bottom:13px}
+.points-icon svg{display:block;width:22px;height:22px;flex-shrink:0}
+.points-icon-fallback{font-size:1.45rem;line-height:1}
+.points-preview{display:flex;align-items:center;justify-content:center;min-height:94px;margin:-2px 0 14px;border:1px solid var(--border);border-radius:12px;background:linear-gradient(135deg,rgba(124,58,237,.12),rgba(232,69,60,.08));overflow:hidden}
+.points-preview-avatar{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:var(--bg-secondary,#20202a);position:relative;font-size:1.7rem;border:3px solid transparent}
+.points-preview-avatar.frame-sakura{border-color:#f5a6d2;box-shadow:0 0 0 3px rgba(245,166,210,.18)}
+.points-preview-avatar.frame-gold{border-color:#f5c451;box-shadow:0 0 0 3px rgba(245,196,81,.18)}
+.points-preview-avatar.frame-neon{border-color:#48f5e5;box-shadow:0 0 12px #48f5e5}
+.points-preview-bg{width:100%;min-height:94px;display:grid;place-items:center;font-size:1.9rem}
+.points-preview-bg.bg-constellation{background:radial-gradient(circle at 20% 25%,#fff 1px,transparent 2px),radial-gradient(circle at 75% 30%,#a5b4fc 1px,transparent 2px),radial-gradient(circle at 55% 75%,#fff 1px,transparent 2px),linear-gradient(135deg,#111827,#312e81)}
+.points-preview-bg.bg-sakura{background:radial-gradient(ellipse at 20% 20%,rgba(244,114,182,.45),transparent 40%),linear-gradient(135deg,#321c35,#6b3657)}
+.points-preview-bg.bg-midnight{background:linear-gradient(90deg,rgba(129,140,248,.13) 1px,transparent 1px),linear-gradient(rgba(129,140,248,.13) 1px,transparent 1px),#111827;background-size:14px 14px}
+.points-preview-name{font-size:1.12rem;font-weight:800;letter-spacing:.02em}
+.points-preview-name.name-gradient{background:linear-gradient(90deg,#f472b6,#a78bfa,#38bdf8);color:transparent;background-clip:text;-webkit-background-clip:text}
+.points-preview-name.name-gold{color:#f5c451;text-shadow:0 0 12px rgba(245,196,81,.35)}
+.points-preview-label{font-size:.75rem;color:var(--text-secondary);margin-top:6px}
+.points-currency{display:inline-flex;align-items:center;gap:5px;color:var(--accent-2)}
+.points-currency svg{width:1em;height:1em;display:inline-block}
+
 .points-card h3{font-size:1rem;margin:0 0 6px}.points-card p{font-size:.83rem;color:var(--text-secondary);line-height:1.5;min-height:38px;margin:0 0 14px}
 .points-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
 .points-price{font-weight:700;font-size:.86rem;white-space:nowrap}
@@ -204,7 +232,7 @@ pointsRoutes.get('/points', async c => {
   </section>
   <section class="points-panel" id="panel-store">
     <h2 class="points-section-title">Redeem rewards</h2>
-    <div class="points-grid">${items.map((item:any)=>{const isOwned=owned.has(item.id);return `<article class="points-card"><div class="points-icon">${icon(item.icon,'icon-medium')}</div><h3>${h(item.name)}</h3><p>${h(item.description)}</p><div class="points-card-foot"><span class="points-price">✦ ${Number(item.price).toLocaleString()}</span><button class="points-action" data-action="redeem" data-item="${h(item.id)}" ${isOwned?'disabled':''}>${isOwned?'Owned':'Redeem'}</button></div></article>`}).join('')}</div>
+    <div class="points-grid">${items.map((item:any)=>{const isOwned=owned.has(item.id);return `<article class="points-card"><div class="points-icon">${icon(item.icon,'icon-medium')}<span class="points-icon-fallback" hidden>${({flower:'🌸',sparkles:'✨',zap:'⚡',palette:'🎨',star:'⭐',moon:'🌙',heart:'💖',circle:'⭕',grid:'▦',award:'🏅'} as any)[String(item.icon).split('-')[0]]||'✦'}</span></div>${renderRewardPreview(item)}<h3>${h(item.name)}</h3><p>${h(item.description)}</p><div class="points-card-foot"><span class="points-price points-currency">${icon('star','icon-small')} ${Number(item.price).toLocaleString()}</span><button class="points-action" data-action="redeem" data-item="${h(item.id)}" ${isOwned?'disabled':''}>${isOwned?'Owned':'Redeem'}</button></div></article>`}).join('')}</div>
   </section>
   <section class="points-panel" id="panel-inventory">
     <h2 class="points-section-title">My collection</h2>
