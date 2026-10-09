@@ -8,6 +8,7 @@ import { MalAPI } from '../lib/mal-api';
 import { AnimeTracker } from '../lib/tracker';
 import { pushListSync } from '../lib/list-sync';
 import { Notification } from '../lib/notification';
+import { awardPoints } from '../lib/points';
 import { timeAgo } from '../lib/helpers';
 
 export const apiListRoutes = new Hono<{ Bindings: Env }>();
@@ -241,6 +242,12 @@ apiListRoutes.post('/api/watch_history.php', async (c) => {
       // watched (and "completed" once the last episode is reached).
       if (duration > 0) {
         const pct = watchTime / duration;
+        // Only saved playback progress at 90%+ earns points; event keys prevent
+        // duplicate credits from the player's periodic progress updates.
+        if (pct >= 0.9) {
+          const earnedToday = await db.count("SELECT COUNT(*) AS cnt FROM points_ledger WHERE user_id=? AND event_type='watch_episode' AND created_at >= date('now')", [userId]);
+          if (earnedToday < 10) await awardPoints(db, userId, 5, 'watch_episode', 'watch:' + animeId + ':' + epNum, 'Watched an episode');
+        }
         const totalEpsParam = parseInt(body.total_eps ?? '0', 10) || 0;
         await AnimeTracker.autoTrackProgress(db, userId, animeId, epNum, pct, totalEpsParam, animeTitle, animeImage);
       }
