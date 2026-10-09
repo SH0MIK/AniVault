@@ -15,6 +15,16 @@ function validLuluUrl(value: string): boolean {
     return u.protocol === 'https:' && (host === 'lulust.com' || host.endsWith('.lulust.com') || host === 'luluvido.com' || host.endsWith('.luluvido.com'));
   } catch { return false; }
 }
+function normalizeLuluUrl(value: string): string {
+  try {
+    const u = new URL(value.trim());
+    const host = u.hostname.toLowerCase();
+    if (u.protocol !== 'https:' || !['lulust.com', 'luluvido.com'].some(root => host === root || host.endsWith('.' + root))) return value.trim();
+    const match = u.pathname.match(/^\\/(?:d|e)\\/([^/]+)\\/?$/i);
+    if (match) u.pathname = '/e/' + match[1];
+    return u.toString().replace(/\\/$/, '');
+  } catch { return value.trim(); }
+}
 function trackGroup(track: { label?: string; lang?: string; default?: boolean }): 'sub'|'dub'|'hindi'|'multi' {
   const label = String(track.label || '').trim().toLowerCase();
   const lang = String(track.lang || '').trim().toLowerCase();
@@ -136,8 +146,8 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
 adminLuluStreamServerRoutes.post('/admin/lulustream_servers.php', async (c) => {
   const ctx=await buildAdminCtx(c); if(!ctx)return c.json({error:'Forbidden'},403);
   const body:any=(c.req.header('content-type')||'').includes('application/json') ? await c.req.json().catch(()=>null) : await c.req.parseBody().catch(()=>null);
-  const id=Number(body?.id||0), animeId=Number(body?.anime_id||0), ep=Number(body?.episode_num||0), url=String(body?.embed_url||'').trim(), active=Number(body?.is_active?1:0);
-  if(!animeId||!ep||!validLuluUrl(url))return c.json({error:'Use an HTTPS lulust.com embed URL'},400);
+  const id=Number(body?.id||0), animeId=Number(body?.anime_id||0), ep=Number(body?.episode_num||0), url=normalizeLuluUrl(String(body?.embed_url||'')), active=Number(body?.is_active?1:0);
+  if(!animeId||!ep||!validLuluUrl(url))return c.json({error:'Use an HTTPS lulust.com or luluvido.com /d/ or /e/ URL'},400);
   let audioTracks='[]';
   let label='LuluStream';
   try {
