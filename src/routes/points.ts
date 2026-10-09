@@ -232,7 +232,7 @@ pointsRoutes.get('/points', async c => {
   </section>
   <section class="points-panel" id="panel-store">
     <h2 class="points-section-title">Redeem rewards</h2>
-    <div class="points-grid">${items.map((item:any)=>{const isOwned=owned.has(item.id);return `<article class="points-card"><div class="points-icon points-reward-icon"><span class="points-icon-fallback">${({flower:'🌸',sparkles:'✨',zap:'⚡',palette:'🎨',star:'⭐',moon:'🌙',heart:'💖',circle:'⭕',grid:'▦',award:'🏅'} as any)[String(item.icon).split('-')[0]]||'✦'}</span></div>${renderRewardPreview(item)}<h3>${h(item.name)}</h3><p>${h(item.description)}</p><div class="points-card-foot"><span class="points-price points-currency"><span class="points-coin-icon" aria-hidden="true">✦</span> ${Number(item.price).toLocaleString()}</span><button class="points-action" data-action="redeem" data-item="${h(item.id)}" ${isOwned?'disabled':''}>${isOwned?'Owned':'Redeem'}</button></div></article>`}).join('')}</div>
+    <div class="points-grid">${items.map((item:any)=>{const isOwned=owned.has(item.id);return `<article class="points-card">${renderRewardPreview(item)}<h3>${h(item.name)}</h3><p>${h(item.description)}</p><div class="points-card-foot"><span class="points-price points-currency"><span class="points-coin-icon" aria-hidden="true">✦</span> ${Number(item.price).toLocaleString()}</span><button class="points-action" data-action="redeem" data-item="${h(item.id)}" ${isOwned?'disabled':''}>${isOwned?'Owned':'Redeem'}</button></div></article>`}).join('')}</div>
   </section>
   <section class="points-panel" id="panel-inventory">
     <h2 class="points-section-title">My collection</h2>
