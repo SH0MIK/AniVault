@@ -143,7 +143,7 @@ pointsRoutes.get('/points', async c => {
   const user = await auth.getCurrentUser();
   if (!user) return c.redirect(c.env.SITE_URL + '/login');
   const wallet = await ensureWallet(db,user.id);
-  const items = await db.fetchAll<any>('SELECT id,category,name,description,icon,price,cosmetic_type FROM points_catalog WHERE active=1 ORDER BY category,sort_order,name');
+  const items = await db.fetchAll<any>('SELECT id,category,name,description,icon,price,cosmetic_type,cosmetic_value FROM points_catalog WHERE active=1 ORDER BY category,sort_order,name');
   const inventory = await db.fetchAll<any>('SELECT i.item_id,i.equipped,c.name,c.category,c.icon,c.cosmetic_type,c.cosmetic_value FROM points_inventory i JOIN points_catalog c ON c.id=i.item_id WHERE i.user_id=? ORDER BY i.purchased_at DESC',[user.id]);
   const owned = new Set(inventory.map((x:any)=>x.item_id));
   const equipped = new Set(inventory.filter((x:any)=>x.equipped).map((x:any)=>x.item_id));
