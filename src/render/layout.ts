@@ -353,6 +353,7 @@ window.__currentPage = '${o.currentPage}';
   <a href="${o.siteUrl}/schedule" class="${active('schedule')}">${icon('calendar', 'icon-small')} Schedule</a>
   ${cu ? `
   <a href="${o.siteUrl}/mylist" class="${active('mylist')}">${icon('list', 'icon-small')} My List</a>
+  <a href="${o.siteUrl}/points" class="${active('points')}">${icon('sparkles', 'icon-small')} Points Store</a>
   <div class="mobile-menu-divider"></div>
   <a href="${o.siteUrl}/u/${h(cu.username)}">${icon('user', 'icon-small')} My Profile</a>
   <a href="${o.siteUrl}/profile">${icon('edit', 'icon-small')} Edit Profile</a>
