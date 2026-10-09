@@ -179,7 +179,7 @@ export async function resolveLuluStream(embedUrl: string): Promise<LuluResolveRe
     headers: {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/140 Safari/537.36',
       'Accept': 'text/html,application/xhtml+xml',
-      'Referer': 'https://lulust.com/',
+      'Referer': `${input.origin}/`,
     },
     redirect: 'follow',
   });
