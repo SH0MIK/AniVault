@@ -144,7 +144,7 @@ pointsRoutes.get('/points', async c => {
   if (!user) return c.redirect(c.env.SITE_URL + '/login');
   const wallet = await ensureWallet(db,user.id);
   const items = await db.fetchAll<any>('SELECT id,category,name,description,icon,price,cosmetic_type FROM points_catalog WHERE active=1 ORDER BY category,sort_order,name');
-  const inventory = await db.fetchAll<any>('SELECT item_id,equipped FROM points_inventory WHERE user_id=?',[user.id]);
+  const inventory = await db.fetchAll<any>('SELECT i.item_id,i.equipped,c.name,c.category,c.icon,c.cosmetic_type,c.cosmetic_value FROM points_inventory i JOIN points_catalog c ON c.id=i.item_id WHERE i.user_id=? ORDER BY i.purchased_at DESC',[user.id]);
   const owned = new Set(inventory.map((x:any)=>x.item_id));
   const equipped = new Set(inventory.filter((x:any)=>x.equipped).map((x:any)=>x.item_id));
   const claimed = await db.fetchAll<any>('SELECT task_key FROM points_daily_claims WHERE user_id=? AND claim_date=?',[user.id,todayUTC()]);
@@ -236,7 +236,7 @@ pointsRoutes.get('/points', async c => {
   </section>
   <section class="points-panel" id="panel-inventory">
     <h2 class="points-section-title">My collection</h2>
-    ${inventory.length? `<div class="points-grid">${inventory.map((item:any)=>`<article class="points-card"><div class="points-icon">${icon(items.find((x:any)=>x.id===item.item_id)?.icon||'sparkles','icon-medium')}</div><h3>${h(item.name)}</h3><p>${h(item.category)} · ${item.equipped?'Currently equipped':'Ready to use'}</p><div class="points-card-foot"><span class="points-muted" style="font-size:.78rem">${item.equipped?'Active cosmetic':'Owned'}</span><button class="points-action" data-action="${item.equipped?'unequip':'equip'}" data-item="${h(item.item_id)}">${item.equipped?'Unequip':'Equip'}</button></div></article>`).join('')}</div>`:'<p class="points-muted">Your collection is empty. Redeem something from the Store to get started!</p>'}
+    ${inventory.length? `<div class="points-grid">${inventory.map((item:any)=>`<article class="points-card">${renderRewardPreview(item)}<h3>${h(item.name||"Unnamed reward")}</h3><p>${h(item.category)} · ${item.equipped?'Currently equipped':'Ready to use'}</p><div class="points-card-foot"><span class="points-muted" style="font-size:.78rem">${item.equipped?'Active cosmetic':'Owned'}</span><button class="points-action" data-action="${item.equipped?'unequip':'equip'}" data-item="${h(item.item_id)}">${item.equipped?'Unequip':'Equip'}</button></div></article>`).join('')}</div>`:'<p class="points-muted">Your collection is empty. Redeem something from the Store to get started!</p>'}
   </section>
   <section class="points-panel" id="panel-history">
     <h2 class="points-section-title">Recent activity</h2>
