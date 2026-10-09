@@ -171,7 +171,7 @@ pointsRoutes.get('/points', async c => {
 .points-card{background:var(--card-bg,rgba(255,255,255,.035));border:1px solid var(--border);border-radius:15px;padding:17px;min-width:0}
 .points-icon{width:40px;height:40px;display:grid;place-items:center;border-radius:12px;background:rgba(124,58,237,.12);color:var(--accent-2);margin-bottom:13px}
 .points-icon svg{display:block;width:22px;height:22px;flex-shrink:0}
-.points-icon-fallback{font-size:1.45rem;line-height:1}
+.points-icon-fallback{font-size:1.45rem;line-height:1}.points-reward-icon svg{display:none!important}.points-reward-icon .points-icon-fallback{display:inline!important}
 .points-preview{display:flex;align-items:center;justify-content:center;min-height:94px;margin:-2px 0 14px;border:1px solid var(--border);border-radius:12px;background:linear-gradient(135deg,rgba(124,58,237,.12),rgba(232,69,60,.08));overflow:hidden}
 .points-preview-avatar{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:var(--bg-secondary,#20202a);position:relative;font-size:1.7rem;border:3px solid transparent}
 .points-preview-avatar.frame-sakura{border-color:#f5a6d2;box-shadow:0 0 0 3px rgba(245,166,210,.18)}
@@ -232,7 +232,7 @@ pointsRoutes.get('/points', async c => {
   </section>
   <section class="points-panel" id="panel-store">
     <h2 class="points-section-title">Redeem rewards</h2>
-    <div class="points-grid">${items.map((item:any)=>{const isOwned=owned.has(item.id);return `<article class="points-card"><div class="points-icon">${icon(item.icon,'icon-medium')}<span class="points-icon-fallback" hidden>${({flower:'🌸',sparkles:'✨',zap:'⚡',palette:'🎨',star:'⭐',moon:'🌙',heart:'💖',circle:'⭕',grid:'▦',award:'🏅'} as any)[String(item.icon).split('-')[0]]||'✦'}</span></div>${renderRewardPreview(item)}<h3>${h(item.name)}</h3><p>${h(item.description)}</p><div class="points-card-foot"><span class="points-price points-currency">${icon('star','icon-small')} ${Number(item.price).toLocaleString()}</span><button class="points-action" data-action="redeem" data-item="${h(item.id)}" ${isOwned?'disabled':''}>${isOwned?'Owned':'Redeem'}</button></div></article>`}).join('')}</div>
+    <div class="points-grid">${items.map((item:any)=>{const isOwned=owned.has(item.id);return `<article class="points-card"><div class="points-icon points-reward-icon"><span class="points-icon-fallback">${({flower:'🌸',sparkles:'✨',zap:'⚡',palette:'🎨',star:'⭐',moon:'🌙',heart:'💖',circle:'⭕',grid:'▦',award:'🏅'} as any)[String(item.icon).split('-')[0]]||'✦'}</span></div>${renderRewardPreview(item)}<h3>${h(item.name)}</h3><p>${h(item.description)}</p><div class="points-card-foot"><span class="points-price points-currency">${icon('star','icon-small')} ${Number(item.price).toLocaleString()}</span><button class="points-action" data-action="redeem" data-item="${h(item.id)}" ${isOwned?'disabled':''}>${isOwned?'Owned':'Redeem'}</button></div></article>`}).join('')}</div>
   </section>
   <section class="points-panel" id="panel-inventory">
     <h2 class="points-section-title">My collection</h2>
