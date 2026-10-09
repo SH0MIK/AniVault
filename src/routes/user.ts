@@ -109,11 +109,19 @@ userRoutes.get('/u/:username', async (c) => {
   const joinedDate = profileUser.created_at ? new Date(profileUser.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
 
   html += `
+<style>
+.profile-cosmetic-bg{position:relative;isolation:isolate;min-height:100vh;padding-bottom:28px}
+.profile-cosmetic-bg:before{content:"";position:absolute;z-index:-1;pointer-events:none;top:0;bottom:0;left:50%;width:100vw;transform:translateX(-50%);background-color:var(--bg-primary,#0a0b0e)}
+.profile-cosmetic-bg.bg-sakura:before{background-image:radial-gradient(ellipse at 12% 8%,rgba(255,125,190,.28),transparent 36%),radial-gradient(ellipse at 88% 28%,rgba(231,111,175,.18),transparent 32%),radial-gradient(ellipse at 52% 78%,rgba(139,67,133,.2),transparent 44%),radial-gradient(circle at 14% 36%,rgba(255,190,220,.75) 0 2px,transparent 3px),radial-gradient(circle at 78% 18%,rgba(255,190,220,.7) 0 2px,transparent 3px),radial-gradient(circle at 63% 65%,rgba(255,190,220,.55) 0 2px,transparent 3px),linear-gradient(135deg,#160e1b,#251426 52%,#100e18)}
+.profile-cosmetic-bg.bg-constellation:before{background-image:radial-gradient(circle at 12% 15%,#fff 0 1px,transparent 2px),radial-gradient(circle at 82% 12%,#c7d2fe 0 1.5px,transparent 2.5px),radial-gradient(circle at 35% 42%,#fff 0 1px,transparent 2px),radial-gradient(circle at 67% 61%,#c7d2fe 0 1px,transparent 2px),radial-gradient(circle at 91% 78%,#fff 0 1px,transparent 2px),radial-gradient(ellipse at 78% 10%,rgba(99,102,241,.28),transparent 42%),radial-gradient(ellipse at 18% 75%,rgba(124,58,237,.2),transparent 44%),linear-gradient(135deg,#080d1c,#15152f 55%,#090b17)}
+.profile-cosmetic-bg.bg-midnight:before{background-image:linear-gradient(rgba(129,140,248,.13) 1px,transparent 1px),linear-gradient(90deg,rgba(129,140,248,.13) 1px,transparent 1px),radial-gradient(ellipse at 50% 0,rgba(79,70,229,.2),transparent 55%);background-size:26px 26px,26px 26px,auto;background-color:#080c16}
+.profile-cosmetic-bg .u-header,.profile-cosmetic-bg .u-header-meta,.profile-cosmetic-bg .profile-stat-strip,.profile-cosmetic-bg .u-tabs{position:relative}
+</style>
 <div class="u-hero">
   <div class="u-banner${profileUser.banner_url ? '' : ' u-banner-fallback'}"${profileUser.banner_url ? ` style="background-image:url('${h(profileUser.banner_url)}')"` : ''} id="u-banner-el"></div>
 </div>
 
-<div class="container section" style="padding-top:0;${profileBackground === 'sakura' ? 'background:radial-gradient(ellipse at 10% 10%,rgba(244,114,182,.13),transparent 45%);' : profileBackground === 'constellation' ? 'background:radial-gradient(ellipse at 85% 5%,rgba(129,140,248,.16),transparent 42%),radial-gradient(ellipse at 20% 80%,rgba(124,58,237,.09),transparent 40%);' : profileBackground === 'midnight' ? 'background-image:linear-gradient(rgba(124,58,237,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(124,58,237,.045) 1px,transparent 1px);background-size:24px 24px;' : ''}">
+<div class="container section profile-cosmetic-bg${profileBackground ? ' bg-' + h(profileBackground) : ''}" style="padding-top:0;">
   <div class="u-header" style="${profileEffect === 'sparkle' ? 'filter:drop-shadow(0 0 12px rgba(192,132,252,.12));' : ''}">
     <div class="u-avatar-wrap">
       <div class="nav-avatar u-avatar" style="${avatarFrame === 'gold' ? 'border:3px solid #e7c46a;box-shadow:0 0 14px rgba(231,196,106,.28);' : avatarFrame === 'sakura' ? 'border:3px solid #f0a6c7;box-shadow:0 0 12px rgba(240,166,199,.25);' : avatarFrame === 'neon' ? 'border:3px solid #62f5ff;box-shadow:0 0 14px rgba(98,245,255,.3);' : ''}">
