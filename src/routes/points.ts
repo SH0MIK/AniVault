@@ -139,6 +139,8 @@ pointsRoutes.get('/points', async c => {
   const equipped = new Set(inventory.filter((x:any)=>x.equipped).map((x:any)=>x.item_id));
   const claimed = await db.fetchAll<any>('SELECT task_key FROM points_daily_claims WHERE user_id=? AND claim_date=?',[user.id,todayUTC()]);
   const claimedTasks = new Set(claimed.map((x:any)=>x.task_key));
+  const profileTaskEarned = await db.fetchOne<{id:number}>('SELECT id FROM points_ledger WHERE user_id=? AND event_key=?',[user.id,'task:profile_complete']);
+  if (profileTaskEarned) claimedTasks.add('profile_complete');
   const unreadCount = await Notification.unreadCount(db,user.id);
   const currentUser: CurrentUser = {id:user.id,username:user.username,avatar_url:user.avatar_url,role:user.role};
   const banner = await getBannerData(db);
