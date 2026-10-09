@@ -186,7 +186,7 @@ pointsRoutes.get('/points', async c => {
 .points-preview-name.name-gold{color:#f5c451;text-shadow:0 0 12px rgba(245,196,81,.35)}
 .points-preview-label{font-size:.75rem;color:var(--text-secondary);margin-top:6px}
 .points-currency{display:inline-flex;align-items:center;gap:5px;color:var(--accent-2)}
-.points-currency svg{width:1em;height:1em;display:inline-block}
+.points-currency svg{display:none!important}.points-coin-icon{display:inline-grid;place-items:center;width:1.05em;height:1.05em;line-height:1;font-size:1.05em;color:#f5c451;flex:0 0 auto;text-shadow:0 0 8px rgba(245,196,81,.35)}
 
 .points-card h3{font-size:1rem;margin:0 0 6px}.points-card p{font-size:.83rem;color:var(--text-secondary);line-height:1.5;min-height:38px;margin:0 0 14px}
 .points-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -232,7 +232,7 @@ pointsRoutes.get('/points', async c => {
   </section>
   <section class="points-panel" id="panel-store">
     <h2 class="points-section-title">Redeem rewards</h2>
-    <div class="points-grid">${items.map((item:any)=>{const isOwned=owned.has(item.id);return `<article class="points-card"><div class="points-icon points-reward-icon"><span class="points-icon-fallback">${({flower:'🌸',sparkles:'✨',zap:'⚡',palette:'🎨',star:'⭐',moon:'🌙',heart:'💖',circle:'⭕',grid:'▦',award:'🏅'} as any)[String(item.icon).split('-')[0]]||'✦'}</span></div>${renderRewardPreview(item)}<h3>${h(item.name)}</h3><p>${h(item.description)}</p><div class="points-card-foot"><span class="points-price points-currency">${icon('star','icon-small')} ${Number(item.price).toLocaleString()}</span><button class="points-action" data-action="redeem" data-item="${h(item.id)}" ${isOwned?'disabled':''}>${isOwned?'Owned':'Redeem'}</button></div></article>`}).join('')}</div>
+    <div class="points-grid">${items.map((item:any)=>{const isOwned=owned.has(item.id);return `<article class="points-card"><div class="points-icon points-reward-icon"><span class="points-icon-fallback">${({flower:'🌸',sparkles:'✨',zap:'⚡',palette:'🎨',star:'⭐',moon:'🌙',heart:'💖',circle:'⭕',grid:'▦',award:'🏅'} as any)[String(item.icon).split('-')[0]]||'✦'}</span></div>${renderRewardPreview(item)}<h3>${h(item.name)}</h3><p>${h(item.description)}</p><div class="points-card-foot"><span class="points-price points-currency"><span class="points-coin-icon" aria-hidden="true">✦</span> ${Number(item.price).toLocaleString()}</span><button class="points-action" data-action="redeem" data-item="${h(item.id)}" ${isOwned?'disabled':''}>${isOwned?'Owned':'Redeem'}</button></div></article>`}).join('')}</div>
   </section>
   <section class="points-panel" id="panel-inventory">
     <h2 class="points-section-title">My collection</h2>
