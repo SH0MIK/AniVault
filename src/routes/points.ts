@@ -21,7 +21,7 @@ async function context(c: any) {
 function renderRewardPreview(item: any) {
   const type=String(item.cosmetic_type||''), value=String(item.cosmetic_value||'');
   if(type==='avatar_frame') return `<div class="points-preview"><div class="points-preview-avatar frame-${h(value)}">👤</div></div>`;
-  if(type==='profile_background') return `<div class="points-preview"><div class="points-preview-bg bg-${h(value)}">${value==='sakura'?'🌸':value==='constellation'?'✦':'▦'}</div></div>`;
+  if(type==='profile_background') return `<div class="points-preview"><div class="points-preview-bg bg-${h(value)}" role="img" aria-label="${h(item.name || 'Profile background')}"></div></div>`;
   if(type==='name_style') return `<div class="points-preview"><span class="points-preview-name name-${h(value)}">AniVault</span></div>`;
   if(type==='flair') return `<div class="points-preview"><span class="points-preview-label" style="font-size:1rem">✦ ${h(value.replace(/-/g,' '))} ✦</span></div>`;
   if(type==='profile_effect') return `<div class="points-preview"><span style="font-size:2rem">✨ ✧ ✨</span></div>`;
