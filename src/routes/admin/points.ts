@@ -17,23 +17,23 @@ async function eligibleCounts(db: any) {
        WHERE a.user_id IS NOT NULL AND NOT EXISTS (
          SELECT 1 FROM points_ledger p WHERE p.user_id=a.user_id AND p.event_key='add_anime:'||a.anime_id
        )
-     ) SELECT COUNT(*) AS cnt FROM ranked WHERE rn<=100`,
+     ) SELECT COUNT(*) AS cnt FROM ranked WHERE rn<=100 AND NOT EXISTS (SELECT 1 FROM points_ledger old WHERE old.user_id=ranked.user_id AND old.event_key='legacy:list:'||ranked.id)`,
     `WITH ranked AS (
        SELECT w.id,w.user_id,ROW_NUMBER() OVER(PARTITION BY w.user_id ORDER BY COALESCE(w.watched_at,''),w.id) rn
        FROM watch_history w
        WHERE w.user_id IS NOT NULL AND w.episode_duration>=30 AND w.watch_time>=CAST(w.episode_duration*0.8 AS INTEGER)
        AND NOT EXISTS (SELECT 1 FROM points_ledger p WHERE p.user_id=w.user_id AND p.event_key='watch:'||w.anime_id||':'||w.episode_num)
-     ) SELECT COUNT(*) AS cnt FROM ranked WHERE rn<=100`,
+     ) SELECT COUNT(*) AS cnt FROM ranked WHERE rn<=100 AND NOT EXISTS (SELECT 1 FROM points_ledger old WHERE old.user_id=ranked.user_id AND old.event_key='legacy:watch:'||ranked.id)`,
     `WITH ranked AS (
        SELECT a.id,a.user_id,ROW_NUMBER() OVER(PARTITION BY a.user_id ORDER BY COALESCE(a.created_at,''),a.id) rn
        FROM anime_comments a WHERE a.user_id IS NOT NULL AND a.is_deleted=0 AND LENGTH(TRIM(a.body))>=8
        AND NOT EXISTS (SELECT 1 FROM points_ledger p WHERE p.user_id=a.user_id AND p.event_key='comment:'||a.id)
-     ) SELECT COUNT(*) AS cnt FROM ranked WHERE rn<=50`,
+     ) SELECT COUNT(*) AS cnt FROM ranked WHERE rn<=50 AND NOT EXISTS (SELECT 1 FROM points_ledger old WHERE old.user_id=ranked.user_id AND old.event_key='legacy:comment:'||ranked.id)`,
     `WITH ranked AS (
        SELECT m.id,m.user_id,ROW_NUMBER() OVER(PARTITION BY m.user_id ORDER BY COALESCE(m.created_at,''),m.id) rn
        FROM chat_messages m WHERE m.user_id IS NOT NULL AND LENGTH(TRIM(m.message))>=8
        AND NOT EXISTS (SELECT 1 FROM points_ledger p WHERE p.user_id=m.user_id AND p.event_key='chat:'||m.id)
-     ) SELECT COUNT(*) AS cnt FROM ranked WHERE rn<=50`
+     ) SELECT COUNT(*) AS cnt FROM ranked WHERE rn<=50 AND NOT EXISTS (SELECT 1 FROM points_ledger old WHERE old.user_id=ranked.user_id AND old.event_key='legacy:chat:'||ranked.id)`
   ];
   const rows = await Promise.all(queries.map((q:string)=>db.fetchOne<{cnt:number}>(q)));
   return { anime:Number(rows[0]?.cnt||0), episodes:Number(rows[1]?.cnt||0), comments:Number(rows[2]?.cnt||0), chat:Number(rows[3]?.cnt||0) };
