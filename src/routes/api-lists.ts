@@ -244,7 +244,7 @@ apiListRoutes.post('/api/watch_history.php', async (c) => {
         const pct = watchTime / duration;
         // Only saved playback progress at 90%+ earns points; event keys prevent
         // duplicate credits from the player's periodic progress updates.
-        if (pct >= 0.9) {
+        {
           const now = Math.floor(Date.now() / 1000);
           const progress = await db.fetchOne<{last_position:number;watched_seconds:number;last_seen_at:number;rewarded:number}>(
             'SELECT last_position,watched_seconds,last_seen_at,rewarded FROM points_watch_sessions WHERE user_id=? AND anime_id=? AND episode_num=?',
@@ -263,7 +263,7 @@ apiListRoutes.post('/api/watch_history.php', async (c) => {
             await db.query('UPDATE points_watch_sessions SET last_position=MAX(last_position,?),watched_seconds=?,last_seen_at=? WHERE user_id=? AND anime_id=? AND episode_num=?',
               [watchTime, watchedSeconds, now, userId, animeId, epNum]);
             const earnedToday = await db.count("SELECT COUNT(*) AS cnt FROM points_ledger WHERE user_id=? AND event_type='watch_episode' AND created_at >= date('now')", [userId]);
-            if (watchedSeconds >= Math.floor(duration * 0.8) && earnedToday < 10) {
+            if (pct >= 0.9 && watchedSeconds >= Math.floor(duration * 0.8) && earnedToday < 10) {
               const awarded = await awardPoints(db, userId, 5, 'watch_episode', 'watch:' + animeId + ':' + epNum, 'Watched an episode');
               if (awarded) await db.query('UPDATE points_watch_sessions SET rewarded=1 WHERE user_id=? AND anime_id=? AND episode_num=?', [userId, animeId, epNum]);
             }
