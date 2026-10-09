@@ -55,7 +55,7 @@ ${o.impersonating ? `
     <div class="nav-group">Users</div>
     <a href="users.php" class="${o.adminPage === 'users' && o.queryRole !== 'admin' ? 'active' : ''}">${icon('users', 'icon-small')} All Users</a>
     <a href="users.php?role=admin" class="${o.adminPage === 'users' && o.queryRole === 'admin' ? 'active' : ''}">${icon('shield', 'icon-small')} Admins</a>
-    <a href="points.php" class="${active('points')}">${icon('sparkles', 'icon-small')} Points Manager</a>
+    <a href="points.php" class="${active('points')}"><span aria-hidden="true" style="display:inline-block;width:1.1em;text-align:center">✦</span> Points Manager</a>
     <a href="badges.php" class="${active('badges')}">${icon('star', 'icon-small')} Badges</a>
     ${o.isOwner ? `
     <a href="username_fixer.php" class="${active('username_fixer')}">${icon('wrench', 'icon-small')} Username Fixer</a>
