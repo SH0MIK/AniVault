@@ -110,9 +110,9 @@ userRoutes.get('/u/:username', async (c) => {
 
   html += `
 
-${<div class="u-hero">
+<div class="u-hero">
   <div class="u-banner${profileUser.banner_url ? '' : ' u-banner-fallback'}"${profileUser.banner_url ? ` style="background-image:url('${h(profileUser.banner_url)}')"` : ''} id="u-banner-el"></div>
-</div>}
+</div>
 
 <div class="container section" style="padding-top:0;">
   <div class="u-header" style="${profileEffect === 'sparkle' ? 'filter:drop-shadow(0 0 12px rgba(192,132,252,.12));' : ''}">
