@@ -110,6 +110,8 @@ userRoutes.get('/u/:username', async (c) => {
 
   html += `
 
+${profileBackground === 'sakura' ? `<div class="profile-sakura-petals" aria-hidden="true">${Array.from({ length: 22 }, (_, i) => `<span class="profile-sakura-petal" style="--petal-i:${i};--petal-x:${(i * 47 + 11) % 100}%;--petal-dur:${9 + (i * 7 % 10)}s;--petal-delay:-${(i * 13 % 19)}s;--petal-drift:${((i * 17) % 81) - 40}px;--petal-size:${7 + (i * 5 % 9)}px"></span>`).join('')}</div>` : ''}
+
 <div class="u-hero">
   <div class="u-banner${profileUser.banner_url ? '' : ' u-banner-fallback'}"${profileUser.banner_url ? ` style="background-image:url('${h(profileUser.banner_url)}')"` : ''} id="u-banner-el"></div>
 </div>
@@ -324,6 +326,12 @@ async function toggleFollow(userId, btn) {
   } catch(e) { showToast('Error', 'error'); }
   btn.disabled = false;
 }
+<style>
+.profile-sakura-petals{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:4;contain:strict}
+.profile-sakura-petal{position:absolute;top:-24px;left:var(--petal-x);width:var(--petal-size);height:calc(var(--petal-size)*.72);border-radius:100% 0 100% 0;background:radial-gradient(ellipse at 35% 35%,#fff4fa 0%,#ffb6d9 36%,#ff6fb4 68%,rgba(255,105,180,.25) 100%);box-shadow:0 0 5px rgba(255,145,205,.9),0 0 13px rgba(255,91,174,.55);opacity:0;transform:rotate(35deg);animation:profile-sakura-fall var(--petal-dur) linear var(--petal-delay) infinite}
+@keyframes profile-sakura-fall{0%{transform:translate3d(0,-3vh,0) rotate(0deg);opacity:0}8%{opacity:.9}48%{transform:translate3d(var(--petal-drift),52vh,0) rotate(380deg);opacity:.78}88%{opacity:.72}100%{transform:translate3d(calc(var(--petal-drift)*-0.65),108vh,0) rotate(760deg);opacity:0}}
+@media(prefers-reduced-motion:reduce){.profile-sakura-petal{animation:none;display:none}}
+</style>
 </script>`;
 
   html += renderFooter({ siteUrl, currentUser: layoutUser });
