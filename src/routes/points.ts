@@ -20,13 +20,13 @@ async function context(c: any) {
 }
 function renderRewardPreview(item: any) {
   const type=String(item.cosmetic_type||''), value=String(item.cosmetic_value||'');
-  if(type==='avatar_frame') return `<div class="points-preview"><div class="points-preview-avatar frame-${h(value)}">${icon('user','points-preview-svg','30px')}</div></div>`;
-  if(type==='profile_background') return `<div class="points-preview"><div class="points-preview-bg bg-${h(value)}">${value==='sakura'?icon('heart','points-preview-svg','30px'):value==='constellation'?icon('star','points-preview-svg','30px'):icon('layout','points-preview-svg','30px')}</div></div>`;
+  if(type==='avatar_frame') return `<div class="points-preview"><div class="points-preview-avatar frame-${h(value)}">👤</div></div>`;
+  if(type==='profile_background') return `<div class="points-preview"><div class="points-preview-bg bg-${h(value)}">${value==='sakura'?'🌸':value==='constellation'?'✦':'▦'}</div></div>`;
   if(type==='name_style') return `<div class="points-preview"><span class="points-preview-name name-${h(value)}">AniVault</span></div>`;
-  if(type==='flair') return `<div class="points-preview"><span class="points-preview-label points-preview-flair">${icon('star','points-preview-svg','16px')} ${h(value.replace(/-/g,' '))} ${icon('star','points-preview-svg','16px')}</span></div>`;
-  if(type==='profile_effect') return `<div class="points-preview points-preview-effects">${icon('star','points-preview-svg','24px')}${icon('star','points-preview-svg','34px')}${icon('star','points-preview-svg','24px')}</div>`;
-  if(type==='badge') return `<div class="points-preview">${icon('trophy','points-preview-svg','34px')}</div>`;
-  return `<div class="points-preview">${icon('star','points-preview-svg','28px')}</div>`;
+  if(type==='flair') return `<div class="points-preview"><span class="points-preview-label" style="font-size:1rem">✦ ${h(value.replace(/-/g,' '))} ✦</span></div>`;
+  if(type==='profile_effect') return `<div class="points-preview"><span style="font-size:2rem">✨ ✧ ✨</span></div>`;
+  if(type==='badge') return `<div class="points-preview"><span style="font-size:2rem">🏅</span></div>`;
+  return `<div class="points-preview"><span style="font-size:2rem">✦</span></div>`;
 }
 function todayUTC() { return new Date().toISOString().slice(0, 10); }
 
@@ -171,9 +171,9 @@ pointsRoutes.get('/points', async c => {
 .points-card{background:var(--card-bg,rgba(255,255,255,.035));border:1px solid var(--border);border-radius:15px;padding:17px;min-width:0}
 .points-icon{width:40px;height:40px;display:grid;place-items:center;border-radius:12px;background:rgba(124,58,237,.12);color:var(--accent-2);margin-bottom:13px}
 .points-icon svg{display:block;width:22px;height:22px;flex-shrink:0}
-.points-icon-fallback{display:inline-grid;place-items:center;line-height:1}.points-reward-icon svg{display:block!important;width:24px;height:24px}
+.points-icon-fallback{font-size:1.45rem;line-height:1}.points-reward-icon svg{display:none!important}.points-reward-icon .points-icon-fallback{display:inline!important}
 .points-preview{display:flex;align-items:center;justify-content:center;min-height:94px;margin:-2px 0 14px;border:1px solid var(--border);border-radius:12px;background:linear-gradient(135deg,rgba(124,58,237,.12),rgba(232,69,60,.08));overflow:hidden}
-.points-preview-avatar{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:var(--bg-secondary,#20202a);position:relative;border:3px solid transparent}.points-preview-svg{display:block;flex-shrink:0;color:var(--accent-2)}.points-preview-bg .points-preview-svg{color:#fff}.points-preview-flair{display:flex;align-items:center;gap:8px}.points-preview-effects{gap:12px;color:var(--accent-2)}
+.points-preview-avatar{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:var(--bg-secondary,#20202a);position:relative;font-size:1.7rem;border:3px solid transparent}
 .points-preview-avatar.frame-sakura{border-color:#f5a6d2;box-shadow:0 0 0 3px rgba(245,166,210,.18)}
 .points-preview-avatar.frame-gold{border-color:#f5c451;box-shadow:0 0 0 3px rgba(245,196,81,.18)}
 .points-preview-avatar.frame-neon{border-color:#48f5e5;box-shadow:0 0 12px #48f5e5}
@@ -186,7 +186,7 @@ pointsRoutes.get('/points', async c => {
 .points-preview-name.name-gold{color:#f5c451;text-shadow:0 0 12px rgba(245,196,81,.35)}
 .points-preview-label{font-size:.75rem;color:var(--text-secondary);margin-top:6px}
 .points-currency{display:inline-flex;align-items:center;gap:5px;color:var(--accent-2)}
-.points-currency svg{display:inline-block!important;width:1em;height:1em}.points-coin-icon{display:inline-grid;place-items:center;width:1.05em;height:1.05em;line-height:1;color:#f5c451;flex:0 0 auto}
+.points-currency svg{display:none!important}.points-coin-icon{display:inline-grid;place-items:center;width:1.05em;height:1.05em;line-height:1;font-size:1.05em;color:#f5c451;flex:0 0 auto;text-shadow:0 0 8px rgba(245,196,81,.35)}
 
 .points-card h3{font-size:1rem;margin:0 0 6px}.points-card p{font-size:.83rem;color:var(--text-secondary);line-height:1.5;min-height:38px;margin:0 0 14px}
 .points-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px}
@@ -194,7 +194,7 @@ pointsRoutes.get('/points', async c => {
 .points-action{border:0;border-radius:999px;padding:8px 13px;background:var(--accent);color:white;font-weight:700;cursor:pointer;font-size:.78rem}
 .points-action:disabled{opacity:.55;cursor:not-allowed}
 .points-message{min-height:24px;margin:8px 0;color:var(--text-secondary);font-size:.9rem}
-.points-section-title{display:flex;align-items:center;gap:8px;font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-secondary);margin:24px 0 12px}.points-section-title svg{width:17px;height:17px;flex:0 0 auto}.points-empty-state{display:flex;align-items:center;gap:10px;padding:20px 0}.points-empty-state svg{width:24px;height:24px;flex:0 0 auto;color:var(--accent-2)}
+.points-section-title{font-size:.76rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-secondary);margin:24px 0 12px}
 .points-ledger{width:100%;border-collapse:collapse}.points-ledger td{padding:12px 8px;border-bottom:1px solid var(--border);font-size:.86rem}.points-ledger td:last-child{text-align:right;font-weight:700}.points-positive{color:#57d6a0}.points-negative{color:#ff8b8b}
 .points-note{font-size:.78rem;color:var(--text-secondary);margin:16px 0}
 @media(max-width:760px){.points-task-grid,.points-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.points-page{padding:20px 12px 45px}.points-card{padding:13px}}
@@ -216,31 +216,31 @@ pointsRoutes.get('/points', async c => {
   </div>
   <div id="points-message" class="points-message" role="status" aria-live="polite"></div>
   <section class="points-panel active" id="panel-earn">
-    <h2 class="points-section-title">${icon('calendar')} Daily tasks</h2>
+    <h2 class="points-section-title">Daily tasks</h2>
     <div class="points-task-grid">
-      <article class="points-card"><div class="points-icon">${icon('calendar','icon-medium')}</div><h3>Daily check-in</h3><p>Drop by AniVault every day to keep your points growing.</p><div class="points-card-foot"><span class="points-price">+10 pts</span><button class="points-action" data-action="daily" data-task="daily_login" ${claimedTasks.has('daily_login')?'disabled':''}>${claimedTasks.has('daily_login')?'Claimed':'Claim'}</button></div></article>
-      <article class="points-card"><div class="points-icon">${icon('user','icon-medium')}</div><h3>Complete your profile</h3><p>Add a profile picture and bio to introduce yourself to the community. One-time reward.</p><div class="points-card-foot"><span class="points-price">+25 pts</span><button class="points-action" data-action="daily" data-task="profile_complete" ${claimedTasks.has('profile_complete')?'disabled':''}>${claimedTasks.has('profile_complete')?'Claimed':'Claim'}</button></div></article>
+      <article class="points-card"><div class="points-icon">${icon('calendar-check','icon-medium')}</div><h3>Daily check-in</h3><p>Drop by AniVault every day to keep your points growing.</p><div class="points-card-foot"><span class="points-price">+10 pts</span><button class="points-action" data-action="daily" data-task="daily_login" ${claimedTasks.has('daily_login')?'disabled':''}>${claimedTasks.has('daily_login')?'Claimed':'Claim'}</button></div></article>
+      <article class="points-card"><div class="points-icon">${icon('user-round-check','icon-medium')}</div><h3>Complete your profile</h3><p>Add a profile picture and bio to introduce yourself to the community. One-time reward.</p><div class="points-card-foot"><span class="points-price">+25 pts</span><button class="points-action" data-action="daily" data-task="profile_complete" ${claimedTasks.has('profile_complete')?'disabled':''}>${claimedTasks.has('profile_complete')?'Claimed':'Claim'}</button></div></article>
     </div>
-    <h2 class="points-section-title">${icon('users')} Community activities</h2>
+    <h2 class="points-section-title">Community activities</h2>
     <div class="points-task-grid">
-      <article class="points-card"><div class="points-icon">${icon('message','icon-medium')}</div><h3>Write a comment</h3><p>Join episode discussions. Earn points for eligible comments, subject to daily limits.</p><div class="points-card-foot"><span class="points-price">+2 pts</span><span class="points-muted" style="font-size:.75rem">In episode chat</span></div></article>
-      <article class="points-card"><div class="points-icon">${icon('list','icon-medium')}</div><h3>Add anime to your list</h3><p>Track a new title in your personal anime list. Each title earns points once, with a daily cap.</p><div class="points-card-foot"><span class="points-price">+5 pts</span><span class="points-muted" style="font-size:.75rem">Earn automatically</span></div></article>
-      <article class="points-card"><div class="points-icon">${icon('users','icon-medium')}</div><h3>Chat with the community</h3><p>Join the global chat. Eligible messages earn points, with a daily limit to prevent spam.</p><div class="points-card-foot"><span class="points-price">+2 pts</span><span class="points-muted" style="font-size:.75rem">Earn automatically</span></div></article>
-      <article class="points-card"><div class="points-icon">${icon('play','icon-medium')}</div><h3>Watch an episode</h3><p>Watch at least 90% of an episode to earn points. Progress is verified from saved playback data.</p><div class="points-card-foot"><span class="points-price">+5 pts</span><span class="points-muted" style="font-size:.75rem">Progress verified</span></div></article>
+      <article class="points-card"><div class="points-icon">${icon('message-circle','icon-medium')}</div><h3>Write a comment</h3><p>Join episode discussions. Earn points for eligible comments, subject to daily limits.</p><div class="points-card-foot"><span class="points-price">+2 pts</span><span class="points-muted" style="font-size:.75rem">In episode chat</span></div></article>
+      <article class="points-card"><div class="points-icon">${icon('library-big','icon-medium')}</div><h3>Add anime to your list</h3><p>Track a new title in your personal anime list. Each title earns points once, with a daily cap.</p><div class="points-card-foot"><span class="points-price">+5 pts</span><span class="points-muted" style="font-size:.75rem">Earn automatically</span></div></article>
+      <article class="points-card"><div class="points-icon">${icon('messages-square','icon-medium')}</div><h3>Chat with the community</h3><p>Join the global chat. Eligible messages earn points, with a daily limit to prevent spam.</p><div class="points-card-foot"><span class="points-price">+2 pts</span><span class="points-muted" style="font-size:.75rem">Earn automatically</span></div></article>
+      <article class="points-card"><div class="points-icon">${icon('play-circle','icon-medium')}</div><h3>Watch an episode</h3><p>Watch at least 90% of an episode to earn points. Progress is verified from saved playback data.</p><div class="points-card-foot"><span class="points-price">+5 pts</span><span class="points-muted" style="font-size:.75rem">Progress verified</span></div></article>
     </div>
     <p class="points-note">Task rewards may have daily limits to keep the points economy fair.</p>
   </section>
   <section class="points-panel" id="panel-store">
-    <h2 class="points-section-title">${icon('box')} Redeem rewards</h2>
-    <div class="points-grid">${items.map((item:any)=>{const isOwned=owned.has(item.id);return `<article class="points-card"><div class="points-icon points-reward-icon">${icon(({flower:'heart',sparkles:'star',zap:'fire',palette:'edit',star:'star',moon:'moon',heart:'heart',circle:'circle',grid:'layout',award:'trophy'} as any)[String(item.icon).split('-')[0]]||'star','points-store-svg','24px')}</div>${renderRewardPreview(item)}<h3>${h(item.name)}</h3><p>${h(item.description)}</p><div class="points-card-foot"><span class="points-price points-currency">${icon('star','points-coin-icon','1em')} ${Number(item.price).toLocaleString()}</span><button class="points-action" data-action="redeem" data-item="${h(item.id)}" ${isOwned?'disabled':''}>${isOwned?'Owned':'Redeem'}</button></div></article>`}).join('')}</div>
+    <h2 class="points-section-title">Redeem rewards</h2>
+    <div class="points-grid">${items.map((item:any)=>{const isOwned=owned.has(item.id);return `<article class="points-card"><div class="points-icon points-reward-icon"><span class="points-icon-fallback">${({flower:'🌸',sparkles:'✨',zap:'⚡',palette:'🎨',star:'⭐',moon:'🌙',heart:'💖',circle:'⭕',grid:'▦',award:'🏅'} as any)[String(item.icon).split('-')[0]]||'✦'}</span></div>${renderRewardPreview(item)}<h3>${h(item.name)}</h3><p>${h(item.description)}</p><div class="points-card-foot"><span class="points-price points-currency"><span class="points-coin-icon" aria-hidden="true">✦</span> ${Number(item.price).toLocaleString()}</span><button class="points-action" data-action="redeem" data-item="${h(item.id)}" ${isOwned?'disabled':''}>${isOwned?'Owned':'Redeem'}</button></div></article>`}).join('')}</div>
   </section>
   <section class="points-panel" id="panel-inventory">
-    <h2 class="points-section-title">${icon('box')} My collection</h2>
-    ${inventory.length? `<div class="points-grid">${inventory.map((item:any)=>`<article class="points-card">${renderRewardPreview(item)}<h3>${h(item.name||"Unnamed reward")}</h3><p>${h(item.category)} · ${item.equipped?'Currently equipped':'Ready to use'}</p><div class="points-card-foot"><span class="points-muted" style="font-size:.78rem">${item.equipped?'Active cosmetic':'Owned'}</span><button class="points-action" data-action="${item.equipped?'unequip':'equip'}" data-item="${h(item.item_id)}">${item.equipped?'Unequip':'Equip'}</button></div></article>`).join('')}</div>`:`<p class="points-muted points-empty-state">${icon('box')} Your collection is empty. Redeem something from the Store to get started!</p>`}
+    <h2 class="points-section-title">My collection</h2>
+    ${inventory.length? `<div class="points-grid">${inventory.map((item:any)=>`<article class="points-card">${renderRewardPreview(item)}<h3>${h(item.name||"Unnamed reward")}</h3><p>${h(item.category)} · ${item.equipped?'Currently equipped':'Ready to use'}</p><div class="points-card-foot"><span class="points-muted" style="font-size:.78rem">${item.equipped?'Active cosmetic':'Owned'}</span><button class="points-action" data-action="${item.equipped?'unequip':'equip'}" data-item="${h(item.item_id)}">${item.equipped?'Unequip':'Equip'}</button></div></article>`).join('')}</div>`:'<p class="points-muted">Your collection is empty. Redeem something from the Store to get started!</p>'}
   </section>
   <section class="points-panel" id="panel-history">
-    <h2 class="points-section-title">${icon('clock')} Recent activity</h2>
-    ${(await db.fetchAll<any>('SELECT amount,event_type,description,created_at FROM points_ledger WHERE user_id=? ORDER BY id DESC LIMIT 30',[user.id])).length ? `<table class="points-ledger"><tbody>${(await db.fetchAll<any>('SELECT amount,event_type,description,created_at FROM points_ledger WHERE user_id=? ORDER BY id DESC LIMIT 30',[user.id])).map((row:any)=>`<tr><td><strong>${h(row.description||row.event_type)}</strong><br><span class="points-muted">${h(String(row.created_at||''))}</span></td><td class="${row.amount>0?'points-positive':'points-negative'}">${row.amount>0?'+':''}${row.amount} pts</td></tr>`).join('')}</tbody></table>`:`<p class="points-muted points-empty-state">${icon('activity')} Your points activity will appear here.</p>`}
+    <h2 class="points-section-title">Recent activity</h2>
+    ${(await db.fetchAll<any>('SELECT amount,event_type,description,created_at FROM points_ledger WHERE user_id=? ORDER BY id DESC LIMIT 30',[user.id])).length ? `<table class="points-ledger"><tbody>${(await db.fetchAll<any>('SELECT amount,event_type,description,created_at FROM points_ledger WHERE user_id=? ORDER BY id DESC LIMIT 30',[user.id])).map((row:any)=>`<tr><td><strong>${h(row.description||row.event_type)}</strong><br><span class="points-muted">${h(String(row.created_at||''))}</span></td><td class="${row.amount>0?'points-positive':'points-negative'}">${row.amount>0?'+':''}${row.amount} pts</td></tr>`).join('')}</tbody></table>`:'<p class="points-muted">Your points activity will appear here.</p>'}
   </section>
 </div>
 <script>
