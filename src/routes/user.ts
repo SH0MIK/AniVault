@@ -64,6 +64,8 @@ userRoutes.get('/u/:username', async (c) => {
   const avatarFrame = cosmeticValue('avatar_frame');
   const profileBackground = cosmeticValue('profile_background');
   const nameStyle = cosmeticValue('name_style');
+  const profileFlair = cosmeticValue('flair');
+  const profileEffect = cosmeticValue('profile_effect');
   const profileBadges = await Badge.getForUser(db, profileId);
   const isOwn = !!currentUser && currentUser.id === profileId;
   const isFollowing = currentUser && !isOwn ? await Follow.isFollowing(db, currentUser.id, profileId) : false;
@@ -112,7 +114,7 @@ userRoutes.get('/u/:username', async (c) => {
 </div>
 
 <div class="container section" style="padding-top:0;${profileBackground === 'sakura' ? 'background:radial-gradient(ellipse at 10% 10%,rgba(244,114,182,.13),transparent 45%);' : profileBackground === 'constellation' ? 'background:radial-gradient(ellipse at 85% 5%,rgba(129,140,248,.16),transparent 42%),radial-gradient(ellipse at 20% 80%,rgba(124,58,237,.09),transparent 40%);' : profileBackground === 'midnight' ? 'background-image:linear-gradient(rgba(124,58,237,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(124,58,237,.045) 1px,transparent 1px);background-size:24px 24px;' : ''}">
-  <div class="u-header">
+  <div class="u-header" style="${profileEffect === 'sparkle' ? 'filter:drop-shadow(0 0 12px rgba(192,132,252,.12));' : ''}">
     <div class="u-avatar-wrap">
       <div class="nav-avatar u-avatar" style="${avatarFrame === 'gold' ? 'border:3px solid #e7c46a;box-shadow:0 0 14px rgba(231,196,106,.28);' : avatarFrame === 'sakura' ? 'border:3px solid #f0a6c7;box-shadow:0 0 12px rgba(240,166,199,.25);' : avatarFrame === 'neon' ? 'border:3px solid #62f5ff;box-shadow:0 0 14px rgba(98,245,255,.3);' : ''}">
         ${profileUser.avatar_url ? `<img src="${h(profileUser.avatar_url)}" alt="${h(profileUser.username)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : h(profileUser.username.charAt(0).toUpperCase())}
@@ -120,7 +122,7 @@ userRoutes.get('/u/:username', async (c) => {
       ${isProfileOwner ? `<span class="u-role-badge">OWNER</span>` : profileUser.role === 'admin' ? `<span class="u-role-badge">ADMIN</span>` : ''}
     </div>
     <div class="u-name-block">
-      <h1 class="u-username username-with-badges" style="${nameStyle === 'gold' ? 'color:#e7c46a;text-shadow:0 0 12px rgba(231,196,106,.25);' : nameStyle === 'gradient' ? 'background:linear-gradient(90deg,#c084fc,#f0abfc,#818cf8);-webkit-background-clip:text;background-clip:text;color:transparent;' : ''}">${h(profileUser.username)}${Badge.renderList(profileBadges)}${profileUser.pronouns ? `<span class="u-pronouns">${h(profileUser.pronouns)}</span>` : ''}</h1>
+      <h1 class="u-username username-with-badges" style="${nameStyle === 'gold' ? 'color:#e7c46a;text-shadow:0 0 12px rgba(231,196,106,.25);' : nameStyle === 'gradient' ? 'background:linear-gradient(90deg,#c084fc,#f0abfc,#818cf8);-webkit-background-clip:text;background-clip:text;color:transparent;' : ''}">${h(profileUser.username)}${Badge.renderList(profileBadges)}${profileUser.pronouns ? `<span class="u-pronouns">${h(profileUser.pronouns)}</span>` : ''}${profileFlair ? `<span style="display:inline-flex;vertical-align:middle;margin-left:8px;padding:3px 8px;border:1px solid var(--border);border-radius:999px;font:600 .68rem 'Exo 2',sans-serif;color:var(--accent-2);">${profileFlair === 'anime-fan' ? '♥ Anime Fan' : profileFlair === 'night-owl' ? '☾ Night Owl' : ''}</span>` : ''}</h1>
       <!-- Tagline disabled for now -->
       <p class="u-joined text-muted">Joined ${joinedDate}${profileUser.last_login ? ` · Last seen ${timeAgo(profileUser.last_login)}` : ''}</p>
     </div>
