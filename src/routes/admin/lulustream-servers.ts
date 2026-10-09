@@ -12,7 +12,7 @@ function validLuluUrl(value: string): boolean {
   try {
     const u = new URL(value);
     const host = u.hostname.toLowerCase();
-    return u.protocol === 'https:' && (host === 'lulust.com' || host.endsWith('.lulust.com'));
+    return u.protocol === 'https:' && (host === 'lulust.com' || host.endsWith('.lulust.com') || host === 'luluvido.com' || host.endsWith('.luluvido.com'));
   } catch { return false; }
 }
 function trackGroup(track: { label?: string; lang?: string; default?: boolean }): 'sub'|'dub'|'hindi'|'multi' {
