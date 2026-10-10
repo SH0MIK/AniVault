@@ -10,7 +10,7 @@ export interface NotificationRow {
   user_id: number;
   actor_id: number | null;
   type: string;
-  entity_id: number | string | null;
+  entity_id: number | null;
   entity_meta: string | null;
   is_read: number;
   created_at: string;
