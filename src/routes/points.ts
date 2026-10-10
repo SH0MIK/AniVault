@@ -186,8 +186,12 @@ pointsRoutes.get('/points', async c => {
 .points-icon-fallback{font-size:1.45rem;line-height:1}.points-reward-icon svg{display:none!important}.points-reward-icon .points-icon-fallback{display:inline!important}
 .points-preview{display:flex;align-items:center;justify-content:center;min-height:94px;margin:-2px 0 14px;border:1px solid var(--border);border-radius:12px;background:linear-gradient(135deg,rgba(124,58,237,.12),rgba(232,69,60,.08));overflow:hidden}
 .points-preview-avatar{width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:var(--bg-secondary,#20202a);position:relative;font-size:1.7rem;border:3px solid transparent}
-.points-preview-avatar.frame-sakura{border-color:#f5a6d2;box-shadow:0 0 0 3px rgba(245,166,210,.18)}
-.points-preview-avatar.frame-gold{border-color:#f5c451;box-shadow:0 0 0 3px rgba(245,196,81,.18)}
+.points-preview-avatar.frame-sakura{border-color:#f5a6d2;box-shadow:0 0 0 3px rgba(245,166,210,.18),0 0 9px rgba(245,166,210,.22);position:relative;isolation:isolate}
+.points-preview-avatar.frame-gold{border-color:#f5c451;box-shadow:0 0 0 3px rgba(245,196,81,.18),0 0 10px rgba(245,196,81,.24);position:relative;isolation:isolate}
+.points-preview-avatar.frame-gold:after,.points-preview-avatar.frame-sakura:after{content:"";position:absolute;inset:-3px;border-radius:50%;padding:3px;pointer-events:none;background:linear-gradient(112deg,transparent 0%,transparent 36%,rgba(255,255,255,.96) 48%,rgba(255,255,255,.24) 53%,transparent 64%) 0 0/260% 100%;-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:points-frame-shine 4.8s ease-in-out infinite}
+.points-preview-avatar.frame-sakura:after{animation-delay:-2.4s;filter:drop-shadow(0 0 2px rgba(255,235,246,.72))}
+@keyframes points-frame-shine{0%,12%{background-position:140% 0;opacity:0}22%{opacity:1}54%{background-position:-45% 0;opacity:.9}66%,100%{background-position:-45% 0;opacity:0}}
+@media(prefers-reduced-motion:reduce){.points-preview-avatar.frame-gold:after,.points-preview-avatar.frame-sakura:after{animation:none;opacity:.35;background-position:0 0}}
 .points-preview-avatar.frame-neon{border-color:#48f5e5;box-shadow:0 0 12px #48f5e5}
 .points-preview-bg{width:100%;min-height:110px;display:grid;place-items:center;font-size:1.9rem;position:relative;isolation:isolate;overflow:hidden}
 .points-preview-bg.bg-constellation{background-color:#090d1b;background-image:radial-gradient(circle at 20% 25%,#fff 0 1px,transparent 2px),radial-gradient(circle at 75% 30%,#a5b4fc 0 1.5px,transparent 2.5px),radial-gradient(circle at 55% 75%,#fff 0 1px,transparent 2px),radial-gradient(ellipse at 75% 15%,rgba(99,102,241,.42),transparent 48%),linear-gradient(135deg,#090d1b,#312e81)}
