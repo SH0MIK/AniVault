@@ -123,6 +123,10 @@ ${profileBackgroundKey === 'midnight_grid' || profileBackgroundKey === 'midnight
 @keyframes profile-grid-drift{0%{background-position:center 0,center 0,center 0,center 0}100%{background-position:center 38px,center 38px,center 190px,center 190px}}
 @keyframes profile-grid-glow{0%{opacity:.72;filter:hue-rotate(-12deg)}100%{opacity:1;filter:hue-rotate(18deg)}}
 @keyframes profile-grid-light{0%,12%,100%{opacity:0;transform:translateY(-8px) scale(.7)}22%{opacity:1;transform:translateY(0) scale(1.25)}48%{opacity:.45;transform:translateY(16px) scale(1)}65%{opacity:0;transform:translateY(25px) scale(.7)}}
+.profile-midnight-falling-stars{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:4;contain:strict}
+.profile-midnight-falling-star{position:absolute;top:-12%;left:var(--fall-x);width:2px;height:2px;border-radius:50%;background:#fff;opacity:0;box-shadow:0 0 5px 1px rgba(190,210,255,.9);animation:profile-midnight-fall var(--fall-duration) linear var(--fall-delay) infinite}
+.profile-midnight-falling-star:after{content:"";position:absolute;top:-24px;left:0;width:1px;height:24px;background:linear-gradient(to top,transparent,rgba(151,174,255,.95));transform:translateX(.5px)}
+@keyframes profile-midnight-fall{0%{transform:translate3d(0,-8vh,0);opacity:0}8%{opacity:.85}82%{opacity:.6}100%{transform:translate3d(var(--fall-drift),112vh,0);opacity:0}}
 @media(max-width:600px){.profile-midnight-grid{opacity:.9}.profile-midnight-grid:before{background-size:30px 30px,30px 30px,150px 150px,150px 150px;left:-60%;right:-60%;height:92%;bottom:-3%;transform:perspective(330px) rotateX(68deg)}}</style>` : ''}
 
 ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constellations' || profileBackgroundKey === 'starry_night' ? `<style>
@@ -143,10 +147,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 .profile-shooting-star--second{top:43%;width:58px;animation-delay:14s;animation-duration:24s}
 @keyframes profile-shooting-star{0%,82%,100%{opacity:0;transform:translate3d(0,0,0) rotate(-25deg)}84%{opacity:.65}91%{opacity:0;transform:translate3d(115vw,42vh,0) rotate(-25deg)}}
 .u-banner.u-banner-fallback{background:#000!important;background-image:none!important}
-.profile-midnight-falling-stars{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:4;contain:strict}
-.profile-midnight-falling-star{position:absolute;top:-12%;left:var(--fall-x);width:2px;height:2px;border-radius:50%;background:#fff;opacity:0;box-shadow:0 0 5px 1px rgba(190,210,255,.9);animation:profile-midnight-fall var(--fall-duration) linear var(--fall-delay) infinite}
-.profile-midnight-falling-star:after{content:"";position:absolute;top:-24px;left:0;width:1px;height:24px;background:linear-gradient(to top,transparent,rgba(151,174,255,.95));transform:translateX(.5px)}
-@keyframes profile-midnight-fall{0%{transform:translate3d(0,-8vh,0);opacity:0}8%{opacity:.85}82%{opacity:.6}100%{transform:translate3d(var(--fall-drift),112vh,0);opacity:0}}
+
 @media(max-width:600px){.profile-fullbleed-hero .u-banner{height:150px!important;min-height:150px!important;max-height:150px!important}}
 @media(prefers-reduced-motion:reduce){.profile-starry-star,.profile-starry-sky:before,.profile-starry-sky:after,.profile-shooting-star,.profile-falling-star{animation:none}.profile-shooting-star,.profile-falling-star{display:none}}
 </style>` : ''}
