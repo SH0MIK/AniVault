@@ -197,7 +197,9 @@ pointsRoutes.get('/points', async c => {
 .points-preview-bg.bg-midnight{background-color:#080c16;background-image:linear-gradient(90deg,rgba(129,140,248,.22) 1px,transparent 1px),linear-gradient(rgba(129,140,248,.22) 1px,transparent 1px),radial-gradient(ellipse at 50% 0,rgba(79,70,229,.32),transparent 65%);background-size:14px 14px,14px 14px,auto}
 .points-preview-name{font-size:1.12rem;font-weight:800;letter-spacing:.02em}
 .points-preview-name.name-gradient{background:linear-gradient(90deg,#f472b6,#a78bfa,#38bdf8);color:transparent;background-clip:text;-webkit-background-clip:text}
-.points-preview-name.name-gold{color:#f5c451;text-shadow:0 0 12px rgba(245,196,81,.35)}
+.points-preview-name.name-gold{color:#f5d477;text-shadow:0 0 5px rgba(245,196,81,.35),0 0 13px rgba(245,196,81,.22);background-image:linear-gradient(110deg,#e7c46a 0%,#ffe9a3 35%,#fff8dc 48%,#f8d978 56%,#e7c46a 100%);background-size:240% 100%;background-position:100% 0;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:av-gold-preview-shine 3.6s ease-in-out infinite}
+@keyframes av-gold-preview-shine{0%,12%{background-position:100% 0}68%,100%{background-position:-140% 0}}
+@media(prefers-reduced-motion:reduce){.points-preview-name.name-gold{animation:none;background-position:50% 0}}
 .points-preview-label{font-size:.75rem;color:var(--text-secondary);margin-top:6px}
 .points-currency{display:inline-flex;align-items:center;gap:5px;color:var(--accent-2)}
 .points-currency svg{display:none!important}.points-coin-icon{display:inline-grid;place-items:center;width:1.05em;height:1.05em;line-height:1;font-size:1.05em;color:#f5c451;flex:0 0 auto;text-shadow:0 0 8px rgba(245,196,81,.35)}
