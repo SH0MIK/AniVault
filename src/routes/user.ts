@@ -117,13 +117,11 @@ userRoutes.get('/u/:username', async (c) => {
 
   html += `
 <style>
-.u-avatar.frame-gold:after,.u-avatar.frame-sakura:after{content:"";position:absolute;inset:0;border-radius:50%;padding:4px;pointer-events:none;z-index:3;background:linear-gradient(105deg,transparent 0%,transparent 28%,rgba(255,255,255,.98) 43%,#fff 48%,rgba(255,255,255,.92) 53%,transparent 67%) 180% 0/360% 100% no-repeat;-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:avatar-frame-shine 2.9s linear infinite;opacity:0}
-.u-avatar.frame-gold{box-shadow:0 0 0 2px rgba(255,210,91,.42),0 0 9px 3px rgba(255,196,64,.5),0 0 19px 5px rgba(255,176,42,.3),inset 0 0 7px rgba(255,218,112,.22)!important}
-.u-avatar.frame-sakura{box-shadow:0 0 0 2px rgba(255,170,211,.42),0 0 9px 3px rgba(255,143,202,.5),0 0 19px 5px rgba(255,105,180,.3),inset 0 0 7px rgba(255,218,237,.25)!important}
-.u-avatar.frame-gold:after{filter:drop-shadow(0 0 3px rgba(255,255,255,.95)) drop-shadow(0 0 5px rgba(255,205,75,.9))}
-.u-avatar.frame-sakura:after{animation-delay:-1.45s;filter:drop-shadow(0 0 3px rgba(255,255,255,.98)) drop-shadow(0 0 5px rgba(255,151,207,.95))}
-@keyframes avatar-frame-shine{0%{background-position:180% 0;opacity:0}8%{opacity:1}70%{background-position:-80% 0;opacity:1}82%,100%{background-position:-80% 0;opacity:0}}
-@media(prefers-reduced-motion:reduce){.u-avatar.frame-gold:after,.u-avatar.frame-sakura:after{animation:none;opacity:.65;background-position:0 0}}
+.u-avatar.frame-gold:after,.u-avatar.frame-sakura:after{content:"";position:absolute;inset:2px;border-radius:50%;pointer-events:none;z-index:3;opacity:.95;background-image:radial-gradient(ellipse 2px 3px at 14% -8%,rgba(255,226,239,.98) 0 70%,transparent 76%),radial-gradient(ellipse 2px 3px at 38% -25%,rgba(255,180,215,.95) 0 70%,transparent 76%),radial-gradient(ellipse 2px 3px at 66% -14%,rgba(255,238,246,.98) 0 70%,transparent 76%),radial-gradient(ellipse 2px 3px at 87% -32%,rgba(255,160,205,.95) 0 70%,transparent 76%),radial-gradient(ellipse 1.5px 2.5px at 27% -40%,rgba(255,215,232,.9) 0 70%,transparent 76%);background-size:100% 145%;background-repeat:no-repeat;animation:avatar-frame-petals 3.8s linear infinite;mix-blend-mode:screen}
+.u-avatar.frame-gold:after{filter:drop-shadow(0 0 2px rgba(255,180,215,.75))}
+.u-avatar.frame-sakura:after{animation-delay:-1.9s;filter:drop-shadow(0 0 3px rgba(255,151,207,.85))}
+@keyframes avatar-frame-petals{0%{background-position:0 -45%,0 -65%,0 -35%,0 -80%,0 -95%;opacity:0}12%{opacity:.95}88%{opacity:.9}100%{background-position:0 130%,0 115%,0 140%,0 105%,0 120%;opacity:0}}
+@media(prefers-reduced-motion:reduce){.u-avatar.frame-gold:after,.u-avatar.frame-sakura:after{animation:none;opacity:.6;background-position:0 0}}
 </style>
 
 ${profileBackground === 'sakura' ? `<div class="profile-sakura-petals" aria-hidden="true">${Array.from({ length: 22 }, (_, i) => `<span class="profile-sakura-petal" style="--petal-i:${i};--petal-x:${(i * 47 + 11) % 100}%;--petal-dur:${9 + (i * 7 % 10)}s;--petal-delay:-${(i * 13 % 19)}s;--petal-drift:${((i * 17) % 81) - 40}px;--petal-size:${7 + (i * 5 % 9)}px"></span>`).join('')}</div>` : ''}
