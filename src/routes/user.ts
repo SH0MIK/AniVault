@@ -255,6 +255,12 @@ ${profileBackground === 'sakura' ? `<div class="profile-sakura-petals" aria-hidd
   </div>
 </div>
 
+<style>
+.profile-sakura-petals{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:4;contain:strict}
+.profile-sakura-petal{position:absolute;top:-24px;left:var(--petal-x);width:var(--petal-size);height:calc(var(--petal-size)*.72);border-radius:100% 0 100% 0;background:radial-gradient(ellipse at 35% 35%,#fff4fa 0%,#ffb6d9 36%,#ff6fb4 68%,rgba(255,105,180,.25) 100%);box-shadow:0 0 5px rgba(255,145,205,.9),0 0 13px rgba(255,91,174,.55);opacity:0;transform:rotate(35deg);animation:profile-sakura-fall var(--petal-dur) linear var(--petal-delay) infinite}
+@keyframes profile-sakura-fall{0%{transform:translate3d(0,-3vh,0) rotate(0deg);opacity:0}8%{opacity:.9}48%{transform:translate3d(var(--petal-drift),52vh,0) rotate(380deg);opacity:.78}88%{opacity:.72}100%{transform:translate3d(calc(var(--petal-drift)*-0.65),108vh,0) rotate(760deg);opacity:0}}
+@media(prefers-reduced-motion:reduce){.profile-sakura-petal{animation:none;display:none}}
+</style>
 <script>
 (function () {
   const PROFILE_ID = ${profileId};
@@ -326,12 +332,7 @@ async function toggleFollow(userId, btn) {
   } catch(e) { showToast('Error', 'error'); }
   btn.disabled = false;
 }
-<style>
-.profile-sakura-petals{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:4;contain:strict}
-.profile-sakura-petal{position:absolute;top:-24px;left:var(--petal-x);width:var(--petal-size);height:calc(var(--petal-size)*.72);border-radius:100% 0 100% 0;background:radial-gradient(ellipse at 35% 35%,#fff4fa 0%,#ffb6d9 36%,#ff6fb4 68%,rgba(255,105,180,.25) 100%);box-shadow:0 0 5px rgba(255,145,205,.9),0 0 13px rgba(255,91,174,.55);opacity:0;transform:rotate(35deg);animation:profile-sakura-fall var(--petal-dur) linear var(--petal-delay) infinite}
-@keyframes profile-sakura-fall{0%{transform:translate3d(0,-3vh,0) rotate(0deg);opacity:0}8%{opacity:.9}48%{transform:translate3d(var(--petal-drift),52vh,0) rotate(380deg);opacity:.78}88%{opacity:.72}100%{transform:translate3d(calc(var(--petal-drift)*-0.65),108vh,0) rotate(760deg);opacity:0}}
-@media(prefers-reduced-motion:reduce){.profile-sakura-petal{animation:none;display:none}}
-</style>
+
 </script>`;
 
   html += renderFooter({ siteUrl, currentUser: layoutUser });
