@@ -54,7 +54,7 @@ adminAnimeBannersRoutes.on(['GET', 'POST'], '/admin/anime_banners.php', async (c
         const ext = allowed[file.type];
         if (!ext) throw new Error('Upload JPG, PNG, or WebP only.');
 
-        const filename = `anime-${animeId}-${Date.now()}.${ext}`;
+        const filename = `anime-${animeId}.${ext}`;
         const buf = await file.arrayBuffer();
         await c.env.AVATARS.put(`anime-banner-library/${filename}`, buf, { httpMetadata: { contentType: file.type } });
         const imageUrl = `${siteUrl}/assets/img/anime-banner-library/${filename}`;
@@ -84,7 +84,7 @@ adminAnimeBannersRoutes.on(['GET', 'POST'], '/admin/anime_banners.php', async (c
         const ext = allowed[file.type];
         if (!ext) throw new Error('Upload JPG, PNG, or WebP only.');
 
-        const filename = `anime-${animeId}-${Date.now()}.${ext}`;
+        const filename = `anime-${animeId}.${ext}`;
         const buf = await file.arrayBuffer();
         await c.env.AVATARS.put(`anime-logo-library/${filename}`, buf, { httpMetadata: { contentType: file.type } });
         const imageUrl = `${siteUrl}/assets/img/anime-logo-library/${filename}`;
