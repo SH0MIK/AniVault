@@ -117,6 +117,12 @@ userRoutes.get('/u/:username', async (c) => {
 
   html += `
 <style>
+.profile-sparkle-stars{position:absolute;inset:-12px;pointer-events:none;z-index:5;overflow:visible}
+.profile-sparkle-star{position:absolute;width:18px;height:18px;opacity:0;transform:scale(.12) rotate(-22deg);clip-path:polygon(50% 0%,61% 35%,100% 50%,61% 62%,50% 100%,39% 62%,0% 50%,39% 35%);filter:drop-shadow(0 0 3px currentColor)}
+.profile-sparkle-star--violet{top:0;right:-3px;color:#d98cff;background:linear-gradient(145deg,#ffb5f5 0%,#d66bff 48%,#8155ff 100%);animation:profile-sparkle-pop 3.2s cubic-bezier(.2,.8,.25,1) infinite}
+.profile-sparkle-star--gold{bottom:1px;left:-4px;width:16px;height:16px;color:#ffd34f;background:linear-gradient(145deg,#fff6a8 0%,#ffd34f 48%,#ff9d24 100%);animation:profile-sparkle-pop 3.2s cubic-bezier(.2,.8,.25,1) 1.6s infinite}
+@keyframes profile-sparkle-pop{0%,8%,100%{opacity:0;transform:scale(.12) rotate(-22deg)}14%{opacity:1;transform:scale(1.08) rotate(-22deg)}20%{opacity:.96;transform:scale(.92) rotate(-22deg)}27%{opacity:0;transform:scale(.12) rotate(-22deg)}}
+@media(prefers-reduced-motion:reduce){.profile-sparkle-star{animation:none;opacity:.9;transform:scale(1) rotate(-22deg)}}
 .u-name-gold{display:inline-block;color:#f5d477;text-shadow:0 0 5px rgba(245,196,81,.35),0 0 13px rgba(245,196,81,.22);background-image:linear-gradient(110deg,#e7c46a 0%,#ffe9a3 35%,#fff8dc 48%,#f8d978 56%,#e7c46a 100%);background-size:240% 100%;background-position:100% 0;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:av-gold-name-shine 3.6s ease-in-out infinite}
 .u-name-gradient{display:inline-block;background:linear-gradient(115deg,#38bdf8 0%,#818cf8 18%,#c084fc 34%,#f472b6 50%,#fb7185 64%,#c084fc 82%,#38bdf8 100%);background-size:280% 280%;background-position:0% 50%;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:#c084fc;text-shadow:0 0 10px rgba(192,132,252,.22);animation:av-gradient-name-flow 5.5s ease-in-out infinite,av-gradient-name-float 3.2s ease-in-out infinite}
 @keyframes av-gold-name-shine{0%,12%{background-position:100% 0}68%,100%{background-position:-140% 0}}
@@ -183,6 +189,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
       <div class="nav-avatar u-avatar${avatarFrame === 'gold' ? ' frame-gold' : avatarFrame === 'sakura' ? ' frame-sakura' : ''}" style="${avatarFrame === 'gold' ? 'position:relative;isolation:isolate;border:3px solid #e7c46a;box-shadow:0 0 0 2px rgba(255,210,91,.42),0 0 9px 3px rgba(255,196,64,.5),0 0 19px 5px rgba(255,176,42,.3),inset 0 0 7px rgba(255,218,112,.22);' : avatarFrame === 'sakura' ? 'position:relative;isolation:isolate;border:3px solid #f0a6c7;box-shadow:0 0 0 2px rgba(255,170,211,.42),0 0 9px 3px rgba(255,143,202,.5),0 0 19px 5px rgba(255,105,180,.3),inset 0 0 7px rgba(255,218,237,.25);' : avatarFrame === 'neon' ? `border:3px solid ${neonFrameColor};box-shadow:0 0 10px ${neonFrameColor},0 0 22px rgba(${neonFrameRgb},.82),0 0 38px rgba(${neonFrameRgb},.42),inset 0 0 12px rgba(${neonFrameRgb},.28);` : ''}">
         ${profileUser.avatar_url ? `<img src="${h(profileUser.avatar_url)}" alt="${h(profileUser.username)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : h(profileUser.username.charAt(0).toUpperCase())}
       </div>
+      ${profileEffect === 'sparkle' ? '<span class="profile-sparkle-stars" aria-hidden="true"><span class="profile-sparkle-star profile-sparkle-star--violet"></span><span class="profile-sparkle-star profile-sparkle-star--gold"></span></span>' : ''}
       ${isProfileOwner ? `<span class="u-role-badge">OWNER</span>` : profileUser.role === 'admin' ? `<span class="u-role-badge">ADMIN</span>` : ''}
     </div>
     <div class="u-name-block">
