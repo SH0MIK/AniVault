@@ -63,7 +63,6 @@ userRoutes.get('/u/:username', async (c) => {
   const pointsBalance = Math.max(0, Number(pointsWallet?.balance ?? 0));
   const lifetimePoints = Math.max(0, Number(pointsWallet?.lifetime_earned ?? 0));
   const userLevel = Math.floor(lifetimePoints / 100) + 1;
-  const levelProgress = lifetimePoints % 100;
   const equippedCosmetics = await db.fetchAll<{cosmetic_type:string;cosmetic_value:string}>(
     'SELECT c.cosmetic_type,c.cosmetic_value FROM points_inventory i JOIN points_catalog c ON c.id=i.item_id WHERE i.user_id=? AND i.equipped=1',
     [profileId]
