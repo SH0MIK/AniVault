@@ -125,9 +125,13 @@ userRoutes.get('/u/:username', async (c) => {
 
   html += `
 <style>
-.profile-level-stat .profile-stat-val{color:#c4b5fd!important}
-.profile-points-stat .profile-stat-val{color:#f5c451!important}
-.profile-level-stat .profile-stat-label,.profile-points-stat .profile-stat-label{white-space:nowrap}
+.profile-level-points{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+.profile-level-chip,.profile-points-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid var(--border);border-radius:999px;background:var(--bg-card,rgba(127,127,127,.08));font-size:.78rem;color:var(--text-secondary)}
+.profile-level-chip{border-color:rgba(167,139,250,.35)}
+.profile-level-chip>span,.profile-level-chip strong{color:#c4b5fd}
+.profile-points-chip{border-color:rgba(245,196,81,.32)}
+.profile-points-chip>span,.profile-points-chip strong{color:#f5c451}
+.profile-level-chip small{opacity:.8;font-size:.68rem}
 .profile-sparkle-stars{position:absolute;inset:0;pointer-events:none;z-index:5;overflow:visible;border-radius:50%}
 .profile-sparkle-star{position:absolute;display:block;width:17px;height:17px;opacity:0;clip-path:polygon(50% 0%,61% 35%,100% 50%,61% 62%,50% 100%,39% 62%,0% 50%,39% 35%);filter:drop-shadow(0 0 3px currentColor);will-change:transform,opacity}
 .profile-sparkle-star--violet{top:-5px;right:-5px;color:#e4a0ff;background:linear-gradient(145deg,#fff0ff 0%,#dc82ff 43%,#8754ff 100%);animation:profile-sparkle-corner 2.8s ease-in-out infinite}
@@ -207,6 +211,10 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
       <h1 class="u-username username-with-badges" style="${nameStyle === 'gold' ? 'color:#e7c46a;text-shadow:0 0 12px rgba(231,196,106,.25);' : ''}">${nameStyle === 'gold' ? '<span class="u-name-gold">' + h(profileUser.username) + '</span>' : nameStyle === 'gradient' ? '<span class="u-name-gradient">' + h(profileUser.username) + '</span>' : h(profileUser.username)}${Badge.renderList(profileBadges)}${profileUser.pronouns ? `<span class="u-pronouns">${h(profileUser.pronouns)}</span>` : ''}${profileFlair ? `<span style="display:inline-flex;vertical-align:middle;margin-left:8px;padding:3px 8px;border:1px solid var(--border);border-radius:999px;font:600 .68rem 'Exo 2',sans-serif;color:var(--accent-2);">${profileFlair === 'anime-fan' ? '♥ Anime Fan' : profileFlair === 'night-owl' ? '☾ Night Owl' : ''}</span>` : ''}</h1>
       <!-- Tagline disabled for now -->
       <p class="u-joined text-muted">Joined ${joinedDate}${profileUser.last_login ? ` · Last seen ${timeAgo(profileUser.last_login)}` : ''}</p>
+      <div class="profile-level-points" aria-label="Level and points">
+        <span class="profile-level-chip"><span aria-hidden="true">✦</span> Level <strong>${userLevel}</strong> <small>${levelProgress}/100</small></span>
+        <span class="profile-points-chip"><span aria-hidden="true">◈</span> <strong>${pointsBalance.toLocaleString('en-US')}</strong> points</span>
+      </div>
     </div>
     <div class="u-header-actions">
       ${isOwn ? `<a href="${siteUrl}/profile" class="btn btn-ghost btn-sm">${icon('edit', 'icon-small')} Edit Profile</a>`
@@ -225,14 +233,6 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   </div>
 
   <div class="profile-stat-strip u-stat-strip">
-    <div class="profile-stat-box profile-level-stat" title="Level is based on lifetime points earned; spending points does not reduce your level.">
-      <span class="profile-stat-val">${userLevel}</span>
-      <span class="profile-stat-label">✦ Level · ${levelProgress}/100 to next</span>
-    </div>
-    <div class="profile-stat-box profile-points-stat">
-      <span class="profile-stat-val">${pointsBalance.toLocaleString('en-US')}</span>
-      <span class="profile-stat-label">✧ Points</span>
-    </div>
     <div class="profile-stat-box clickable" onclick="openModal('followers-modal')">
       <span class="profile-stat-val follower-count">${followerCount.toLocaleString('en-US')}</span>
       <span class="profile-stat-label">${icon('users', 'icon-small')} Followers</span>
