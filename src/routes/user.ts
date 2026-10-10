@@ -212,7 +212,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
       <!-- Tagline disabled for now -->
       <p class="u-joined text-muted">Joined ${joinedDate}${profileUser.last_login ? ` · Last seen ${timeAgo(profileUser.last_login)}` : ''}</p>
       <div class="profile-level-points" aria-label="Level and points">
-        <span class="profile-level-chip"><span aria-hidden="true">✦</span> Level <strong>${userLevel}</strong> <small>${levelProgress}/100</small></span>
+        <span class="profile-level-chip"><span aria-hidden="true">✦</span> Level <strong>${userLevel}</strong></span>
         <span class="profile-points-chip"><span aria-hidden="true">◈</span> <strong>${pointsBalance.toLocaleString('en-US')}</strong> points</span>
       </div>
     </div>
