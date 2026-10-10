@@ -110,6 +110,13 @@ userRoutes.get('/u/:username', async (c) => {
       url: `${siteUrl}/u/${profileUser.username}`, type: 'profile',
     },
   });
+<style>
+.u-avatar.frame-gold:after,.u-avatar.frame-sakura:after{content:"";position:absolute;inset:-3px;border-radius:50%;padding:3px;pointer-events:none;background:linear-gradient(112deg,transparent 0%,transparent 36%,rgba(255,255,255,.96) 48%,rgba(255,255,255,.24) 53%,transparent 64%) 0 0/260% 100%;-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:avatar-frame-shine 4.8s ease-in-out infinite}
+.u-avatar.frame-gold:after{filter:drop-shadow(0 0 2px rgba(255,255,255,.62))}
+.u-avatar.frame-sakura:after{animation-delay:-2.4s;filter:drop-shadow(0 0 2px rgba(255,235,246,.72))}
+@keyframes avatar-frame-shine{0%,12%{background-position:140% 0;opacity:0}22%{opacity:1}54%{background-position:-45% 0;opacity:.9}66%,100%{background-position:-45% 0;opacity:0}}
+@media(prefers-reduced-motion:reduce){.u-avatar.frame-gold:after,.u-avatar.frame-sakura:after{animation:none;opacity:.35;background-position:0 0}}
+</style>
   const isProfileOwner = profileUser.role === 'owner' || auth.isOwnerUserId(profileId);
   const joinedDate = profileUser.created_at ? new Date(profileUser.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
 
@@ -172,7 +179,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 <div class="container section" style="padding-top:0;">
   <div class="u-header" style="${profileEffect === 'sparkle' ? 'filter:drop-shadow(0 0 12px rgba(192,132,252,.12));' : ''}">
     <div class="u-avatar-wrap">
-      <div class="nav-avatar u-avatar" style="${avatarFrame === 'gold' ? 'border:3px solid #e7c46a;box-shadow:0 0 14px rgba(231,196,106,.28);' : avatarFrame === 'sakura' ? 'border:3px solid #f0a6c7;box-shadow:0 0 12px rgba(240,166,199,.25);' : avatarFrame === 'neon' ? `border:3px solid ${neonFrameColor};box-shadow:0 0 10px ${neonFrameColor},0 0 22px rgba(${neonFrameRgb},.82),0 0 38px rgba(${neonFrameRgb},.42),inset 0 0 12px rgba(${neonFrameRgb},.28);` : ''}">
+      <div class="nav-avatar u-avatar${avatarFrame === 'gold' ? ' frame-gold' : avatarFrame === 'sakura' ? ' frame-sakura' : ''}" style="${avatarFrame === 'gold' ? 'position:relative;isolation:isolate;border:3px solid #e7c46a;box-shadow:0 0 10px rgba(231,196,106,.24),0 0 18px rgba(231,196,106,.12);' : avatarFrame === 'sakura' ? 'position:relative;isolation:isolate;border:3px solid #f0a6c7;box-shadow:0 0 9px rgba(240,166,199,.22),0 0 17px rgba(240,166,199,.12);' : avatarFrame === 'neon' ? `border:3px solid ${neonFrameColor};box-shadow:0 0 10px ${neonFrameColor},0 0 22px rgba(${neonFrameRgb},.82),0 0 38px rgba(${neonFrameRgb},.42),inset 0 0 12px rgba(${neonFrameRgb},.28);` : ''}">
         ${profileUser.avatar_url ? `<img src="${h(profileUser.avatar_url)}" alt="${h(profileUser.username)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : h(profileUser.username.charAt(0).toUpperCase())}
       </div>
       ${isProfileOwner ? `<span class="u-role-badge">OWNER</span>` : profileUser.role === 'admin' ? `<span class="u-role-badge">ADMIN</span>` : ''}
