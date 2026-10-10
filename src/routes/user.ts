@@ -114,7 +114,7 @@ userRoutes.get('/u/:username', async (c) => {
 
 ${profileBackground === 'sakura' ? `<div class="profile-sakura-petals" aria-hidden="true">${Array.from({ length: 22 }, (_, i) => `<span class="profile-sakura-petal" style="--petal-i:${i};--petal-x:${(i * 47 + 11) % 100}%;--petal-dur:${9 + (i * 7 % 10)}s;--petal-delay:-${(i * 13 % 19)}s;--petal-drift:${((i * 17) % 81) - 40}px;--petal-size:${7 + (i * 5 % 9)}px"></span>`).join('')}</div>` : ''}
 
-${profileBackground === 'midnight_grid' || profileBackground === 'midnight-grid' || profileBackground === 'midnightgrid' ? `<style>
+${profileBackground === 'midnight_grid' || profileBackground === 'midnight-grid' || profileBackground === 'midnightgrid' ? \\`<style>
 .profile-midnight-grid{position:fixed;inset:0;z-index:3;overflow:hidden;pointer-events:none;contain:strict;opacity:.72;isolation:isolate}
 .profile-midnight-grid:before{content:"";position:absolute;left:-35%;right:-35%;bottom:-35%;height:82%;background-image:linear-gradient(rgba(119,104,255,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(89,139,255,.16) 1px,transparent 1px);background-size:42px 42px;background-position:center center;transform:perspective(430px) rotateX(59deg);transform-origin:center bottom;mask-image:linear-gradient(to top,rgba(0,0,0,.95),rgba(0,0,0,.62) 48%,transparent 100%);animation:profile-grid-drift 24s linear infinite}
 .profile-midnight-grid:after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 100%,rgba(100,65,220,.17),transparent 48%),radial-gradient(ellipse at 82% 26%,rgba(40,99,220,.09),transparent 34%),linear-gradient(to bottom,rgba(5,7,17,.12),transparent 48%,rgba(5,7,17,.18));animation:profile-grid-glow 12s ease-in-out infinite alternate}
@@ -124,7 +124,7 @@ ${profileBackground === 'midnight_grid' || profileBackground === 'midnight-grid'
 @keyframes profile-grid-light{0%,12%,100%{opacity:0;transform:translateY(-5px)}22%{opacity:.8}48%{opacity:.3;transform:translateY(12px)}65%{opacity:0;transform:translateY(20px)}}
 @media(max-width:600px){.profile-midnight-grid{opacity:.52}.profile-midnight-grid:before{background-size:34px 34px;left:-65%;right:-65%;height:70%;transform:perspective(360px) rotateX(62deg)}}
 @media(prefers-reduced-motion:reduce){.profile-midnight-grid:before,.profile-midnight-grid:after,.profile-grid-light{animation:none}.profile-grid-light{display:none}}
-</style>` : ''}
+</style>\\` : ''}
 
 ${profileBackground === 'constellation' || profileBackground === 'constellations' || profileBackground === 'starry_night' || profileBackground === 'starry-night' ? `<style>
 .profile-starry-sky{position:fixed;inset:0;z-index:4;overflow:hidden;pointer-events:none;contain:strict;opacity:.76;mix-blend-mode:screen}
