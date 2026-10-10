@@ -123,7 +123,7 @@ ${profileBackground === 'constellation' || profileBackground === 'constellations
 @keyframes profile-star-twinkle{0%{opacity:.16;transform:scale(.8)}100%{opacity:.62;transform:scale(1.25)}}
 @keyframes profile-nebula-drift{0%{transform:translate3d(-1.5%,-1%,0) scale(1)}100%{transform:translate3d(1.5%,1%,0) scale(1.08)}}
 @keyframes profile-aurora-drift{0%{transform:translate3d(-8%,-2%,0) rotate(-7deg)}100%{transform:translate3d(8%,2%,0) rotate(-2deg)}}
-.profile-starry-moon{position:absolute;top:9%;right:9%;width:clamp(46px,6vw,78px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff 0%,#e4e8ff 34%,#b6c3ff 68%,rgba(151,168,255,.4) 100%);box-shadow:0 0 18px rgba(177,190,255,.3),0 0 58px rgba(145,151,255,.16);opacity:.62}
+.profile-starry-moon{position:absolute;top:14%;right:9%;width:clamp(46px,6vw,78px);aspect-ratio:1;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff 0%,#e4e8ff 34%,#b6c3ff 68%,rgba(151,168,255,.4) 100%);box-shadow:0 0 18px rgba(177,190,255,.3),0 0 58px rgba(145,151,255,.16);opacity:.62}
 .profile-starry-moon:after{content:"";position:absolute;inset:-2px;border-radius:50%;background:#111327;transform:translate(28%,-13%);opacity:.94}
 .profile-falling-star{position:absolute;top:-12%;left:var(--fall-x);width:2px;height:2px;border-radius:50%;background:#fff;opacity:0;box-shadow:0 0 5px 1px rgba(199,215,255,.8);animation:profile-falling-star var(--fall-duration) linear var(--fall-delay) infinite}
 .profile-falling-star:after{content:"";position:absolute;top:-22px;left:0;width:1px;height:22px;background:linear-gradient(to top,transparent,rgba(194,211,255,.8));transform:translateX(.5px)}
@@ -132,6 +132,7 @@ ${profileBackground === 'constellation' || profileBackground === 'constellations
 .profile-shooting-star--second{top:43%;width:58px;animation-delay:14s;animation-duration:24s}
 @keyframes profile-shooting-star{0%,82%,100%{opacity:0;transform:translate3d(0,0,0) rotate(-25deg)}84%{opacity:.65}91%{opacity:0;transform:translate3d(115vw,42vh,0) rotate(-25deg)}}
 .u-banner.u-banner-fallback{background:#000!important;background-image:none!important}
+@media(max-width:600px){.profile-fullbleed-hero .u-banner{height:150px!important;min-height:150px!important;max-height:150px!important}}
 @media(prefers-reduced-motion:reduce){.profile-starry-star,.profile-starry-sky:before,.profile-starry-sky:after,.profile-shooting-star,.profile-falling-star{animation:none}.profile-shooting-star,.profile-falling-star{display:none}}
 </style>` : ''}
 
