@@ -143,11 +143,17 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 .profile-shooting-star--second{top:43%;width:58px;animation-delay:14s;animation-duration:24s}
 @keyframes profile-shooting-star{0%,82%,100%{opacity:0;transform:translate3d(0,0,0) rotate(-25deg)}84%{opacity:.65}91%{opacity:0;transform:translate3d(115vw,42vh,0) rotate(-25deg)}}
 .u-banner.u-banner-fallback{background:#000!important;background-image:none!important}
+.profile-midnight-falling-stars{position:fixed;inset:0;overflow:hidden;pointer-events:none;z-index:4;contain:strict}
+.profile-midnight-falling-star{position:absolute;top:-12%;left:var(--fall-x);width:2px;height:2px;border-radius:50%;background:#fff;opacity:0;box-shadow:0 0 5px 1px rgba(190,210,255,.9);animation:profile-midnight-fall var(--fall-duration) linear var(--fall-delay) infinite}
+.profile-midnight-falling-star:after{content:"";position:absolute;top:-24px;left:0;width:1px;height:24px;background:linear-gradient(to top,transparent,rgba(151,174,255,.95));transform:translateX(.5px)}
+@keyframes profile-midnight-fall{0%{transform:translate3d(0,-8vh,0);opacity:0}8%{opacity:.85}82%{opacity:.6}100%{transform:translate3d(var(--fall-drift),112vh,0);opacity:0}}
 @media(max-width:600px){.profile-fullbleed-hero .u-banner{height:150px!important;min-height:150px!important;max-height:150px!important}}
 @media(prefers-reduced-motion:reduce){.profile-starry-star,.profile-starry-sky:before,.profile-starry-sky:after,.profile-shooting-star,.profile-falling-star{animation:none}.profile-shooting-star,.profile-falling-star{display:none}}
 </style>` : ''}
 
 ${profileBackgroundKey === 'midnight_grid' || profileBackgroundKey === 'midnightgrid' || profileBackgroundKey === 'midnight' ? `<div class="profile-midnight-grid" aria-hidden="true">${Array.from({length:28},(_,i)=>`<span class="profile-grid-light" style="--grid-light-x:${(i*29+9)%96}%;--grid-light-y:${(i*43+12)%82}%;--grid-light-duration:${5+(i*7%8)}s;--grid-light-delay:-${(i*3)%17}s"></span>`).join('')}</div>` : ''}
+
+${profileBackgroundKey === 'midnight_grid' || profileBackgroundKey === 'midnightgrid' || profileBackgroundKey === 'midnight' ? `<div class="profile-midnight-falling-stars" aria-hidden="true">${Array.from({length:9},(_,i)=>`<span class="profile-midnight-falling-star" style="--fall-x:${(i*31+8)%96}%;--fall-drift:${((i*17)%90)-45}px;--fall-duration:${11+(i*7%12)}s;--fall-delay:-${(i*5)%21}s"></span>`).join('')}</div>` : ''}
 
 ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constellations' || profileBackgroundKey === 'starry_night' ? `<div class="profile-starry-sky" aria-hidden="true"><span class="profile-starry-moon"></span>${Array.from({length:34},(_,i)=>`<span class="profile-starry-star" style="--star-x:${(i*37+13)%97}%;--star-y:${(i*61+17)%95}%;--star-size:${i%9===0?2:1}px;--star-opacity:${.18+(i%6)*.07};--star-duration:${3.5+(i*7%35)/10}s;--star-delay:-${(i*11%40)/10}s"></span>`).join('')}${Array.from({length:9},(_,i)=>`<span class="profile-falling-star" style="--fall-x:${(i*31+8)%96}%;--fall-drift:${((i*17)%90)-45}px;--fall-duration:${11+(i*7%12)}s;--fall-delay:-${(i*5)%21}s"></span>` ).join('')}<span class="profile-shooting-star"></span><span class="profile-shooting-star profile-shooting-star--second"></span></div>` : ''}
 
