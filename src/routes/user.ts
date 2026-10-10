@@ -117,20 +117,12 @@ userRoutes.get('/u/:username', async (c) => {
 
   html += `
 <style>
-.profile-sparkle-stars{position:absolute;inset:-15px;pointer-events:none;z-index:5;overflow:visible;border-radius:50%;isolation:isolate}
-.profile-sparkle-stars:before{content:"";position:absolute;inset:3px;border:1.5px solid rgba(211,151,255,.72);border-radius:50%;opacity:0;box-shadow:0 0 8px rgba(198,118,255,.6),inset 0 0 8px rgba(198,118,255,.22);animation:profile-sparkle-ring 3.8s ease-out infinite}
-.profile-sparkle-star{position:absolute;width:17px;height:17px;opacity:0;transform:scale(.12) rotate(-22deg);clip-path:polygon(50% 0%,61% 35%,100% 50%,61% 62%,50% 100%,39% 62%,0% 50%,39% 35%);filter:drop-shadow(0 0 4px currentColor);will-change:transform,opacity}
-.profile-sparkle-star--violet{top:-2px;right:-4px;color:#e4a0ff;background:linear-gradient(145deg,#fff0ff 0%,#dc82ff 43%,#8754ff 100%);animation:profile-sparkle-pop 3.1s cubic-bezier(.2,.8,.25,1) infinite}
-.profile-sparkle-star--gold{bottom:0;left:-5px;width:16px;height:16px;color:#ffd34f;background:linear-gradient(145deg,#fffbd0 0%,#ffd34f 48%,#ff9824 100%);animation:profile-sparkle-pop 3.1s cubic-bezier(.2,.8,.25,1) 1.55s infinite}
-.profile-sparkle-star--cyan{top:39%;right:-11px;width:10px;height:10px;color:#83f5ff;background:linear-gradient(145deg,#eaffff,#56eaff 55%,#4685ff);animation:profile-sparkle-flicker 2.4s ease-in-out .3s infinite}
-.profile-sparkle-star--pink{top:8%;left:1px;width:8px;height:8px;color:#ffb6ef;background:#ffb6ef;animation:profile-sparkle-flicker 2.8s ease-in-out 1s infinite}
-.profile-sparkle-star--white{bottom:18%;right:0;width:7px;height:7px;color:#fff;background:#fff;animation:profile-sparkle-flicker 2.2s ease-in-out 1.4s infinite}
-@keyframes profile-sparkle-pop{0%,8%,100%{opacity:0;transform:scale(.12) rotate(-22deg)}14%{opacity:1;transform:scale(1.12) rotate(-22deg)}20%{opacity:.98;transform:scale(.9) rotate(-22deg)}28%{opacity:0;transform:scale(.12) rotate(-22deg)}}
-@keyframes profile-sparkle-flicker{0%,100%{opacity:0;transform:scale(.25) rotate(0)}35%{opacity:1;transform:scale(1) rotate(45deg)}65%{opacity:.8;transform:scale(.65) rotate(90deg)}}
-@keyframes profile-sparkle-ring{0%,10%{opacity:0;transform:scale(.86)}24%{opacity:.8}72%{opacity:.24;transform:scale(1.06)}100%{opacity:0;transform:scale(1.12)}}
-.u-avatar:has(+ .profile-sparkle-stars){animation:profile-sparkle-avatar-glow 3.1s ease-in-out infinite}
-@keyframes profile-sparkle-avatar-glow{0%,100%{filter:drop-shadow(0 0 2px rgba(204,139,255,.12))}50%{filter:drop-shadow(0 0 8px rgba(204,139,255,.45))}}
-@media(prefers-reduced-motion:reduce){.profile-sparkle-star,.profile-sparkle-stars:before,.u-avatar:has(+ .profile-sparkle-stars){animation:none!important}.profile-sparkle-star{opacity:.85;transform:scale(.8) rotate(-22deg)}}
+.profile-sparkle-stars{position:absolute;inset:0;pointer-events:none;z-index:5;overflow:visible;border-radius:50%}
+.profile-sparkle-star{position:absolute;display:block;width:17px;height:17px;opacity:0;clip-path:polygon(50% 0%,61% 35%,100% 50%,61% 62%,50% 100%,39% 62%,0% 50%,39% 35%);filter:drop-shadow(0 0 3px currentColor);will-change:transform,opacity}
+.profile-sparkle-star--violet{top:-5px;right:-5px;color:#e4a0ff;background:linear-gradient(145deg,#fff0ff 0%,#dc82ff 43%,#8754ff 100%);animation:profile-sparkle-corner 2.8s ease-in-out infinite}
+.profile-sparkle-star--gold{bottom:-5px;left:-5px;width:16px;height:16px;color:#ffd34f;background:linear-gradient(145deg,#fffbd0 0%,#ffd34f 48%,#ff9824 100%);animation:profile-sparkle-corner 2.8s ease-in-out 1.4s infinite}
+@keyframes profile-sparkle-corner{0%,100%{opacity:.55;transform:scale(.78) rotate(-12deg)}45%{opacity:1;transform:scale(1) rotate(12deg)}70%{opacity:.9;transform:scale(.9) rotate(0deg)}}
+@media(prefers-reduced-motion:reduce){.profile-sparkle-star{animation:none!important;opacity:.9;transform:none}}
 .u-name-gold{display:inline-block;color:#f5d477;text-shadow:0 0 5px rgba(245,196,81,.35),0 0 13px rgba(245,196,81,.22);background-image:linear-gradient(110deg,#e7c46a 0%,#ffe9a3 35%,#fff8dc 48%,#f8d978 56%,#e7c46a 100%);background-size:240% 100%;background-position:100% 0;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:av-gold-name-shine 3.6s ease-in-out infinite}
 .u-name-gradient{display:inline-block;background:linear-gradient(115deg,#38bdf8 0%,#818cf8 18%,#c084fc 34%,#f472b6 50%,#fb7185 64%,#c084fc 82%,#38bdf8 100%);background-size:280% 280%;background-position:0% 50%;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:#c084fc;text-shadow:0 0 10px rgba(192,132,252,.22);animation:av-gradient-name-flow 5.5s ease-in-out infinite,av-gradient-name-float 3.2s ease-in-out infinite}
 @keyframes av-gold-name-shine{0%,12%{background-position:100% 0}68%,100%{background-position:-140% 0}}
@@ -197,7 +189,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
       <div class="nav-avatar u-avatar${avatarFrame === 'gold' ? ' frame-gold' : avatarFrame === 'sakura' ? ' frame-sakura' : ''}" style="${avatarFrame === 'gold' ? 'position:relative;isolation:isolate;border:3px solid #e7c46a;box-shadow:0 0 0 2px rgba(255,210,91,.42),0 0 9px 3px rgba(255,196,64,.5),0 0 19px 5px rgba(255,176,42,.3),inset 0 0 7px rgba(255,218,112,.22);' : avatarFrame === 'sakura' ? 'position:relative;isolation:isolate;border:3px solid #f0a6c7;box-shadow:0 0 0 2px rgba(255,170,211,.42),0 0 9px 3px rgba(255,143,202,.5),0 0 19px 5px rgba(255,105,180,.3),inset 0 0 7px rgba(255,218,237,.25);' : avatarFrame === 'neon' ? `border:3px solid ${neonFrameColor};box-shadow:0 0 10px ${neonFrameColor},0 0 22px rgba(${neonFrameRgb},.82),0 0 38px rgba(${neonFrameRgb},.42),inset 0 0 12px rgba(${neonFrameRgb},.28);` : ''}">
         ${profileUser.avatar_url ? `<img src="${h(profileUser.avatar_url)}" alt="${h(profileUser.username)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : h(profileUser.username.charAt(0).toUpperCase())}
       </div>
-      ${profileEffect === 'sparkle' ? '<span class="profile-sparkle-stars" aria-hidden="true"><span class="profile-sparkle-star profile-sparkle-star--violet"></span><span class="profile-sparkle-star profile-sparkle-star--gold"></span><span class="profile-sparkle-star profile-sparkle-star--cyan"></span><span class="profile-sparkle-star profile-sparkle-star--pink"></span><span class="profile-sparkle-star profile-sparkle-star--white"></span></span>' : ''}
+      ${profileEffect === 'sparkle' ? '<span class="profile-sparkle-stars" aria-hidden="true"><span class="profile-sparkle-star profile-sparkle-star--violet"></span><span class="profile-sparkle-star profile-sparkle-star--gold"></span></span>' : ''}
       ${isProfileOwner ? `<span class="u-role-badge">OWNER</span>` : profileUser.role === 'admin' ? `<span class="u-role-badge">ADMIN</span>` : ''}
     </div>
     <div class="u-name-block">
