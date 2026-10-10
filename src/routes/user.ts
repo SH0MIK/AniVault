@@ -125,8 +125,8 @@ ${profileBackground === 'sakura' ? `<div class="profile-sakura-petals" aria-hidd
 
 ${profileBackground === 'starry_night' || profileBackground === 'starry-night' ? `<div class="profile-starry-sky" aria-hidden="true">${Array.from({length:42},(_,i)=>`<span class="profile-starry-star" style="--star-x:${(i*43+7)%100}%;--star-y:${(i*29+13)%100}%;--star-size:${1+(i%3)}px;--star-duration:${2.4+(i*7%32)/10}s;--star-delay:-${(i*11%40)/10}s"></span>`).join('')}<span class="profile-shooting-star"></span><span class="profile-shooting-star profile-shooting-star--second"></span></div>` : ''}
 
-<div class="u-hero profile-fullbleed-hero" style="position:relative;width:100vw;max-width:100vw;left:50%;transform:translateX(-50%);margin:0;padding:0;overflow:visible;">
-  <div class="u-banner${profileUser.banner_url ? '' : ' u-banner-fallback'}" style="display:block;width:100vw;max-width:none;min-width:100vw;margin:0;box-sizing:border-box;background-position:center;background-size:cover;${profileUser.banner_url ? `background-image:url('${h(profileUser.banner_url)}');` : ''}" id="u-banner-el"></div>
+<div class="u-hero profile-fullbleed-hero" style="position:relative;left:auto;right:auto;transform:none;width:100vw;max-width:none;min-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding:0;overflow:visible;">
+  <div class="u-banner${profileUser.banner_url ? '' : ' u-banner-fallback'}" style="display:block;width:100%;max-width:none;min-width:0;margin:0;box-sizing:border-box;background-position:center;background-size:cover;${profileUser.banner_url ? `background-image:url('${h(profileUser.banner_url)}');` : ''}" id="u-banner-el"></div>
 </div>
 
 <div class="container section" style="padding-top:0;">
