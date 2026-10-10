@@ -69,7 +69,7 @@ INSERT OR IGNORE INTO points_catalog(id,category,name,description,icon,price,cos
 ('flair-anime-fan','Flair','Anime Fan','Show everyone your love for anime.','heart',500,'flair','anime-fan',10),
 ('flair-night-owl','Flair','Night Owl','For late-night episode marathons.','moon',700,'flair','night-owl',20),
 ('effect-sparkle','Effects','Profile Sparkle','A subtle sparkle effect for your profile.','sparkles',2200,'profile_effect','sparkle',10),
-('badge-pioneer','Badges','Pioneer Badge','A collectible badge for early supporters.','award',2000,'badge','pioneer',10);
+-- Pioneer badge intentionally omitted until it is reintroduced later.
 
 -- Server-timed playback progression prevents a single forged 90% progress
 -- request from immediately granting an episode reward.
