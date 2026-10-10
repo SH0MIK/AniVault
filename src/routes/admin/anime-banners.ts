@@ -42,13 +42,29 @@ adminAnimeBannersRoutes.on(['GET', 'POST'], '/admin/anime_banners.php', async (c
       if (action === 'migrate_filenames') {
         let migrated = 0;
         const specs = [
-          { table: 'anime_banners', column: 'image_url', prefix: 'anime-banner-library', route: 'anime-banner-library' },
-          { table: 'anime_logos', column: 'image_url', prefix: 'anime-logo-library', route: 'anime-logo-library' },
+          { table: 'anime_banners', prefix: 'anime-banner-library', route: 'anime-banner-library' },
+          { table: 'anime_logos', prefix: 'anime-logo-library', route: 'anime-logo-library' },
         ];
         for (const spec of specs) {
           const rows = await db.fetchAll<any>("SELECT anime_id, image_url FROM " + spec.table + " WHERE source='upload' AND image_url LIKE ? ORDER BY anime_id LIMIT 15", ['%/assets/img/' + spec.route + '/anime-%-%']);
           for (const row of rows) {
-            const re = new RegExp('/assets/img/' + spec.route + '/(anime-\\d+)-(\\d+)\\.(jpg|png|webp)(?:[?#].*)?
+            const match = String(row.image_url || '').match(new RegExp('/assets/img/' + spec.route + '/(anime-\\d+)-(\\d+)\\.(jpg|png|webp)(?:[?#].*)?$'));
+            if (!match) continue;
+            const oldName = match[1] + '-' + match[2] + '.' + match[3];
+            const newName = 'anime-' + row.anime_id + '.' + match[3];
+            const oldKey = spec.prefix + '/' + oldName;
+            const obj = await c.env.AVATARS.get(oldKey);
+            if (!obj) continue;
+            await c.env.AVATARS.put(spec.prefix + '/' + newName, obj.body, { httpMetadata: obj.httpMetadata });
+            await db.query('UPDATE ' + spec.table + " SET image_url=?, updated_at=datetime('now') WHERE anime_id=?", [siteUrl + '/assets/img/' + spec.route + '/' + newName, row.anime_id]);
+            await c.env.AVATARS.delete(oldKey);
+            migrated++;
+          }
+        }
+        const remainingBanners = await db.count("SELECT COUNT(*) as cnt FROM anime_banners WHERE source='upload' AND image_url LIKE '%/assets/img/anime-banner-library/anime-%-%'");
+        const remainingLogos = await db.count("SELECT COUNT(*) as cnt FROM anime_logos WHERE source='upload' AND image_url LIKE '%/assets/img/anime-logo-library/anime-%-%'");
+        session.setFlash('success', 'Migrated ' + migrated + ' banner/logo file(s). ' + (remainingBanners + remainingLogos) + ' legacy record(s) remain; click again to continue.');
+      } else if (action === 'save_url') {
         const imageUrl = ((formData.get('image_url') as string) ?? '').trim();
         let valid = false;
         try { const u = new URL(imageUrl); valid = u.protocol === 'http:' || u.protocol === 'https:'; } catch { /* invalid */ }
@@ -169,6 +185,13 @@ adminAnimeBannersRoutes.on(['GET', 'POST'], '/admin/anime_banners.php', async (c
 ${suc ? `<div class="alert alert-success mb-2">${h(suc)}</div>` : ''}
 ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
 
+<div class="card card-body mb-3">
+  <form method="POST" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+    <input type="hidden" name="action" value="migrate_filenames">
+    <label style="font-size:0.85rem;color:var(--text-muted,#999);">Normalize legacy uploaded banner/logo filenames in R2 and D1 (up to 30 per click).</label>
+    <button class="btn btn-secondary btn-sm" type="submit" onclick="return confirm(&quot;Rename existing banner/logo files and update their saved URLs?&quot;)">Migrate Existing Banner &amp; Logo Names</button>
+  </form>
+</div>
 <div class="image-admin-grid">
   <div class="card card-body">
     <h2 class="mb-2">Upload Banner</h2>
