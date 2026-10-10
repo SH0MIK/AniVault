@@ -71,10 +71,10 @@ adminPointsRoutes.on(['GET','POST'], '/admin/points.php', async c => {
       }
     } else if (action === 'gift_reward') {
       const targetId = Math.max(0,parseInt(String(body.user_id ?? '0'),10)||0);
-      const itemId = Math.max(0,parseInt(String(body.item_id ?? '0'),10)||0);
+      const itemId = String(body.item_id ?? '').trim().slice(0,80);
       const reason = String(body.reason ?? '').trim().slice(0,160);
       const target = targetId ? await db.fetchOne<{id:number;username:string}>('SELECT id,username FROM users WHERE id=? AND is_active=1',[targetId]) : null;
-      const item = itemId ? await db.fetchOne<{id:number;name:string;category:string}>('SELECT id,name,category FROM points_catalog WHERE id=? AND active=1',[itemId]) : null;
+      const item = itemId ? await db.fetchOne<{id:string;name:string;category:string}>('SELECT id,name,category FROM points_catalog WHERE id=? AND active=1',[itemId]) : null;
       if (!target) flashError = 'Select a valid active user.';
       else if (!item) flashError = 'Choose a valid active reward from the Points Store.';
       else if (!reason) flashError = 'Add a short reason so the user knows why they received the reward.';
