@@ -118,8 +118,11 @@ userRoutes.get('/u/:username', async (c) => {
   html += `
 <style>
 .u-name-gold{display:inline-block;color:#f5d477;text-shadow:0 0 5px rgba(245,196,81,.35),0 0 13px rgba(245,196,81,.22);background-image:linear-gradient(110deg,#e7c46a 0%,#ffe9a3 35%,#fff8dc 48%,#f8d978 56%,#e7c46a 100%);background-size:240% 100%;background-position:100% 0;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;animation:av-gold-name-shine 3.6s ease-in-out infinite}
+.u-name-gradient{display:inline-block;background:linear-gradient(115deg,#38bdf8 0%,#818cf8 18%,#c084fc 34%,#f472b6 50%,#fb7185 64%,#c084fc 82%,#38bdf8 100%);background-size:280% 280%;background-position:0% 50%;background-clip:text;-webkit-background-clip:text;-webkit-text-fill-color:transparent;color:#c084fc;text-shadow:0 0 10px rgba(192,132,252,.22);animation:av-gradient-name-flow 5.5s ease-in-out infinite,av-gradient-name-float 3.2s ease-in-out infinite}
 @keyframes av-gold-name-shine{0%,12%{background-position:100% 0}68%,100%{background-position:-140% 0}}
-@media(prefers-reduced-motion:reduce){.u-name-gold{animation:none;background-position:50% 0}}
+@keyframes av-gradient-name-flow{0%{background-position:0% 50%;filter:hue-rotate(0deg)}50%{background-position:100% 50%;filter:hue-rotate(12deg)}100%{background-position:0% 50%;filter:hue-rotate(0deg)}}
+@keyframes av-gradient-name-float{0%,100%{transform:translateY(0)}50%{transform:translateY(-2px)}}
+@media(prefers-reduced-motion:reduce){.u-name-gold,.u-name-gradient{animation:none;background-position:50% 0}.u-name-gradient{transform:none}}
 </style>
 
 ${profileBackground === 'sakura' ? `<div class="profile-sakura-petals" aria-hidden="true">${Array.from({ length: 22 }, (_, i) => `<span class="profile-sakura-petal" style="--petal-i:${i};--petal-x:${(i * 47 + 11) % 100}%;--petal-dur:${9 + (i * 7 % 10)}s;--petal-delay:-${(i * 13 % 19)}s;--petal-drift:${((i * 17) % 81) - 40}px;--petal-size:${7 + (i * 5 % 9)}px"></span>`).join('')}</div>` : ''}
@@ -183,7 +186,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
       ${isProfileOwner ? `<span class="u-role-badge">OWNER</span>` : profileUser.role === 'admin' ? `<span class="u-role-badge">ADMIN</span>` : ''}
     </div>
     <div class="u-name-block">
-      <h1 class="u-username username-with-badges" style="${nameStyle === 'gold' ? 'color:#e7c46a;text-shadow:0 0 12px rgba(231,196,106,.25);' : nameStyle === 'gradient' ? 'background:linear-gradient(90deg,#c084fc,#f0abfc,#818cf8);-webkit-background-clip:text;background-clip:text;color:transparent;' : ''}">${nameStyle === 'gold' ? '<span class="u-name-gold">' + h(profileUser.username) + '</span>' : h(profileUser.username)}${Badge.renderList(profileBadges)}${profileUser.pronouns ? `<span class="u-pronouns">${h(profileUser.pronouns)}</span>` : ''}${profileFlair ? `<span style="display:inline-flex;vertical-align:middle;margin-left:8px;padding:3px 8px;border:1px solid var(--border);border-radius:999px;font:600 .68rem 'Exo 2',sans-serif;color:var(--accent-2);">${profileFlair === 'anime-fan' ? '♥ Anime Fan' : profileFlair === 'night-owl' ? '☾ Night Owl' : ''}</span>` : ''}</h1>
+      <h1 class="u-username username-with-badges" style="${nameStyle === 'gold' ? 'color:#e7c46a;text-shadow:0 0 12px rgba(231,196,106,.25);' : ''}">${nameStyle === 'gold' ? '<span class="u-name-gold">' + h(profileUser.username) + '</span>' : nameStyle === 'gradient' ? '<span class="u-name-gradient">' + h(profileUser.username) + '</span>' : h(profileUser.username)}${Badge.renderList(profileBadges)}${profileUser.pronouns ? `<span class="u-pronouns">${h(profileUser.pronouns)}</span>` : ''}${profileFlair ? `<span style="display:inline-flex;vertical-align:middle;margin-left:8px;padding:3px 8px;border:1px solid var(--border);border-radius:999px;font:600 .68rem 'Exo 2',sans-serif;color:var(--accent-2);">${profileFlair === 'anime-fan' ? '♥ Anime Fan' : profileFlair === 'night-owl' ? '☾ Night Owl' : ''}</span>` : ''}</h1>
       <!-- Tagline disabled for now -->
       <p class="u-joined text-muted">Joined ${joinedDate}${profileUser.last_login ? ` · Last seen ${timeAgo(profileUser.last_login)}` : ''}</p>
     </div>
