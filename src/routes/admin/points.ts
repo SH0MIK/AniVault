@@ -69,6 +69,34 @@ adminPointsRoutes.on(['GET','POST'], '/admin/points.php', async c => {
           flashSuccess = `Gifted ${amount.toLocaleString('en-US')} points to ${target.username}. A notification was sent.`;
         }
       }
+    } else if (action === 'gift_reward') {
+      const targetId = Math.max(0,parseInt(String(body.user_id ?? '0'),10)||0);
+      const itemId = Math.max(0,parseInt(String(body.item_id ?? '0'),10)||0);
+      const reason = String(body.reason ?? '').trim().slice(0,160);
+      const target = targetId ? await db.fetchOne<{id:number;username:string}>('SELECT id,username FROM users WHERE id=? AND is_active=1',[targetId]) : null;
+      const item = itemId ? await db.fetchOne<{id:number;name:string;category:string}>('SELECT id,name,category FROM points_catalog WHERE id=? AND active=1',[itemId]) : null;
+      if (!target) flashError = 'Select a valid active user.';
+      else if (!item) flashError = 'Choose a valid active reward from the Points Store.';
+      else if (!reason) flashError = 'Add a short reason so the user knows why they received the reward.';
+      else {
+        const owned = await db.fetchOne<{item_id:number}>('SELECT item_id FROM points_inventory WHERE user_id=? AND item_id=?',[target.id,item.id]);
+        if (owned) flashError = target.username + ' already owns ' + item.name + '.';
+        else {
+          try {
+            const inserted = await db.query('INSERT OR IGNORE INTO points_inventory(user_id,item_id) VALUES(?,?)',[target.id,item.id]);
+            if (!(inserted.meta.changes ?? 0)) {
+              flashError = target.username + ' already owns this reward, or it could not be added.';
+            } else {
+              await Notification.create(db,target.id,userId,'reward_gift',item.id,item.name+' — '+reason);
+              await Logger.log(db,userId,'admin_reward_gift','Gifted reward "'+item.name+'" (item '+item.id+') to user '+target.id+' ('+target.username+'): '+reason);
+              flashSuccess = 'Gifted "'+item.name+'" to '+target.username+'. A notification was sent.';
+            }
+          } catch (err) {
+            console.error('[admin-points] reward gift failed',err);
+            flashError = 'Could not gift that reward. Please try again.';
+          }
+        }
+      }
     } else if (action === 'legacy_backfill') {
       try {
         const statements = [
@@ -142,6 +170,7 @@ adminPointsRoutes.on(['GET','POST'], '/admin/points.php', async c => {
     'SELECT id,username,email,role FROM users WHERE username LIKE ? OR email LIKE ? OR CAST(id AS TEXT)=? ORDER BY id DESC LIMIT 12',
     ['%'+search+'%','%'+search+'%',search]
   ) : [];
+  const rewardItems = await db.fetchAll<any>('SELECT id,name,category,description,icon,price FROM points_catalog WHERE active=1 ORDER BY category,sort_order,name');
   const totals = await db.fetchOne<any>(`SELECT COUNT(*) AS users,
     COALESCE(SUM(balance),0) AS points_in_wallets FROM points_wallets`);
   const pending = await eligibleCounts(db).catch(()=>({anime:0,episodes:0,comments:0,chat:0}));
@@ -175,6 +204,16 @@ ${flashError ? `<div class="alert alert-error mb-2">⚠️ ${h(flashError)}</div
     <label class="pm-field">Reason shown in notification<input class="form-control" name="reason" maxlength="160" placeholder="Thanks for supporting AniVault!" required></label>
     <button class="btn btn-primary" type="submit" ${matches.length?'':'disabled'}>Gift points & notify</button>
    </form>` : '<p class="pm-muted">Search for a user to show recipients here.</p>'}
+ </section>
+ <section class="pm-card">
+  <h2>🎁 Gift a store reward</h2><p class="pm-muted">Give a cosmetic or collectible directly to a user's collection. No points are deducted. Already-owned rewards cannot be gifted twice.</p>
+  ${search ? '<form method="POST"><input type="hidden" name="action" value="gift_reward">' +
+    '<div class="pm-muted" style="margin:10px 0 8px">Select the recipient:</div>' +
+    (matches.map((u:any)=>'<label class="pm-user"><input type="radio" name="user_id" value="'+u.id+'" required><span><strong>'+h(u.username)+'</strong><br><small class="pm-muted">ID '+u.id+' · '+h(u.email)+' · '+h(u.role)+'</small></span></label>').join('') || '<p class="pm-muted">No users matched that search.</p>') +
+    '<label class="pm-field">Reward from Points Store<select class="form-control" name="item_id" required><option value="">Choose a reward…</option>'+(rewardItems.map((item:any)=>'<option value="'+item.id+'">'+h(item.name)+' — '+h(item.category)+' ('+Number(item.price).toLocaleString('en-US')+' pts store price)</option>').join(''))+'</select></label>' +
+    '<label class="pm-field">Reason shown in notification<input class="form-control" name="reason" maxlength="160" placeholder="A special gift from AniVault!" required></label>' +
+    '<button class="btn btn-primary" type="submit" '+(matches.length && rewardItems.length?'':'disabled')+'>Gift reward & notify</button></form>' : '<p class="pm-muted">Search for a user above to choose a recipient here.</p>'}
+  ${rewardItems.length ? '<p class="pm-muted" style="margin-top:12px">'+rewardItems.length+' active store rewards available to gift.</p>' : '<p class="pm-muted" style="margin-top:12px">No active Points Store rewards are available to gift.</p>'}
  </section>
  <section class="pm-card">
   <h2>🕰️ Legacy activity rewards</h2><p class="pm-muted">One-time backfill for older activity already stored in AniVault. Existing point awards are excluded and each historical event gets a unique ledger key, so repeated runs cannot double-credit it.</p>
