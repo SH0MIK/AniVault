@@ -56,6 +56,14 @@ userRoutes.get('/u/:username', async (c) => {
   }
 
   const profileId = profileUser.id;
+  // Levels use lifetime-earned points so spending points on cosmetics never lowers a user's level.
+  const pointsWallet = await db.fetchOne<{balance:number;lifetime_earned:number}>(
+    'SELECT balance,lifetime_earned FROM points_wallets WHERE user_id=?', [profileId]
+  ).catch(() => null);
+  const pointsBalance = Math.max(0, Number(pointsWallet?.balance ?? 0));
+  const lifetimePoints = Math.max(0, Number(pointsWallet?.lifetime_earned ?? 0));
+  const userLevel = Math.floor(lifetimePoints / 100) + 1;
+  const levelProgress = lifetimePoints % 100;
   const equippedCosmetics = await db.fetchAll<{cosmetic_type:string;cosmetic_value:string}>(
     'SELECT c.cosmetic_type,c.cosmetic_value FROM points_inventory i JOIN points_catalog c ON c.id=i.item_id WHERE i.user_id=? AND i.equipped=1',
     [profileId]
@@ -117,6 +125,9 @@ userRoutes.get('/u/:username', async (c) => {
 
   html += `
 <style>
+.profile-level-stat .profile-stat-val{color:#c4b5fd!important}
+.profile-points-stat .profile-stat-val{color:#f5c451!important}
+.profile-level-stat .profile-stat-label,.profile-points-stat .profile-stat-label{white-space:nowrap}
 .profile-sparkle-stars{position:absolute;inset:0;pointer-events:none;z-index:5;overflow:visible;border-radius:50%}
 .profile-sparkle-star{position:absolute;display:block;width:17px;height:17px;opacity:0;clip-path:polygon(50% 0%,61% 35%,100% 50%,61% 62%,50% 100%,39% 62%,0% 50%,39% 35%);filter:drop-shadow(0 0 3px currentColor);will-change:transform,opacity}
 .profile-sparkle-star--violet{top:-5px;right:-5px;color:#e4a0ff;background:linear-gradient(145deg,#fff0ff 0%,#dc82ff 43%,#8754ff 100%);animation:profile-sparkle-corner 2.8s ease-in-out infinite}
@@ -214,6 +225,14 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   </div>
 
   <div class="profile-stat-strip u-stat-strip">
+    <div class="profile-stat-box profile-level-stat" title="Level is based on lifetime points earned; spending points does not reduce your level.">
+      <span class="profile-stat-val">${userLevel}</span>
+      <span class="profile-stat-label">✦ Level · ${levelProgress}/100 to next</span>
+    </div>
+    <div class="profile-stat-box profile-points-stat">
+      <span class="profile-stat-val">${pointsBalance.toLocaleString('en-US')}</span>
+      <span class="profile-stat-label">✧ Points</span>
+    </div>
     <div class="profile-stat-box clickable" onclick="openModal('followers-modal')">
       <span class="profile-stat-val follower-count">${followerCount.toLocaleString('en-US')}</span>
       <span class="profile-stat-label">${icon('users', 'icon-small')} Followers</span>
