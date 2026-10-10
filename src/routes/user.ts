@@ -50,6 +50,17 @@ userRoutes.get('/u/:username', async (c) => {
   <p class="text-muted">No user with that username exists.</p>
   <a href="${siteUrl}/" class="btn btn-primary">Back Home</a>
 </div>`;
+  html += `<style>
+.profile-starry-sky{position:fixed;inset:0;z-index:3;overflow:hidden;pointer-events:none;contain:strict}
+.profile-starry-star{position:absolute;left:var(--star-x);top:var(--star-y);width:var(--star-size);height:var(--star-size);border-radius:50%;background:#fff;opacity:.28;box-shadow:0 0 4px rgba(184,205,255,.55);animation:profile-star-twinkle var(--star-duration) ease-in-out var(--star-delay) infinite alternate}
+@keyframes profile-star-twinkle{0%{opacity:.18;transform:scale(.7);box-shadow:0 0 2px rgba(184,205,255,.35)}100%{opacity:.95;transform:scale(1.45);box-shadow:0 0 7px rgba(190,210,255,.95),0 0 14px rgba(137,160,255,.45)}}
+.profile-shooting-star{position:absolute;top:13%;left:-15%;width:90px;height:1.5px;opacity:0;background:linear-gradient(90deg,transparent,rgba(210,225,255,.95),#fff);box-shadow:0 0 7px rgba(170,200,255,.8);transform:rotate(-25deg);animation:profile-shooting-star 12s linear 3s infinite}
+.profile-shooting-star--second{top:37%;animation-delay:8s;animation-duration:17s;width:70px}
+@keyframes profile-shooting-star{0%,72%,100%{opacity:0;transform:translate3d(0,0,0) rotate(-25deg)}74%{opacity:1}82%{opacity:0;transform:translate3d(125vw,48vh,0) rotate(-25deg)}}
+@media(prefers-reduced-motion:reduce){.profile-starry-star,.profile-shooting-star{animation:none;display:none}}
+</style>
+
+`;
   html += renderFooter({ siteUrl, currentUser: layoutUser });
     await session.save(c, lifetime);
     return c.html(html, 404);
@@ -111,6 +122,8 @@ userRoutes.get('/u/:username', async (c) => {
   html += `
 
 ${profileBackground === 'sakura' ? `<div class="profile-sakura-petals" aria-hidden="true">${Array.from({ length: 22 }, (_, i) => `<span class="profile-sakura-petal" style="--petal-i:${i};--petal-x:${(i * 47 + 11) % 100}%;--petal-dur:${9 + (i * 7 % 10)}s;--petal-delay:-${(i * 13 % 19)}s;--petal-drift:${((i * 17) % 81) - 40}px;--petal-size:${7 + (i * 5 % 9)}px"></span>`).join('')}</div>` : ''}
+
+${profileBackground === 'starry_night' || profileBackground === 'starry-night' ? `<div class="profile-starry-sky" aria-hidden="true">${Array.from({length:42},(_,i)=>`<span class="profile-starry-star" style="--star-x:${(i*43+7)%100}%;--star-y:${(i*29+13)%100}%;--star-size:${1+(i%3)}px;--star-duration:${2.4+(i*7%32)/10}s;--star-delay:-${(i*11%40)/10}s"></span>`).join('')}<span class="profile-shooting-star"></span><span class="profile-shooting-star profile-shooting-star--second"></span></div>` : ''}
 
 <div class="u-hero profile-fullbleed-hero" style="position:relative;width:100vw;max-width:100vw;left:50%;transform:translateX(-50%);margin:0;padding:0;overflow:visible;">
   <div class="u-banner${profileUser.banner_url ? '' : ' u-banner-fallback'}" style="display:block;width:100vw;max-width:none;min-width:100vw;margin:0;box-sizing:border-box;background-position:center;background-size:cover;${profileUser.banner_url ? `background-image:url('${h(profileUser.banner_url)}');` : ''}" id="u-banner-el"></div>
