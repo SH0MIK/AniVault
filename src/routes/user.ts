@@ -109,13 +109,13 @@ userRoutes.get('/u/:username', async (c) => {
   const joinedDate = profileUser.created_at ? new Date(profileUser.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
 
   html += `<style>
-.profile-starry-sky{position:fixed;inset:0;z-index:3;overflow:hidden;pointer-events:none;contain:strict}
-.profile-starry-star{position:absolute;left:var(--star-x);top:var(--star-y);width:var(--star-size);height:var(--star-size);border-radius:50%;background:#fff;opacity:.28;box-shadow:0 0 4px rgba(184,205,255,.55);animation:profile-star-twinkle var(--star-duration) ease-in-out var(--star-delay) infinite alternate}
-@keyframes profile-star-twinkle{0%{opacity:.18;transform:scale(.7);box-shadow:0 0 2px rgba(184,205,255,.35)}100%{opacity:.95;transform:scale(1.45);box-shadow:0 0 7px rgba(190,210,255,.95),0 0 14px rgba(137,160,255,.45)}}
-.profile-shooting-star{position:absolute;top:13%;left:-15%;width:90px;height:1.5px;opacity:0;background:linear-gradient(90deg,transparent,rgba(210,225,255,.95),#fff);box-shadow:0 0 7px rgba(170,200,255,.8);transform:rotate(-25deg);animation:profile-shooting-star 12s linear 3s infinite}
-.profile-shooting-star--second{top:37%;animation-delay:8s;animation-duration:17s;width:70px}
+.profile-starry-sky{position:fixed;inset:0;z-index:20;overflow:hidden;pointer-events:none;contain:strict}
+.profile-starry-star{position:absolute;left:var(--star-x);top:var(--star-y);width:var(--star-size);height:var(--star-size);border-radius:50%;background:#fff;opacity:.72;box-shadow:0 0 5px rgba(184,205,255,.8),0 0 10px rgba(137,160,255,.35);animation:profile-star-twinkle var(--star-duration) ease-in-out var(--star-delay) infinite alternate}
+@keyframes profile-star-twinkle{0%{opacity:.4;transform:scale(.8);box-shadow:0 0 3px rgba(184,205,255,.5)}100%{opacity:1;transform:scale(1.6);box-shadow:0 0 8px rgba(190,210,255,1),0 0 16px rgba(137,160,255,.7)}}
+.profile-shooting-star{position:absolute;top:13%;left:-15%;width:110px;height:2px;opacity:0;background:linear-gradient(90deg,transparent,rgba(210,225,255,.95),#fff);box-shadow:0 0 9px rgba(170,200,255,.9);transform:rotate(-25deg);animation:profile-shooting-star 12s linear 3s infinite}
+.profile-shooting-star--second{top:37%;animation-delay:8s;animation-duration:17s;width:90px}
 @keyframes profile-shooting-star{0%,72%,100%{opacity:0;transform:translate3d(0,0,0) rotate(-25deg)}74%{opacity:1}82%{opacity:0;transform:translate3d(125vw,48vh,0) rotate(-25deg)}}
-@media(prefers-reduced-motion:reduce){.profile-starry-star,.profile-shooting-star{animation:none;display:none}}
+@media(prefers-reduced-motion:reduce){.profile-starry-star{animation:none;opacity:.8}.profile-shooting-star{animation:none;display:none}}
 </style>
 `;
 
