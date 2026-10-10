@@ -126,6 +126,10 @@ userRoutes.get('/u/:username', async (c) => {
 <style>
 .profile-level-points{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
 .profile-level-chip,.profile-points-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 9px;border:1px solid var(--border);border-radius:999px;background:var(--bg-card,rgba(127,127,127,.08));font-size:.78rem;color:var(--text-secondary)}
+@media(max-width:600px){
+  .profile-level-points{width:100%;flex-wrap:nowrap;gap:clamp(3px,1.5vw,7px)}
+  .profile-level-chip,.profile-points-chip{flex:0 1 auto;min-width:0;white-space:nowrap;font-size:clamp(.56rem,2.5vw,.78rem);gap:clamp(3px,1vw,6px);padding:clamp(3px,1.3vw,5px) clamp(5px,2vw,9px)}
+}
 .profile-level-chip{border-color:rgba(167,139,250,.35)}
 .profile-level-chip>span,.profile-level-chip strong{color:#c4b5fd}
 .profile-points-chip{border-color:rgba(245,196,81,.32)}
