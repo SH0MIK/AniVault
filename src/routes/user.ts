@@ -311,11 +311,11 @@ ${profileBackground === 'constellation' || profileBackground === 'constellations
   };
   function makeUserRow(u, label) {
     const initial = u.username.charAt(0).toUpperCase();
-    const avatar  = u.avatar_url ? `<img src="${u.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : initial;
-    const time = label === 'followers' ? `Followed ${u.created_at}` : `Following since ${u.created_at}`;
-    return `<a href="/u/${encodeURIComponent(u.username)}" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:var(--radius-md);text-decoration:none;transition:var(--trans);" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
-      <div class="nav-avatar" style="width:38px;height:38px;font-size:1rem;flex-shrink:0;">${avatar}</div>
-      <div><div style="color:var(--text-primary);font-weight:500;font-size:0.9rem;">${u.username}</div><div class="text-muted" style="font-size:0.78rem;">${time}</div></div>
+    const avatar  = u.avatar_url ? `<img src="\${u.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : initial;
+    const time = label === 'followers' ? `Followed \${u.created_at}` : `Following since \${u.created_at}`;
+    return `<a href="/u/\${encodeURIComponent(u.username)}" style="display:flex;align-items:center;gap:12px;padding:10px 14px;border-radius:var(--radius-md);text-decoration:none;transition:var(--trans);" onmouseover="this.style.background='var(--bg-hover)'" onmouseout="this.style.background=''">
+      <div class="nav-avatar" style="width:38px;height:38px;font-size:1rem;flex-shrink:0;">\${avatar}</div>
+      <div><div style="color:var(--text-primary);font-weight:500;font-size:0.9rem;">\${u.username}</div><div class="text-muted" style="font-size:0.78rem;">\${time}</div></div>
     </a>`;
   }
   async function loadMore(type) {
@@ -323,11 +323,11 @@ ${profileBackground === 'constellation' || profileBackground === 'constellations
     const s = state[type];
     if (s.loading || s.done) return;
     s.loading = true;
-    const list = document.getElementById(`${type}-list`);
-    const loader = document.getElementById(`${type}-loader`);
+    const list = document.getElementById(`\${type}-list`);
+    const loader = document.getElementById(`\${type}-loader`);
     loader.style.display = 'block';
     try {
-      const url = `/api/follow.php?action=list&type=${type}&user_id=${PROFILE_ID}&offset=${s.offset}`;
+      const url = `/api/follow.php?action=list&type=\${type}&user_id=\${PROFILE_ID}&offset=\${s.offset}`;
       const res = await fetch(url);
       const data = await res.json();
       if (data.success && data.users.length) {
@@ -344,7 +344,7 @@ ${profileBackground === 'constellation' || profileBackground === 'constellations
     s.loading = false;
   }
   function attachScroll(type) {
-    const list = document.getElementById(`${type}-list`);
+    const list = document.getElementById(`\${type}-list`);
     if (!list) return;
     list.addEventListener('scroll', () => {
       if (list.scrollTop + list.clientHeight >= list.scrollHeight - 60) loadMore(type);
