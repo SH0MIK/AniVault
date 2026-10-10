@@ -50,9 +50,6 @@ userRoutes.get('/u/:username', async (c) => {
   <p class="text-muted">No user with that username exists.</p>
   <a href="${siteUrl}/" class="btn btn-primary">Back Home</a>
 </div>`;
-
-
-`;
   html += renderFooter({ siteUrl, currentUser: layoutUser });
     await session.save(c, lifetime);
     return c.html(html, 404);
@@ -120,6 +117,7 @@ userRoutes.get('/u/:username', async (c) => {
 @keyframes profile-shooting-star{0%,72%,100%{opacity:0;transform:translate3d(0,0,0) rotate(-25deg)}74%{opacity:1}82%{opacity:0;transform:translate3d(125vw,48vh,0) rotate(-25deg)}}
 @media(prefers-reduced-motion:reduce){.profile-starry-star,.profile-shooting-star{animation:none;display:none}}
 </style>
+`;
 
   html += `
 
