@@ -50,12 +50,6 @@ userRoutes.get('/u/:username', async (c) => {
   <p class="text-muted">No user with that username exists.</p>
   <a href="${siteUrl}/" class="btn btn-primary">Back Home</a>
 </div>`;
-    html += `<style>
-.profile-fullbleed-hero{position:relative;width:100vw;max-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding:0}
-.profile-fullbleed-hero .u-banner{width:100%;max-width:none;margin-left:0;margin-right:0;box-sizing:border-box;background-position:center;background-size:cover}
-</style>
-
-`;
   html += renderFooter({ siteUrl, currentUser: layoutUser });
     await session.save(c, lifetime);
     return c.html(html, 404);
@@ -118,8 +112,8 @@ userRoutes.get('/u/:username', async (c) => {
 
 ${profileBackground === 'sakura' ? `<div class="profile-sakura-petals" aria-hidden="true">${Array.from({ length: 22 }, (_, i) => `<span class="profile-sakura-petal" style="--petal-i:${i};--petal-x:${(i * 47 + 11) % 100}%;--petal-dur:${9 + (i * 7 % 10)}s;--petal-delay:-${(i * 13 % 19)}s;--petal-drift:${((i * 17) % 81) - 40}px;--petal-size:${7 + (i * 5 % 9)}px"></span>`).join('')}</div>` : ''}
 
-<div class="u-hero profile-fullbleed-hero">
-  <div class="u-banner${profileUser.banner_url ? '' : ' u-banner-fallback'}"${profileUser.banner_url ? ` style="background-image:url('${h(profileUser.banner_url)}')"` : ''} id="u-banner-el"></div>
+<div class="u-hero profile-fullbleed-hero" style="position:relative;width:100vw;max-width:100vw;left:50%;transform:translateX(-50%);margin:0;padding:0;">
+  <div class="u-banner${profileUser.banner_url ? '' : ' u-banner-fallback'}" style="width:100%;max-width:none;margin:0;box-sizing:border-box;background-position:center;background-size:cover;${profileUser.banner_url ? `background-image:url('${h(profileUser.banner_url)}');` : ''}" id="u-banner-el"></div>
 </div>
 
 <div class="container section" style="padding-top:0;">
