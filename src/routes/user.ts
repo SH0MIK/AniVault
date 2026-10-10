@@ -108,7 +108,13 @@ userRoutes.get('/u/:username', async (c) => {
   const isProfileOwner = profileUser.role === 'owner' || auth.isOwnerUserId(profileId);
   const joinedDate = profileUser.created_at ? new Date(profileUser.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
 
-  html += `<style>
+
+
+  html += `
+
+${profileBackground === 'sakura' ? `<div class="profile-sakura-petals" aria-hidden="true">${Array.from({ length: 22 }, (_, i) => `<span class="profile-sakura-petal" style="--petal-i:${i};--petal-x:${(i * 47 + 11) % 100}%;--petal-dur:${9 + (i * 7 % 10)}s;--petal-delay:-${(i * 13 % 19)}s;--petal-drift:${((i * 17) % 81) - 40}px;--petal-size:${7 + (i * 5 % 9)}px"></span>`).join('')}</div>` : ''}
+
+${profileBackground === 'starry_night' || profileBackground === 'starry-night' ? `<style>
 .profile-starry-sky{position:fixed;inset:0;z-index:20;overflow:hidden;pointer-events:none;contain:strict}
 .profile-starry-star{position:absolute;left:var(--star-x);top:var(--star-y);width:var(--star-size);height:var(--star-size);border-radius:50%;background:#fff;opacity:.72;box-shadow:0 0 5px rgba(184,205,255,.8),0 0 10px rgba(137,160,255,.35);animation:profile-star-twinkle var(--star-duration) ease-in-out var(--star-delay) infinite alternate}
 @keyframes profile-star-twinkle{0%{opacity:.4;transform:scale(.8);box-shadow:0 0 3px rgba(184,205,255,.5)}100%{opacity:1;transform:scale(1.6);box-shadow:0 0 8px rgba(190,210,255,1),0 0 16px rgba(137,160,255,.7)}}
@@ -116,12 +122,7 @@ userRoutes.get('/u/:username', async (c) => {
 .profile-shooting-star--second{top:37%;animation-delay:8s;animation-duration:17s;width:90px}
 @keyframes profile-shooting-star{0%,72%,100%{opacity:0;transform:translate3d(0,0,0) rotate(-25deg)}74%{opacity:1}82%{opacity:0;transform:translate3d(125vw,48vh,0) rotate(-25deg)}}
 @media(prefers-reduced-motion:reduce){.profile-starry-star{animation:none;opacity:.8}.profile-shooting-star{animation:none;display:none}}
-</style>
-`;
-
-  html += `
-
-${profileBackground === 'sakura' ? `<div class="profile-sakura-petals" aria-hidden="true">${Array.from({ length: 22 }, (_, i) => `<span class="profile-sakura-petal" style="--petal-i:${i};--petal-x:${(i * 47 + 11) % 100}%;--petal-dur:${9 + (i * 7 % 10)}s;--petal-delay:-${(i * 13 % 19)}s;--petal-drift:${((i * 17) % 81) - 40}px;--petal-size:${7 + (i * 5 % 9)}px"></span>`).join('')}</div>` : ''}
+</style>` : ''}
 
 ${profileBackground === 'starry_night' || profileBackground === 'starry-night' ? `<div class="profile-starry-sky" aria-hidden="true">${Array.from({length:42},(_,i)=>`<span class="profile-starry-star" style="--star-x:${(i*43+7)%100}%;--star-y:${(i*29+13)%100}%;--star-size:${1+(i%3)}px;--star-duration:${2.4+(i*7%32)/10}s;--star-delay:-${(i*11%40)/10}s"></span>`).join('')}<span class="profile-shooting-star"></span><span class="profile-shooting-star profile-shooting-star--second"></span></div>` : ''}
 
