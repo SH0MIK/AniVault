@@ -153,6 +153,10 @@ pointsRoutes.get('/points', async c => {
   const user = await auth.getCurrentUser();
   if (!user) return c.redirect(c.env.SITE_URL + '/login');
   const wallet = await ensureWallet(db,user.id);
+  const lifetimePoints = Math.max(0, Number(wallet?.lifetime_earned ?? 0));
+  const userLevel = Math.floor(lifetimePoints / 100) + 1;
+  const levelProgress = lifetimePoints % 100;
+  const pointsToNextLevel = 100 - levelProgress;
   const frameSettings = await db.fetchOne<any>('SELECT avatar_frame_color FROM user_cosmetic_settings WHERE user_id=?',[user.id]).catch(()=>null);
   const frameColor = /^#[0-9a-fA-F]{6}$/.test(String(frameSettings?.avatar_frame_color||'')) ? String(frameSettings.avatar_frame_color).toLowerCase() : '#62f5ff';
   const items = await db.fetchAll<any>('SELECT id,category,name,description,icon,price,cosmetic_type,cosmetic_value FROM points_catalog WHERE active=1 ORDER BY category,sort_order,name');
@@ -175,6 +179,18 @@ pointsRoutes.get('/points', async c => {
 .points-hero h1{font-family:Orbitron,system-ui,sans-serif;font-size:clamp(1.7rem,4vw,2.6rem);margin:10px 0}
 .points-muted{color:var(--text-secondary)}
 .points-balance{font-size:1.8rem;font-weight:800;color:var(--accent-2);margin:10px 0}
+.points-level-card{max-width:560px;margin:22px auto 8px;padding:16px 18px;text-align:left;border:1px solid rgba(167,139,250,.28);border-radius:15px;background:linear-gradient(120deg,rgba(124,58,237,.13),rgba(245,196,81,.045))}
+.points-level-top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}
+.points-level-name{display:flex;align-items:center;gap:10px}
+.points-level-icon{display:grid;place-items:center;width:42px;height:42px;flex:0 0 auto;border-radius:13px;background:rgba(167,139,250,.16);color:#c4b5fd;font-size:1.35rem}
+.points-level-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;color:var(--text-secondary)}
+.points-level-number{font-size:1.35rem;font-weight:850;color:#c4b5fd;line-height:1.2}
+.points-level-percent{font-size:.78rem;font-weight:700;color:var(--text-secondary);white-space:nowrap}
+.points-level-track{height:9px;overflow:hidden;border-radius:999px;background:rgba(127,127,127,.2);box-shadow:inset 0 1px 2px rgba(0,0,0,.12)}
+.points-level-fill{height:100%;width:var(--level-progress);border-radius:inherit;background:linear-gradient(90deg,#8b5cf6,#c084fc,#f0abfc);box-shadow:0 0 12px rgba(192,132,252,.35);transition:width .4s ease}
+.points-level-meta{display:flex;justify-content:space-between;gap:10px;margin-top:9px;font-size:.77rem;color:var(--text-secondary)}
+.points-level-meta strong{color:var(--text-primary)}
+@media(max-width:460px){.points-level-card{padding:13px}.points-level-meta{font-size:.7rem}}
 .points-tabs{display:flex;gap:8px;overflow:auto;padding:4px 0 14px}
 .points-tab{border:1px solid var(--border);background:var(--card-bg,var(--bg-secondary));color:var(--text-primary);border-radius:999px;padding:9px 16px;white-space:nowrap;cursor:pointer}
 .points-tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -225,7 +241,18 @@ pointsRoutes.get('/points', async c => {
     <h1>Points Store</h1>
     <p class="points-muted">Earn points by being part of AniVault. Spend them on profile cosmetics and collectibles.</p>
     <div class="points-balance" id="points-balance">${Number(wallet?.balance ?? 0).toLocaleString()} <span style="font-size:.9rem">pts</span></div>
-    <p class="points-muted" style="font-size:.82rem">Earned ${Number(wallet?.lifetime_earned ?? 0).toLocaleString()} · Spent ${Number(wallet?.lifetime_spent ?? 0).toLocaleString()}</p>
+    <div class="points-level-card" aria-label="Level progress">
+      <div class="points-level-top">
+        <div class="points-level-name">
+          <span class="points-level-icon" aria-hidden="true">✦</span>
+          <div><div class="points-level-label">Your level</div><div class="points-level-number">Level ${userLevel}</div></div>
+        </div>
+        <span class="points-level-percent">${levelProgress}%</span>
+      </div>
+      <div class="points-level-track" role="progressbar" aria-label="Progress to next level" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${levelProgress}"><div class="points-level-fill" style="--level-progress:${levelProgress}%"></div></div>
+      <div class="points-level-meta"><span><strong>${levelProgress}</strong> / 100 XP this level</span><span><strong>${pointsToNextLevel}</strong> to Level ${userLevel + 1}</span></div>
+    </div>
+    <p class="points-muted" style="font-size:.82rem">Lifetime earned ${lifetimePoints.toLocaleString()} pts · Spent ${Number(wallet?.lifetime_spent ?? 0).toLocaleString()} pts</p>
   </section>
   <div class="points-tabs" role="tablist">
     <button class="points-tab active" data-tab="earn">Earn points</button>
