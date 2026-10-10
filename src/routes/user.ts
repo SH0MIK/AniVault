@@ -213,7 +213,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   .u-header .u-avatar-wrap{position:relative;top:-10px}
 }
 </style>
-<div class="container section" style="padding-top:0;">
+<div class="container section u-profile-content" style="padding-top:0;width:calc(100% - clamp(24px, 6vw, 120px));max-width:1600px;margin-left:auto;margin-right:auto;box-sizing:border-box;">
   <div class="u-header" style="${profileEffect === 'sparkle' ? 'filter:drop-shadow(0 0 12px rgba(192,132,252,.12));' : ''}">
     <div class="u-avatar-wrap">
       <div class="nav-avatar u-avatar${avatarFrame === 'gold' ? ' frame-gold' : avatarFrame === 'sakura' ? ' frame-sakura' : ''}" style="${avatarFrame === 'gold' ? 'position:relative;isolation:isolate;border:3px solid #e7c46a;box-shadow:0 0 0 2px rgba(255,210,91,.42),0 0 9px 3px rgba(255,196,64,.5),0 0 19px 5px rgba(255,176,42,.3),inset 0 0 7px rgba(255,218,112,.22);' : avatarFrame === 'sakura' ? 'position:relative;isolation:isolate;border:3px solid #f0a6c7;box-shadow:0 0 0 2px rgba(255,170,211,.42),0 0 9px 3px rgba(255,143,202,.5),0 0 19px 5px rgba(255,105,180,.3),inset 0 0 7px rgba(255,218,237,.25);' : avatarFrame === 'neon' ? `border:3px solid ${neonFrameColor};box-shadow:0 0 10px ${neonFrameColor},0 0 22px rgba(${neonFrameRgb},.82),0 0 38px rgba(${neonFrameRgb},.42),inset 0 0 12px rgba(${neonFrameRgb},.28);` : ''}">
