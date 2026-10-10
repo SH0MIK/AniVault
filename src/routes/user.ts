@@ -60,6 +60,10 @@ userRoutes.get('/u/:username', async (c) => {
     'SELECT c.cosmetic_type,c.cosmetic_value FROM points_inventory i JOIN points_catalog c ON c.id=i.item_id WHERE i.user_id=? AND i.equipped=1',
     [profileId]
   ).catch(() => []);
+  const frameSettings = await db.fetchOne<any>('SELECT avatar_frame_color FROM user_cosmetic_settings WHERE user_id=?',[profileId]).catch(()=>null);
+  const neonFrameColor = /^#[0-9a-fA-F]{6}$/.test(String(frameSettings?.avatar_frame_color||'')) ? String(frameSettings.avatar_frame_color).toLowerCase() : '#62f5ff';
+  const neonFrameRgbMatch = neonFrameColor.match(/^#([0-9a-f]{6})$/i);
+  const neonFrameRgb = neonFrameRgbMatch ? `${parseInt(neonFrameRgbMatch[1].slice(0,2),16)},${parseInt(neonFrameRgbMatch[1].slice(2,4),16)},${parseInt(neonFrameRgbMatch[1].slice(4,6),16)}` : '98,245,255';
   const cosmeticValue = (type:string) => equippedCosmetics.find(x => x.cosmetic_type === type)?.cosmetic_value ?? '';
   const avatarFrame = cosmeticValue('avatar_frame');
   const profileBackground = cosmeticValue('profile_background');
@@ -168,7 +172,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 <div class="container section" style="padding-top:0;">
   <div class="u-header" style="${profileEffect === 'sparkle' ? 'filter:drop-shadow(0 0 12px rgba(192,132,252,.12));' : ''}">
     <div class="u-avatar-wrap">
-      <div class="nav-avatar u-avatar" style="${avatarFrame === 'gold' ? 'border:3px solid #e7c46a;box-shadow:0 0 14px rgba(231,196,106,.28);' : avatarFrame === 'sakura' ? 'border:3px solid #f0a6c7;box-shadow:0 0 12px rgba(240,166,199,.25);' : avatarFrame === 'neon' ? 'border:3px solid #62f5ff;box-shadow:0 0 14px rgba(98,245,255,.3);' : ''}">
+      <div class="nav-avatar u-avatar" style="${avatarFrame === 'gold' ? 'border:3px solid #e7c46a;box-shadow:0 0 14px rgba(231,196,106,.28);' : avatarFrame === 'sakura' ? 'border:3px solid #f0a6c7;box-shadow:0 0 12px rgba(240,166,199,.25);' : avatarFrame === 'neon' ? `border:3px solid ${neonFrameColor};box-shadow:0 0 10px ${neonFrameColor},0 0 22px rgba(${neonFrameRgb},.82),0 0 38px rgba(${neonFrameRgb},.42),inset 0 0 12px rgba(${neonFrameRgb},.28);` : ''}">
         ${profileUser.avatar_url ? `<img src="${h(profileUser.avatar_url)}" alt="${h(profileUser.username)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : h(profileUser.username.charAt(0).toUpperCase())}
       </div>
       ${isProfileOwner ? `<span class="u-role-badge">OWNER</span>` : profileUser.role === 'admin' ? `<span class="u-role-badge">ADMIN</span>` : ''}
