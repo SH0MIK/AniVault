@@ -20,7 +20,7 @@ async function context(c: any) {
 }
 function renderRewardPreview(item: any) {
   const type=String(item.cosmetic_type||''), value=String(item.cosmetic_value||'');
-  if(type==='avatar_frame') return `<div class="points-preview"><div class="points-preview-avatar frame-${h(value)}">👤</div></div>`;
+  if(type==='avatar_frame') { const color=String(item.frame_color||'#62f5ff'); const rgb=color.match(/^#([0-9a-f]{6})$/i)?.[1]; const glow=rgb?`${parseInt(rgb.slice(0,2),16)},${parseInt(rgb.slice(2,4),16)},${parseInt(rgb.slice(4,6),16)}`:'98,245,255'; return `<div class="points-preview"><div class="points-preview-avatar frame-${h(value)}" style="${value==='neon'?`border:3px solid ${h(color)};box-shadow:0 0 8px ${h(color)},0 0 20px rgba(${glow},.72),inset 0 0 10px rgba(${glow},.28);`:''}">👤</div></div>`; }
   if(type==='profile_background') return `<div class="points-preview"><div class="points-preview-bg bg-${h(value)}" role="img" aria-label="${h(item.name || 'Profile background')}"></div></div>`;
   if(type==='name_style') return `<div class="points-preview"><span class="points-preview-name name-${h(value)}">AniVault</span></div>`;
   if(type==='flair') return `<div class="points-preview"><span class="points-preview-label" style="font-size:1rem">✦ ${h(value.replace(/-/g,' '))} ✦</span></div>`;
@@ -99,6 +99,16 @@ pointsRoutes.post('/api/points', async c => {
     return c.json({success:true,message:'+'+spec.points+' points earned!',wallet});
   }
 
+  if (action === 'frame_color') {
+    const color = String(body.color ?? '').trim();
+    const itemId = String(body.item_id ?? '');
+    if (!/^#[0-9a-fA-F]{6}$/.test(color)) return c.json({success:false,message:'Choose a valid color.'},400);
+    const ownedNeon = await db.fetchOne<any>("SELECT c.id FROM points_inventory i JOIN points_catalog c ON c.id=i.item_id WHERE i.user_id=? AND i.item_id=? AND c.cosmetic_type='avatar_frame' AND c.cosmetic_value='neon'",[userId,itemId]);
+    if (!ownedNeon) return c.json({success:false,message:'You need to own the Neon frame first.'},403);
+    await db.query("INSERT INTO user_cosmetic_settings(user_id,avatar_frame_color,updated_at) VALUES(?,?,datetime('now')) ON CONFLICT(user_id) DO UPDATE SET avatar_frame_color=excluded.avatar_frame_color,updated_at=datetime('now')",[userId,color.toLowerCase()]);
+    return c.json({success:true,message:'Neon frame color saved!'});
+  }
+
   if (action === 'redeem') {
     const itemId = String(body.item_id ?? '');
     const item = await db.fetchOne<any>('SELECT id,name,price,category,cosmetic_type FROM points_catalog WHERE id=? AND active=1',[itemId]);
@@ -143,6 +153,8 @@ pointsRoutes.get('/points', async c => {
   const user = await auth.getCurrentUser();
   if (!user) return c.redirect(c.env.SITE_URL + '/login');
   const wallet = await ensureWallet(db,user.id);
+  const frameSettings = await db.fetchOne<any>('SELECT avatar_frame_color FROM user_cosmetic_settings WHERE user_id=?',[user.id]).catch(()=>null);
+  const frameColor = /^#[0-9a-fA-F]{6}$/.test(String(frameSettings?.avatar_frame_color||'')) ? String(frameSettings.avatar_frame_color).toLowerCase() : '#62f5ff';
   const items = await db.fetchAll<any>('SELECT id,category,name,description,icon,price,cosmetic_type,cosmetic_value FROM points_catalog WHERE active=1 ORDER BY category,sort_order,name');
   const inventory = await db.fetchAll<any>('SELECT i.item_id,i.equipped,c.name,c.category,c.icon,c.cosmetic_type,c.cosmetic_value FROM points_inventory i JOIN points_catalog c ON c.id=i.item_id WHERE i.user_id=? ORDER BY i.purchased_at DESC',[user.id]);
   const owned = new Set(inventory.map((x:any)=>x.item_id));
@@ -236,7 +248,7 @@ pointsRoutes.get('/points', async c => {
   </section>
   <section class="points-panel" id="panel-inventory">
     <h2 class="points-section-title">My collection</h2>
-    ${inventory.length? `<div class="points-grid">${inventory.map((item:any)=>`<article class="points-card">${renderRewardPreview(item)}<h3>${h(item.name||"Unnamed reward")}</h3><p>${h(item.category)} · ${item.equipped?'Currently equipped':'Ready to use'}</p><div class="points-card-foot"><span class="points-muted" style="font-size:.78rem">${item.equipped?'Active cosmetic':'Owned'}</span><button class="points-action" data-action="${item.equipped?'unequip':'equip'}" data-item="${h(item.item_id)}">${item.equipped?'Unequip':'Equip'}</button></div></article>`).join('')}</div>`:'<p class="points-muted">Your collection is empty. Redeem something from the Store to get started!</p>'}
+    ${inventory.length? `<div class="points-grid">${inventory.map((item:any)=>{const isNeon=item.cosmetic_type==='avatar_frame'&&item.cosmetic_value==='neon';const previewItem={...item,frame_color:frameColor};return `<article class="points-card">${renderRewardPreview(previewItem)}<h3>${h(item.name||"Unnamed reward")}</h3><p>${h(item.category)} · ${item.equipped?'Currently equipped':'Ready to use'}</p>${isNeon?`<div class="neon-frame-color-control" style="margin:12px 0;padding:12px;border:1px solid rgba(98,245,255,.25);border-radius:12px;background:rgba(98,245,255,.045)"><label for="neon-frame-color" style="display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:.85rem;font-weight:600;margin-bottom:9px">Neon frame color <span id="neon-frame-color-hex" style="font-family:monospace;color:${h(frameColor)}">${h(frameColor.toUpperCase())}</span></label><div style="display:flex;align-items:center;gap:10px"><input id="neon-frame-color" data-neon-color type="color" value="${h(frameColor)}" aria-label="Choose Neon avatar frame color" style="width:52px;height:40px;padding:3px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:transparent;cursor:pointer"><span style="font-size:.78rem;opacity:.8">Pick any color · live preview</span></div><p id="neon-frame-color-status" class="points-muted" style="font-size:.75rem;margin:7px 0 0">Color is saved to your profile</p></div>`:''}<div class="points-card-foot"><span class="points-muted" style="font-size:.78rem">${item.equipped?'Active cosmetic':'Owned'}</span><button class="points-action" data-action="${item.equipped?'unequip':'equip'}" data-item="${h(item.item_id)}">${item.equipped?'Unequip':'Equip'}</button></div></article>`}).join('')}</div>`:'<p class="points-muted">Your collection is empty. Redeem something from the Store to get started!</p>'}
   </section>
   <section class="points-panel" id="panel-history">
     <h2 class="points-section-title">Recent activity</h2>
@@ -247,6 +259,14 @@ pointsRoutes.get('/points', async c => {
 (function(){
  const root=document.querySelector('.points-page');if(!root)return;
  const message=document.getElementById('points-message');
+ const colorInput=root.querySelector('[data-neon-color]');
+ if(colorInput){
+   const updatePreview=(color)=>{const hex=document.getElementById('neon-frame-color-hex');if(hex){hex.textContent=color.toUpperCase();hex.style.color=color;}const avatar=root.querySelector('#panel-inventory .points-preview-avatar.frame-neon');if(avatar){const n=parseInt(color.slice(1),16);const rr=(n>>16)&255,gg=(n>>8)&255,bb=n&255;avatar.style.borderColor=color;avatar.style.boxShadow=`0 0 8px ${color},0 0 20px rgba(${rr},${gg},${bb},.72),inset 0 0 10px rgba(${rr},${gg},${bb},.28)`;}};
+   let saveTimer;
+   colorInput.addEventListener('input',()=>{updatePreview(colorInput.value);const status=document.getElementById('neon-frame-color-status');if(status)status.textContent='Previewing…';});
+   colorInput.addEventListener('change',async()=>{clearTimeout(saveTimer);const status=document.getElementById('neon-frame-color-status');if(status)status.textContent='Saving color…';colorInput.disabled=true;try{const res=await fetch('/api/points',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'frame_color',color:colorInput.value,item_id:root.querySelector('[data-action][data-item]')?.dataset.item})});const data=await res.json();if(!res.ok||!data.success)throw new Error(data.message||'Could not save color.');if(status)status.textContent='Saved · shown on your profile when Neon is equipped';}catch(err){if(status)status.textContent=err.message||'Could not save color.';}finally{colorInput.disabled=false;}});
+ }
+
  root.querySelectorAll('.points-tab').forEach(btn=>btn.addEventListener('click',()=>{root.querySelectorAll('.points-tab').forEach(b=>b.classList.toggle('active',b===btn));root.querySelectorAll('.points-panel').forEach(p=>p.classList.toggle('active',p.id==='panel-'+btn.dataset.tab));}));
  root.addEventListener('click',async e=>{const btn=e.target.closest('[data-action]');if(!btn||btn.disabled)return;const action=btn.dataset.action;btn.disabled=true;message.textContent='Working…';try{const res=await fetch('/api/points',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,task:btn.dataset.task,item_id:btn.dataset.item})});const data=await res.json();if(!res.ok||!data.success)throw new Error(data.message||'Could not complete that action.');message.textContent=data.message||'Saved!';if(data.wallet)document.getElementById('points-balance').innerHTML=Number(data.wallet.balance).toLocaleString()+' <span style="font-size:.9rem">pts</span>';setTimeout(()=>location.reload(),500);}catch(err){message.textContent=err.message||'Something went wrong.';btn.disabled=false;}});
 })();
