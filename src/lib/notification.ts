@@ -30,6 +30,7 @@ export const NOTIFICATION_TYPES: Record<string, { icon: string; color: string; l
   bug_report: { icon: icon('alert','icon-small'), color: 'gold', label: 'submitted a bug report' },
   bug_report_solved: { icon: icon('check','icon-small'), color: 'teal', label: 'marked your bug report as solved' },
   points_gift: { icon: '🎁', color: 'gold', label: 'gifted you points' },
+  reward_gift: { icon: '🎁', color: 'gold', label: 'gifted you a reward' },
 };
 
 export const Notification = {
@@ -117,6 +118,7 @@ export const Notification = {
       case 'bug_report': return `<strong>${actor}</strong> submitted a bug report: <em>${meta}</em>`;
       case 'bug_report_solved': return `Your bug report <strong>${meta}</strong> was marked as solved`;
       case 'points_gift': return `<strong>${actor}</strong> gifted you points${meta ? `: <em>${meta}</em>` : ''}`;
+      case 'reward_gift': return `<strong>${actor}</strong> gifted you a reward${meta ? `: <em>${meta}</em>` : ''}`;
       case 'auto_account': {
         let creds: { username?: string; password?: string } = {};
         try { creds = JSON.parse(n.entity_meta ?? '{}'); } catch { /* malformed -- show generic text */ }
@@ -138,6 +140,7 @@ export const Notification = {
       case 'bug_report': return `${siteUrl}/bug-reports`;
       case 'bug_report_solved': return `${siteUrl}/bug-reports`;
       case 'points_gift': return `${siteUrl}/points`;
+      case 'reward_gift': return `${siteUrl}/points`;
       case 'auto_account': return `${siteUrl}/profile`;
       default: return `${siteUrl}/feed`;
     }
