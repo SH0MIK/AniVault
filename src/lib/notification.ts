@@ -10,7 +10,7 @@ export interface NotificationRow {
   user_id: number;
   actor_id: number | null;
   type: string;
-  entity_id: number | null;
+  entity_id: number | string | null;
   entity_meta: string | null;
   is_read: number;
   created_at: string;
@@ -34,7 +34,7 @@ export const NOTIFICATION_TYPES: Record<string, { icon: string; color: string; l
 };
 
 export const Notification = {
-  async create(db: Db, userId: number, actorId: number, type: string, entityId: number | null = null, entityMeta: string | null = null): Promise<void> {
+  async create(db: Db, userId: number, actorId: number, type: string, entityId: number | string | null = null, entityMeta: string | null = null): Promise<void> {
     if (userId === actorId && type !== 'announcement') return;
 
     const recent = await db.fetchOne(
