@@ -63,6 +63,7 @@ userRoutes.get('/u/:username', async (c) => {
   const cosmeticValue = (type:string) => equippedCosmetics.find(x => x.cosmetic_type === type)?.cosmetic_value ?? '';
   const avatarFrame = cosmeticValue('avatar_frame');
   const profileBackground = cosmeticValue('profile_background');
+  const profileBackgroundKey = profileBackground.trim().toLowerCase().replace(/[\s-]+/g, '_');
   const nameStyle = cosmeticValue('name_style');
   const profileFlair = cosmeticValue('flair');
   const profileEffect = cosmeticValue('profile_effect');
@@ -114,7 +115,7 @@ userRoutes.get('/u/:username', async (c) => {
 
 ${profileBackground === 'sakura' ? `<div class="profile-sakura-petals" aria-hidden="true">${Array.from({ length: 22 }, (_, i) => `<span class="profile-sakura-petal" style="--petal-i:${i};--petal-x:${(i * 47 + 11) % 100}%;--petal-dur:${9 + (i * 7 % 10)}s;--petal-delay:-${(i * 13 % 19)}s;--petal-drift:${((i * 17) % 81) - 40}px;--petal-size:${7 + (i * 5 % 9)}px"></span>`).join('')}</div>` : ''}
 
-${profileBackground === 'midnight_grid' || profileBackground === 'midnight-grid' || profileBackground === 'midnightgrid' ? `<style>
+${profileBackgroundKey === 'midnight_grid' || profileBackgroundKey === 'midnightgrid' ? `<style>
 .profile-midnight-grid{position:fixed;inset:0;z-index:3;overflow:hidden;pointer-events:none;contain:strict;opacity:.72;isolation:isolate}
 .profile-midnight-grid:before{content:"";position:absolute;left:-35%;right:-35%;bottom:-35%;height:82%;background-image:linear-gradient(rgba(119,104,255,.18) 1px,transparent 1px),linear-gradient(90deg,rgba(89,139,255,.16) 1px,transparent 1px);background-size:42px 42px;background-position:center center;transform:perspective(430px) rotateX(59deg);transform-origin:center bottom;mask-image:linear-gradient(to top,rgba(0,0,0,.95),rgba(0,0,0,.62) 48%,transparent 100%);animation:profile-grid-drift 24s linear infinite}
 .profile-midnight-grid:after{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 50% 100%,rgba(100,65,220,.17),transparent 48%),radial-gradient(ellipse at 82% 26%,rgba(40,99,220,.09),transparent 34%),linear-gradient(to bottom,rgba(5,7,17,.12),transparent 48%,rgba(5,7,17,.18));animation:profile-grid-glow 12s ease-in-out infinite alternate}
@@ -126,7 +127,7 @@ ${profileBackground === 'midnight_grid' || profileBackground === 'midnight-grid'
 @media(prefers-reduced-motion:reduce){.profile-midnight-grid:before,.profile-midnight-grid:after,.profile-grid-light{animation:none}.profile-grid-light{display:none}}
 </style>` : ''}
 
-${profileBackground === 'constellation' || profileBackground === 'constellations' || profileBackground === 'starry_night' || profileBackground === 'starry-night' ? `<style>
+${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constellations' || profileBackgroundKey === 'starry_night' ? `<style>
 .profile-starry-sky{position:fixed;inset:0;z-index:4;overflow:hidden;pointer-events:none;contain:strict;opacity:.76;mix-blend-mode:screen}
 .profile-starry-sky:before,.profile-starry-sky:after{content:"";position:absolute;inset:-18%;pointer-events:none}
 .profile-starry-sky:before{background:radial-gradient(ellipse at 78% 18%,rgba(130,111,255,.17),transparent 31%),radial-gradient(ellipse at 16% 43%,rgba(83,139,255,.12),transparent 36%),radial-gradient(ellipse at 70% 78%,rgba(196,118,255,.1),transparent 32%);filter:blur(22px);animation:profile-nebula-drift 32s ease-in-out infinite alternate}
@@ -148,9 +149,9 @@ ${profileBackground === 'constellation' || profileBackground === 'constellations
 @media(prefers-reduced-motion:reduce){.profile-starry-star,.profile-starry-sky:before,.profile-starry-sky:after,.profile-shooting-star,.profile-falling-star{animation:none}.profile-shooting-star,.profile-falling-star{display:none}}
 </style>` : ''}
 
-${profileBackground === 'midnight_grid' || profileBackground === 'midnight-grid' || profileBackground === 'midnightgrid' ? `<div class="profile-midnight-grid" aria-hidden="true">${Array.from({length:14},(_,i)=>`<span class="profile-grid-light" style="--grid-light-x:${(i*29+9)%96}%;--grid-light-y:${(i*43+12)%82}%;--grid-light-duration:${5+(i*7%8)}s;--grid-light-delay:-${(i*3)%17}s"></span>`).join('')}</div>` : ''}
+${profileBackgroundKey === 'midnight_grid' || profileBackgroundKey === 'midnightgrid' ? `<div class="profile-midnight-grid" aria-hidden="true">${Array.from({length:14},(_,i)=>`<span class="profile-grid-light" style="--grid-light-x:${(i*29+9)%96}%;--grid-light-y:${(i*43+12)%82}%;--grid-light-duration:${5+(i*7%8)}s;--grid-light-delay:-${(i*3)%17}s"></span>`).join('')}</div>` : ''}
 
-${profileBackground === 'constellation' || profileBackground === 'constellations' || profileBackground === 'starry_night' || profileBackground === 'starry-night' ? `<div class="profile-starry-sky" aria-hidden="true"><span class="profile-starry-moon"></span>${Array.from({length:34},(_,i)=>`<span class="profile-starry-star" style="--star-x:${(i*37+13)%97}%;--star-y:${(i*61+17)%95}%;--star-size:${i%9===0?2:1}px;--star-opacity:${.18+(i%6)*.07};--star-duration:${3.5+(i*7%35)/10}s;--star-delay:-${(i*11%40)/10}s"></span>`).join('')}${Array.from({length:9},(_,i)=>`<span class="profile-falling-star" style="--fall-x:${(i*31+8)%96}%;--fall-drift:${((i*17)%90)-45}px;--fall-duration:${11+(i*7%12)}s;--fall-delay:-${(i*5)%21}s"></span>` ).join('')}<span class="profile-shooting-star"></span><span class="profile-shooting-star profile-shooting-star--second"></span></div>` : ''}
+${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constellations' || profileBackgroundKey === 'starry_night' ? `<div class="profile-starry-sky" aria-hidden="true"><span class="profile-starry-moon"></span>${Array.from({length:34},(_,i)=>`<span class="profile-starry-star" style="--star-x:${(i*37+13)%97}%;--star-y:${(i*61+17)%95}%;--star-size:${i%9===0?2:1}px;--star-opacity:${.18+(i%6)*.07};--star-duration:${3.5+(i*7%35)/10}s;--star-delay:-${(i*11%40)/10}s"></span>`).join('')}${Array.from({length:9},(_,i)=>`<span class="profile-falling-star" style="--fall-x:${(i*31+8)%96}%;--fall-drift:${((i*17)%90)-45}px;--fall-duration:${11+(i*7%12)}s;--fall-delay:-${(i*5)%21}s"></span>` ).join('')}<span class="profile-shooting-star"></span><span class="profile-shooting-star profile-shooting-star--second"></span></div>` : ''}
 
 <div class="u-hero profile-fullbleed-hero" style="position:relative;left:auto;right:auto;transform:none;width:100vw;max-width:none;min-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding:0;overflow:visible;">
   <div class="u-banner${profileUser.banner_url ? '' : ' u-banner-fallback'}" style="display:block;width:100%;max-width:none;min-width:0;margin:0;box-sizing:border-box;background-position:center;background-size:cover;${profileUser.banner_url ? `background-image:url('${h(profileUser.banner_url)}');` : ''}" id="u-banner-el"></div>
