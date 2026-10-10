@@ -31,7 +31,26 @@ adminAnimeImagesRoutes.on(['GET', 'POST'], '/admin/anime_images.php', async (c) 
     const title = ((formData.get('anime_title') as string) ?? '').trim();
 
     try {
-      if (action === 'save_url') {
+      if (action === 'migrate_filenames') {
+        const rows = await db.fetchAll<any>("SELECT anime_id, image_url FROM anime_images WHERE source='upload' AND image_url LIKE '%/assets/img/anime-library/anime-%-%' ORDER BY anime_id LIMIT 30");
+        let migrated = 0;
+        for (const row of rows) {
+          const match = String(row.image_url || '').match(/\/assets\/img\/anime-library\/(anime-\d+)-(\d+)\.(jpg|png|webp)(?:[?#].*)?$/);
+          if (!match) continue;
+          const oldName = match[1] + '-' + match[2] + '.' + match[3];
+          const newName = 'anime-' + row.anime_id + '.' + match[3];
+          const oldKey = 'anime-library/' + oldName;
+          const newKey = 'anime-library/' + newName;
+          const obj = await c.env.AVATARS.get(oldKey);
+          if (!obj) continue;
+          await c.env.AVATARS.put(newKey, obj.body, { httpMetadata: obj.httpMetadata });
+          await db.query("UPDATE anime_images SET image_url=?, updated_at=datetime('now') WHERE anime_id=?", [siteUrl + '/assets/img/anime-library/' + newName, row.anime_id]);
+          await c.env.AVATARS.delete(oldKey);
+          migrated++;
+        }
+        const remaining = await db.count("SELECT COUNT(*) as cnt FROM anime_images WHERE source='upload' AND image_url LIKE '%/assets/img/anime-library/anime-%-%'");
+        session.setFlash('success', 'Migrated ' + migrated + ' cover(s). ' + remaining + ' legacy cover record(s) remain; click again to continue.');
+      } else if (action === 'save_url') {
         const imageUrl = ((formData.get('image_url') as string) ?? '').trim();
         let valid = false;
         try { const u = new URL(imageUrl); valid = u.protocol === 'http:' || u.protocol === 'https:'; } catch { /* invalid */ }
@@ -168,6 +187,11 @@ ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
       <input type="radio" name="priority" value="api" ${priority === 'api' ? 'checked' : ''}> API first (saved images as fallback)
     </label>
     <button class="btn btn-primary btn-sm" type="submit">Save Priority</button>
+  </form>
+  <form method="POST" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border,#333);">
+    <input type="hidden" name="action" value="migrate_filenames">
+    <label style="font-size:0.85rem;color:var(--text-muted,#999);">Normalize legacy uploaded cover filenames in R2 and D1 (30 per click).</label>
+    <button class="btn btn-secondary btn-sm" type="submit" onclick="return confirm(&quot;Rename existing cover files and update their saved URLs?&quot;)">Migrate Existing Cover Names</button>
   </form>
   <form method="POST" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid var(--border,#333);">
     <input type="hidden" name="action" value="refresh_art">
