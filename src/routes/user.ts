@@ -110,6 +110,12 @@ userRoutes.get('/u/:username', async (c) => {
       url: `${siteUrl}/u/${profileUser.username}`, type: 'profile',
     },
   });
+  const isProfileOwner = profileUser.role === 'owner' || auth.isOwnerUserId(profileId);
+  const joinedDate = profileUser.created_at ? new Date(profileUser.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
+
+
+
+  html += `
 <style>
 .u-avatar.frame-gold:after,.u-avatar.frame-sakura:after{content:"";position:absolute;inset:-3px;border-radius:50%;padding:3px;pointer-events:none;background:linear-gradient(112deg,transparent 0%,transparent 36%,rgba(255,255,255,.96) 48%,rgba(255,255,255,.24) 53%,transparent 64%) 0 0/260% 100%;-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:avatar-frame-shine 4.8s ease-in-out infinite}
 .u-avatar.frame-gold:after{filter:drop-shadow(0 0 2px rgba(255,255,255,.62))}
@@ -117,12 +123,6 @@ userRoutes.get('/u/:username', async (c) => {
 @keyframes avatar-frame-shine{0%,12%{background-position:140% 0;opacity:0}22%{opacity:1}54%{background-position:-45% 0;opacity:.9}66%,100%{background-position:-45% 0;opacity:0}}
 @media(prefers-reduced-motion:reduce){.u-avatar.frame-gold:after,.u-avatar.frame-sakura:after{animation:none;opacity:.35;background-position:0 0}}
 </style>
-  const isProfileOwner = profileUser.role === 'owner' || auth.isOwnerUserId(profileId);
-  const joinedDate = profileUser.created_at ? new Date(profileUser.created_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '';
-
-
-
-  html += `
 
 ${profileBackground === 'sakura' ? `<div class="profile-sakura-petals" aria-hidden="true">${Array.from({ length: 22 }, (_, i) => `<span class="profile-sakura-petal" style="--petal-i:${i};--petal-x:${(i * 47 + 11) % 100}%;--petal-dur:${9 + (i * 7 % 10)}s;--petal-delay:-${(i * 13 % 19)}s;--petal-drift:${((i * 17) % 81) - 40}px;--petal-size:${7 + (i * 5 % 9)}px"></span>`).join('')}</div>` : ''}
 
