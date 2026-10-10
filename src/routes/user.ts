@@ -117,11 +117,13 @@ userRoutes.get('/u/:username', async (c) => {
 
   html += `
 <style>
-.u-avatar.frame-gold:after,.u-avatar.frame-sakura:after{content:"";position:absolute;inset:-3px;border-radius:50%;padding:3px;pointer-events:none;background:linear-gradient(112deg,transparent 0%,transparent 36%,rgba(255,255,255,.96) 48%,rgba(255,255,255,.24) 53%,transparent 64%) 0 0/260% 100%;-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:avatar-frame-shine 4.8s ease-in-out infinite}
-.u-avatar.frame-gold:after{filter:drop-shadow(0 0 2px rgba(255,255,255,.62))}
-.u-avatar.frame-sakura:after{animation-delay:-2.4s;filter:drop-shadow(0 0 2px rgba(255,235,246,.72))}
-@keyframes avatar-frame-shine{0%,12%{background-position:140% 0;opacity:0}22%{opacity:1}54%{background-position:-45% 0;opacity:.9}66%,100%{background-position:-45% 0;opacity:0}}
-@media(prefers-reduced-motion:reduce){.u-avatar.frame-gold:after,.u-avatar.frame-sakura:after{animation:none;opacity:.35;background-position:0 0}}
+.u-avatar.frame-gold:after,.u-avatar.frame-sakura:after{content:"";position:absolute;inset:0;border-radius:50%;padding:4px;pointer-events:none;z-index:3;background:linear-gradient(105deg,transparent 0%,transparent 28%,rgba(255,255,255,.98) 43%,#fff 48%,rgba(255,255,255,.92) 53%,transparent 67%) 180% 0/360% 100% no-repeat;-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:avatar-frame-shine 2.9s linear infinite;opacity:0}
+.u-avatar.frame-gold{box-shadow:0 0 0 2px rgba(255,210,91,.42),0 0 9px 3px rgba(255,196,64,.5),0 0 19px 5px rgba(255,176,42,.3),inset 0 0 7px rgba(255,218,112,.22)!important}
+.u-avatar.frame-sakura{box-shadow:0 0 0 2px rgba(255,170,211,.42),0 0 9px 3px rgba(255,143,202,.5),0 0 19px 5px rgba(255,105,180,.3),inset 0 0 7px rgba(255,218,237,.25)!important}
+.u-avatar.frame-gold:after{filter:drop-shadow(0 0 3px rgba(255,255,255,.95)) drop-shadow(0 0 5px rgba(255,205,75,.9))}
+.u-avatar.frame-sakura:after{animation-delay:-1.45s;filter:drop-shadow(0 0 3px rgba(255,255,255,.98)) drop-shadow(0 0 5px rgba(255,151,207,.95))}
+@keyframes avatar-frame-shine{0%{background-position:180% 0;opacity:0}8%{opacity:1}70%{background-position:-80% 0;opacity:1}82%,100%{background-position:-80% 0;opacity:0}}
+@media(prefers-reduced-motion:reduce){.u-avatar.frame-gold:after,.u-avatar.frame-sakura:after{animation:none;opacity:.65;background-position:0 0}}
 </style>
 
 ${profileBackground === 'sakura' ? `<div class="profile-sakura-petals" aria-hidden="true">${Array.from({ length: 22 }, (_, i) => `<span class="profile-sakura-petal" style="--petal-i:${i};--petal-x:${(i * 47 + 11) % 100}%;--petal-dur:${9 + (i * 7 % 10)}s;--petal-delay:-${(i * 13 % 19)}s;--petal-drift:${((i * 17) % 81) - 40}px;--petal-size:${7 + (i * 5 % 9)}px"></span>`).join('')}</div>` : ''}
@@ -179,7 +181,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 <div class="container section" style="padding-top:0;">
   <div class="u-header" style="${profileEffect === 'sparkle' ? 'filter:drop-shadow(0 0 12px rgba(192,132,252,.12));' : ''}">
     <div class="u-avatar-wrap">
-      <div class="nav-avatar u-avatar${avatarFrame === 'gold' ? ' frame-gold' : avatarFrame === 'sakura' ? ' frame-sakura' : ''}" style="${avatarFrame === 'gold' ? 'position:relative;isolation:isolate;border:3px solid #e7c46a;box-shadow:0 0 10px rgba(231,196,106,.24),0 0 18px rgba(231,196,106,.12);' : avatarFrame === 'sakura' ? 'position:relative;isolation:isolate;border:3px solid #f0a6c7;box-shadow:0 0 9px rgba(240,166,199,.22),0 0 17px rgba(240,166,199,.12);' : avatarFrame === 'neon' ? `border:3px solid ${neonFrameColor};box-shadow:0 0 10px ${neonFrameColor},0 0 22px rgba(${neonFrameRgb},.82),0 0 38px rgba(${neonFrameRgb},.42),inset 0 0 12px rgba(${neonFrameRgb},.28);` : ''}">
+      <div class="nav-avatar u-avatar${avatarFrame === 'gold' ? ' frame-gold' : avatarFrame === 'sakura' ? ' frame-sakura' : ''}" style="${avatarFrame === 'gold' ? 'position:relative;isolation:isolate;border:3px solid #e7c46a;box-shadow:0 0 0 2px rgba(255,210,91,.42),0 0 9px 3px rgba(255,196,64,.5),0 0 19px 5px rgba(255,176,42,.3),inset 0 0 7px rgba(255,218,112,.22);' : avatarFrame === 'sakura' ? 'position:relative;isolation:isolate;border:3px solid #f0a6c7;box-shadow:0 0 0 2px rgba(255,170,211,.42),0 0 9px 3px rgba(255,143,202,.5),0 0 19px 5px rgba(255,105,180,.3),inset 0 0 7px rgba(255,218,237,.25);' : avatarFrame === 'neon' ? `border:3px solid ${neonFrameColor};box-shadow:0 0 10px ${neonFrameColor},0 0 22px rgba(${neonFrameRgb},.82),0 0 38px rgba(${neonFrameRgb},.42),inset 0 0 12px rgba(${neonFrameRgb},.28);` : ''}">
         ${profileUser.avatar_url ? `<img src="${h(profileUser.avatar_url)}" alt="${h(profileUser.username)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">` : h(profileUser.username.charAt(0).toUpperCase())}
       </div>
       ${isProfileOwner ? `<span class="u-role-badge">OWNER</span>` : profileUser.role === 'admin' ? `<span class="u-role-badge">ADMIN</span>` : ''}
