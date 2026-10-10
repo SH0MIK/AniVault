@@ -197,6 +197,11 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   <div class="u-banner${profileUser.banner_url ? '' : ' u-banner-fallback'}" style="display:block;width:100%;max-width:none;min-width:0;margin:0;box-sizing:border-box;background-position:center;background-size:cover;${profileUser.banner_url ? `background-image:url('${h(profileUser.banner_url)}');` : ''}" id="u-banner-el"></div>
 </div>
 
+<style>
+@media(max-width:600px){
+  .u-header .u-avatar-wrap{position:relative;top:-10px}
+}
+</style>
 <div class="container section" style="padding-top:0;">
   <div class="u-header" style="${profileEffect === 'sparkle' ? 'filter:drop-shadow(0 0 12px rgba(192,132,252,.12));' : ''}">
     <div class="u-avatar-wrap">
