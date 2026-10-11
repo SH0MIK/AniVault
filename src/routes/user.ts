@@ -311,6 +311,15 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   .profile-dashboard-grid,.profile-dashboard-panel,.profile-watch-chart{min-width:0;max-width:100%;box-sizing:border-box}
   .profile-dashboard-panel{overflow:hidden}
   @media(max-width:700px){html,body{max-width:100%;overflow-x:clip}.profile-dashboard-grid{width:100%;grid-template-columns:minmax(0,1fr)}.profile-dashboard-panel{width:100%;min-width:0}.profile-watch-chart{width:100%;gap:clamp(3px,1.7vw,7px)}}
+/* Keep the public profile clean on narrow screens: remove edge-fade overlays
+   and excessive dark shadows that can look like a vertical shade on the right. */
+@media(max-width:700px){
+  .u-tabs::after,.u-tabs::before{display:none!important;content:none!important}
+  .profile-dashboard-panel,.profile-dashboard-stat,.profile-status-panel{filter:none!important}
+  .profile-dashboard-panel{box-shadow:none!important}
+  .profile-dashboard-grid,.profile-dashboard-panel,.profile-dashboard-panel *{backdrop-filter:none}
+  .profile-dashboard-panel::before,.profile-dashboard-panel::after{pointer-events:none}
+}
   @media(prefers-reduced-motion:reduce){.profile-watch-bar{transition:none}}
   .profile-status-panel{margin-bottom:18px}
   .profile-status-row{margin:14px 0}
