@@ -138,8 +138,11 @@ animeRoutes.get('/anime', async (c) => {
     },
   });
 
-  const jTitle = JSON.stringify(title);
-  const jImage = JSON.stringify(image);
+  // These values are embedded in single-quoted onclick attributes below.
+  // Escape apostrophes as JS Unicode escapes so titles like "I'm ..." cannot
+  // terminate the HTML attribute and break the Add to List click handler.
+  const jTitle = JSON.stringify(title).replace(/'/g, '\\u0027');
+  const jImage = JSON.stringify(image).replace(/'/g, '\\u0027');
 
   html += `
 <section class="ih-hero${hasBanner ? '' : ' ih-hero-no-banner'}">
