@@ -95,11 +95,11 @@ userRoutes.get('/u/:username', async (c) => {
   const favs = await AnimeTracker.getFavorites(db, profileId);
   const recentList = await AnimeTracker.getUserList(db, profileId, filterStatus, listPage);
   const currentlyWatching = await AnimeTracker.getUserList(db, profileId, 'watching', 1);
-  const wrappedYear = new Date().getFullYear();
-  const wrappedStats = await db.fetchOne<any>(
-    "SELECT COUNT(*) AS completed_count, COALESCE(SUM(episodes_watched),0) AS episodes_count FROM anime_list WHERE user_id=? AND status='completed' AND substr(COALESCE(completed_at,''),1,4)=?",
-    [profileId, String(wrappedYear)]
-  ).catch(() => ({ completed_count: 0, episodes_count: 0 }));
+  const watchRange = '7d';
+  const watchHistory = await db.fetchAll<{activity_date:string;episodes_watched:number}>(
+    "SELECT activity_date, episodes_watched FROM anime_watch_history WHERE user_id=? AND activity_date >= date('now','-6 days') AND activity_date <= date('now') ORDER BY activity_date ASC",
+    [profileId]
+  ).catch(() => []);
   const watchingMarkup = currentlyWatching.items.slice(0, 4).map((item: any) => {
     const episodes = Number(item.anime_episodes || 0);
     const watched = Number(item.episodes_watched || 0);
@@ -297,9 +297,17 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   .profile-watching-info strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px}
   .profile-watching-info>span{font-size:.8rem}
   .profile-watching-info .progress-bar{margin-top:7px;max-width:280px}
-  .profile-wrapped-number{font-size:2.3rem;font-weight:750;line-height:1.1;color:var(--accent);margin-top:12px}
-  .profile-wrapped-secondary{font-size:1.7rem;color:var(--text-primary)}
-  .profile-wrapped-note{font-size:.82rem;color:var(--text-muted);margin-top:16px}
+  .profile-watch-chart{height:150px;display:flex;align-items:stretch;gap:7px;padding-top:8px}
+  .profile-watch-day{display:flex;flex:1;min-width:0;flex-direction:column;align-items:center;justify-content:flex-end;gap:7px}
+  .profile-watch-bar-wrap{height:112px;width:100%;display:flex;align-items:flex-end;justify-content:center}
+  .profile-watch-bar{width:min(26px,76%);min-height:3px;border-radius:5px 5px 2px 2px;background:linear-gradient(180deg,var(--accent),color-mix(in srgb,var(--accent) 55%,transparent));transition:height .22s ease;position:relative}
+  .profile-watch-bar[data-zero="true"]{opacity:.22}
+  .profile-watch-day-label{font-size:.68rem;color:var(--text-muted);white-space:nowrap}
+  .profile-watch-day-count{font-size:.7rem;color:var(--text-secondary);font-variant-numeric:tabular-nums}
+  .profile-watch-controls{display:flex;align-items:center;gap:8px}
+  .profile-watch-controls select{max-width:130px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font:inherit;font-size:.8rem}
+  .profile-watch-total{font-size:.85rem;color:var(--text-muted);margin:10px 0 0}
+  @media(prefers-reduced-motion:reduce){.profile-watch-bar{transition:none}}
   .profile-status-panel{margin-bottom:18px}
   .profile-status-row{margin:14px 0}
   .profile-status-row>div:first-child{display:flex;justify-content:space-between;gap:12px;font-size:.88rem;margin-bottom:6px}
@@ -328,12 +336,24 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
           ${watchingMarkup || '<p class="text-muted">Nothing in progress yet. Add an anime to your Watching list to see it here.</p>'}
         </section>
         <section class="card profile-dashboard-panel">
-          <div class="profile-dashboard-heading"><h3>${wrappedYear} Anime Wrapped</h3></div>
-          <div class="profile-wrapped-number">${Number(wrappedStats?.completed_count || 0).toLocaleString('en-US')}</div>
-          <p class="text-muted">Anime completed this year</p>
-          <div class="profile-wrapped-number profile-wrapped-secondary">${Number(wrappedStats?.episodes_count || 0).toLocaleString('en-US')}</div>
-          <p class="text-muted">Episodes tracked on completions this year</p>
-          <p class="profile-wrapped-note">Your yearly recap grows as you mark anime completed and keep your progress updated.</p>
+          <div class="profile-dashboard-heading">
+            <h3>Episodes Watched</h3>
+            <div class="profile-watch-controls">
+              <label class="sr-only" for="profile-watch-range">Chart range</label>
+              <select id="profile-watch-range" aria-label="Chart date range">
+                <option value="7d" selected>7 days</option>
+                <option value="30d">30 days</option>
+                <option value="90d">90 days</option>
+                <option value="1y">1 year</option>
+                <option value="all">All time</option>
+              </select>
+            </div>
+          </div>
+          <div id="profile-watch-chart" class="profile-watch-chart" role="img" aria-label="Episodes watched per day over the selected range">
+            ${renderWatchHistoryBars(watchHistory, 7)}
+          </div>
+          <p id="profile-watch-total" class="profile-watch-total">${watchHistory.reduce((sum, day) => sum + Number(day.episodes_watched || 0), 0).toLocaleString('en-US')} episodes recorded in the last 7 days</p>
+          <p class="profile-watch-total">Daily history starts recording from the feature rollout; older activity isn't reconstructed.</p>
         </section>
       </div>
       <section class="card profile-dashboard-panel profile-status-panel">
@@ -507,12 +527,67 @@ async function toggleFollow(userId, btn) {
   btn.disabled = false;
 }
 
+  const watchRangeSelect = document.getElementById('profile-watch-range');
+  if (watchRangeSelect) watchRangeSelect.addEventListener('change', async () => {
+    const chart = document.getElementById('profile-watch-chart');
+    const total = document.getElementById('profile-watch-total');
+    if (!chart || !total) return;
+    chart.style.opacity = '.55';
+    try {
+      const response = await fetch('/api/profile-watch-history/${PROFILE_ID}?range=' + encodeURIComponent(watchRangeSelect.value));
+      const data = await response.json();
+      if (!response.ok || !data.success) throw new Error('Could not load watch history');
+      chart.innerHTML = data.bars;
+      total.textContent = data.total.toLocaleString('en-US') + ' episodes recorded ' + data.label;
+    } catch (error) {
+      total.textContent = 'Watch history could not be loaded. Please try again.';
+    } finally {
+      chart.style.opacity = '1';
+    }
+  });
 </script>`;
 
   html += renderFooter({ siteUrl, currentUser: layoutUser });
   await session.save(c, lifetime);
   return c.html(html);
 });
+
+function renderWatchHistoryBars(rows: Array<{activity_date:string;episodes_watched:number}>, days: number): string {
+  const byDate = new Map(rows.map(row => [row.activity_date, Math.max(0, Number(row.episodes_watched) || 0)]));
+  const values: Array<{date:string;count:number}> = [];
+  if (days > 0) {
+    const today = new Date();
+    for (let offset = days - 1; offset >= 0; offset--) {
+      const date = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - offset));
+      const key = date.toISOString().slice(0, 10);
+      values.push({date:key,count:byDate.get(key) || 0});
+    }
+  } else {
+    // All-time mode shows recorded active dates, capped to the most recent 365 days for legibility.
+    const activeDates = [...byDate.keys()].sort().slice(-365);
+    for (const date of activeDates) values.push({date,count:byDate.get(date) || 0});
+    if (!values.length) {
+      const today = new Date();
+      for (let offset=6;offset>=0;offset--) {
+        const date = new Date(Date.UTC(today.getUTCFullYear(),today.getUTCMonth(),today.getUTCDate()-offset));
+        const key=date.toISOString().slice(0,10);
+        values.push({date:key,count:0});
+      }
+    }
+  }
+  const max = Math.max(1, ...values.map(value => value.count));
+  const step = values.length > 30 ? Math.ceil(values.length / 14) : 1;
+  return values.map((value,index) => {
+    const height = value.count ? Math.max(5, Math.round(value.count / max * 100)) : 3;
+    const date = new Date(value.date + 'T00:00:00Z');
+    const label = days > 0 && days <= 7
+      ? date.toLocaleDateString('en-US',{weekday:'short',timeZone:'UTC'})
+      : (index % step === 0 || index === values.length - 1)
+        ? date.toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'})
+        : '';
+    return '<div class="profile-watch-day" title="' + value.date + ': ' + value.count + ' episode(s)"><span class="profile-watch-day-count">' + (value.count || '·') + '</span><div class="profile-watch-bar-wrap"><div class="profile-watch-bar" data-zero="' + (value.count ? 'false' : 'true') + '" style="height:' + height + '%"></div></div><span class="profile-watch-day-label">' + label + '</span></div>';
+  }).join('');
+}
 
 function renderUserCard(u: any, badgeMap: Record<number, any[]>, siteUrl: string): string {
   return `
@@ -563,6 +638,32 @@ export function renderUserListPagination(siteUrl: string, username: string, filt
   out += `<p class="text-center text-muted" style="font-size:0.82rem;margin-top:-1rem;">Page ${page} of ${pages} · ${total.toLocaleString('en-US')} total entries</p>`;
   return out;
 }
+
+// ── Profile watch activity chart ────────────────────────────────────────────
+userRoutes.get('/api/profile-watch-history/:userId', async (c) => {
+  const db = new Db(c.env.DB);
+  const userId = Math.max(0, parseInt(c.req.param('userId') || '0', 10) || 0);
+  const requested = c.req.query('range') || '7d';
+  const ranges: Record<string, {days:number|null;label:string}> = {
+    '7d': {days:7,label:'in the last 7 days'},
+    '30d': {days:30,label:'in the last 30 days'},
+    '90d': {days:90,label:'in the last 90 days'},
+    '1y': {days:365,label:'in the last year'},
+    'all': {days:null,label:'across all recorded history'},
+  };
+  const range = ranges[requested] ? requested : '7d';
+  if (!userId) return c.json({success:false,message:'Invalid user.'},400);
+  const days = ranges[range].days;
+  const history = await db.fetchAll<{activity_date:string;episodes_watched:number}>(
+    days === null
+      ? 'SELECT activity_date, episodes_watched FROM anime_watch_history WHERE user_id=? ORDER BY activity_date ASC'
+      : "SELECT activity_date, episodes_watched FROM anime_watch_history WHERE user_id=? AND activity_date >= date('now', ?) AND activity_date <= date('now') ORDER BY activity_date ASC",
+    days === null ? [userId] : [userId, '-' + (days - 1) + ' days']
+  );
+  const bars = renderWatchHistoryBars(history, days ?? 0);
+  const total = history.reduce((sum, row) => sum + Number(row.episodes_watched || 0), 0);
+  return c.json({success:true,bars,total,label:ranges[range].label});
+});
 
 // ── api/follow.php ─────────────────────────────────────────────────────────
 userRoutes.on(['GET', 'POST'], '/api/follow.php', async (c) => {
