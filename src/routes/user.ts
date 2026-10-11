@@ -92,6 +92,29 @@ userRoutes.get('/u/:username', async (c) => {
   const followerCount = await Follow.followerCount(db, profileId);
   const followingCount = await Follow.followingCount(db, profileId);
   const stats = await AnimeTracker.getStats(db, profileId);
+  const wrappedEntries = await db.fetchAll<any>(
+    'SELECT anime_id,anime_title,anime_image,status,episodes_watched,score,updated_at,genres FROM anime_list WHERE user_id=? ORDER BY updated_at DESC',
+    [profileId]
+  ).catch(() => []);
+  const wrappedScored = wrappedEntries.filter((entry:any) => entry.score !== null && entry.score !== undefined && entry.score !== '');
+  const wrappedTopAnime = [...wrappedScored].sort((a:any,b:any) => Number(b.score)-Number(a.score)).slice(0,5);
+  const wrappedAverage = wrappedScored.length ? (wrappedScored.reduce((sum:number,entry:any)=>sum+Number(entry.score||0),0)/wrappedScored.length).toFixed(1) : '—';
+  const wrappedCompleted = wrappedEntries.filter((entry:any)=>entry.status==='completed').length;
+  const wrappedMinutes = Number((stats as any).total_episodes || 0) * 21;
+  const wrappedWatchTime = Math.floor(wrappedMinutes/60) + 'h ' + (wrappedMinutes%60) + 'm';
+  const wrappedGenreCounts:Record<string,number> = {};
+  for (const entry of wrappedEntries) {
+    try { const genres = JSON.parse(entry.genres || '[]'); if (Array.isArray(genres)) for (const genre of genres) if (typeof genre === 'string' && genre.trim()) wrappedGenreCounts[genre] = (wrappedGenreCounts[genre] || 0) + 1; } catch {}
+  }
+  const wrappedTopGenres = Object.entries(wrappedGenreCounts).sort((a,b)=>b[1]-a[1]).slice(0,8);
+  const wrappedYear = new Date().getFullYear();
+  const wrappedYearEntries = wrappedEntries.filter((entry:any)=>String(entry.updated_at || '').slice(0,4)===String(wrappedYear));
+  const wrappedActiveDays = new Set(wrappedYearEntries.map((entry:any)=>String(entry.updated_at || '').slice(0,10)).filter(Boolean)).size;
+  const wrappedPeakMonthCounts = new Array(12).fill(0);
+  for (const entry of wrappedYearEntries) { const month=Number(String(entry.updated_at||'').slice(5,7)); if(month>=1&&month<=12) wrappedPeakMonthCounts[month-1]++; }
+  const wrappedMonthNames=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const wrappedPeakMonthIndex=wrappedPeakMonthCounts.indexOf(Math.max(...wrappedPeakMonthCounts));
+  const wrappedPeakMonth=wrappedPeakMonthCounts.some(Boolean)?wrappedMonthNames[wrappedPeakMonthIndex]:'—';
   const favs = await AnimeTracker.getFavorites(db, profileId);
   const recentList = await AnimeTracker.getUserList(db, profileId, filterStatus, listPage);
   const currentlyWatching = await AnimeTracker.getUserList(db, profileId, 'watching', 1);
@@ -330,6 +353,22 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   .profile-status-row{margin:14px 0}
   .profile-status-row>div:first-child{display:flex;justify-content:space-between;gap:12px;font-size:.88rem;margin-bottom:6px}
   .profile-status-row .progress-bar{width:100%}
+  .profile-wrapped{margin:0 0 18px;padding:18px;border:1px solid var(--border);border-radius:var(--radius-lg);background:linear-gradient(135deg,rgba(124,58,237,.09),rgba(15,15,25,.2) 60%,rgba(56,189,248,.05))}
+  .profile-wrapped-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  .profile-wrapped-title{font-family:var(--font-display);font-size:1.2rem;font-weight:800;letter-spacing:.02em}
+  .profile-wrapped-year{font-size:.72rem;color:var(--accent);border:1px solid var(--border);border-radius:999px;padding:4px 9px}
+  .profile-wrapped-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+  .profile-wrapped-tile{padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--bg-card,rgba(0,0,0,.15));min-width:0}
+  .profile-wrapped-value{font-family:var(--font-display);font-size:1.3rem;line-height:1.2;font-weight:800;color:var(--text-primary);overflow-wrap:anywhere}
+  .profile-wrapped-value.accent{color:var(--accent)}.profile-wrapped-value.gold{color:var(--gold)}.profile-wrapped-label{font-size:.7rem;color:var(--text-muted);margin-top:4px}
+  .profile-wrapped-lower{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.9fr);gap:10px;margin-top:10px}
+  .profile-wrapped-section{padding:13px;border:1px solid var(--border);border-radius:12px;background:var(--bg-card,rgba(0,0,0,.15));min-width:0}
+  .profile-wrapped-section-title{font-size:.72rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);margin-bottom:10px}
+  .profile-wrapped-covers{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px}
+  .profile-wrapped-cover{min-width:0;text-align:center}.profile-wrapped-cover img{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:7px;border:1px solid var(--border)}
+  .profile-wrapped-cover-name{font-size:.65rem;color:var(--text-secondary);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .profile-wrapped-tags{display:flex;flex-wrap:wrap;gap:6px}.profile-wrapped-tag{font-size:.72rem;padding:4px 8px;border:1px solid var(--border);border-radius:999px;color:var(--text-secondary);background:rgba(124,58,237,.08)}
+  @media(max-width:700px){.profile-wrapped{padding:13px}.profile-wrapped-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.profile-wrapped-tile{padding:11px}.profile-wrapped-value{font-size:1.15rem}.profile-wrapped-lower{grid-template-columns:1fr}.profile-wrapped-covers{gap:5px}.profile-wrapped-cover-name{font-size:.58rem}}
   @media(max-width:700px){.profile-dashboard-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.profile-dashboard-stat{padding:12px}.profile-dashboard-stat strong{font-size:1.3rem}.profile-dashboard-grid{grid-template-columns:1fr}.profile-dashboard-panel{padding:14px}}
   </style>
   <div class="tabs-container u-tabs">
@@ -348,6 +387,23 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
         <div class="card profile-dashboard-stat"><span class="text-muted">Episodes watched</span><strong>${Number((stats as any).total_episodes || 0).toLocaleString('en-US')}</strong></div>
         <div class="card profile-dashboard-stat"><span class="text-muted">Average score</span><strong>${stats.avg_score || '—'}</strong></div>
       </div>
+      <section class="profile-wrapped">
+        <div class="profile-wrapped-head"><div><div class="profile-wrapped-title">AniVault Wrapped</div><div class="text-muted" style="font-size:.78rem;margin-top:3px">Your anime journey, in a snapshot</div></div><span class="profile-wrapped-year">${wrappedYear} • ALL-TIME STATS</span></div>
+        <div class="profile-wrapped-grid">
+          <div class="profile-wrapped-tile"><div class="profile-wrapped-value accent">${Number((stats as any).total_episodes||0).toLocaleString('en-US')}</div><div class="profile-wrapped-label">Episodes Watched</div></div>
+          <div class="profile-wrapped-tile"><div class="profile-wrapped-value gold">${wrappedWatchTime}</div><div class="profile-wrapped-label">Estimated Watch Time · 21 min/ep</div></div>
+          <div class="profile-wrapped-tile"><div class="profile-wrapped-value">${Number((stats as any).total||0).toLocaleString('en-US')}</div><div class="profile-wrapped-label">Total Anime</div></div>
+          <div class="profile-wrapped-tile"><div class="profile-wrapped-value">${wrappedCompleted.toLocaleString('en-US')}</div><div class="profile-wrapped-label">Completed</div></div>
+          <div class="profile-wrapped-tile"><div class="profile-wrapped-value">${wrappedActiveDays}</div><div class="profile-wrapped-label">Active Days in ${wrappedYear}</div></div>
+          <div class="profile-wrapped-tile"><div class="profile-wrapped-value">${wrappedPeakMonth}</div><div class="profile-wrapped-label">Peak Month in ${wrappedYear}</div></div>
+          <div class="profile-wrapped-tile"><div class="profile-wrapped-value">${wrappedAverage}</div><div class="profile-wrapped-label">Average Score</div></div>
+          <div class="profile-wrapped-tile"><div class="profile-wrapped-value">${wrappedTopGenres[0]?.[0] ? h(wrappedTopGenres[0][0]) : '—'}</div><div class="profile-wrapped-label">Top Genre</div></div>
+        </div>
+        <div class="profile-wrapped-lower">
+          <div class="profile-wrapped-section"><div class="profile-wrapped-section-title">Top Rated Anime</div>${wrappedTopAnime.length ? '<div class="profile-wrapped-covers">'+wrappedTopAnime.map((a:any)=>'<a class="profile-wrapped-cover" href="'+siteUrl+'/anime?id='+Number(a.anime_id)+'" title="'+h(a.anime_title||'Anime')+' · '+Number(a.score)+'/10">'+(a.anime_image?'<img src="'+h(a.anime_image)+'" loading="lazy" alt="">':'<div style="aspect-ratio:2/3;background:var(--bg-hover);border-radius:7px"></div>')+'<div class="profile-wrapped-cover-name">'+h(a.anime_title||'Anime')+'</div></a>').join('')+'</div>' : '<p class="text-muted" style="font-size:.8rem">Rate anime to reveal your top picks.</p>'}</div>
+          <div class="profile-wrapped-section"><div class="profile-wrapped-section-title">Your Top Genres</div>${wrappedTopGenres.length ? '<div class="profile-wrapped-tags">'+wrappedTopGenres.map(([name,count],i)=>'<span class="profile-wrapped-tag" style="font-size:'+Math.max(.68,1-i*.035)+'rem">'+h(name)+' · '+count+'</span>').join('')+'</div>' : '<p class="text-muted" style="font-size:.8rem">Genre stats will appear as anime metadata becomes available.</p>'}</div>
+        </div>
+      </section>
       <div class="profile-dashboard-grid">
         <section class="card profile-dashboard-panel">
           <div class="profile-dashboard-heading"><h3>Currently Watching</h3><button class="btn btn-ghost btn-sm" onclick="document.querySelector('[data-tab=animelist]').click()">View list</button></div>
