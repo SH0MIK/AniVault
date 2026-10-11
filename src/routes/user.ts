@@ -381,12 +381,6 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
     </div>
 
     <div id="tab-overview" class="tab-content active">
-      <div class="profile-dashboard-stats">
-        <div class="card profile-dashboard-stat"><span class="text-muted">Tracked anime</span><strong>${stats.total.toLocaleString('en-US')}</strong></div>
-        <div class="card profile-dashboard-stat"><span class="text-muted">Completed</span><strong>${Number((stats as any).completed || 0).toLocaleString('en-US')}</strong></div>
-        <div class="card profile-dashboard-stat"><span class="text-muted">Episodes watched</span><strong>${Number((stats as any).total_episodes || 0).toLocaleString('en-US')}</strong></div>
-        <div class="card profile-dashboard-stat"><span class="text-muted">Average score</span><strong>${stats.avg_score || '—'}</strong></div>
-      </div>
       <section class="profile-wrapped">
         <div class="profile-wrapped-head"><div><div class="profile-wrapped-title">AniVault Wrapped</div><div class="text-muted" style="font-size:.78rem;margin-top:3px">Your anime journey, in a snapshot</div></div><span class="profile-wrapped-year">${wrappedYear} • ALL-TIME STATS</span></div>
         <div class="profile-wrapped-grid">
@@ -421,7 +415,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
           ${(() => { const sevenDayEpisodes = watchHistory.reduce((sum, day) => sum + Number(day.episodes_watched || 0), 0); const minutes = sevenDayEpisodes * 21; const hours = Math.floor(minutes / 60); const remainingMinutes = minutes % 60; return `<div class="profile-watch-time"><div><div class="profile-watch-time-label">Estimated total watch time</div><div class="profile-watch-time-note">Based on 21 min each</div></div><div class="profile-watch-time-value">${hours}h ${remainingMinutes}m</div></div>`; })()} 
         </section>
       </div>
-ction>
+
     </div>
     <div id="tab-animelist" class="tab-content">
       ${recentList.items.length === 0 && listPage === 1 && !filterStatus ? `
