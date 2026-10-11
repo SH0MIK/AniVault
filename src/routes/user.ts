@@ -659,7 +659,7 @@ userRoutes.delete('/api/profile-watch-history/:userId', async (c) => {
     await session.save(c, lifetime);
     return c.json({success:false,message:'You can only clear your own watch stats.'},403);
   }
-  await db.execute('DELETE FROM anime_watch_history WHERE user_id=?', [targetId]);
+  await db.query('DELETE FROM anime_watch_history WHERE user_id=?', [targetId]);
   await session.save(c, lifetime);
   return c.json({success:true,bars:renderWatchHistoryBars([],7)});
 });
