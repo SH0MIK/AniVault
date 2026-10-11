@@ -297,9 +297,14 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   .profile-watching-info strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px}
   .profile-watching-info>span{font-size:.8rem}
   .profile-watching-info .progress-bar{margin-top:7px;max-width:280px}
-  .profile-watch-chart{height:150px;display:flex;align-items:stretch;gap:7px;padding-top:8px}
-  .profile-watch-day{display:flex;flex:1;min-width:0;flex-direction:column;align-items:center;justify-content:flex-end;gap:7px}
-  .profile-watch-bar-wrap{height:112px;width:100%;display:flex;align-items:flex-end;justify-content:center}
+  .profile-watch-chart{height:218px;display:flex;align-items:stretch;gap:clamp(7px,1.4vw,14px);padding-top:12px}
+  .profile-watch-day{display:flex;flex:1;min-width:0;flex-direction:column;align-items:center;justify-content:flex-end;gap:10px}
+  .profile-watch-bar-wrap{height:168px;width:100%;display:flex;align-items:flex-end;justify-content:center}
+  .profile-watch-bar{width:min(38px,78%);min-height:3px;border-radius:6px 6px 2px 2px;background:linear-gradient(180deg,var(--accent),color-mix(in srgb,var(--accent) 55%,transparent));transition:height .22s ease;position:relative}
+  .profile-watch-time{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:18px;padding:14px 15px;border:1px solid var(--border);border-radius:var(--radius-md);background:rgba(124,58,237,.07)}
+  .profile-watch-time-label{font-size:.78rem;color:var(--text-muted)}
+  .profile-watch-time-value{font-size:1.12rem;font-weight:700;color:var(--text-primary);text-align:right}
+  .profile-watch-time-note{font-size:.7rem;color:var(--text-muted);margin-top:3px}
   .profile-watch-bar{width:min(26px,76%);min-height:3px;border-radius:5px 5px 2px 2px;background:linear-gradient(180deg,var(--accent),color-mix(in srgb,var(--accent) 55%,transparent));transition:height .22s ease;position:relative}
   .profile-watch-bar[data-zero="true"]{opacity:.22}
   .profile-watch-day-label{font-size:.68rem;color:var(--text-muted);white-space:nowrap}
@@ -357,6 +362,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
             ${renderWatchHistoryBars(watchHistory, 7)}
           </div>
           <p id="profile-watch-total" class="profile-watch-total">${watchHistory.reduce((sum, day) => sum + Number(day.episodes_watched || 0), 0).toLocaleString('en-US')} episodes recorded in the last 7 days</p>
+          ${(() => { const minutes = Math.max(0, Number((stats as any).total_episodes || 0)) * 24; const hours = Math.floor(minutes / 60); const days = Math.floor(hours / 24); const remainingHours = hours % 24; const label = days > 0 ? days + 'd ' + remainingHours + 'h' : hours + 'h'; return `<div class="profile-watch-time"><div><div class="profile-watch-time-label">Estimated total watch time</div><div class="profile-watch-time-note">Based on ${Number((stats as any).total_episodes || 0).toLocaleString('en-US')} episodes at 24 min each</div></div><div class="profile-watch-time-value">${label}</div></div>`; })()} 
         </section>
       </div>
       <section class="card profile-dashboard-panel profile-status-panel">
