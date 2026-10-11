@@ -106,7 +106,9 @@ userRoutes.get('/u/:username', async (c) => {
     try {
       const result = await wrappedMal.getAnime(Number(entry.anime_id), false, true);
       const directTmdbPoster = result.data?.images?.jpg?.large_image_url || '';
-      if (/^https:\/\/image\.tmdb\.org\/t\/p\//i.test(directTmdbPoster)) entry.wrapped_tmdb_image = directTmdbPoster;
+      if (/^https:\/\/image\.tmdb\.org\/t\/p\//i.test(directTmdbPoster)) {
+        entry.wrapped_tmdb_image = directTmdbPoster.replace(/\/t\/p\/w\d+\//, '/t/p/w342/');
+      }
     } catch { /* Keep the saved image as a fallback if TMDB art is unavailable. */ }
   }));
   const wrappedAverage = wrappedScored.length ? (wrappedScored.reduce((sum:number,entry:any)=>sum+Number(entry.score||0),0)/wrappedScored.length).toFixed(1) : '—';
