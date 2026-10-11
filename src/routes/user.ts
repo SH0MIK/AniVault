@@ -282,15 +282,71 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
     </div>
   </div>
 
+  <style>
+  .profile-dashboard-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0}
+  .profile-dashboard-stat{padding:16px;display:flex;flex-direction:column;gap:8px;min-width:0}
+  .profile-dashboard-stat strong{font-size:1.5rem;line-height:1.2;color:var(--text-primary)}
+  .profile-dashboard-grid{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);gap:14px;margin-bottom:14px}
+  .profile-dashboard-panel{padding:18px;min-width:0}
+  .profile-dashboard-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+  .profile-dashboard-heading h3{font-size:1.05rem;margin:0}
+  .profile-watching-row{display:flex;align-items:center;gap:12px;padding:10px 0;text-decoration:none;color:inherit;border-bottom:1px solid var(--border)}
+  .profile-watching-row:last-child{border-bottom:0}
+  .profile-watching-row>img{width:54px;height:72px;object-fit:cover;border-radius:7px;flex-shrink:0}
+  .profile-watching-info{min-width:0;flex:1}
+  .profile-watching-info strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px}
+  .profile-watching-info>span{font-size:.8rem}
+  .profile-watching-info .progress-bar{margin-top:7px;max-width:280px}
+  .profile-wrapped-number{font-size:2.3rem;font-weight:750;line-height:1.1;color:var(--accent);margin-top:12px}
+  .profile-wrapped-secondary{font-size:1.7rem;color:var(--text-primary)}
+  .profile-wrapped-note{font-size:.82rem;color:var(--text-muted);margin-top:16px}
+  .profile-status-panel{margin-bottom:18px}
+  .profile-status-row{margin:14px 0}
+  .profile-status-row>div:first-child{display:flex;justify-content:space-between;gap:12px;font-size:.88rem;margin-bottom:6px}
+  .profile-status-row .progress-bar{width:100%}
+  @media(max-width:700px){.profile-dashboard-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.profile-dashboard-stat{padding:12px}.profile-dashboard-stat strong{font-size:1.3rem}.profile-dashboard-grid{grid-template-columns:1fr}.profile-dashboard-panel{padding:14px}}
+  </style>
   <div class="tabs-container u-tabs">
     <div class="tabs">
-      <button class="tab-btn active" data-tab="animelist">Anime List</button>
+      <button class="tab-btn active" data-tab="overview">Overview</button>
+      <button class="tab-btn" data-tab="animelist">Anime List</button>
       <button class="tab-btn" data-tab="favorites">Favorites (${favs.length})</button>
       <button class="tab-btn" data-tab="followers">Followers (${followerCount})</button>
       <button class="tab-btn" data-tab="following">Following (${followingCount})</button>
     </div>
 
-    <div id="tab-animelist" class="tab-content active">
+    <div id="tab-overview" class="tab-content active">
+      <div class="profile-dashboard-stats">
+        <div class="card profile-dashboard-stat"><span class="text-muted">Tracked anime</span><strong>${stats.total.toLocaleString('en-US')}</strong></div>
+        <div class="card profile-dashboard-stat"><span class="text-muted">Completed</span><strong>${Number((stats as any).completed || 0).toLocaleString('en-US')}</strong></div>
+        <div class="card profile-dashboard-stat"><span class="text-muted">Episodes watched</span><strong>${Number((stats as any).episodes_watched || 0).toLocaleString('en-US')}</strong></div>
+        <div class="card profile-dashboard-stat"><span class="text-muted">Average score</span><strong>${stats.avg_score || '—'}</strong></div>
+      </div>
+      <div class="profile-dashboard-grid">
+        <section class="card profile-dashboard-panel">
+          <div class="profile-dashboard-heading"><h3>Currently Watching</h3><button class="btn btn-ghost btn-sm" onclick="document.querySelector('[data-tab=animelist]').click()">View list</button></div>
+          ${watchingMarkup || '<p class="text-muted">Nothing in progress yet. Add an anime to your Watching list to see it here.</p>'}
+        </section>
+        <section class="card profile-dashboard-panel">
+          <div class="profile-dashboard-heading"><h3>${wrappedYear} Anime Wrapped</h3></div>
+          <div class="profile-wrapped-number">${Number(wrappedStats?.completed_count || 0).toLocaleString('en-US')}</div>
+          <p class="text-muted">Anime completed this year</p>
+          <div class="profile-wrapped-number profile-wrapped-secondary">${Number(wrappedStats?.episodes_count || 0).toLocaleString('en-US')}</div>
+          <p class="text-muted">Episodes tracked on completions this year</p>
+          <p class="profile-wrapped-note">Your yearly recap grows as you mark anime completed and keep your progress updated.</p>
+        </section>
+      </div>
+      <section class="card profile-dashboard-panel profile-status-panel">
+        <div class="profile-dashboard-heading"><h3>Your Anime Journey</h3><span class="text-muted">${stats.total.toLocaleString('en-US')} entries</span></div>
+        ${(['watching', 'completed', 'plan_to_watch', 'on_hold', 'dropped']).map((status) => {
+          const count = Number((stats as any)[status] || 0);
+          const label = status.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase());
+          const width = stats.total ? Math.round(count / stats.total * 100) : 0;
+          return '<div class="profile-status-row"><div><span>' + label + '</span><strong>' + count + '</strong></div><div class="progress-bar"><div class="progress-fill" style="width:' + width + '%"></div></div></div>';
+        }).join('')}
+      </section>
+    </div>
+    <div id="tab-animelist" class="tab-content">
       ${recentList.items.length === 0 && listPage === 1 && !filterStatus ? `
       <div class="flex-center" style="padding:3rem;flex-direction:column;gap:1rem;"><span style="font-size:2.5rem;">📋</span><p class="text-muted">No anime in list yet.</p></div>` : `
       <div class="flex flex-wrap mb-2" style="gap:6px;">
