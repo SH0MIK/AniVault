@@ -751,7 +751,13 @@ export class MalAPI {
     if (!anime?.mal_id || !this.env.TMDB_API_KEY) return empty;
 
     const rawTitles = [...new Set([anime.title_english, anime.title, anime.title_japanese].filter(Boolean))];
-    return fetchTmdbArtDirect(this.env.TMDB_API_KEY, rawTitles, isList);
+    // TMDB indexes Kyoukai no Kanata under its English title as well; include
+    // both spellings so title variants from MAL cannot prevent a direct match.
+    const titleKey = rawTitles.join(' ').toLowerCase();
+    if (titleKey.includes('kyoukai no kanata') || titleKey.includes('beyond the boundary')) {
+      rawTitles.unshift('Beyond the Boundary', 'Kyoukai no Kanata');
+    }
+    return fetchTmdbArtDirect(this.env.TMDB_API_KEY, [...new Set(rawTitles)], isList);
   }
   async prefetchTmdbArtForCards(anime: NormalisedAnime[]): Promise<void> {
     const items = anime.filter((a) => a?.mal_id);
