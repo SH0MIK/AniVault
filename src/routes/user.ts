@@ -534,7 +534,7 @@ async function toggleFollow(userId, btn) {
     if (!chart || !total) return;
     chart.style.opacity = '.55';
     try {
-      const response = await fetch('/api/profile-watch-history/\${PROFILE_ID}?range=' + encodeURIComponent(watchRangeSelect.value));
+      const response = await fetch('/api/profile-watch-history/${profileId}?range=' + encodeURIComponent(watchRangeSelect.value));
       const data = await response.json();
       if (!response.ok || !data.success) throw new Error('Could not load watch history');
       chart.innerHTML = data.bars;
