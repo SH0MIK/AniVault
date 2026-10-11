@@ -362,7 +362,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
             ${renderWatchHistoryBars(watchHistory, 7)}
           </div>
           <p id="profile-watch-total" class="profile-watch-total">${watchHistory.reduce((sum, day) => sum + Number(day.episodes_watched || 0), 0).toLocaleString('en-US')} episodes recorded in the last 7 days</p>
-          ${(() => { const minutes = Math.max(0, Number((stats as any).total_episodes || 0)) * 24; const hours = Math.floor(minutes / 60); const days = Math.floor(hours / 24); const remainingHours = hours % 24; const label = days > 0 ? days + 'd ' + remainingHours + 'h' : hours + 'h'; return `<div class="profile-watch-time"><div><div class="profile-watch-time-label">Estimated total watch time</div><div class="profile-watch-time-note">Based on ${Number((stats as any).total_episodes || 0).toLocaleString('en-US')} episodes at 24 min each</div></div><div class="profile-watch-time-value">${label}</div></div>`; })()} 
+          ${(() => { const sevenDayEpisodes = watchHistory.reduce((sum, day) => sum + Number(day.episodes_watched || 0), 0); const minutes = sevenDayEpisodes * 21; const hours = Math.floor(minutes / 60); const remainingMinutes = minutes % 60; return `<div class="profile-watch-time"><div><div class="profile-watch-time-label">Estimated total watch time</div><div class="profile-watch-time-note">Based on 21 min each</div></div><div class="profile-watch-time-value">${hours}h ${remainingMinutes}m</div></div>`; })()} 
         </section>
       </div>
       <section class="card profile-dashboard-panel profile-status-panel">
