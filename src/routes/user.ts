@@ -305,6 +305,9 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   .profile-watch-day-label{font-size:.68rem;color:var(--text-muted);white-space:nowrap}
   .profile-watch-day-count{font-size:.7rem;color:var(--text-secondary);font-variant-numeric:tabular-nums}
   .profile-watch-total{font-size:.85rem;color:var(--text-muted);margin:10px 0 0}
+  .profile-watch-clear{width:32px;height:32px;min-width:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted)}
+  .profile-watch-clear:hover{color:var(--danger,#ef4444)}
+  .profile-watch-clear .icon{width:16px;height:16px}
   @media(prefers-reduced-motion:reduce){.profile-watch-bar{transition:none}}
   .profile-status-panel{margin-bottom:18px}
   .profile-status-row{margin:14px 0}
@@ -336,6 +339,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
         <section class="card profile-dashboard-panel">
           <div class="profile-dashboard-heading">
             <h3>Episodes Watched</h3>
+            ${isOwn ? `<button type="button" class="btn btn-ghost btn-sm profile-watch-clear" onclick="clearWatchStats(${profileId}, this)" aria-label="Clear watch stats" title="Clear watch stats">${icon('trash')}</button>` : ''}
           </div>
           <div id="profile-watch-chart" class="profile-watch-chart" role="img" aria-label="Episodes watched per day over the last 7 days">
             ${renderWatchHistoryBars(watchHistory, 7)}
@@ -494,6 +498,25 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   document.addEventListener('DOMContentLoaded', () => { attachScroll('followers'); attachScroll('following'); });
 })();
 
+async function clearWatchStats(userId, btn) {
+  if (!confirm('Clear your watch activity stats? This cannot be undone.')) return;
+  btn.disabled = true;
+  try {
+    const response = await fetch('/api/profile-watch-history/' + userId, { method: 'DELETE' });
+    const data = await response.json();
+    if (!response.ok || !data.success) throw new Error(data.message || 'Could not clear watch stats');
+    const chart = document.getElementById('profile-watch-chart');
+    const total = document.getElementById('profile-watch-total');
+    if (chart) chart.innerHTML = data.bars;
+    if (total) total.textContent = '0 episodes recorded in the last 7 days';
+    if (typeof showToast === 'function') showToast('Watch stats cleared.', 'success');
+  } catch (error) {
+    if (typeof showToast === 'function') showToast(error.message || 'Could not clear watch stats.', 'error');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 async function toggleFollow(userId, btn) {
   btn.disabled = true;
   const fd = new FormData();
@@ -620,6 +643,25 @@ userRoutes.get('/api/profile-watch-history/:userId', async (c) => {
   const bars = renderWatchHistoryBars(history, 7);
   const total = history.reduce((sum, row) => sum + Number(row.episodes_watched || 0), 0);
   return c.json({success:true,bars,total,label:'in the last 7 days'});
+});
+
+userRoutes.delete('/api/profile-watch-history/:userId', async (c) => {
+  const db = new Db(c.env.DB);
+  const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
+  const session = await Session.load(c, db, lifetime);
+  const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
+  const targetId = Math.max(0, parseInt(c.req.param('userId') || '0', 10) || 0);
+  if (!auth.check()) {
+    await session.save(c, lifetime);
+    return c.json({success:false,message:'Not logged in.'},401);
+  }
+  if (!targetId || session.user_id !== targetId) {
+    await session.save(c, lifetime);
+    return c.json({success:false,message:'You can only clear your own watch stats.'},403);
+  }
+  await db.execute('DELETE FROM anime_watch_history WHERE user_id=?', [targetId]);
+  await session.save(c, lifetime);
+  return c.json({success:true,bars:renderWatchHistoryBars([],7)});
 });
 
 // ── api/follow.php ─────────────────────────────────────────────────────────
