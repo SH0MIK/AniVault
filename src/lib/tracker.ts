@@ -189,7 +189,7 @@ export const AnimeTracker = {
          VALUES (?,?,?,?,?,?,?,?,?)`,
         [userId, animeId, animeTitle || '', image, totalEps || 0, status, episodesWatched, today, isFullyWatched ? today : null]
       );
-      await recordWatchActivity(db, userId, episodesWatched);
+      await recordWatchActivity(db, userId, reachedComplete ? 1 : 0);
       await Logger.log(db, userId, 'anime_auto_track', `Auto-tracked anime ${animeId} as ${status} (ep ${epNum})`);
       return;
     }
@@ -215,7 +215,7 @@ export const AnimeTracker = {
       `UPDATE anime_list SET status=?, episodes_watched=?, completed_at=${completedAtExpr}, updated_at=datetime('now') WHERE id=?`,
       [newStatus, newEpisodesWatched, existing.id]
     );
-    await recordWatchActivity(db, userId, Math.max(0, newEpisodesWatched - Number(existing.episodes_watched || 0)));
+    await recordWatchActivity(db, userId, reachedComplete && epNum > Number(existing.episodes_watched || 0) ? 1 : 0);
     await Logger.log(db, userId, 'anime_auto_track', `Auto-tracked anime ${animeId} -> ${newStatus} (ep ${epNum})`);
   },
 
