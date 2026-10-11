@@ -304,8 +304,6 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   .profile-watch-bar[data-zero="true"]{opacity:.22}
   .profile-watch-day-label{font-size:.68rem;color:var(--text-muted);white-space:nowrap}
   .profile-watch-day-count{font-size:.7rem;color:var(--text-secondary);font-variant-numeric:tabular-nums}
-  .profile-watch-controls{display:flex;align-items:center;gap:8px}
-  .profile-watch-controls select{max-width:130px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--bg-card);color:var(--text-primary);font:inherit;font-size:.8rem}
   .profile-watch-total{font-size:.85rem;color:var(--text-muted);margin:10px 0 0}
   @media(prefers-reduced-motion:reduce){.profile-watch-bar{transition:none}}
   .profile-status-panel{margin-bottom:18px}
@@ -338,22 +336,11 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
         <section class="card profile-dashboard-panel">
           <div class="profile-dashboard-heading">
             <h3>Episodes Watched</h3>
-            <div class="profile-watch-controls">
-              <label class="sr-only" for="profile-watch-range">Chart range</label>
-              <select id="profile-watch-range" aria-label="Chart date range">
-                <option value="7d" selected>7 days</option>
-                <option value="30d">30 days</option>
-                <option value="90d">90 days</option>
-                <option value="1y">1 year</option>
-                <option value="all">All time</option>
-              </select>
-            </div>
           </div>
-          <div id="profile-watch-chart" class="profile-watch-chart" role="img" aria-label="Episodes watched per day over the selected range">
+          <div id="profile-watch-chart" class="profile-watch-chart" role="img" aria-label="Episodes watched per day over the last 7 days">
             ${renderWatchHistoryBars(watchHistory, 7)}
           </div>
           <p id="profile-watch-total" class="profile-watch-total">${watchHistory.reduce((sum, day) => sum + Number(day.episodes_watched || 0), 0).toLocaleString('en-US')} episodes recorded in the last 7 days</p>
-          <p class="profile-watch-total">Daily history starts recording from the feature rollout; older activity isn't reconstructed.</p>
         </section>
       </div>
       <section class="card profile-dashboard-panel profile-status-panel">
@@ -527,24 +514,6 @@ async function toggleFollow(userId, btn) {
   btn.disabled = false;
 }
 
-  const watchRangeSelect = document.getElementById('profile-watch-range');
-  if (watchRangeSelect) watchRangeSelect.addEventListener('change', async () => {
-    const chart = document.getElementById('profile-watch-chart');
-    const total = document.getElementById('profile-watch-total');
-    if (!chart || !total) return;
-    chart.style.opacity = '.55';
-    try {
-      const response = await fetch('/api/profile-watch-history/${profileId}?range=' + encodeURIComponent(watchRangeSelect.value));
-      const data = await response.json();
-      if (!response.ok || !data.success) throw new Error('Could not load watch history');
-      chart.innerHTML = data.bars;
-      total.textContent = data.total.toLocaleString('en-US') + ' episodes recorded ' + data.label;
-    } catch (error) {
-      total.textContent = 'Watch history could not be loaded. Please try again.';
-    } finally {
-      chart.style.opacity = '1';
-    }
-  });
 </script>`;
 
   html += renderFooter({ siteUrl, currentUser: layoutUser });
@@ -643,26 +612,14 @@ export function renderUserListPagination(siteUrl: string, username: string, filt
 userRoutes.get('/api/profile-watch-history/:userId', async (c) => {
   const db = new Db(c.env.DB);
   const userId = Math.max(0, parseInt(c.req.param('userId') || '0', 10) || 0);
-  const requested = c.req.query('range') || '7d';
-  const ranges: Record<string, {days:number|null;label:string}> = {
-    '7d': {days:7,label:'in the last 7 days'},
-    '30d': {days:30,label:'in the last 30 days'},
-    '90d': {days:90,label:'in the last 90 days'},
-    '1y': {days:365,label:'in the last year'},
-    'all': {days:null,label:'across all recorded history'},
-  };
-  const range = ranges[requested] ? requested : '7d';
   if (!userId) return c.json({success:false,message:'Invalid user.'},400);
-  const days = ranges[range].days;
   const history = await db.fetchAll<{activity_date:string;episodes_watched:number}>(
-    days === null
-      ? 'SELECT activity_date, episodes_watched FROM anime_watch_history WHERE user_id=? ORDER BY activity_date ASC'
-      : "SELECT activity_date, episodes_watched FROM anime_watch_history WHERE user_id=? AND activity_date >= date('now', ?) AND activity_date <= date('now') ORDER BY activity_date ASC",
-    days === null ? [userId] : [userId, '-' + (days - 1) + ' days']
+    "SELECT activity_date, episodes_watched FROM anime_watch_history WHERE user_id=? AND activity_date >= date('now','-6 days') AND activity_date <= date('now') ORDER BY activity_date ASC",
+    [userId]
   );
-  const bars = renderWatchHistoryBars(history, days ?? 0);
+  const bars = renderWatchHistoryBars(history, 7);
   const total = history.reduce((sum, row) => sum + Number(row.episodes_watched || 0), 0);
-  return c.json({success:true,bars,total,label:ranges[range].label});
+  return c.json({success:true,bars,total,label:'in the last 7 days'});
 });
 
 // ── api/follow.php ─────────────────────────────────────────────────────────
