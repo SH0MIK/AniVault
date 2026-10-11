@@ -365,15 +365,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
           ${(() => { const sevenDayEpisodes = watchHistory.reduce((sum, day) => sum + Number(day.episodes_watched || 0), 0); const minutes = sevenDayEpisodes * 21; const hours = Math.floor(minutes / 60); const remainingMinutes = minutes % 60; return `<div class="profile-watch-time"><div><div class="profile-watch-time-label">Estimated total watch time</div><div class="profile-watch-time-note">Based on 21 min each</div></div><div class="profile-watch-time-value">${hours}h ${remainingMinutes}m</div></div>`; })()} 
         </section>
       </div>
-      <section class="card profile-dashboard-panel profile-status-panel">
-        <div class="profile-dashboard-heading"><h3>Your Anime Journey</h3><span class="text-muted">${stats.total.toLocaleString('en-US')} entries</span></div>
-        ${(['watching', 'completed', 'plan_to_watch', 'on_hold', 'dropped']).map((status) => {
-          const count = Number((stats as any)[status] || 0);
-          const label = status.replace(/_/g, ' ').replace(/\b\w/g, (ch) => ch.toUpperCase());
-          const width = stats.total ? Math.round(count / stats.total * 100) : 0;
-          return '<div class="profile-status-row"><div><span>' + label + '</span><strong>' + count + '</strong></div><div class="progress-bar"><div class="progress-fill" style="width:' + width + '%"></div></div></div>';
-        }).join('')}
-      </section>
+ction>
     </div>
     <div id="tab-animelist" class="tab-content">
       ${recentList.items.length === 0 && listPage === 1 && !filterStatus ? `
