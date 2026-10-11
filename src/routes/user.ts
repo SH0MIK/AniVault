@@ -63,8 +63,6 @@ userRoutes.get('/u/:username', async (c) => {
   const pointsBalance = Math.max(0, Number(pointsWallet?.balance ?? 0));
   const lifetimePoints = Math.max(0, Number(pointsWallet?.lifetime_earned ?? 0));
   const userLevel = Math.floor(lifetimePoints / 100) + 1;
-  const levelProgress = lifetimePoints % 100;
-  const pointsToNextLevel = 100 - levelProgress;
   const equippedCosmetics = await db.fetchAll<{cosmetic_type:string;cosmetic_value:string}>(
     'SELECT c.cosmetic_type,c.cosmetic_value FROM points_inventory i JOIN points_catalog c ON c.id=i.item_id WHERE i.user_id=? AND i.equipped=1',
     [profileId]
@@ -106,11 +104,11 @@ userRoutes.get('/u/:username', async (c) => {
     const episodes = Number(item.anime_episodes || 0);
     const watched = Number(item.episodes_watched || 0);
     const progress = episodes > 0 ? Math.min(100, Math.round((watched / episodes) * 100)) : 0;
-    return '<a href="' + siteUrl + '/anime?id=' + item.anime_id + '" class="profile-watching-card">' +
-      (item.anime_image ? '<img src="' + h(item.anime_image) + '" alt="" loading="lazy">' : '<div class="profile-watching-placeholder"></div>') +
-      '<div class="profile-watching-card-info"><strong>' + h(item.anime_title || 'Untitled anime') + '</strong>' +
+    return '<a href="' + siteUrl + '/anime?id=' + item.anime_id + '" class="profile-watching-row">' +
+      (item.anime_image ? '<img src="' + h(item.anime_image) + '" alt="" loading="lazy">' : '') +
+      '<div class="profile-watching-info"><strong>' + h(item.anime_title || 'Untitled anime') + '</strong>' +
       '<span class="text-muted">Episode ' + watched + (episodes ? ' / ' + episodes : '') + '</span>' +
-      '<div class="progress-bar"><div class="progress-fill" style="width:' + progress + '%"></div></div><small>' + progress + '% complete</small></div></a>';
+      '<div class="progress-bar"><div class="progress-fill" style="width:' + progress + '%"></div></div></div></a>';
   }).join('');
   const cardMeta = await buildCardMetaMap(db, [
     ...favs.map((f: any) => ({ mal_id: f.anime_id } as any)),
@@ -247,10 +245,6 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
       <div class="profile-level-points" aria-label="Level and points">
         <span class="profile-level-chip"><span aria-hidden="true">✦</span> Level <strong>${userLevel}</strong></span>
         <span class="profile-points-chip"><span aria-hidden="true">◈</span> <strong>${pointsBalance.toLocaleString('en-US')}</strong> points</span>
-        <div class="profile-level-progress" aria-label="${levelProgress} of 100 lifetime points toward the next level">
-          <div class="profile-level-progress-label"><span>Next level</span><span>${levelProgress}/100 XP · ${pointsToNextLevel} to go</span></div>
-          <div class="progress-bar"><div class="progress-fill" style="width:${levelProgress}%"></div></div>
-        </div>
       </div>
     </div>
     <div class="u-header-actions">
@@ -296,20 +290,13 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   .profile-dashboard-panel{padding:18px;min-width:0}
   .profile-dashboard-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
   .profile-dashboard-heading h3{font-size:1.05rem;margin:0}
-  .profile-watching-cards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-  .profile-watching-card{display:flex;flex-direction:column;min-width:0;overflow:hidden;border:1px solid var(--border);border-radius:10px;text-decoration:none;color:inherit;background:var(--bg-card,rgba(127,127,127,.04));transition:transform .18s ease,border-color .18s ease}
-  .profile-watching-card:hover{transform:translateY(-2px);border-color:var(--accent)}
-  .profile-watching-card>img,.profile-watching-placeholder{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;background:linear-gradient(135deg,rgba(167,139,250,.18),rgba(98,245,255,.08))}
-  .profile-watching-card-info{padding:10px;min-width:0}
-  .profile-watching-card-info strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.9rem;margin-bottom:5px}
-  .profile-watching-card-info>span{font-size:.78rem}
-  .profile-watching-card-info .progress-bar{margin-top:8px}
-  .profile-watching-card-info small{display:block;text-align:right;margin-top:4px;color:var(--text-muted);font-size:.7rem}
-  .profile-level-progress{width:min(100%,330px);margin-top:9px}
-  .profile-level-progress-label{display:flex;justify-content:space-between;gap:8px;font-size:.72rem;color:var(--text-muted);margin-bottom:5px}
-  .profile-level-progress .progress-bar{height:5px;overflow:hidden}
-  .profile-wrapped-feature{position:relative;overflow:hidden;border-radius:10px;padding:16px;background:linear-gradient(135deg,rgba(167,139,250,.15),rgba(98,245,255,.07) 58%,rgba(245,196,81,.08));border:1px solid var(--border)}
-  .profile-wrapped-feature:after{content:"";position:absolute;width:150px;height:150px;right:-55px;top:-75px;border-radius:50%;background:radial-gradient(circle,rgba(167,139,250,.16),transparent 70%);pointer-events:none}
+  .profile-watching-row{display:flex;align-items:center;gap:12px;padding:10px 0;text-decoration:none;color:inherit;border-bottom:1px solid var(--border)}
+  .profile-watching-row:last-child{border-bottom:0}
+  .profile-watching-row>img{width:54px;height:72px;object-fit:cover;border-radius:7px;flex-shrink:0}
+  .profile-watching-info{min-width:0;flex:1}
+  .profile-watching-info strong{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;margin-bottom:4px}
+  .profile-watching-info>span{font-size:.8rem}
+  .profile-watching-info .progress-bar{margin-top:7px;max-width:280px}
   .profile-wrapped-number{font-size:2.3rem;font-weight:750;line-height:1.1;color:var(--accent);margin-top:12px}
   .profile-wrapped-secondary{font-size:1.7rem;color:var(--text-primary)}
   .profile-wrapped-note{font-size:.82rem;color:var(--text-muted);margin-top:16px}
@@ -317,8 +304,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   .profile-status-row{margin:14px 0}
   .profile-status-row>div:first-child{display:flex;justify-content:space-between;gap:12px;font-size:.88rem;margin-bottom:6px}
   .profile-status-row .progress-bar{width:100%}
-  @media(max-width:700px){.profile-dashboard-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.profile-dashboard-stat{padding:12px}.profile-dashboard-stat strong{font-size:1.3rem}.profile-dashboard-grid{grid-template-columns:1fr}.profile-dashboard-panel{padding:14px}.profile-watching-cards{gap:8px}.profile-watching-card-info{padding:8px}.profile-watching-card-info strong{font-size:.82rem}}
-  @media(max-width:360px){.profile-watching-cards{grid-template-columns:1fr}.profile-watching-card{display:grid;grid-template-columns:96px minmax(0,1fr)}.profile-watching-card>img,.profile-watching-placeholder{height:100%;min-height:104px;aspect-ratio:auto}.profile-watching-card-info{align-self:center}}
+  @media(max-width:700px){.profile-dashboard-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.profile-dashboard-stat{padding:12px}.profile-dashboard-stat strong{font-size:1.3rem}.profile-dashboard-grid{grid-template-columns:1fr}.profile-dashboard-panel{padding:14px}}
   </style>
   <div class="tabs-container u-tabs">
     <div class="tabs">
@@ -339,16 +325,15 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
       <div class="profile-dashboard-grid">
         <section class="card profile-dashboard-panel">
           <div class="profile-dashboard-heading"><h3>Currently Watching</h3><button class="btn btn-ghost btn-sm" onclick="document.querySelector('[data-tab=animelist]').click()">View list</button></div>
-          ${watchingMarkup ? '<div class="profile-watching-cards">' + watchingMarkup + '</div>' : '<p class="text-muted">Nothing in progress yet. Add an anime to your Watching list to see it here.</p>'}
+          ${watchingMarkup || '<p class="text-muted">Nothing in progress yet. Add an anime to your Watching list to see it here.</p>'}
         </section>
         <section class="card profile-dashboard-panel">
-          <div class="profile-dashboard-heading"><h3>${wrappedYear} Anime Wrapped</h3><span class="text-muted" style="font-size:.75rem;">Your year so far</span></div>
-          <div class="profile-wrapped-feature">
-            <div class="profile-wrapped-number" style="margin-top:0">${Number(wrappedStats?.completed_count || 0).toLocaleString('en-US')}</div>
-            <p class="text-muted" style="margin:4px 0 16px;font-size:.82rem;">Anime completed this year</p>
-            <div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap"><strong class="profile-wrapped-secondary">${Number(wrappedStats?.episodes_count || 0).toLocaleString('en-US')}</strong><span class="text-muted" style="font-size:.8rem;">episodes tracked on those entries</span></div>
-          </div>
-          <p class="profile-wrapped-note">A live recap based on your completion dates and saved episode progress.</p>
+          <div class="profile-dashboard-heading"><h3>${wrappedYear} Anime Wrapped</h3></div>
+          <div class="profile-wrapped-number">${Number(wrappedStats?.completed_count || 0).toLocaleString('en-US')}</div>
+          <p class="text-muted">Anime completed this year</p>
+          <div class="profile-wrapped-number profile-wrapped-secondary">${Number(wrappedStats?.episodes_count || 0).toLocaleString('en-US')}</div>
+          <p class="text-muted">Episodes tracked on completions this year</p>
+          <p class="profile-wrapped-note">Your yearly recap grows as you mark anime completed and keep your progress updated.</p>
         </section>
       </div>
       <section class="card profile-dashboard-panel profile-status-panel">
