@@ -8,6 +8,7 @@ import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
 import { AnimeTracker, ITEMS_PER_PAGE } from '../lib/tracker';
+import { MalAPI } from '../lib/mal-api';
 import { Badge } from '../lib/badges';
 import { Follow } from '../lib/follow';
 import { Notification } from '../lib/notification';
@@ -98,6 +99,16 @@ userRoutes.get('/u/:username', async (c) => {
   ).catch(() => []);
   const wrappedScored = wrappedEntries.filter((entry:any) => entry.score !== null && entry.score !== undefined && entry.score !== '');
   const wrappedTopAnime = [...wrappedScored].sort((a:any,b:any) => Number(b.score)-Number(a.score)).slice(0,5);
+  // Resolve each Wrapped poster through the existing anime-art pipeline, which
+  // prioritizes the configured TMDB artwork and returns a direct TMDB image URL.
+  const wrappedMal = new MalAPI(c.env, c.env.API_CACHE, db);
+  await Promise.all(wrappedTopAnime.map(async (entry:any) => {
+    try {
+      const result = await wrappedMal.getAnime(Number(entry.anime_id), false, true);
+      const directTmdbPoster = result.data?.images?.jpg?.large_image_url || '';
+      if (/^https:\/\/image\.tmdb\.org\/t\/p\//i.test(directTmdbPoster)) entry.wrapped_tmdb_image = directTmdbPoster;
+    } catch { /* Keep the saved image as a fallback if TMDB art is unavailable. */ }
+  }));
   const wrappedAverage = wrappedScored.length ? (wrappedScored.reduce((sum:number,entry:any)=>sum+Number(entry.score||0),0)/wrappedScored.length).toFixed(1) : '—';
   const wrappedCompleted = wrappedEntries.filter((entry:any)=>entry.status==='completed').length;
   const wrappedMinutes = Number((stats as any).total_episodes || 0) * 21;
@@ -394,7 +405,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
           <div class="profile-wrapped-tile"><div class="profile-wrapped-value">${wrappedTopGenres[0]?.[0] ? h(wrappedTopGenres[0][0]) : '—'}</div><div class="profile-wrapped-label">Top Genre</div></div>
         </div>
         <div class="profile-wrapped-lower">
-          <div class="profile-wrapped-section"><div class="profile-wrapped-section-title">Top Rated Anime</div>${wrappedTopAnime.length ? '<div class="profile-wrapped-covers">'+wrappedTopAnime.map((a:any)=>'<a class="profile-wrapped-cover" href="'+siteUrl+'/anime?id='+Number(a.anime_id)+'" title="'+h(a.anime_title||'Anime')+' · '+Number(a.score)+'/10">'+(a.anime_image?'<img src="'+h(a.anime_image)+'" loading="lazy" alt="">':'<div style="aspect-ratio:2/3;background:var(--bg-hover);border-radius:7px"></div>')+'<div class="profile-wrapped-cover-name">'+h(a.anime_title||'Anime')+'</div></a>').join('')+'</div>' : '<p class="text-muted" style="font-size:.8rem">Rate anime to reveal your top picks.</p>'}</div>
+          <div class="profile-wrapped-section"><div class="profile-wrapped-section-title">Top Rated Anime</div>${wrappedTopAnime.length ? '<div class="profile-wrapped-covers">'+wrappedTopAnime.map((a:any)=>'<a class="profile-wrapped-cover" href="'+siteUrl+'/anime?id='+Number(a.anime_id)+'" title="'+h(a.anime_title||'Anime')+' · '+Number(a.score)+'/10">'+((a.wrapped_tmdb_image || (/^https:\/\/image\.tmdb\.org\/t\/p\//i.test(String(a.anime_image||'')) ? a.anime_image : ''))?'<img src="'+h(a.wrapped_tmdb_image || a.anime_image)+'" loading="lazy" alt="">':'<div style="aspect-ratio:2/3;background:var(--bg-hover);border-radius:7px"></div>')+'<div class="profile-wrapped-cover-name">'+h(a.anime_title||'Anime')+'</div></a>').join('')+'</div>' : '<p class="text-muted" style="font-size:.8rem">Rate anime to reveal your top picks.</p>'}</div>
           <div class="profile-wrapped-section"><div class="profile-wrapped-section-title">Your Top Genres</div>${wrappedTopGenres.length ? '<div class="profile-wrapped-tags">'+wrappedTopGenres.map(([name,count],i)=>'<span class="profile-wrapped-tag" style="font-size:'+Math.max(.68,1-i*.035)+'rem">'+h(name)+' · '+count+'</span>').join('')+'</div>' : '<p class="text-muted" style="font-size:.8rem">Genre stats will appear as anime metadata becomes available.</p>'}</div>
         </div>
       </section>
