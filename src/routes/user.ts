@@ -319,7 +319,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
       <div class="profile-dashboard-stats">
         <div class="card profile-dashboard-stat"><span class="text-muted">Tracked anime</span><strong>${stats.total.toLocaleString('en-US')}</strong></div>
         <div class="card profile-dashboard-stat"><span class="text-muted">Completed</span><strong>${Number((stats as any).completed || 0).toLocaleString('en-US')}</strong></div>
-        <div class="card profile-dashboard-stat"><span class="text-muted">Episodes watched</span><strong>${Number((stats as any).episodes_watched || 0).toLocaleString('en-US')}</strong></div>
+        <div class="card profile-dashboard-stat"><span class="text-muted">Episodes watched</span><strong>${Number((stats as any).total_episodes || 0).toLocaleString('en-US')}</strong></div>
         <div class="card profile-dashboard-stat"><span class="text-muted">Average score</span><strong>${stats.avg_score || '—'}</strong></div>
       </div>
       <div class="profile-dashboard-grid">
