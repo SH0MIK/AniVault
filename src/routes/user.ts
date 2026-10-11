@@ -94,6 +94,22 @@ userRoutes.get('/u/:username', async (c) => {
   const stats = await AnimeTracker.getStats(db, profileId);
   const favs = await AnimeTracker.getFavorites(db, profileId);
   const recentList = await AnimeTracker.getUserList(db, profileId, filterStatus, listPage);
+  const currentlyWatching = await AnimeTracker.getUserList(db, profileId, 'watching', 1);
+  const wrappedYear = new Date().getFullYear();
+  const wrappedStats = await db.fetchOne<any>(
+    "SELECT COUNT(*) AS completed_count, COALESCE(SUM(episodes_watched),0) AS episodes_count FROM anime_list WHERE user_id=? AND status='completed' AND substr(COALESCE(completed_at,''),1,4)=?",
+    [profileId, String(wrappedYear)]
+  ).catch(() => ({ completed_count: 0, episodes_count: 0 }));
+  const watchingMarkup = currentlyWatching.items.slice(0, 4).map((item: any) => {
+    const episodes = Number(item.anime_episodes || 0);
+    const watched = Number(item.episodes_watched || 0);
+    const progress = episodes > 0 ? Math.min(100, Math.round((watched / episodes) * 100)) : 0;
+    return '<a href="' + siteUrl + '/anime?id=' + item.anime_id + '" class="profile-watching-row">' +
+      (item.anime_image ? '<img src="' + h(item.anime_image) + '" alt="" loading="lazy">' : '') +
+      '<div class="profile-watching-info"><strong>' + h(item.anime_title || 'Untitled anime') + '</strong>' +
+      '<span class="text-muted">Episode ' + watched + (episodes ? ' / ' + episodes : '') + '</span>' +
+      '<div class="progress-bar"><div class="progress-fill" style="width:' + progress + '%"></div></div></div></a>';
+  }).join('');
   const cardMeta = await buildCardMetaMap(db, [
     ...favs.map((f: any) => ({ mal_id: f.anime_id } as any)),
     ...recentList.items.map((it: any) => ({ mal_id: it.anime_id } as any)),
