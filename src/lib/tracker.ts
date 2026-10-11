@@ -30,6 +30,20 @@ export interface AnimeListEntry {
 
 export const ITEMS_PER_PAGE = 20;
 
+async function recordWatchActivity(db: Db, userId: number, episodes: number): Promise<void> {
+  const amount = Math.max(0, Math.floor(Number(episodes) || 0));
+  if (!userId || !amount) return;
+  // Store only newly recorded progress; do not invent activity for older dates.
+  await db.query(
+    `INSERT INTO anime_watch_history (user_id, activity_date, episodes_watched)
+     VALUES (?, date('now'), ?)
+     ON CONFLICT(user_id, activity_date) DO UPDATE SET
+       episodes_watched=anime_watch_history.episodes_watched + excluded.episodes_watched,
+       updated_at=datetime('now')`,
+    [userId, amount]
+  ).catch(() => undefined);
+}
+
 async function getLocalAnimeImage(db: Db, animeId: number): Promise<string> {
   if (!animeId) return '';
   const row = await db.fetchOne<{ image_url: string }>('SELECT image_url FROM anime_images WHERE anime_id = ?', [animeId]);
@@ -102,7 +116,7 @@ export const AnimeTracker = {
     const episodes = parseInt(data.anime_episodes ?? '0', 10) || 0;
 
     const existing = await db.fetchOne<{ id: number; genres: string | null }>(
-      'SELECT id, genres FROM anime_list WHERE user_id = ? AND anime_id = ?',
+      'SELECT id, genres, episodes_watched FROM anime_list WHERE user_id = ? AND anime_id = ?',
       [userId, animeId]
     );
 
@@ -120,6 +134,7 @@ export const AnimeTracker = {
          WHERE user_id=? AND anime_id=?`,
         [status, watched, score, review, ...extraParams, userId, animeId]
       );
+      await recordWatchActivity(db, userId, Math.max(0, watched - Number((existing as any).episodes_watched || 0)));
     } else {
       const genresJson = await this.fetchGenresJson(mal, animeId);
       const startedAt = ['watching', 'completed'].includes(status) ? new Date().toISOString().split('T')[0] : null;
@@ -129,6 +144,7 @@ export const AnimeTracker = {
          VALUES (?,?,?,?,?,?,?,?,?,?,?)`,
         [userId, animeId, title, image, episodes, status, watched, score, review, genresJson, startedAt]
       );
+      await recordWatchActivity(db, userId, watched);
     }
     await Logger.log(db, userId, 'anime_update', `Updated anime ${animeId} to status: ${status}`);
     return { success: true, message: 'Anime list updated!' };
@@ -173,6 +189,7 @@ export const AnimeTracker = {
          VALUES (?,?,?,?,?,?,?,?,?)`,
         [userId, animeId, animeTitle || '', image, totalEps || 0, status, episodesWatched, today, isFullyWatched ? today : null]
       );
+      await recordWatchActivity(db, userId, episodesWatched);
       await Logger.log(db, userId, 'anime_auto_track', `Auto-tracked anime ${animeId} as ${status} (ep ${epNum})`);
       return;
     }
@@ -198,6 +215,7 @@ export const AnimeTracker = {
       `UPDATE anime_list SET status=?, episodes_watched=?, completed_at=${completedAtExpr}, updated_at=datetime('now') WHERE id=?`,
       [newStatus, newEpisodesWatched, existing.id]
     );
+    await recordWatchActivity(db, userId, Math.max(0, newEpisodesWatched - Number(existing.episodes_watched || 0)));
     await Logger.log(db, userId, 'anime_auto_track', `Auto-tracked anime ${animeId} -> ${newStatus} (ep ${epNum})`);
   },
 
