@@ -305,9 +305,12 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   .profile-watch-day-label{font-size:.68rem;color:var(--text-muted);white-space:nowrap}
   .profile-watch-day-count{font-size:.7rem;color:var(--text-secondary);font-variant-numeric:tabular-nums}
   .profile-watch-total{font-size:.85rem;color:var(--text-muted);margin:10px 0 0}
-  .profile-watch-clear{width:32px;height:32px;min-width:32px;padding:0;display:inline-flex;align-items:center;justify-content:center;color:var(--text-muted)}
+  .profile-watch-clear{width:32px;height:32px;min-width:32px;padding:0;display:flex;flex:0 0 32px;align-items:center;justify-content:center;align-self:center;line-height:0;color:var(--text-muted);box-sizing:border-box}
   .profile-watch-clear:hover{color:var(--danger,#ef4444)}
-  .profile-watch-clear .icon{width:16px;height:16px}
+  .profile-watch-clear svg,.profile-watch-clear .icon{width:16px;height:16px;display:block;flex:0 0 16px;margin:0;line-height:0}
+  .profile-dashboard-grid,.profile-dashboard-panel,.profile-watch-chart{min-width:0;max-width:100%;box-sizing:border-box}
+  .profile-dashboard-panel{overflow:hidden}
+  @media(max-width:700px){html,body{max-width:100%;overflow-x:clip}.profile-dashboard-grid{width:100%;grid-template-columns:minmax(0,1fr)}.profile-dashboard-panel{width:100%;min-width:0}.profile-watch-chart{width:100%;gap:clamp(3px,1.7vw,7px)}}
   @media(prefers-reduced-motion:reduce){.profile-watch-bar{transition:none}}
   .profile-status-panel{margin-bottom:18px}
   .profile-status-row{margin:14px 0}
