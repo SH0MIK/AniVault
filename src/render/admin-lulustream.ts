@@ -76,7 +76,7 @@ document.addEventListener('click',e=>{
   const expander=target.closest('[data-tv-expand="1"]');
   if(expander){e.preventDefault();const row=expander.closest('.tv-ep-row');if(row)toggleLuluEpisode(row);return;}
   if(target.id==='tv-modal')closeLuluModal();
-});
+}, true);
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLuluModal();});
 byId('tv-form')?.addEventListener('submit',saveLuluSource);
 byId('tv-url')?.addEventListener('input',updateLuluPreview);
