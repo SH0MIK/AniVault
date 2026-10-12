@@ -115,6 +115,7 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
         `SELECT episode_num,
                 COUNT(*) AS source_count,
                 GROUP_CONCAT(label, ' | ') AS sources,
+                GROUP_CONCAT(audio_tracks, '|||') AS track_data,
                 MAX(updated_at) AS updated_at
            FROM lulustream_servers
           WHERE anime_id=? AND is_active=1
@@ -123,6 +124,18 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
         [selectedAnime]
       )
     : [];
+
+  // One saved server row can contain multiple audio tracks, so count the
+  // resolved tracks rather than database rows for the episode server badge.
+  for (const ep of episodes) {
+    const chunks = String(ep.track_data || '').split('|||').filter(Boolean);
+    let tracks = 0;
+    for (const chunk of chunks) {
+      try { const parsed = JSON.parse(chunk); if (Array.isArray(parsed)) tracks += parsed.length; }
+      catch { /* retain the database-row fallback */ }
+    }
+    ep.source_count = tracks || Number(ep.source_count || 0);
+  }
 
   let html = renderAdminHeader({
     siteUrl,
