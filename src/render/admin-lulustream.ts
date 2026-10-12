@@ -5,12 +5,13 @@ export interface LuluSeriesView {
   totalEps:number; status:string; type:string; last_updated?:string;
 }
 export interface LuluEpisodeView { episode_num:number; source_count:number; sources:string; updated_at:string; }
+export interface LuluStreamStats { titles:number; episodes:number; englishDub:number; hindiDub:number; otherDub:number; subtitles:number; }
 
 export function renderLuluStreamAdmin(o:{
   siteUrl:string; series:LuluSeriesView[]; selected:LuluSeriesView|null;
-  episodes:LuluEpisodeView[]; selectedAnime:number;
+  episodes:LuluEpisodeView[]; selectedAnime:number; streamStats:LuluStreamStats;
 }):string {
-  const {siteUrl,series,selected,episodes,selectedAnime}=o;
+  const {siteUrl,series,selected,episodes,selectedAnime,streamStats}=o;
   const cards=series.map(s=>{
     const total=Number(s.totalEps||0), uploaded=Number(s.episode_count||0);
     const pct=total?Math.min(100,Math.round(uploaded/total*100)):100;
