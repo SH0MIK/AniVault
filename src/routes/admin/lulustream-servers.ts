@@ -82,6 +82,10 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
       ORDER BY MAX(updated_at) DESC`
   );
 
+  const statsRows = await db.fetchAll<any>('SELECT audio_tracks FROM lulustream_servers WHERE is_active=1');
+  const streamStats = { titles: seriesRows.length, episodes: seriesRows.reduce((n:any, r:any) => n + Number(r.episode_count || 0), 0), englishDub: 0, hindiDub: 0, otherDub: 0, subtitles: 0 };
+  for (const row of statsRows) { try { const tracks = JSON.parse(String(row.audio_tracks || '[]')); if (Array.isArray(tracks)) for (const track of tracks) { const group = String(track?.group || '').toLowerCase(); if (group === 'dub') streamStats.englishDub++; else if (group === 'hindi') streamStats.hindiDub++; else if (group === 'multi') streamStats.otherDub++; else if (group === 'sub') streamStats.subtitles++; } } catch {} }
+
   const mal = new MalAPI(c.env as any, c.env.API_CACHE, db);
   const series = await Promise.all(seriesRows.map(async (row:any) => {
     try {
@@ -149,7 +153,8 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
     series,
     selected,
     episodes,
-    selectedAnime
+    selectedAnime,
+    streamStats
   });
   html += renderAdminFooter(siteUrl);
   await session.save(c, lifetime);
