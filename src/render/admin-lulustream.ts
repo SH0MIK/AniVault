@@ -61,9 +61,26 @@ async function toggleLuluEpisode(row){const ep=Number(row?.dataset?.episode||0),
 async function deleteLuluSource(id){if(!confirm('Delete this LuluStream source?'))return;try{const r=await fetch(siteUrl+'/admin/lulustream_servers.php?id='+encodeURIComponent(id),{method:'DELETE'});const d=await r.json();if(!d.success)throw new Error(d.error||'Delete failed');location.reload();}catch(err){alert(err.message||'Delete failed');}}
 async function saveLuluSource(e){e.preventDefault();const id=+byId('tv-source-id').value||0,anime_id=+byId('tv-anime').value,episode_num=+byId('tv-ep').value,embed_url=normalizeLuluUrl(byId('tv-url').value),is_active=byId('tv-active').checked?1:0;if(!anime_id||!episode_num||!embed_url)return false;const btn=byId('tv-save');btn.disabled=true;btn.textContent=id?'Updating…':'Saving…';try{const r=await fetch(siteUrl+'/admin/lulustream_servers.php',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,anime_id,episode_num,embed_url,is_active})});const d=await r.json();if(!d.success)throw new Error(d.error||'Save failed');location.href=siteUrl+'/admin/lulustream_servers.php?anime='+anime_id}catch(err){alert(err.message||'Save failed');btn.disabled=false;btn.textContent=id?'Update Source':'Save Source'}return false;}
 window.openLuluModal=openLuluModal;window.closeLuluModal=closeLuluModal;window.saveLuluSource=saveLuluSource;
-byId('tv-add-series')?.addEventListener('click',()=>openLuluModal());byId('tv-add-episode')?.addEventListener('click',()=>{const nums=${JSON.stringify(episodes.map(e=>Number(e.episode_num)).filter(n=>n>0))};const next=nums.length?Math.max(...nums)+1:1;openLuluModal(next);});byId('tv-close-modal')?.addEventListener('click',closeLuluModal);byId('tv-cancel-modal')?.addEventListener('click',closeLuluModal);byId('tv-modal')?.addEventListener('click',e=>{if(e.target.id==='tv-modal')closeLuluModal();});document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLuluModal();});
-document.querySelectorAll('[data-tv-expand="1"]').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();const row=el.closest('.tv-ep-row');if(row)toggleLuluEpisode(row);}));document.querySelectorAll('[data-tv-add-episode]').forEach(el=>el.addEventListener('click',e=>{e.stopPropagation();openLuluModal(Number(el.dataset.tvAddEpisode||0));}));
-
-byId('tv-form')?.addEventListener('submit',saveLuluSource);byId('tv-url')?.addEventListener('input',updateLuluPreview);byId('tv-paste-url')?.addEventListener('click',async()=>{const input=byId('tv-url');if(!input)return;try{if(!navigator.clipboard?.readText)throw new Error('Clipboard access is unavailable in this browser.');const text=await navigator.clipboard.readText();if(!text.trim())throw new Error('Clipboard is empty.');input.value=normalizeLuluUrl(text.trim());updateLuluPreview();input.focus();input.dispatchEvent(new Event('input',{bubbles:true}));}catch(err){alert(err.message||'Could not paste from clipboard. You can paste manually.');}});})();
+// Delegate UI clicks from the document so the controls keep working even if
+// the browser reparses parts of the admin markup. Handle each click exactly once.
+document.addEventListener('click',e=>{
+  const target=e.target instanceof Element?e.target:null;
+  if(!target)return;
+  const addSeries=target.closest('#tv-add-series');
+  if(addSeries){e.preventDefault();openLuluModal();return;}
+  const addEpisode=target.closest('#tv-add-episode');
+  if(addEpisode){e.preventDefault();const nums=${JSON.stringify(episodes.map(e=>Number(e.episode_num)).filter(n=>n>0))};const next=nums.length?Math.max(...nums)+1:1;openLuluModal(next);return;}
+  if(target.closest('#tv-close-modal,#tv-cancel-modal')){e.preventDefault();closeLuluModal();return;}
+  const addSource=target.closest('[data-tv-add-episode]');
+  if(addSource){e.preventDefault();e.stopPropagation();openLuluModal(Number(addSource.dataset.tvAddEpisode||0));return;}
+  const expander=target.closest('[data-tv-expand="1"]');
+  if(expander){e.preventDefault();const row=expander.closest('.tv-ep-row');if(row)toggleLuluEpisode(row);return;}
+  if(target.id==='tv-modal')closeLuluModal();
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeLuluModal();});
+byId('tv-form')?.addEventListener('submit',saveLuluSource);
+byId('tv-url')?.addEventListener('input',updateLuluPreview);
+byId('tv-paste-url')?.addEventListener('click',async()=>{const input=byId('tv-url');if(!input)return;try{if(!navigator.clipboard?.readText)throw new Error('Clipboard access is unavailable in this browser.');const text=await navigator.clipboard.readText();if(!text.trim())throw new Error('Clipboard is empty.');input.value=normalizeLuluUrl(text.trim());updateLuluPreview();input.focus();input.dispatchEvent(new Event('input',{bubbles:true}));}catch(err){alert(err.message||'Could not paste from clipboard. You can paste manually.');}});
+})();
 </script>`;
 }
