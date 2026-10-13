@@ -164,6 +164,33 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
 adminLuluStreamServerRoutes.post('/admin/lulustream_servers.php', async (c) => {
   const ctx=await buildAdminCtx(c); if(!ctx)return c.json({error:'Forbidden'},403);
   const body:any=(c.req.header('content-type')||'').includes('application/json') ? await c.req.json().catch(()=>null) : await c.req.parseBody().catch(()=>null);
+  if (body?.action === 'refresh-series') {
+    const animeId = Number(body?.anime_id || 0);
+    if (!animeId) return c.json({ error: 'Missing anime ID' }, 400);
+    const rows = await ctx.db.fetchAll<any>(
+      'SELECT id, embed_url FROM lulustream_servers WHERE anime_id=?',
+      [animeId]
+    );
+    if (!rows.length) return c.json({ success: true, refreshed: 0, failed: 0, message: 'No saved sources found for this series.' });
+    let refreshed = 0;
+    const failures: Array<{ id: number; error: string }> = [];
+    for (const row of rows) {
+      try {
+        const resolved = await resolveLuluStream(String(row.embed_url || ''));
+        if (!resolved.audio.length) throw new Error('No audio/subtitle tracks found in the playlist.');
+        const audioTracks = trackMeta(resolved.audio);
+        const label = autoLabel(resolved.audio);
+        await ctx.db.query(
+          "UPDATE lulustream_servers SET label=?,audio_tracks=?,updated_at=datetime('now') WHERE id=?",
+          [label, audioTracks, Number(row.id)]
+        );
+        refreshed++;
+      } catch (error) {
+        failures.push({ id: Number(row.id), error: error instanceof Error ? error.message : String(error) });
+      }
+    }
+    return c.json({ success: true, refreshed, failed: failures.length, failures });
+  }
   const id=Number(body?.id||0), animeId=Number(body?.anime_id||0), ep=Number(body?.episode_num||0), url=normalizeLuluUrl(String(body?.embed_url||'')), active=Number(body?.is_active?1:0);
   if(!animeId||!ep||!validLuluUrl(url))return c.json({error:'Use an HTTPS lulust.com or luluvido.com /d/ or /e/ URL'},400);
   let audioTracks='[]';
