@@ -32,6 +32,34 @@ window.openLuluModal=openLuluModal;window.closeLuluModal=closeLuluModal;window.s
 document.addEventListener('click',e=>{
   const target=e.target instanceof Element?e.target:null;
   if(!target)return;
+  const refreshSeries=target.closest('#tv-refresh-series');
+  if(refreshSeries){
+    e.preventDefault();
+    const animeId=Number(refreshSeries.dataset.animeId||selectedAnime);
+    if(!animeId)return;
+    if(!confirm('Refetch every saved LuluStream source for this series? This updates detected audio and subtitle tracks without changing the saved links.'))return;
+    const originalText=refreshSeries.innerHTML;
+    refreshSeries.disabled=true;
+    refreshSeries.innerHTML='<span aria-hidden="true">↻</span> Refreshing streams…';
+    try{
+      const response=await fetch(siteUrl+'/admin/lulustream_servers.php',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({action:'refresh-series',anime_id:animeId})
+      });
+      const result=await response.json();
+      if(!response.ok||!result.success)throw new Error(result.error||'Refresh failed.');
+      const refreshed=Number(result.refreshed||0),failed=Number(result.failed||0);
+      alert('Stream refresh finished.\\nUpdated: '+refreshed+'\\nFailed: '+failed+(failed?'\\nSome links could not be resolved. Check those sources and try again.':''));
+      if(refreshed>0)location.href=siteUrl+'/admin/lulustream_servers.php?anime='+animeId;
+      else{refreshSeries.disabled=false;refreshSeries.innerHTML=originalText;}
+    }catch(error){
+      alert(error.message||'Could not refresh the series streams.');
+      refreshSeries.disabled=false;
+      refreshSeries.innerHTML=originalText;
+    }
+    return;
+  }
   const addSeries=target.closest('#tv-add-series');
   if(addSeries){tvDebug('Add Series handler matched');e.preventDefault();openLuluModal();return;}
   const addEpisode=target.closest('#tv-add-episode');
