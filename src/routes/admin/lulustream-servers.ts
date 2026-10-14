@@ -94,6 +94,10 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
   // saved database IDs. This route is read-only here; add/edit/delete handlers
   // below are intentionally unchanged.
   const metadataRows = seriesRows.slice(0, 15);
+  if (selectedAnime && !metadataRows.some((row:any) => Number(row.anime_id) === selectedAnime)) {
+    const selectedRow = seriesRows.find((row:any) => Number(row.anime_id) === selectedAnime);
+    if (selectedRow) metadataRows.push(selectedRow);
+  }
   const metadataById = new Map<number, any>();
   await Promise.all(metadataRows.map(async (row:any) => {
     try {
