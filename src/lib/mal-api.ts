@@ -1096,6 +1096,30 @@ export class MalAPI {
   // home page's Watch Now row, which calls this once per item) -- keeps
   // art resolution cache-only for those calls instead of allowing a live
   // scraper fetch per row on top of the MAL detail fetch itself.
+  // Lightweight metadata path for admin tables. Unlike getAnime(), this skips
+  // normalise() and its per-title D1/KV artwork lookups, related-anime images,
+  // and recommendations. It reuses the same cached MAL detail response.
+  async getAnimeAdminSummary(id: number): Promise<{ data: any | null }> {
+    if (!Number.isFinite(id) || id <= 0) return { data: null };
+    const raw = await this.get(`/anime/${id}`, { fields: DETAIL_FIELDS });
+    if (!raw || raw.error) return { data: null };
+    const picture = raw.main_picture ?? {};
+    return {
+      data: {
+        title: raw.title || '',
+        images: {
+          jpg: {
+            image_url: picture.medium || picture.large || '',
+            large_image_url: picture.large || picture.medium || '',
+          },
+        },
+        episodes: Number(raw.num_episodes || 0),
+        status: raw.status || '',
+        type: raw.media_type || '',
+      },
+    };
+  }
+
   async getAnime(id: number, isList = false, preferFreshScraperArt = false): Promise<{ data: NormalisedAnime | null }> {
     const raw = await this.get(`/anime/${id}`, { fields: DETAIL_FIELDS });
     if (raw.error) return { data: null };
