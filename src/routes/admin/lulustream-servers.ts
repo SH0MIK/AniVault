@@ -87,28 +87,34 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
   for (const row of statsRows) { try { const tracks = JSON.parse(String(row.audio_tracks || '[]')); if (Array.isArray(tracks)) for (const track of tracks) { const group = String(track?.group || '').toLowerCase(); if (group === 'dub') streamStats.englishDub++; else if (group === 'hindi') streamStats.hindiDub++; else if (group === 'multi') streamStats.otherDub++; else if (group === 'sub') streamStats.subtitles++; } } catch {} }
 
   const mal = new MalAPI(c.env as any, c.env.API_CACHE, db);
-  const series = await Promise.all(seriesRows.map(async (row:any) => {
+
+  // Keep page rendering inside Workers' per-invocation subrequest budget.
+  // Only the 15 most recently updated series need fresh MAL metadata for this
+  // view; remaining rows still render and remain fully editable using their
+  // saved database IDs. This route is read-only here; add/edit/delete handlers
+  // below are intentionally unchanged.
+  const metadataRows = seriesRows.slice(0, 15);
+  const metadataById = new Map<number, any>();
+  await Promise.all(metadataRows.map(async (row:any) => {
     try {
-      const a = (await mal.getAnime(Number(row.anime_id), true)).data;
-      return {
-        ...row,
-        title: a?.title || `Anime #${row.anime_id}`,
-        image: a?.images?.jpg?.large_image_url || a?.images?.jpg?.image_url || '',
-        totalEps: Number(a?.episodes || 0),
-        status: a?.status || '',
-        type: a?.type || ''
-      };
+      const result = await mal.getAnimeAdminSummary(Number(row.anime_id));
+      if (result.data) metadataById.set(Number(row.anime_id), result.data);
     } catch {
-      return {
-        ...row,
-        title: `Anime #${row.anime_id}`,
-        image: '',
-        totalEps: 0,
-        status: '',
-        type: ''
-      };
+      // MAL metadata is decorative for this admin table; don't fail the page.
     }
   }));
+
+  const series = seriesRows.map((row:any) => {
+    const a = metadataById.get(Number(row.anime_id));
+    return {
+      ...row,
+      title: a?.title || `Anime #${row.anime_id}`,
+      image: a?.images?.jpg?.large_image_url || a?.images?.jpg?.image_url || '',
+      totalEps: Number(a?.episodes || 0),
+      status: a?.status || '',
+      type: a?.type || ''
+    };
+  });
 
   const selected = selectedAnime
     ? series.find((s:any) => Number(s.anime_id) === selectedAnime) || null
