@@ -68,7 +68,11 @@ userRoutes.get('/u/:username', async (c) => {
     'SELECT c.cosmetic_type,c.cosmetic_value FROM points_inventory i JOIN points_catalog c ON c.id=i.item_id WHERE i.user_id=? AND i.equipped=1',
     [profileId]
   ).catch(() => []);
-  const frameSettings = await db.fetchOne<any>('SELECT avatar_frame_color FROM user_cosmetic_settings WHERE user_id=?',[profileId]).catch(()=>null);
+  const frameSettings = await db.fetchOne<any>('SELECT avatar_frame_color,banner_position_x,banner_position_y,banner_zoom FROM user_cosmetic_settings WHERE user_id=?',[profileId]).catch(()=>null);
+  const bannerPositionX = Math.max(0, Math.min(100, Number(frameSettings?.banner_position_x ?? 50)));
+  const bannerPositionY = Math.max(0, Math.min(100, Number(frameSettings?.banner_position_y ?? 50)));
+  const bannerZoom = Math.max(1, Math.min(2, Number(frameSettings?.banner_zoom ?? 1)));
+  const bannerSize = bannerZoom <= 1.001 ? 'cover' : `${Math.round(bannerZoom * 100)}% auto`;
   const neonFrameColor = /^#[0-9a-fA-F]{6}$/.test(String(frameSettings?.avatar_frame_color||'')) ? String(frameSettings.avatar_frame_color).toLowerCase() : '#62f5ff';
   const neonFrameRgbMatch = neonFrameColor.match(/^#([0-9a-f]{6})$/i);
   const neonFrameRgb = neonFrameRgbMatch ? `${parseInt(neonFrameRgbMatch[1].slice(0,2),16)},${parseInt(neonFrameRgbMatch[1].slice(2,4),16)},${parseInt(neonFrameRgbMatch[1].slice(4,6),16)}` : '98,245,255';
@@ -257,7 +261,7 @@ ${profileBackgroundKey === 'midnight_grid' || profileBackgroundKey === 'midnight
 ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constellations' || profileBackgroundKey === 'starry_night' ? `<div class="profile-starry-sky" aria-hidden="true"><span class="profile-starry-moon"></span>${Array.from({length:34},(_,i)=>`<span class="profile-starry-star" style="--star-x:${(i*37+13)%97}%;--star-y:${(i*61+17)%95}%;--star-size:${i%9===0?2:1}px;--star-opacity:${.18+(i%6)*.07};--star-duration:${3.5+(i*7%35)/10}s;--star-delay:-${(i*11%40)/10}s"></span>`).join('')}${Array.from({length:9},(_,i)=>`<span class="profile-falling-star" style="--fall-x:${(i*31+8)%96}%;--fall-drift:${((i*17)%90)-45}px;--fall-duration:${11+(i*7%12)}s;--fall-delay:-${(i*5)%21}s"></span>` ).join('')}<span class="profile-shooting-star"></span><span class="profile-shooting-star profile-shooting-star--second"></span></div>` : ''}
 
 <div class="u-hero profile-fullbleed-hero" style="position:relative;left:auto;right:auto;transform:none;width:100vw;max-width:none;min-width:100vw;margin-left:calc(50% - 50vw);margin-right:calc(50% - 50vw);padding:0;overflow:visible;">
-  <div class="u-banner${profileUser.banner_url ? '' : ' u-banner-fallback'}" style="display:block;width:100%;max-width:none;min-width:0;margin:0;box-sizing:border-box;background-position:center;background-size:cover;${profileUser.banner_url ? `background-image:url('${h(profileUser.banner_url)}');` : ''}" id="u-banner-el"></div>
+  <div class="u-banner${profileUser.banner_url ? '' : ' u-banner-fallback'}" style="display:block;width:100%;max-width:none;min-width:0;margin:0;box-sizing:border-box;background-position:${bannerPositionX}% ${bannerPositionY}%;background-size:${bannerSize};${profileUser.banner_url ? `background-image:url('${h(profileUser.banner_url)}');` : ''}" id="u-banner-el"></div>
 </div>
 
 <style>

@@ -230,6 +230,11 @@ async function renderProfilePage(c: any, db: Db, session: Session, lifetime: num
   const unreadCount = await Notification.unreadCount(db, user.id);
   const layoutUser: CurrentUser = { id: user.id, username: user.username, avatar_url: user.avatar_url, role: user.role };
 
+  const bannerSettings = await db.fetchOne<any>('SELECT banner_position_x,banner_position_y,banner_zoom FROM user_cosmetic_settings WHERE user_id=?', [user.id]).catch(() => null);
+  const bannerX = Math.max(0, Math.min(100, Number(bannerSettings?.banner_position_x ?? 50)));
+  const bannerY = Math.max(0, Math.min(100, Number(bannerSettings?.banner_position_y ?? 50)));
+  const bannerZoom = Math.max(1, Math.min(2, Number(bannerSettings?.banner_zoom ?? 1)));
+  const bannerSize = bannerZoom <= 1.001 ? 'cover' : `${Math.round(bannerZoom * 100)}% auto`;
   const __banner = await getBannerData(db);
   let html = renderHeader({ ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: 'My Profile', currentPage: 'profile', currentUser: layoutUser, unreadCount, requestUrl: c.req.url });  html += `<style>${PROFILE_CSS}</style>`;
 
@@ -249,6 +254,7 @@ async function renderProfilePage(c: any, db: Db, session: Session, lifetime: num
   const isPlaceholderEmail = !user.email || /@(guest|discord|google)\.invalid$/i.test(user.email);
 
   html += renderCropperModal();
+  html += renderBannerAdjustModal(bannerX, bannerY, bannerZoom, user.banner_url ?? '');
   html += renderUsernameModal();
   html += renderEmailModal(isPlaceholderEmail);
   html += renderDeleteAccountModal(hasPassword, siteUrl);
@@ -257,8 +263,9 @@ async function renderProfilePage(c: any, db: Db, session: Session, lifetime: num
 
   html += `
 <div class="u-hero">
-  <div class="u-banner${user.banner_url ? '' : ' u-banner-fallback'}"${user.banner_url ? ` style="background-image:url('${h(user.banner_url)}')"` : ''} id="profile-banner-el"></div>
+  <div class="u-banner${user.banner_url ? '' : ' u-banner-fallback'}"${user.banner_url ? ` style="background-image:url('${h(user.banner_url)}');background-position:${bannerX}% ${bannerY}%;background-size:${bannerSize};"` : ''} id="profile-banner-el"></div>
   <button type="button" class="u-banner-edit-btn" onclick="document.getElementById('banner-file-input').click()">${icon('camera', 'icon-small')} ${user.banner_url ? 'Change Banner' : 'Add Banner'}</button>
+  ${user.banner_url ? `<button type="button" class="u-banner-adjust-btn" onclick="openBannerAdjustModal()">${icon('sliders-horizontal', 'icon-small')} Adjust</button>` : ''}
   ${user.banner_url ? `<button type="button" class="u-banner-remove-btn" onclick="removeBanner()" title="Remove banner">${icon('trash', 'icon-small')}</button>` : ''}
   <input type="file" id="banner-file-input" accept="image/jpeg,image/png,image/gif,image/webp" style="display:none" onchange="handleProfileBannerFile(this)">
   <div id="banner-status" class="u-banner-status"></div>
@@ -671,6 +678,33 @@ function renderCropperModal(): string {
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:1rem;">
         <button type="button" class="btn btn-ghost" onclick="closeCropper()">${icon('x', 'icon-small')} Cancel</button>
         <button type="button" class="btn btn-primary" id="save-crop-btn" onclick="saveCrop()">${icon('check', 'icon-small')} Save Avatar</button>
+      </div>
+    </div>
+  </div>
+</div>`;
+}
+
+
+function renderBannerAdjustModal(positionX: number, positionY: number, zoom: number, bannerUrl: string): string {
+  return `
+<div class="modal-overlay" id="banner-adjust-modal">
+  <div class="modal banner-adjust-modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div><h3>${icon('sliders-horizontal', 'icon-medium')} Adjust Banner</h3><p class="text-muted" style="margin:4px 0 0;font-size:.85rem;">Drag the preview to reposition your banner, then fine-tune the zoom.</p></div>
+      <button class="modal-close" type="button" onclick="closeModal('banner-adjust-modal')">${icon('x', 'icon-medium')}</button>
+    </div>
+    <div class="modal-body">
+      <div id="banner-adjust-stage" class="banner-adjust-stage" style="background-image:url('${h(bannerUrl)}');background-position:${positionX}% ${positionY}%;background-size:${zoom <= 1.001 ? 'cover' : Math.round(zoom * 100) + '% auto'};">
+        <span class="banner-adjust-hint">Drag to reposition</span>
+      </div>
+      <div class="form-group banner-adjust-zoom">
+        <label class="form-label" for="banner-adjust-zoom">Zoom <span id="banner-adjust-zoom-value">${Math.round(zoom * 100)}%</span></label>
+        <input type="range" id="banner-adjust-zoom" min="1" max="2" step=".01" value="${zoom}" oninput="previewBannerZoom(this.value)">
+      </div>
+      <div class="banner-adjust-actions">
+        <button type="button" class="btn btn-ghost" onclick="resetBannerAdjust()">Reset</button>
+        <span id="banner-adjust-status" class="text-muted" role="status"></span>
+        <button type="button" class="btn btn-primary" id="save-banner-adjust-btn" onclick="saveBannerAdjust()">Save Changes</button>
       </div>
     </div>
   </div>

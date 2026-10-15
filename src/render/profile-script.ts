@@ -565,6 +565,83 @@ async function removeBanner() {
   }
 }
 
+let bannerAdjustX = 50, bannerAdjustY = 50, bannerAdjustZoom = 1;
+let bannerAdjustStart = null;
+function openBannerAdjustModal() {
+  const stage = document.getElementById('banner-adjust-stage');
+  const banner = document.getElementById('profile-banner-el');
+  if (!stage || !banner) return;
+  const bg = banner.style.backgroundImage;
+  stage.style.backgroundImage = bg;
+  const pos = (banner.style.backgroundPosition || '50% 50%').match(/([\\d.]+)%\\s+([\\d.]+)%/);
+  bannerAdjustX = pos ? Number(pos[1]) : 50;
+  bannerAdjustY = pos ? Number(pos[2]) : 50;
+  const size = banner.style.backgroundSize || 'cover';
+  bannerAdjustZoom = size === 'cover' ? 1 : Math.max(1, Math.min(2, parseFloat(size) / 100 || 1));
+  document.getElementById('banner-adjust-zoom').value = bannerAdjustZoom;
+  updateBannerAdjustPreview();
+  openModal('banner-adjust-modal');
+}
+function updateBannerAdjustPreview() {
+  const stage = document.getElementById('banner-adjust-stage');
+  if (!stage) return;
+  stage.style.backgroundPosition = bannerAdjustX + '% ' + bannerAdjustY + '%';
+  stage.style.backgroundSize = bannerAdjustZoom <= 1.001 ? 'cover' : Math.round(bannerAdjustZoom * 100) + '% auto';
+  const label = document.getElementById('banner-adjust-zoom-value');
+  if (label) label.textContent = Math.round(bannerAdjustZoom * 100) + '%';
+}
+function previewBannerZoom(value) {
+  bannerAdjustZoom = Math.max(1, Math.min(2, Number(value) || 1));
+  updateBannerAdjustPreview();
+}
+function resetBannerAdjust() {
+  bannerAdjustX = 50; bannerAdjustY = 50; bannerAdjustZoom = 1;
+  document.getElementById('banner-adjust-zoom').value = 1;
+  updateBannerAdjustPreview();
+}
+async function saveBannerAdjust() {
+  const btn = document.getElementById('save-banner-adjust-btn');
+  const status = document.getElementById('banner-adjust-status');
+  btn.disabled = true; btn.textContent = 'Saving…';
+  if (status) status.textContent = '';
+  try {
+    const fd = new FormData();
+    fd.append('position_x', String(bannerAdjustX));
+    fd.append('position_y', String(bannerAdjustY));
+    fd.append('zoom', String(bannerAdjustZoom));
+    const res = await fetch((window.__siteUrl || '') + '/api/update_banner_position.php', {method:'POST', body:fd});
+    const data = await res.json();
+    if (!data.success) throw new Error(data.message || 'Could not save banner settings.');
+    showToast('Banner position saved!', 'success');
+    closeModal('banner-adjust-modal');
+    setTimeout(() => window.location.reload(), 350);
+  } catch (e) {
+    if (status) status.textContent = e.message || 'Could not save settings.';
+    showToast('Could not save banner settings.', 'error');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Save Changes';
+  }
+}
+(function initBannerAdjustDrag() {
+  const stage = document.getElementById('banner-adjust-stage');
+  if (!stage) return;
+  stage.addEventListener('pointerdown', e => {
+    bannerAdjustStart = {x:e.clientX,y:e.clientY,px:bannerAdjustX,py:bannerAdjustY};
+    stage.setPointerCapture(e.pointerId);
+  });
+  stage.addEventListener('pointermove', e => {
+    if (!bannerAdjustStart) return;
+    const rect = stage.getBoundingClientRect();
+    const factor = Math.max(1, bannerAdjustZoom);
+    bannerAdjustX = Math.max(0, Math.min(100, bannerAdjustStart.px - ((e.clientX-bannerAdjustStart.x)/Math.max(1,rect.width))*100/factor));
+    bannerAdjustY = Math.max(0, Math.min(100, bannerAdjustStart.py - ((e.clientY-bannerAdjustStart.y)/Math.max(1,rect.height))*100/factor));
+    updateBannerAdjustPreview();
+  });
+  const end = () => { bannerAdjustStart = null; };
+  stage.addEventListener('pointerup', end);
+  stage.addEventListener('pointercancel', end);
+})();
+
 // ── Delete account ──────────────────────────────────────
 function openDeleteAccountModal() {
   const input = document.getElementById('delete-account-password');
