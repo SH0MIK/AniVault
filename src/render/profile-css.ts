@@ -1,4 +1,16 @@
-export const PROFILE_CSS = `.avatar-cropper-modal {
+export const PROFILE_CSS = `
+.banner-adjust-modal{width:min(760px,calc(100vw - 1rem));max-width:calc(100vw - 1rem)}
+.banner-adjust-stage{position:relative;width:100%;height:clamp(130px,28vw,230px);border-radius:12px;background-color:#090b14;background-repeat:no-repeat;overflow:hidden;cursor:grab;touch-action:none;user-select:none;border:1px solid var(--border);background-position:50% 50%;background-size:cover}
+.banner-adjust-stage:active{cursor:grabbing}
+.banner-adjust-hint{position:absolute;left:10px;bottom:10px;padding:5px 9px;border-radius:999px;background:rgba(0,0,0,.62);color:#fff;font-size:.72rem;pointer-events:none}
+.banner-adjust-zoom{margin:16px 0}
+.banner-adjust-zoom label{display:flex;justify-content:space-between;gap:12px}
+.banner-adjust-zoom input{width:100%;accent-color:var(--accent)}
+.banner-adjust-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;flex-wrap:wrap}
+.banner-adjust-actions .text-muted{margin-right:auto;font-size:.8rem}
+.u-banner-adjust-btn{position:absolute;right:120px;top:12px;z-index:5;display:inline-flex;align-items:center;gap:6px;padding:8px 11px;border:1px solid rgba(255,255,255,.2);border-radius:9px;background:rgba(8,10,18,.78);color:#fff;backdrop-filter:blur(10px);cursor:pointer}
+@media(max-width:600px){.u-banner-adjust-btn{right:12px;top:54px}.banner-adjust-actions{align-items:stretch}.banner-adjust-actions>*{flex:1}.banner-adjust-actions .text-muted{flex-basis:100%;order:-1}}
+.avatar-cropper-modal {
   max-width: calc(100vw - 1rem);
   width: min(calc(100vw - 1rem), 720px);
   max-height: calc(100vh - 1rem);
