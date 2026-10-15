@@ -385,7 +385,20 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   .profile-wrapped-cover{min-width:0;text-align:center}.profile-wrapped-cover img{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:7px;border:1px solid var(--border)}
   .profile-wrapped-cover-name{font-size:.65rem;color:var(--text-secondary);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .profile-wrapped-tags{display:flex;flex-wrap:wrap;gap:6px}.profile-wrapped-tag{font-size:.72rem;padding:4px 8px;border:1px solid var(--border);border-radius:999px;color:var(--text-secondary);background:rgba(124,58,237,.08)}
-  @media(max-width:700px){.profile-wrapped{padding:13px}.profile-wrapped-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.profile-wrapped-tile{padding:11px}.profile-wrapped-value{font-size:1.15rem}.profile-wrapped-lower{grid-template-columns:1fr}.profile-wrapped-covers{gap:5px}.profile-wrapped-cover-name{font-size:.58rem}}
+  .profile-wrapped-genres{position:relative;overflow:hidden;background:linear-gradient(145deg,rgba(124,58,237,.09),var(--bg-card,rgba(0,0,0,.15)) 55%);display:flex;flex-direction:column}
+  .profile-wrapped-genre-list{display:grid;grid-template-columns:1fr;gap:12px;flex:1;align-content:start}
+  .profile-wrapped-genre-row{min-width:0}
+  .profile-wrapped-genre-meta{display:flex;align-items:center;gap:8px;min-width:0;margin-bottom:6px}
+  .profile-wrapped-genre-rank{display:inline-flex;align-items:center;justify-content:center;flex:0 0 22px;height:22px;border-radius:7px;background:rgba(124,58,237,.12);border:1px solid rgba(167,139,250,.2);font-size:.68rem;font-weight:800;color:var(--text-muted)}
+  .profile-wrapped-genre-name{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.82rem;color:var(--text-secondary)}
+  .profile-wrapped-genre-count{margin-left:auto;font-size:.78rem;color:var(--text-primary);font-variant-numeric:tabular-nums}
+  .profile-wrapped-genre-track{height:5px;margin-left:30px;border-radius:99px;background:rgba(127,127,127,.12);overflow:hidden}
+  .profile-wrapped-genre-track span{display:block;height:100%;border-radius:inherit;background:linear-gradient(90deg,#7c3aed,#a78bfa);box-shadow:0 0 12px rgba(124,58,237,.24)}
+  .profile-wrapped-genre-row.is-top .profile-wrapped-genre-rank{color:#f5c451;background:rgba(245,196,81,.12);border-color:rgba(245,196,81,.32)}
+  .profile-wrapped-genre-row.is-top .profile-wrapped-genre-name{color:var(--text-primary);font-weight:750}
+  .profile-wrapped-genre-row.is-top .profile-wrapped-genre-track span{background:linear-gradient(90deg,#8b5cf6,#c4b5fd)}
+  @media(min-width:701px){.profile-wrapped-genres .profile-wrapped-genre-list{grid-template-columns:repeat(2,minmax(0,1fr));column-gap:18px;row-gap:15px}.profile-wrapped-genres .profile-wrapped-section-title{margin-bottom:14px}}
+  @media(max-width:700px){.profile-wrapped{padding:13px}.profile-wrapped-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.profile-wrapped-tile{padding:11px}.profile-wrapped-value{font-size:1.15rem}.profile-wrapped-lower{grid-template-columns:1fr}.profile-wrapped-covers{gap:5px}.profile-wrapped-cover-name{font-size:.58rem}.profile-wrapped-genre-list{gap:10px}.profile-wrapped-genre-meta{margin-bottom:4px}}
   @media(max-width:700px){.profile-dashboard-stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.profile-dashboard-stat{padding:12px}.profile-dashboard-stat strong{font-size:1.3rem}.profile-dashboard-grid{grid-template-columns:1fr}.profile-dashboard-panel{padding:14px}}
   </style>
   <div class="tabs-container u-tabs">
@@ -412,7 +425,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
         </div>
         <div class="profile-wrapped-lower">
           <div class="profile-wrapped-section"><div class="profile-wrapped-section-title">Top Rated Anime</div>${wrappedTopAnime.length ? '<div class="profile-wrapped-covers">'+wrappedTopAnime.map((a:any)=>'<a class="profile-wrapped-cover" href="'+siteUrl+'/anime?id='+Number(a.anime_id)+'" title="'+h(a.anime_title||'Anime')+' · '+Number(a.score)+'/10">'+((a.wrapped_tmdb_image || (/^https:\/\/image\.tmdb\.org\/t\/p\//i.test(String(a.anime_image||'')) ? a.anime_image : ''))?'<img src="'+h(a.wrapped_tmdb_image || a.anime_image)+'" loading="lazy" alt="">':'<div style="aspect-ratio:2/3;background:var(--bg-hover);border-radius:7px"></div>')+'<div class="profile-wrapped-cover-name">'+h(a.anime_title||'Anime')+'</div></a>').join('')+'</div>' : '<p class="text-muted" style="font-size:.8rem">Rate anime to reveal your top picks.</p>'}</div>
-          <div class="profile-wrapped-section"><div class="profile-wrapped-section-title">Your Top Genres</div>${wrappedTopGenres.length ? '<div class="profile-wrapped-tags">'+wrappedTopGenres.map(([name,count],i)=>'<span class="profile-wrapped-tag" style="font-size:'+Math.max(.68,1-i*.035)+'rem">'+h(name)+' · '+count+'</span>').join('')+'</div>' : '<p class="text-muted" style="font-size:.8rem">Genre stats will appear as anime metadata becomes available.</p>'}</div>
+          <div class="profile-wrapped-section profile-wrapped-genres"><div class="profile-wrapped-section-title">Your Top Genres</div>${wrappedTopGenres.length ? '<div class="profile-wrapped-genre-list">'+wrappedTopGenres.map(([name,count],i)=>'<div class="profile-wrapped-genre-row'+(i===0?' is-top':'')+'"><div class="profile-wrapped-genre-meta">'+(i===0?'<span class="profile-wrapped-genre-rank">★</span>':'<span class="profile-wrapped-genre-rank">'+(i+1)+'</span>')+'<span class="profile-wrapped-genre-name">'+h(name)+'</span><strong class="profile-wrapped-genre-count">'+count+'</strong></div><div class="profile-wrapped-genre-track"><span style="width:'+Math.max(8,Math.round((count/wrappedTopGenres[0][1])*100))+'%"></span></div></div>').join('')+'</div>' : '<p class="text-muted" style="font-size:.8rem">Genre stats will appear as anime metadata becomes available.</p>'}</div>
         </div>
       </section>
       <div class="profile-dashboard-grid">
