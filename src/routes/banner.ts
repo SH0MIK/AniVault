@@ -33,6 +33,36 @@ async function deleteOldBannerFile(env: Env, db: Db, userId: number): Promise<vo
   }
 }
 
+
+bannerRoutes.post('/api/update_banner_position.php', async (c) => {
+  const { db, session, lifetime, auth } = await buildCtx(c);
+  if (!auth.check()) {
+    await session.save(c, lifetime);
+    return c.json({ success: false, message: 'Not logged in.' }, 401);
+  }
+  const body = await c.req.parseBody();
+  const readNumber = (value: unknown, fallback: number) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : fallback;
+  };
+  const x = Math.max(0, Math.min(100, readNumber(body.position_x, 50)));
+  const y = Math.max(0, Math.min(100, readNumber(body.position_y, 50)));
+  const zoom = Math.max(1, Math.min(2, readNumber(body.zoom, 1)));
+  const userId = session.user_id!;
+  await db.query(
+    `INSERT INTO user_cosmetic_settings (user_id, banner_position_x, banner_position_y, banner_zoom, updated_at)
+     VALUES (?, ?, ?, ?, datetime('now'))
+     ON CONFLICT(user_id) DO UPDATE SET
+       banner_position_x=excluded.banner_position_x,
+       banner_position_y=excluded.banner_position_y,
+       banner_zoom=excluded.banner_zoom,
+       updated_at=datetime('now')`,
+    [userId, x, y, zoom]
+  );
+  await session.save(c, lifetime);
+  return c.json({ success: true, position_x: x, position_y: y, zoom });
+});
+
 bannerRoutes.post('/api/upload_banner.php', async (c) => {
   const { db, session, lifetime, auth } = await buildCtx(c);
   if (!auth.check()) {
