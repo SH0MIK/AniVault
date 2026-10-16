@@ -603,7 +603,7 @@ function renderPublicCustomize(tab){
       const equipped=Number(item.equipped)===1;
       const button=document.createElement("button");button.type="button";button.className="customize-option"+(equipped?" equipped":"");
       const main=document.createElement("span");main.className="customize-option-main";
-      const swatch=document.createElement("span");swatch.className="customize-swatch";swatch.textContent=item.icon||(group.title==="Avatar Frame"?"◉":group.title==="Name Style"?"Aa":group.title==="Profile Background"?"▧":"✦");
+      const swatch=document.createElement("span");swatch.className="customize-swatch";const cosmeticIcon=({avatar_frame:"camera",frame:"camera",name_style:"star",name:"star",profile_background:"layout",background:"layout",profile_effect:"sparkles",effect:"sparkles",flair:"sparkles",badge:"trophy"})[String(item.cosmetic_type||"").toLowerCase()]||"star";swatch.innerHTML=`<svg class="icon icon-${cosmeticIcon}" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-${cosmeticIcon}"/></svg>`;
       const label=document.createElement("span");label.className="customize-option-label";
       const name=document.createElement("strong");name.textContent=item.name||"Cosmetic";
       const type=document.createElement("small");type.textContent=equipped?"Currently equipped":String(item.cosmetic_type||group.title).replace(/_/g," ");
