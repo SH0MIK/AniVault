@@ -288,7 +288,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
       </div>
     </div>
     <div class="u-header-actions">
-      ${isOwn ? `<a href="${siteUrl}/profile" class="btn btn-ghost btn-sm">${icon('edit', 'icon-small')} Edit Profile</a>`
+      ${isOwn ? `<a href="${siteUrl}/profile" class="btn btn-ghost btn-sm">${icon('edit', 'icon-small')} Edit Profile</a>`<button type="button" class="btn btn-primary btn-sm" onclick="openPublicCustomize()">${icon('sparkles', 'icon-small')} Customize</button>`
         : currentUser ? `<button class="btn ${isFollowing ? 'btn-ghost' : 'btn-primary'} btn-sm" id="follow-btn" onclick="toggleFollow(${profileId}, this)">${isFollowing ? `${icon('check', 'icon-small')} Following` : `${icon('plus', 'icon-small')} Follow`}</button>`
         : `<button onclick="requireLogin()" class="btn btn-primary btn-sm">${icon('plus', 'icon-small')} Follow</button>`}
     </div>
@@ -511,6 +511,15 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   </div>
 </div>
 
+<div class="modal-overlay" id="public-customize-modal">
+  <div class="modal public-customize-modal" role="dialog" aria-modal="true">
+    <div class="modal-header"><div><h3>✧ Customize your profile</h3><p class="text-muted" style="margin:5px 0 0;font-size:.84rem;">Equip styles you own from Points &amp; Rewards.</p></div><button type="button" class="modal-close" onclick="closePublicCustomize()">✕</button></div>
+    <div class="modal-body"><div class="customize-tabs"><button type="button" class="customize-tab active" data-tab="appearance" onclick="renderPublicCustomize('appearance')">✧ Appearance</button><button type="button" class="customize-tab" data-tab="badges" onclick="renderPublicCustomize('badges')">♢ Badges</button></div>
+    <p class="customize-note">Equip one item per cosmetic type. Choosing a new style replaces the active style of that type.</p><div id="public-customize-list" class="customize-list"><div class="customize-empty">Loading your styles…</div></div>
+    <div class="customize-footer"><a class="btn btn-ghost btn-sm" href="${siteUrl}/points">Browse Points &amp; Rewards</a><button class="btn btn-primary btn-sm" type="button" onclick="closePublicCustomize()">Done</button></div></div>
+  </div>
+</div>
+<style>.public-customize-modal{width:min(720px,calc(100vw - 24px));max-width:720px;max-height:calc(100dvh - 28px);overflow:auto}.customize-tabs{display:flex;gap:7px;padding:3px 0 12px}.customize-tab{border:1px solid var(--border);border-radius:9px;background:var(--bg-secondary);color:var(--text-secondary);padding:9px 13px;cursor:pointer}.customize-tab.active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--bg-secondary));color:var(--text-primary)}.customize-note{font-size:.82rem;color:var(--text-secondary);line-height:1.55;margin:0 0 14px}.customize-list{display:grid;gap:9px}.customize-item{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--border);border-radius:12px;min-width:0}.customize-item-preview{width:50px;height:50px;flex:0 0 50px;display:grid;place-items:center;border:1px solid var(--border);border-radius:11px;background:var(--bg-secondary);font-weight:800}.customize-item-info{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}.customize-item-info strong{font-size:.9rem;overflow-wrap:anywhere}.customize-item-info span,.customize-item-info small{font-size:.76rem;color:var(--text-secondary);overflow-wrap:anywhere}.customize-empty{padding:28px 12px;text-align:center;border:1px dashed var(--border);border-radius:12px;color:var(--text-secondary);font-size:.9rem;line-height:1.6}.customize-footer{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:14px;margin-top:16px}@media(max-width:480px){.customize-item{gap:8px;padding:8px}.customize-item-preview{width:42px;height:42px;flex-basis:42px}.customize-item-info span{display:none}}</style>
 <div class="modal-overlay" id="followers-modal">
   <div class="modal" style="max-width:400px;">
     <div class="modal-header"><h3>👥 Followers (${followerCount})</h3><button class="modal-close">✕</button></div>
@@ -537,6 +546,21 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 @media(prefers-reduced-motion:reduce){.profile-sakura-petal{animation:none;display:none}}
 </style>
 <script>
+async function openPublicCustomize(){
+  const modal=document.getElementById("public-customize-modal"); if(!modal)return;
+  modal.classList.add("active"); modal.style.display="flex"; modal.style.zIndex="10000";
+  const list=document.getElementById("public-customize-list"); list.innerHTML='<div class="customize-empty">Loading your styles…</div>';
+  try{const r=await fetch("/api/points");const d=await r.json();if(!r.ok||!d.success)throw new Error(d.message||"Could not load cosmetics.");window.__publicCosmetics=d.inventory||[];renderPublicCustomize(modal.querySelector("[data-tab].active")?.dataset.tab||"appearance");}catch(e){list.innerHTML='<div class="customize-empty">Could not load your cosmetics. Please try again.</div>';}
+}
+function closePublicCustomize(){const m=document.getElementById("public-customize-modal");if(m){m.classList.remove("active");m.style.display="none";}}
+function renderPublicCustomize(tab){
+  const m=document.getElementById("public-customize-modal");if(!m)return;m.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+  const list=document.getElementById("public-customize-list");const types=tab==="badges"?["badge"]:["avatar_frame","name_style","profile_background","profile_effect","flair"];const items=(window.__publicCosmetics||[]).filter(x=>types.includes(String(x.cosmetic_type||"")));
+  if(!items.length){list.innerHTML='<div class="customize-empty">No purchased styles here yet. Visit Points &amp; Rewards to unlock cosmetics.</div>';return;}
+  list.innerHTML="";items.forEach(item=>{const row=document.createElement("article");row.className="customize-item";const p=document.createElement("div");p.className="customize-item-preview";p.textContent=item.cosmetic_type==="avatar_frame"?"A":item.cosmetic_type==="name_style"?"AniVault":item.cosmetic_type==="badge"?(item.icon||"★"):"✦";const info=document.createElement("div");info.className="customize-item-info";const n=document.createElement("strong");n.textContent=item.name||"Cosmetic";const d=document.createElement("span");d.textContent=item.description||String(item.cosmetic_type||"").replace(/_/g," ");const t=document.createElement("small");t.textContent=String(item.cosmetic_type||"Cosmetic").replace(/_/g," ");info.append(n,d,t);const b=document.createElement("button");b.type="button";b.className="btn "+(Number(item.equipped)===1?"btn-ghost":"btn-primary")+" btn-sm";b.textContent=Number(item.equipped)===1?"Unequip":"Equip";b.onclick=()=>changePublicCosmetic(item.item_id,Number(item.equipped)===1?"unequip":"equip",b);row.append(p,info,b);list.append(row);});
+}
+async function changePublicCosmetic(id,action,button){button.disabled=true;button.textContent="Saving…";try{const r=await fetch("/api/points",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,item_id:String(id)})});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.message||"Could not update cosmetic.");await openPublicCustomize();}catch(e){button.disabled=false;button.textContent=action==="equip"?"Equip":"Unequip";if(typeof showToast==="function")showToast(e.message||"Request failed.","error");}}
+
 (function () {
   const PROFILE_ID = ${profileId};
   const CAN_VIEW = { followers: ${canViewFollowers ? 'true' : 'false'}, following: ${canViewFollowing ? 'true' : 'false'} };
