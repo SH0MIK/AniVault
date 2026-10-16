@@ -254,4 +254,14 @@ export const ICON_SPRITE = `<svg xmlns="http://www.w3.org/2000/svg" style="displ
 <symbol id="icon-upcoming" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 <path d="M6 2h12"/><path d="M6 22h12"/><path d="M6 2c0 5 4 6.5 6 8-2 1.5-6 3-6 8"/><path d="M18 2c0 5-4 6.5-6 8 2 1.5 6 3 6 8"/>
 </symbol>
+  <symbol id="icon-palette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 3a9 9 0 1 0 0 18h1.2a2 2 0 0 0 1.5-3.3 1.8 1.8 0 0 1 1.4-3h1.4A3.5 3.5 0 0 0 21 11.2C21 6.7 16.9 3 12 3Z"/>
+    <circle cx="7.5" cy="10" r="1"/><circle cx="10" cy="6.8" r="1"/><circle cx="15" cy="7.5" r="1"/><circle cx="7.5" cy="14.5" r="1"/>
+  </symbol>
+  <symbol id="icon-award" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="12" cy="8" r="6"/><path d="m8.2 13-1 8 4.8-2.8 4.8 2.8-1-8"/>
+  </symbol>
+  <symbol id="icon-sparkles" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="m12 3 1.9 5.8L20 11l-6.1 2.2L12 19l-1.9-5.8L4 11l6.1-2.2L12 3Z"/><path d="m19 14 1.1 2.9L23 18l-2.9 1.1L19 22l-1.1-2.9L15 18l2.9-1.1L19 14Z"/><path d="m5 2 .8 2.2L8 5l-2.2.8L5 8l-.8-2.2L2 5l2.2-.8L5 2Z"/>
+  </symbol>
 </svg>`;
