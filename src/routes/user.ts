@@ -515,7 +515,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   <div class="modal public-customize-modal" role="dialog" aria-modal="true">
     <div class="modal-header"><div><h3>${icon('sparkles', 'icon-small')} Customize your profile</h3><p class="text-muted" style="margin:5px 0 0;font-size:.84rem;">Equip styles you own from Points &amp; Rewards.</p></div><button type="button" class="modal-close" onclick="closePublicCustomize()">${icon('x', 'icon-small')}</button></div>
     <div class="modal-body"><div class="customize-tabs"><button type="button" class="customize-tab active" data-tab="appearance" onclick="renderPublicCustomize('appearance')">${icon('palette', 'icon-small')} Appearance</button><button type="button" class="customize-tab" data-tab="badges" onclick="renderPublicCustomize('badges')">${icon('award', 'icon-small')} Badges</button></div>
-    <p class="customize-note">Equip one item per cosmetic type. Choosing a new style replaces the active style of that type.</p><div id="public-customize-list" class="customize-list"><div class="customize-empty">Loading your styles…</div></div>
+    <p class="customize-note">Choose which cosmetics are active. You can only wear one frame, name style and background at a time.</p><div id="public-customize-list" class="customize-list"><div class="customize-empty">Loading your styles…</div></div>
     <div class="customize-footer"><a class="btn btn-ghost btn-sm" href="${siteUrl}/points">Browse Points &amp; Rewards</a></div></div>
   </div>
 </div>
@@ -623,6 +623,7 @@ function renderPublicCustomize(tab){
       grid.appendChild(button);
     });
 
+    section.appendChild(grid);
     list.appendChild(section);
   });
 }
