@@ -639,8 +639,7 @@ function renderPublicCustomize(tab){
             const result=await response.json();if(!response.ok||!result.success)throw new Error(result.message||"Could not save frame color.");
             item.frame_color=chosen;label.textContent="Neon frame color · "+chosen.toUpperCase();
             if(typeof showToast==="function")showToast("Neon frame color saved.","success");
-            const avatar=document.querySelector(".u-avatar");
-            if(avatar && avatar.classList.contains("frame-neon"))location.reload();
+            if(Number(item.equipped)===1)setTimeout(()=>location.reload(),450);
           }catch(error){if(typeof showToast==="function")showToast(error.message||"Could not save color.","error");}
           finally{input.disabled=false;}
         });
