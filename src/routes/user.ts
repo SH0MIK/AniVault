@@ -513,8 +513,8 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 
 <div class="modal-overlay" id="public-customize-modal">
   <div class="modal public-customize-modal" role="dialog" aria-modal="true">
-    <div class="modal-header"><div><h3>${icon('sparkles', 'icon-small')} Customize your profile</h3><p class="text-muted" style="margin:5px 0 0;font-size:.84rem;">Equip styles you own from Points &amp; Rewards.</p></div><button type="button" class="modal-close" onclick="closePublicCustomize()">${icon('x', 'icon-small')}</button></div>
-    <div class="modal-body"><div class="customize-tabs"><button type="button" class="customize-tab active" data-tab="appearance" onclick="renderPublicCustomize('appearance')">${icon('palette', 'icon-small')} Appearance</button><button type="button" class="customize-tab" data-tab="badges" onclick="renderPublicCustomize('badges')">${icon('award', 'icon-small')} Badges</button></div>
+    <div class="modal-header"><div><h3>${icon('star', 'icon-small')} Customize your profile</h3><p class="text-muted" style="margin:5px 0 0;font-size:.84rem;">Equip styles you own from Points &amp; Rewards.</p></div><button type="button" class="modal-close" onclick="closePublicCustomize()">${icon('x', 'icon-small')}</button></div>
+    <div class="modal-body"><div class="customize-tabs"><button type="button" class="customize-tab active" data-tab="appearance" onclick="renderPublicCustomize('appearance')">${icon('settings', 'icon-small')} Appearance</button><button type="button" class="customize-tab" data-tab="badges" onclick="renderPublicCustomize('badges')">${icon('trophy', 'icon-small')} Badges</button></div>
     <p class="customize-note">Equip one item per cosmetic type. Choosing a new style replaces the active style of that type.</p><div id="public-customize-list" class="customize-list"><div class="customize-empty">Loading your styles…</div></div>
     <div class="customize-footer"><a class="btn btn-ghost btn-sm" href="${siteUrl}/points">Browse Points &amp; Rewards</a></div></div>
   </div>
