@@ -514,7 +514,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 <div class="modal-overlay" id="public-customize-modal">
   <div class="modal public-customize-modal" role="dialog" aria-modal="true">
     <div class="modal-header"><div><h3>${icon('sparkles', 'icon-small')} Customize your profile</h3><p class="text-muted" style="margin:5px 0 0;font-size:.84rem;">Equip styles you own from Points &amp; Rewards.</p></div><button type="button" class="modal-close" onclick="closePublicCustomize()">${icon('x', 'icon-small')}</button></div>
-    <div class="modal-body"><div class="customize-tabs"><button type="button" class="customize-tab active" data-tab="appearance" onclick="renderPublicCustomize('appearance')">${icon('palette', 'icon-small')} Appearance</button><button type="button" class="customize-tab" data-tab="badges" onclick="renderPublicCustomize('badges')">${icon('award', 'icon-small')} Badges</button></div>
+    <div class="modal-body"><div class="customize-tabs"><button type="button" class="customize-tab active" data-tab="appearance" onclick="renderPublicCustomize('appearance')">${icon('settings', 'icon-small')} Appearance</button><button type="button" class="customize-tab" data-tab="badges" onclick="renderPublicCustomize('badges')">${icon('trophy', 'icon-small')} Badges</button></div>
     <p class="customize-note">Equip one item per cosmetic type. Choosing a new style replaces the active style of that type.</p><div id="public-customize-list" class="customize-list"><div class="customize-empty">Loading your styles…</div></div>
     <div class="customize-footer"><a class="btn btn-ghost btn-sm" href="${siteUrl}/points">Browse Points &amp; Rewards</a></div></div>
   </div>
@@ -546,6 +546,14 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 #public-customize-modal .customize-check{color:var(--accent,#e8453c);font-size:1rem;flex:0 0 auto}
 #public-customize-modal .customize-empty{padding:26px 14px;text-align:center;border:1px dashed var(--border,rgba(255,255,255,.12));border-radius:12px;color:var(--text-secondary,#a3a6b0);font-size:.88rem;line-height:1.6}
 #public-customize-modal .customize-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border-top:1px solid var(--border,rgba(255,255,255,.1));padding-top:15px;margin-top:20px}
+#public-customize-modal .customize-tab svg{display:block;width:16px;height:16px;flex:0 0 16px}
+#public-customize-modal .customize-color-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px;margin:8px 0 12px;border:1px solid rgba(98,245,255,.22);border-radius:12px;background:rgba(98,245,255,.045)}
+#public-customize-modal .customize-color-row label{font-size:.82rem;font-weight:650;margin-right:auto}
+#public-customize-modal .customize-color-row input[type=color]{width:42px;height:34px;padding:2px;border:1px solid var(--border);border-radius:8px;background:transparent;cursor:pointer}
+#public-customize-modal .customize-color-row code{font-size:.76rem;color:var(--text-secondary)}
+#public-customize-modal .customize-none{display:block;width:100%;margin-top:9px;padding:9px 12px;border:1px dashed var(--border,rgba(255,255,255,.14));border-radius:10px;background:transparent;color:var(--text-secondary);font-size:.8rem;text-align:center;cursor:pointer}
+#public-customize-modal .customize-none:not(:disabled):hover{border-color:var(--accent);color:var(--text-primary);background:color-mix(in srgb,var(--accent) 8%,transparent)}
+#public-customize-modal .customize-none:disabled{opacity:.65;cursor:default}
 @media(max-width:480px){#public-customize-modal{padding:8px}#public-customize-modal .modal-header{padding:16px 15px 12px}#public-customize-modal .modal-body{padding:0 15px 15px}#public-customize-modal .customize-grid{gap:7px}#public-customize-modal .customize-option{padding:10px 9px;gap:6px}#public-customize-modal .customize-option-main{gap:7px}#public-customize-modal .customize-swatch{width:24px;height:24px;flex-basis:24px}#public-customize-modal .customize-option-label strong{font-size:.78rem}#public-customize-modal .customize-option-label small{font-size:.66rem}}
 </style>
 <div class="modal-overlay" id="followers-modal">
@@ -586,14 +594,14 @@ function renderPublicCustomize(tab){
   m.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
   const list=document.getElementById("public-customize-list");
   const inventory=window.__publicCosmetics||[];
-  const sections=tab==="badges"?[["Badges",["badge"]]]:[
+  const sections=tab==="badges"?[["Badges",["badge","profile_badge"]]]:[
     ["Avatar Frame",["avatar_frame","frame"]],
     ["Name Style",["name_style","name"]],
     ["Profile Background",["profile_background","background"]],
     ["Effects",["profile_effect","effect","flair"]]
   ];
-  const groups=sections.map(([title,types])=>({title,items:inventory.filter(x=>types.includes(String(x.cosmetic_type||"").toLowerCase()))})).filter(g=>g.items.length);
-  if(!groups.length){list.innerHTML='<div class="customize-empty">No purchased styles here yet.<br>Visit Points &amp; Rewards to unlock cosmetics.</div>';return;}
+  const groups=sections.map(([title,types])=>({title,types,items:inventory.filter(x=>types.includes(String(x.cosmetic_type||"").toLowerCase()))})).filter(g=>g.items.length);
+  if(!groups.length){list.innerHTML=tab==="badges"?'<div class="customize-empty">No badge cosmetics are available in your collection yet.</div>':'<div class="customize-empty">No purchased styles here yet.<br>Visit Points &amp; Rewards to unlock cosmetics.</div>';return;}
   list.innerHTML="";
   groups.forEach(group=>{
     const section=document.createElement("section");section.className="customize-section";
@@ -601,22 +609,37 @@ function renderPublicCustomize(tab){
     const grid=document.createElement("div");grid.className="customize-grid";
     group.items.forEach(item=>{
       const equipped=Number(item.equipped)===1;
+      const typeName=String(item.cosmetic_type||group.title).toLowerCase();
       const button=document.createElement("button");button.type="button";button.className="customize-option"+(equipped?" equipped":"");
       const main=document.createElement("span");main.className="customize-option-main";
       const swatch=document.createElement("span");swatch.className="customize-swatch";swatch.textContent=item.icon||(group.title==="Avatar Frame"?"◉":group.title==="Name Style"?"Aa":group.title==="Profile Background"?"▧":"✦");
       const label=document.createElement("span");label.className="customize-option-label";
       const name=document.createElement("strong");name.textContent=item.name||"Cosmetic";
-      const type=document.createElement("small");type.textContent=equipped?"Currently equipped":String(item.cosmetic_type||group.title).replace(/_/g," ");
+      const type=document.createElement("small");type.textContent=equipped?"Currently equipped":typeName.replace(/_/g," ");
       label.append(name,type);main.append(swatch,label);button.append(main);
       const check=document.createElement("span");check.className="customize-check";check.textContent=equipped?"✓":"";button.appendChild(check);
       button.disabled=equipped;
-      button.dataset.type=String(item.cosmetic_type||group.title);button.addEventListener("click",()=>changePublicCosmetic(item.item_id,"equip",button));
+      button.dataset.type=typeName;
+      button.addEventListener("click",()=>changePublicCosmetic(item.item_id,"equip",button));
       section.appendChild(grid);grid.appendChild(button);
+      if(typeName==="avatar_frame"&&String(item.cosmetic_value)==="neon"){
+        const colorRow=document.createElement("div");colorRow.className="customize-color-row";
+        const colorLabel=document.createElement("label");colorLabel.textContent="Neon frame color";colorLabel.htmlFor="public-neon-frame-color";
+        const picker=document.createElement("input");picker.type="color";picker.id="public-neon-frame-color";picker.value=/^#[0-9a-f]{6}$/i.test(item.frame_color||"")?item.frame_color:"#62f5ff";picker.setAttribute("aria-label","Choose Neon avatar frame color");
+        const hex=document.createElement("code");hex.textContent=picker.value.toUpperCase();
+        picker.addEventListener("input",()=>{hex.textContent=picker.value.toUpperCase();hex.style.color=picker.value;});
+        picker.addEventListener("change",async()=>{picker.disabled=true;try{const r=await fetch("/api/points",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"frame_color",color:picker.value,item_id:item.item_id})});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.message||"Could not save frame color.");item.frame_color=picker.value;if(typeof showToast==="function")showToast("Neon frame color saved.","success");}catch(e){if(typeof showToast==="function")showToast(e.message||"Could not save frame color.","error");}finally{picker.disabled=false;}});
+        colorRow.append(colorLabel,picker,hex);section.appendChild(colorRow);
+      }
     });
+    const activeItem=group.items.find(item=>Number(item.equipped)===1);
+    const none=document.createElement("button");none.type="button";none.className="customize-none"+(activeItem?"":" active");none.textContent=activeItem?"None · remove active style":"None · no style selected";none.disabled=!activeItem;
+    none.addEventListener("click",()=>changePublicCosmetic(activeItem.item_id,"unequip_type",none,activeItem.cosmetic_type));
+    section.appendChild(none);
     list.appendChild(section);
   });
 }
-async function changePublicCosmetic(id,action,button){if(button){button.disabled=true;button.classList.add("saving");const label=button.querySelector(".customize-option-label small");if(label)label.textContent="Saving…";}try{const r=await fetch("/api/points",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,item_id:String(id)})});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.message||"Could not update cosmetic.");await openPublicCustomize();if(typeof showToast==="function")showToast("Profile style updated.","success");}catch(e){if(button){button.disabled=false;button.classList.remove("saving");const label=button.querySelector(".customize-option-label small");if(label)label.textContent=String(button.dataset.type||"Cosmetic").replace(/_/g," ");}if(typeof showToast==="function")showToast(e.message||"Request failed.","error");}}
+async function changePublicCosmetic(id,action,button,cosmeticType){if(button){button.disabled=true;button.classList.add("saving");}try{const r=await fetch("/api/points",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,item_id:String(id),cosmetic_type:cosmeticType})});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.message||"Could not update cosmetic.");if(typeof showToast==="function")showToast(action==="equip"?"Profile style updated.":action==="frame_color"?"Frame color saved.":"Style removed.","success");setTimeout(()=>location.reload(),350);}catch(e){if(button){button.disabled=false;button.classList.remove("saving");}if(typeof showToast==="function")showToast(e.message||"Request failed.","error");}}
 
 (function () {
   const PROFILE_ID = ${profileId};
