@@ -60,11 +60,14 @@ pointsRoutes.get('/api/points', async c => {
   const wallet = await ensureWallet(db,userId);
   const [catalog,inventory,ledger,daily] = await Promise.all([
     db.fetchAll<any>('SELECT id,category,name,description,icon,price,cosmetic_type,cosmetic_value FROM points_catalog WHERE active=1 ORDER BY category,sort_order,name'),
-    db.fetchAll<any>('SELECT i.item_id,i.equipped,i.purchased_at,c.name,c.category,c.cosmetic_type,c.cosmetic_value FROM points_inventory i JOIN points_catalog c ON c.id=i.item_id WHERE i.user_id=? ORDER BY i.purchased_at DESC',[userId]),
+    db.fetchAll<any>('SELECT i.item_id,i.equipped,i.purchased_at,c.name,c.category,c.icon,c.cosmetic_type,c.cosmetic_value FROM points_inventory i JOIN points_catalog c ON c.id=i.item_id WHERE i.user_id=? ORDER BY i.purchased_at DESC',[userId]),
     db.fetchAll<any>('SELECT amount,event_type,description,created_at FROM points_ledger WHERE user_id=? ORDER BY id DESC LIMIT 30',[userId]),
     db.fetchAll<any>('SELECT task_key,claim_date,points FROM points_daily_claims WHERE user_id=? AND claim_date=?',[userId,todayUTC()])
   ]);
-  return c.json({success:true,wallet,catalog,inventory,ledger,daily_claims:daily.map((r:any)=>r.task_key)});
+  const frameSettings = await db.fetchOne<any>('SELECT avatar_frame_color FROM user_cosmetic_settings WHERE user_id=?',[userId]).catch(()=>null);
+  const frameColor = /^#[0-9a-fA-F]{6}$/.test(String(frameSettings?.avatar_frame_color||'')) ? String(frameSettings.avatar_frame_color).toLowerCase() : '#62f5ff';
+  const decoratedInventory = inventory.map((item:any)=>({...item,frame_color:frameColor}));
+  return c.json({success:true,wallet,catalog,inventory:decoratedInventory,ledger,daily_claims:daily.map((r:any)=>r.task_key)});
 });
 
 pointsRoutes.post('/api/points', async c => {
@@ -143,6 +146,13 @@ pointsRoutes.post('/api/points', async c => {
     if (!item) return c.json({success:false,message:'Reward not found.'},404);
     await db.query('UPDATE points_inventory SET equipped=0 WHERE user_id=? AND item_id=?',[userId,itemId]);
     return c.json({success:true,message:'Reward unequipped.'});
+  }
+  if (action === 'unequip_type') {
+    const cosmeticType = String(body.cosmetic_type ?? '').trim().toLowerCase();
+    const allowedTypes = ['avatar_frame','name_style','profile_background','profile_effect','flair','badge','profile_badge'];
+    if (!allowedTypes.includes(cosmeticType)) return c.json({success:false,message:'Unknown cosmetic group.'},400);
+    await db.query('UPDATE points_inventory SET equipped=0 WHERE user_id=? AND item_id IN (SELECT id FROM points_catalog WHERE cosmetic_type=?)',[userId,cosmeticType]);
+    return c.json({success:true,message:'Style removed.'});
   }
   return c.json({success:false,message:'Unknown action.'},400);
 });
