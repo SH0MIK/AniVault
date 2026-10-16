@@ -7,7 +7,7 @@ const ICON_MAP: Record<string, string> = {
   home: 'home', search: 'search', user: 'user', logout: 'logout', login: 'login',
   fire: 'fire', trophy: 'trophy', calendar: 'calendar', list: 'list', star: 'star',
   heart: 'heart', 'heart-filled': 'heart-filled', plus: 'plus', edit: 'edit', trash: 'trash',
-  settings: 'settings', watching: 'watching', completed: 'completed', plantowatch: 'plantowatch',
+  settings: 'settings', palette: 'palette', award: 'award', sparkles: 'sparkles', watching: 'watching', completed: 'completed', plantowatch: 'plantowatch',
   dropped: 'dropped', onhold: 'onhold', download: 'download', upload: 'upload', box: 'box',
   bell: 'bell', globe: 'globe', users: 'users', message: 'message', 'arrow-right': 'arrow-right',
   'arrow-left': 'arrow-left', 'chevron-right': 'chevron-right', 'chevron-left': 'chevron-left',
