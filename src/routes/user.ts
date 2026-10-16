@@ -544,6 +544,12 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 #public-customize-modal .customize-option-label strong{font-size:.84rem;font-weight:600;overflow-wrap:anywhere}
 #public-customize-modal .customize-option-label small{font-size:.71rem;color:var(--text-secondary,#a3a6b0);text-transform:capitalize}
 #public-customize-modal .customize-check{color:var(--accent,#e8453c);font-size:1rem;flex:0 0 auto}
+#public-customize-modal .neon-color-control{grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;gap:12px;min-width:0;padding:9px 11px;border:1px solid var(--border,rgba(255,255,255,.1));border-radius:12px;background:var(--bg-secondary,rgba(255,255,255,.025))}
+#public-customize-modal .neon-color-label{display:flex;align-items:center;gap:9px;min-width:0;font-size:.8rem;color:var(--text-secondary,#a3a6b0)}
+#public-customize-modal .neon-color-input{width:100%;height:34px;max-width:132px;min-width:0;padding:3px 6px;border:1px solid var(--border,rgba(255,255,255,.12));border-radius:9px;background:var(--bg-primary,#15161b);color:var(--text-primary,#f6f6f7);font:500 .78rem ui-monospace,monospace;cursor:pointer}
+#public-customize-modal .neon-color-input::-webkit-color-swatch-wrapper{padding:0}
+#public-customize-modal .neon-color-input::-webkit-color-swatch{border:0;border-radius:5px}
+#public-customize-modal .neon-color-input:disabled{opacity:.65;cursor:wait}
 #public-customize-modal .customize-empty{padding:26px 14px;text-align:center;border:1px dashed var(--border,rgba(255,255,255,.12));border-radius:12px;color:var(--text-secondary,#a3a6b0);font-size:.88rem;line-height:1.6}
 #public-customize-modal .customize-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border-top:1px solid var(--border,rgba(255,255,255,.1));padding-top:15px;margin-top:20px}
 @media(max-width:480px){#public-customize-modal{padding:8px}#public-customize-modal .modal-header{padding:16px 15px 12px}#public-customize-modal .modal-body{padding:0 15px 15px}#public-customize-modal .customize-grid{gap:7px}#public-customize-modal .customize-option{padding:10px 9px;gap:6px}#public-customize-modal .customize-option-main{gap:7px}#public-customize-modal .customize-swatch{width:24px;height:24px;flex-basis:24px}#public-customize-modal .customize-option-label strong{font-size:.78rem}#public-customize-modal .customize-option-label small{font-size:.66rem}}
@@ -621,6 +627,25 @@ function renderPublicCustomize(tab){
       button.disabled=equipped;
       button.dataset.type=String(item.cosmetic_type||group.title);button.addEventListener("click",()=>changePublicCosmetic(item.item_id,"equip",button));
       grid.appendChild(button);
+      if(String(item.cosmetic_type||"").toLowerCase()==="avatar_frame" && String(item.cosmetic_value||"").toLowerCase()==="neon"){
+        const control=document.createElement("div");control.className="neon-color-control";
+        const label=document.createElement("label");label.className="neon-color-label";label.htmlFor="public-neon-frame-color";
+        const input=document.createElement("input");input.type="color";input.id="public-neon-frame-color";input.className="neon-color-input";input.value=/^#[0-9a-fA-F]{6}$/.test(String(item.frame_color||""))?item.frame_color:"#62f5ff";input.setAttribute("aria-label","Choose Neon frame color");
+        label.textContent="Neon frame color · "+input.value.toUpperCase();
+        input.addEventListener("change",async()=>{
+          const chosen=input.value;input.disabled=true;
+          try{
+            const response=await fetch("/api/points",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"frame_color",color:chosen,item_id:String(item.item_id)})});
+            const result=await response.json();if(!response.ok||!result.success)throw new Error(result.message||"Could not save frame color.");
+            item.frame_color=chosen;label.textContent="Neon frame color · "+chosen.toUpperCase();
+            if(typeof showToast==="function")showToast("Neon frame color saved.","success");
+            const avatar=document.querySelector(".u-avatar");
+            if(avatar && avatar.classList.contains("frame-neon"))location.reload();
+          }catch(error){if(typeof showToast==="function")showToast(error.message||"Could not save color.","error");}
+          finally{input.disabled=false;}
+        });
+        control.append(label,input);grid.appendChild(control);
+      }
     });
 
     section.appendChild(grid);
