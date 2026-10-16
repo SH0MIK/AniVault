@@ -287,8 +287,8 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
         <span class="profile-points-chip"><span aria-hidden="true">◈</span> <strong>${pointsBalance.toLocaleString('en-US')}</strong> points</span>
       </div>
     </div>
-    <div class="u-header-actions">
-      ${isOwn ? `<a href="${siteUrl}/profile" class="btn btn-ghost btn-sm">${icon('edit', 'icon-small')} Edit Profile</a><button type="button" class="btn btn-primary btn-sm" style="margin-left:10px;display:inline-flex;align-items:center;gap:6px" onclick="openPublicCustomize()">${icon('star', 'icon-small')} Customize</button>`
+    <div class="u-header-actions profile-owner-actions">
+      ${isOwn ? `<a href="${siteUrl}/profile" class="btn btn-ghost btn-sm profile-owner-action">${icon('edit', 'icon-small')} Edit Profile</a><button type="button" class="btn btn-primary btn-sm profile-owner-action" onclick="openPublicCustomize()">${icon('sparkles', 'icon-small')} Customize</button>`
         : currentUser ? `<button class="btn ${isFollowing ? 'btn-ghost' : 'btn-primary'} btn-sm" id="follow-btn" onclick="toggleFollow(${profileId}, this)">${isFollowing ? `${icon('check', 'icon-small')} Following` : `${icon('plus', 'icon-small')} Follow`}</button>`
         : `<button onclick="requireLogin()" class="btn btn-primary btn-sm">${icon('plus', 'icon-small')} Follow</button>`}
     </div>
@@ -578,6 +578,11 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 .profile-sakura-petal{position:absolute;top:-24px;left:var(--petal-x);width:var(--petal-size);height:calc(var(--petal-size)*.72);border-radius:100% 0 100% 0;background:radial-gradient(ellipse at 35% 35%,#fff4fa 0%,#ffb6d9 36%,#ff6fb4 68%,rgba(255,105,180,.25) 100%);box-shadow:0 0 5px rgba(255,145,205,.9),0 0 13px rgba(255,91,174,.55);opacity:0;transform:rotate(35deg);animation:profile-sakura-fall var(--petal-dur) linear var(--petal-delay) infinite}
 @keyframes profile-sakura-fall{0%{transform:translate3d(0,-3vh,0) rotate(0deg);opacity:0}8%{opacity:.9}48%{transform:translate3d(var(--petal-drift),52vh,0) rotate(380deg);opacity:.78}88%{opacity:.72}100%{transform:translate3d(calc(var(--petal-drift)*-0.65),108vh,0) rotate(760deg);opacity:0}}
 @media(prefers-reduced-motion:reduce){.profile-sakura-petal{animation:none;display:none}}
+.profile-owner-actions{display:flex!important;flex-flow:row nowrap!important;align-items:center;gap:8px;min-width:0;width:100%;max-width:100%;}
+.profile-owner-actions .profile-owner-action{display:inline-flex!important;flex:1 1 0;align-items:center;justify-content:center;gap:6px;min-width:0;white-space:nowrap;margin:0!important;padding:8px 12px;line-height:1.2;text-align:center;}
+.profile-owner-actions .profile-owner-action svg{width:14px;height:14px;flex:0 0 auto;}
+@media(max-width:420px){.profile-owner-actions{gap:6px}.profile-owner-actions .profile-owner-action{padding:8px 7px;font-size:.78rem;gap:5px}}
+@media(max-width:340px){.profile-owner-actions .profile-owner-action{padding:7px 5px;font-size:.72rem;gap:4px}.profile-owner-actions .profile-owner-action svg{width:12px;height:12px}}
 </style>
 <script>
 async function openPublicCustomize(){
