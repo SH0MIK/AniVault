@@ -288,7 +288,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
       </div>
     </div>
     <div class="u-header-actions">
-      ${isOwn ? `<a href="${siteUrl}/profile" class="btn btn-ghost btn-sm">${icon('edit', 'icon-small')} Edit Profile</a><button type="button" class="btn btn-primary btn-sm" style="margin-left:10px;display:inline-flex;align-items:center;gap:6px" onclick="openPublicCustomize()"><span aria-hidden="true">✧</span> Customize</button>`
+      ${isOwn ? `<a href="${siteUrl}/profile" class="btn btn-ghost btn-sm">${icon('edit', 'icon-small')} Edit Profile</a><button type="button" class="btn btn-primary btn-sm" style="margin-left:10px;display:inline-flex;align-items:center;gap:6px" onclick="openPublicCustomize()">${icon('sparkles', 'icon-small')} Customize</button>`
         : currentUser ? `<button class="btn ${isFollowing ? 'btn-ghost' : 'btn-primary'} btn-sm" id="follow-btn" onclick="toggleFollow(${profileId}, this)">${isFollowing ? `${icon('check', 'icon-small')} Following` : `${icon('plus', 'icon-small')} Follow`}</button>`
         : `<button onclick="requireLogin()" class="btn btn-primary btn-sm">${icon('plus', 'icon-small')} Follow</button>`}
     </div>
@@ -513,10 +513,10 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 
 <div class="modal-overlay" id="public-customize-modal">
   <div class="modal public-customize-modal" role="dialog" aria-modal="true">
-    <div class="modal-header"><div><h3>Customize your profile</h3><p class="text-muted" style="margin:5px 0 0;font-size:.84rem;">Equip styles you own from Points &amp; Rewards.</p></div><button type="button" class="modal-close" onclick="closePublicCustomize()">✕</button></div>
-    <div class="modal-body"><div class="customize-tabs"><button type="button" class="customize-tab active" data-tab="appearance" onclick="renderPublicCustomize('appearance')">✧ Appearance</button><button type="button" class="customize-tab" data-tab="badges" onclick="renderPublicCustomize('badges')">♢ Badges</button></div>
+    <div class="modal-header"><div><h3>${icon('sparkles', 'icon-small')} Customize your profile</h3><p class="text-muted" style="margin:5px 0 0;font-size:.84rem;">Equip styles you own from Points &amp; Rewards.</p></div><button type="button" class="modal-close" onclick="closePublicCustomize()">${icon('x', 'icon-small')}</button></div>
+    <div class="modal-body"><div class="customize-tabs"><button type="button" class="customize-tab active" data-tab="appearance" onclick="renderPublicCustomize('appearance')">${icon('palette', 'icon-small')} Appearance</button><button type="button" class="customize-tab" data-tab="badges" onclick="renderPublicCustomize('badges')">${icon('award', 'icon-small')} Badges</button></div>
     <p class="customize-note">Equip one item per cosmetic type. Choosing a new style replaces the active style of that type.</p><div id="public-customize-list" class="customize-list"><div class="customize-empty">Loading your styles…</div></div>
-    <div class="customize-footer"><a class="btn btn-ghost btn-sm" href="${siteUrl}/points">Browse Points &amp; Rewards</a><button class="btn btn-primary btn-sm" type="button" onclick="closePublicCustomize()">Done</button></div></div>
+    <div class="customize-footer"><a class="btn btn-ghost btn-sm" href="${siteUrl}/points">Browse Points &amp; Rewards</a></div></div>
   </div>
 </div>
 <style>
@@ -525,7 +525,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 #public-customize-modal .public-customize-modal{width:min(560px,calc(100vw - 24px));max-width:560px;max-height:min(720px,calc(100dvh - 32px));padding:0;overflow:hidden;display:flex;flex-direction:column;background:var(--bg-primary,#15161b);border:1px solid var(--border,rgba(255,255,255,.1));border-radius:16px;box-shadow:0 24px 80px rgba(0,0,0,.48)}
 #public-customize-modal .modal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 20px 14px;border-bottom:0}
 #public-customize-modal .modal-header h3{display:flex;align-items:center;gap:9px;margin:0;font-size:1.08rem;font-weight:750;letter-spacing:-.02em}
-#public-customize-modal .modal-header h3:before{content:'✧';color:#e8c9a0;font-size:1.2rem}
+#public-customize-modal .modal-header h3 svg{color:#e8c9a0;width:20px;height:20px;flex:0 0 auto}
 #public-customize-modal .modal-header p{color:var(--text-secondary,#a3a6b0);line-height:1.5}
 #public-customize-modal .modal-body{padding:0 20px 18px;overflow-y:auto;overscroll-behavior:contain}
 #public-customize-modal .customize-tabs{display:flex;gap:4px;padding:4px;background:var(--bg-secondary,#202127);border-radius:11px;width:max-content;max-width:100%;margin-bottom:22px}
@@ -610,13 +610,13 @@ function renderPublicCustomize(tab){
       label.append(name,type);main.append(swatch,label);button.append(main);
       const check=document.createElement("span");check.className="customize-check";check.textContent=equipped?"✓":"";button.appendChild(check);
       button.disabled=equipped;
-      button.addEventListener("click",()=>changePublicCosmetic(item.item_id,"equip",button));
+      button.dataset.type=String(item.cosmetic_type||group.title);button.addEventListener("click",()=>changePublicCosmetic(item.item_id,"equip",button));
       section.appendChild(grid);grid.appendChild(button);
     });
     list.appendChild(section);
   });
 }
-async function changePublicCosmetic(id,action,button){button.disabled=true;button.textContent="Saving…";try{const r=await fetch("/api/points",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,item_id:String(id)})});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.message||"Could not update cosmetic.");await openPublicCustomize();}catch(e){button.disabled=false;button.textContent=action==="equip"?"Equip":"Unequip";if(typeof showToast==="function")showToast(e.message||"Request failed.","error");}}
+async function changePublicCosmetic(id,action,button){if(button){button.disabled=true;button.classList.add("saving");const label=button.querySelector(".customize-option-label small");if(label)label.textContent="Saving…";}try{const r=await fetch("/api/points",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,item_id:String(id)})});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.message||"Could not update cosmetic.");await openPublicCustomize();if(typeof showToast==="function")showToast("Profile style updated.","success");}catch(e){if(button){button.disabled=false;button.classList.remove("saving");const label=button.querySelector(".customize-option-label small");if(label)label.textContent=String(button.dataset.type||"Cosmetic").replace(/_/g," ");}if(typeof showToast==="function")showToast(e.message||"Request failed.","error");}}
 
 (function () {
   const PROFILE_ID = ${profileId};
