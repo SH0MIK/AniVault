@@ -538,9 +538,9 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
 #public-customize-modal .customize-option{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;min-height:48px;padding:12px 14px;border:1px solid var(--border,rgba(255,255,255,.1));border-radius:14px;background:transparent;color:var(--text-primary,#f6f6f7);text-align:left;cursor:pointer;transition:border-color .16s,background .16s,transform .16s}
 #public-customize-modal .customize-option:hover{border-color:color-mix(in srgb,var(--accent,#e8453c) 55%,transparent);transform:translateY(-1px)}
 #public-customize-modal .customize-option.equipped{border-color:color-mix(in srgb,var(--accent,#e8453c) 70%,transparent);background:color-mix(in srgb,var(--accent,#e8453c) 12%,transparent)}
-#public-customize-modal .customize-option-main{display:flex;align-items:center;gap:10px;min-width:0}
+#public-customize-modal .customize-option-main{display:flex;align-items:center;min-width:0}
 #public-customize-modal .customize-swatch{display:grid;place-items:center;width:28px;height:28px;flex:0 0 28px;border-radius:8px;background:var(--bg-secondary,#202127);color:var(--accent,#e8453c);font-size:1rem}
-#public-customize-modal .customize-option-label{display:flex;flex-direction:column;gap:3px;min-width:0}
+#public-customize-modal .customize-option-label{display:flex;flex-direction:column;min-width:0}
 #public-customize-modal .customize-option-label strong{font-size:.84rem;font-weight:600;overflow-wrap:anywhere}
 #public-customize-modal .customize-option-label small{font-size:.71rem;color:var(--text-secondary,#a3a6b0);text-transform:capitalize}
 #public-customize-modal .customize-check{color:var(--accent,#e8453c);font-size:1rem;flex:0 0 auto}
@@ -599,32 +599,30 @@ function renderPublicCustomize(tab){
     const section=document.createElement("section");section.className="customize-section";
     const heading=document.createElement("h4");heading.className="customize-section-title";heading.textContent=group.title;section.appendChild(heading);
     const grid=document.createElement("div");grid.className="customize-grid";
+    const activeItem=group.items.find(item=>Number(item.equipped)===1);
+    const none=document.createElement("button");none.type="button";none.className="customize-option"+(activeItem?"":" equipped");
+    const main=document.createElement("span");main.className="customize-option-main";
+    const label=document.createElement("span");label.className="customize-option-label";
+    const name=document.createElement("strong");name.textContent="None";
+    label.append(name);main.append(label);none.append(main);
+    const check=document.createElement("span");check.className="customize-check";check.textContent=activeItem?"":"✓";none.appendChild(check);
+    none.disabled=!activeItem;
+    if(activeItem) none.addEventListener("click",()=>changePublicCosmetic(activeItem.item_id,"unequip_type",none,activeItem.cosmetic_type));
+    grid.appendChild(none);
     group.items.forEach(item=>{
       const equipped=Number(item.equipped)===1;
       const button=document.createElement("button");button.type="button";button.className="customize-option"+(equipped?" equipped":"");
       const main=document.createElement("span");main.className="customize-option-main";
-      const swatch=document.createElement("span");swatch.className="customize-swatch";const cosmeticIcon=({avatar_frame:"camera",frame:"camera",name_style:"star",name:"star",profile_background:"layout",background:"layout",profile_effect:"sparkles",effect:"sparkles",flair:"sparkles",badge:"trophy"})[String(item.cosmetic_type||"").toLowerCase()]||"star";swatch.innerHTML=`<svg class="icon icon-${cosmeticIcon}" width="1em" height="1em" viewBox="0 0 24 24" aria-hidden="true" focusable="false"><use href="#icon-${cosmeticIcon}"/></svg>`;
+
       const label=document.createElement("span");label.className="customize-option-label";
       const name=document.createElement("strong");name.textContent=item.name||"Cosmetic";
-      const type=document.createElement("small");type.textContent=equipped?"Currently equipped":String(item.cosmetic_type||group.title).replace(/_/g," ");
-      label.append(name,type);main.append(swatch,label);button.append(main);
+      label.append(name);main.append(label);button.append(main);
       const check=document.createElement("span");check.className="customize-check";check.textContent=equipped?"✓":"";button.appendChild(check);
       button.disabled=equipped;
       button.dataset.type=String(item.cosmetic_type||group.title);button.addEventListener("click",()=>changePublicCosmetic(item.item_id,"equip",button));
-      section.appendChild(grid);grid.appendChild(button);
+      grid.appendChild(button);
     });
-    const activeItem=group.items.find(item=>Number(item.equipped)===1);
-    const none=document.createElement("button");none.type="button";none.className="customize-option"+(activeItem?"":" equipped");
-    const main=document.createElement("span");main.className="customize-option-main";
-    const swatch=document.createElement("span");swatch.className="customize-swatch";swatch.textContent="×";
-    const label=document.createElement("span");label.className="customize-option-label";
-    const name=document.createElement("strong");name.textContent="None";
-    const type=document.createElement("small");type.textContent=activeItem?"Remove active style":"No style selected";
-    label.append(name,type);main.append(swatch,label);none.append(main);
-    const check=document.createElement("span");check.className="customize-check";check.textContent=activeItem?"":"✓";none.appendChild(check);
-    none.disabled=!activeItem;
-    none.addEventListener("click",()=>changePublicCosmetic(activeItem.item_id,"unequip_type",none,activeItem.cosmetic_type));
-    grid.appendChild(none);
+
     list.appendChild(section);
   });
 }
