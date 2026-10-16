@@ -288,7 +288,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
       </div>
     </div>
     <div class="u-header-actions">
-      ${isOwn ? `<a href="${siteUrl}/profile" class="btn btn-ghost btn-sm">${icon('edit', 'icon-small')} Edit Profile</a><button type="button" class="btn btn-primary btn-sm" onclick="openPublicCustomize()">${icon('sparkles', 'icon-small')} Customize</button>`
+      ${isOwn ? `<a href="${siteUrl}/profile" class="btn btn-ghost btn-sm">${icon('edit', 'icon-small')} Edit Profile</a><button type="button" class="btn btn-primary btn-sm" style="margin-left:10px;display:inline-flex;align-items:center;gap:6px" onclick="openPublicCustomize()"><span aria-hidden="true">✧</span> Customize</button>`
         : currentUser ? `<button class="btn ${isFollowing ? 'btn-ghost' : 'btn-primary'} btn-sm" id="follow-btn" onclick="toggleFollow(${profileId}, this)">${isFollowing ? `${icon('check', 'icon-small')} Following` : `${icon('plus', 'icon-small')} Follow`}</button>`
         : `<button onclick="requireLogin()" class="btn btn-primary btn-sm">${icon('plus', 'icon-small')} Follow</button>`}
     </div>
