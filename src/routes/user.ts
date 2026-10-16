@@ -586,8 +586,8 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
   .profile-owner-actions .profile-owner-action svg{width:14px;height:14px;flex:0 0 auto;}
 }
 @media(max-width:360px){
-  .profile-owner-actions{gap:6px;}
-  .profile-owner-actions .profile-owner-action{gap:4px;padding:7px 8px;font-size:.76rem;}
+  .profile-owner-actions{gap:7px;}
+  .profile-owner-actions .profile-owner-action{gap:5px;padding:8px 9px;font-size:.8rem;}
   .profile-owner-actions .profile-owner-action svg{width:12px;height:12px;}
 }
 </style>
