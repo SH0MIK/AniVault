@@ -519,7 +519,35 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
     <div class="customize-footer"><a class="btn btn-ghost btn-sm" href="${siteUrl}/points">Browse Points &amp; Rewards</a><button class="btn btn-primary btn-sm" type="button" onclick="closePublicCustomize()">Done</button></div></div>
   </div>
 </div>
-<style>.public-customize-modal{width:min(720px,calc(100vw - 24px));max-width:720px;max-height:calc(100dvh - 28px);overflow:auto}.customize-tabs{display:flex;gap:7px;padding:3px 0 12px}.customize-tab{border:1px solid var(--border);border-radius:9px;background:var(--bg-secondary);color:var(--text-secondary);padding:9px 13px;cursor:pointer}.customize-tab.active{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,var(--bg-secondary));color:var(--text-primary)}.customize-note{font-size:.82rem;color:var(--text-secondary);line-height:1.55;margin:0 0 14px}.customize-list{display:grid;gap:9px}.customize-item{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--border);border-radius:12px;min-width:0}.customize-item-preview{width:50px;height:50px;flex:0 0 50px;display:grid;place-items:center;border:1px solid var(--border);border-radius:11px;background:var(--bg-secondary);font-weight:800}.customize-item-info{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}.customize-item-info strong{font-size:.9rem;overflow-wrap:anywhere}.customize-item-info span,.customize-item-info small{font-size:.76rem;color:var(--text-secondary);overflow-wrap:anywhere}.customize-empty{padding:28px 12px;text-align:center;border:1px dashed var(--border);border-radius:12px;color:var(--text-secondary);font-size:.9rem;line-height:1.6}.customize-footer{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:14px;margin-top:16px}@media(max-width:480px){.customize-item{gap:8px;padding:8px}.customize-item-preview{width:42px;height:42px;flex-basis:42px}.customize-item-info span{display:none}}</style>
+<style>
+#public-customize-modal{padding:16px;background:rgba(0,0,0,.66);backdrop-filter:blur(5px);align-items:center;justify-content:center}
+#public-customize-modal.active{display:flex!important}
+#public-customize-modal .public-customize-modal{width:min(560px,calc(100vw - 24px));max-width:560px;max-height:min(720px,calc(100dvh - 32px));padding:0;overflow:hidden;display:flex;flex-direction:column;background:var(--bg-primary,#15161b);border:1px solid var(--border,rgba(255,255,255,.1));border-radius:16px;box-shadow:0 24px 80px rgba(0,0,0,.48)}
+#public-customize-modal .modal-header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 20px 14px;border-bottom:0}
+#public-customize-modal .modal-header h3{display:flex;align-items:center;gap:9px;margin:0;font-size:1.08rem;font-weight:750;letter-spacing:-.02em}
+#public-customize-modal .modal-header h3:before{content:'✧';color:#e8c9a0;font-size:1.2rem}
+#public-customize-modal .modal-header p{color:var(--text-secondary,#a3a6b0);line-height:1.5}
+#public-customize-modal .modal-body{padding:0 20px 18px;overflow-y:auto;overscroll-behavior:contain}
+#public-customize-modal .customize-tabs{display:flex;gap:4px;padding:4px;background:var(--bg-secondary,#202127);border-radius:11px;width:max-content;max-width:100%;margin-bottom:22px}
+#public-customize-modal .customize-tab{display:flex;align-items:center;gap:7px;padding:9px 14px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--text-secondary,#a3a6b0);font-size:.84rem;font-weight:600;cursor:pointer;white-space:nowrap}
+#public-customize-modal .customize-tab.active{background:var(--bg-primary,#15161b);border-color:rgba(255,255,255,.06);box-shadow:0 2px 7px rgba(0,0,0,.2);color:var(--text-primary,#fff)}
+#public-customize-modal .customize-note{font-size:.82rem;color:var(--text-secondary,#a3a6b0);line-height:1.55;margin:0 0 21px}
+#public-customize-modal .customize-section{margin:0 0 24px}
+#public-customize-modal .customize-section-title{margin:0 0 11px;font-size:.76rem;letter-spacing:.045em;font-weight:750;text-transform:uppercase;color:var(--text-secondary,#a3a6b0)}
+#public-customize-modal .customize-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+#public-customize-modal .customize-option{display:flex;align-items:center;justify-content:space-between;gap:10px;min-width:0;min-height:48px;padding:12px 14px;border:1px solid var(--border,rgba(255,255,255,.1));border-radius:14px;background:transparent;color:var(--text-primary,#f6f6f7);text-align:left;cursor:pointer;transition:border-color .16s,background .16s,transform .16s}
+#public-customize-modal .customize-option:hover{border-color:color-mix(in srgb,var(--accent,#e8453c) 55%,transparent);transform:translateY(-1px)}
+#public-customize-modal .customize-option.equipped{border-color:color-mix(in srgb,var(--accent,#e8453c) 70%,transparent);background:color-mix(in srgb,var(--accent,#e8453c) 12%,transparent)}
+#public-customize-modal .customize-option-main{display:flex;align-items:center;gap:10px;min-width:0}
+#public-customize-modal .customize-swatch{display:grid;place-items:center;width:28px;height:28px;flex:0 0 28px;border-radius:8px;background:var(--bg-secondary,#202127);color:var(--accent,#e8453c);font-size:1rem}
+#public-customize-modal .customize-option-label{display:flex;flex-direction:column;gap:3px;min-width:0}
+#public-customize-modal .customize-option-label strong{font-size:.84rem;font-weight:600;overflow-wrap:anywhere}
+#public-customize-modal .customize-option-label small{font-size:.71rem;color:var(--text-secondary,#a3a6b0);text-transform:capitalize}
+#public-customize-modal .customize-check{color:var(--accent,#e8453c);font-size:1rem;flex:0 0 auto}
+#public-customize-modal .customize-empty{padding:26px 14px;text-align:center;border:1px dashed var(--border,rgba(255,255,255,.12));border-radius:12px;color:var(--text-secondary,#a3a6b0);font-size:.88rem;line-height:1.6}
+#public-customize-modal .customize-footer{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;border-top:1px solid var(--border,rgba(255,255,255,.1));padding-top:15px;margin-top:20px}
+@media(max-width:480px){#public-customize-modal{padding:8px}#public-customize-modal .modal-header{padding:16px 15px 12px}#public-customize-modal .modal-body{padding:0 15px 15px}#public-customize-modal .customize-grid{gap:7px}#public-customize-modal .customize-option{padding:10px 9px;gap:6px}#public-customize-modal .customize-option-main{gap:7px}#public-customize-modal .customize-swatch{width:24px;height:24px;flex-basis:24px}#public-customize-modal .customize-option-label strong{font-size:.78rem}#public-customize-modal .customize-option-label small{font-size:.66rem}}
+</style>
 <div class="modal-overlay" id="followers-modal">
   <div class="modal" style="max-width:400px;">
     <div class="modal-header"><h3>👥 Followers (${followerCount})</h3><button class="modal-close">✕</button></div>
@@ -554,10 +582,39 @@ async function openPublicCustomize(){
 }
 function closePublicCustomize(){const m=document.getElementById("public-customize-modal");if(m){m.classList.remove("active");m.style.display="none";}}
 function renderPublicCustomize(tab){
-  const m=document.getElementById("public-customize-modal");if(!m)return;m.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
-  const list=document.getElementById("public-customize-list");const types=tab==="badges"?["badge"]:["avatar_frame","name_style","profile_background","profile_effect","flair"];const items=(window.__publicCosmetics||[]).filter(x=>types.includes(String(x.cosmetic_type||"")));
-  if(!items.length){list.innerHTML='<div class="customize-empty">No purchased styles here yet. Visit Points &amp; Rewards to unlock cosmetics.</div>';return;}
-  list.innerHTML="";items.forEach(item=>{const row=document.createElement("article");row.className="customize-item";const p=document.createElement("div");p.className="customize-item-preview";p.textContent=item.cosmetic_type==="avatar_frame"?"A":item.cosmetic_type==="name_style"?"AniVault":item.cosmetic_type==="badge"?(item.icon||"★"):"✦";const info=document.createElement("div");info.className="customize-item-info";const n=document.createElement("strong");n.textContent=item.name||"Cosmetic";const d=document.createElement("span");d.textContent=item.description||String(item.cosmetic_type||"").replace(/_/g," ");const t=document.createElement("small");t.textContent=String(item.cosmetic_type||"Cosmetic").replace(/_/g," ");info.append(n,d,t);const b=document.createElement("button");b.type="button";b.className="btn "+(Number(item.equipped)===1?"btn-ghost":"btn-primary")+" btn-sm";b.textContent=Number(item.equipped)===1?"Unequip":"Equip";b.onclick=()=>changePublicCosmetic(item.item_id,Number(item.equipped)===1?"unequip":"equip",b);row.append(p,info,b);list.append(row);});
+  const m=document.getElementById("public-customize-modal");if(!m)return;
+  m.querySelectorAll("[data-tab]").forEach(b=>b.classList.toggle("active",b.dataset.tab===tab));
+  const list=document.getElementById("public-customize-list");
+  const inventory=window.__publicCosmetics||[];
+  const sections=tab==="badges"?[["Badges",["badge"]]]:[
+    ["Avatar Frame",["avatar_frame","frame"]],
+    ["Name Style",["name_style","name"]],
+    ["Profile Background",["profile_background","background"]],
+    ["Effects",["profile_effect","effect","flair"]]
+  ];
+  const groups=sections.map(([title,types])=>({title,items:inventory.filter(x=>types.includes(String(x.cosmetic_type||"").toLowerCase()))})).filter(g=>g.items.length);
+  if(!groups.length){list.innerHTML='<div class="customize-empty">No purchased styles here yet.<br>Visit Points &amp; Rewards to unlock cosmetics.</div>';return;}
+  list.innerHTML="";
+  groups.forEach(group=>{
+    const section=document.createElement("section");section.className="customize-section";
+    const heading=document.createElement("h4");heading.className="customize-section-title";heading.textContent=group.title;section.appendChild(heading);
+    const grid=document.createElement("div");grid.className="customize-grid";
+    group.items.forEach(item=>{
+      const equipped=Number(item.equipped)===1;
+      const button=document.createElement("button");button.type="button";button.className="customize-option"+(equipped?" equipped":"");
+      const main=document.createElement("span");main.className="customize-option-main";
+      const swatch=document.createElement("span");swatch.className="customize-swatch";swatch.textContent=item.icon||(group.title==="Avatar Frame"?"◉":group.title==="Name Style"?"Aa":group.title==="Profile Background"?"▧":"✦");
+      const label=document.createElement("span");label.className="customize-option-label";
+      const name=document.createElement("strong");name.textContent=item.name||"Cosmetic";
+      const type=document.createElement("small");type.textContent=equipped?"Currently equipped":String(item.cosmetic_type||group.title).replace(/_/g," ");
+      label.append(name,type);main.append(swatch,label);button.append(main);
+      const check=document.createElement("span");check.className="customize-check";check.textContent=equipped?"✓":"";button.appendChild(check);
+      button.disabled=equipped;
+      button.addEventListener("click",()=>changePublicCosmetic(item.item_id,"equip",button));
+      section.appendChild(grid);grid.appendChild(button);
+    });
+    list.appendChild(section);
+  });
 }
 async function changePublicCosmetic(id,action,button){button.disabled=true;button.textContent="Saving…";try{const r=await fetch("/api/points",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,item_id:String(id)})});const d=await r.json();if(!r.ok||!d.success)throw new Error(d.message||"Could not update cosmetic.");await openPublicCustomize();}catch(e){button.disabled=false;button.textContent=action==="equip"?"Equip":"Unequip";if(typeof showToast==="function")showToast(e.message||"Request failed.","error");}}
 
