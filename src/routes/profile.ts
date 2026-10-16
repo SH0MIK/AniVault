@@ -308,6 +308,7 @@ async function renderProfilePage(c: any, db: Db, session: Session, lifetime: num
     <div class="u-social-links">
       ${socialLinks.map(([ic, url, label]) => `<a href="${h(url)}" target="_blank" rel="noopener noreferrer nofollow" class="u-social-link" style="--platform-color:${platformColor(ic)}" title="${h(label)}">${icon(ic, 'icon-small')}<span>${h(label)}</span></a>`).join('')}
     </div>` : ''}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 4px;"><button type="button" class="btn btn-ghost btn-sm" onclick="openProfileCustomize()">✧ Customize</button></div>
     <div id="avatar-status" style="font-size:0.78rem;min-height:16px;color:rgba(255,255,255,.6);"></div>
   </div>
 </div>
@@ -545,6 +546,31 @@ async function renderProfilePage(c: any, db: Db, session: Session, lifetime: num
 </div>
 
 <script>
+async function openProfileCustomize(){
+  let modal=document.getElementById('profile-customize-modal');
+  if(!modal){
+    modal=document.createElement('div'); modal.id='profile-customize-modal'; modal.className='modal-overlay';
+    modal.innerHTML='<div class="modal profile-customize-modal" role="dialog" aria-modal="true"><div class="modal-header"><div><h3>✧ Customize your profile</h3><p class="text-muted" style="margin:5px 0 0;font-size:.84rem">Equip styles you have unlocked in Points &amp; Rewards.</p></div><button class="modal-close" type="button" aria-label="Close">×</button></div><div class="modal-body"><div class="customize-tabs"><button class="customize-tab active" data-tab="appearance">✧ Appearance</button><button class="customize-tab" data-tab="badges">♢ Badges</button></div><p class="customize-note">You can equip one item per cosmetic type. Choosing a new style replaces the currently equipped style of that type.</p><div class="customize-list"></div><div class="customize-footer"><a class="btn btn-ghost btn-sm" href="'+((window.__siteUrl||'')+'/points')+'">Browse Points &amp; Rewards</a><button class="btn btn-primary btn-sm customize-done" type="button">Done</button></div></div></div>';
+    document.body.appendChild(modal);
+    modal.addEventListener('click',function(e){if(e.target===modal||e.target.closest('.modal-close')||e.target.closest('.customize-done'))modal.classList.remove('active')});
+    modal.querySelectorAll('[data-tab]').forEach(function(b){b.addEventListener('click',function(){modal.querySelectorAll('[data-tab]').forEach(x=>x.classList.toggle('active',x===b));renderCustomizeItems(modal.__inventory||[],b.dataset.tab)})});
+  }
+  modal.classList.add('active'); const list=modal.querySelector('.customize-list'); list.innerHTML='<div class="customize-empty">Loading your styles…</div>';
+  try{const res=await fetch((window.__siteUrl||'')+'/api/points');const data=await res.json();if(!res.ok||!data.success)throw new Error(data.message||'Could not load your inventory.');modal.__inventory=data.inventory||[];renderCustomizeItems(modal.__inventory,modal.querySelector('[data-tab].active')?.dataset.tab||'appearance');}
+  catch(e){list.innerHTML='<div class="customize-empty">Could not load your cosmetics. Please try again.</div>';showToast(e.message||'Could not load cosmetics.','error')}
+}
+function renderCustomizeItems(items,tab){
+  const modal=document.getElementById('profile-customize-modal');if(!modal)return;const list=modal.querySelector('.customize-list');
+  const allowed=tab==='badges'?['badge']:['avatar_frame','name_style','profile_background','profile_effect','flair'];
+  const owned=(items||[]).filter(x=>allowed.includes(String(x.cosmetic_type||'')));
+  if(!owned.length){list.innerHTML='<div class="customize-empty">No purchased styles here yet. Visit Points &amp; Rewards to unlock cosmetics.</div>';return}
+  list.innerHTML='';owned.forEach(function(item){const row=document.createElement('article');row.className='customize-item';const preview=document.createElement('div');preview.className='customize-item-preview';preview.textContent=item.cosmetic_type==='avatar_frame'?'A':item.cosmetic_type==='name_style'?'AniVault':item.cosmetic_type==='badge'?(item.icon||'★'):'✦';const info=document.createElement('div');info.className='customize-item-info';const name=document.createElement('strong');name.textContent=item.name||'Cosmetic';const desc=document.createElement('span');desc.textContent=item.description||String(item.cosmetic_type||'').replace(/_/g,' ');const type=document.createElement('small');type.textContent=String(item.cosmetic_type||'Cosmetic').replace(/_/g,' ');info.append(name,desc,type);const btn=document.createElement('button');btn.type='button';btn.className='btn '+(Number(item.equipped)===1?'btn-ghost':'btn-primary')+' btn-sm';btn.textContent=Number(item.equipped)===1?'Unequip':'Equip';btn.addEventListener('click',()=>customizeCosmetic(item.item_id,Number(item.equipped)===1?'unequip':'equip',btn));row.append(preview,info,btn);list.appendChild(row)})
+}
+async function customizeCosmetic(itemId,action,button){button.disabled=true;button.textContent=action==='equip'?'Equipping…':'Removing…';try{const res=await fetch((window.__siteUrl||'')+'/api/points',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,item_id:String(itemId)})});const data=await res.json();if(!res.ok||!data.success)throw new Error(data.message||'Could not update cosmetic.');showToast(data.message||'Cosmetic updated!','success');window.location.reload()}catch(e){showToast(e.message||'Request failed.','error');button.disabled=false;button.textContent=action==='equip'?'Equip':'Unequip'}}
+
+<style>
+.profile-customize-modal{width:min(720px,calc(100vw - 24px));max-width:720px;max-height:calc(100dvh - 28px);overflow:hidden;display:flex;flex-direction:column}.profile-customize-modal .modal-body{overflow:auto;min-height:0}.customize-tabs{display:flex;gap:7px;padding:3px 0 12px}.customize-tab{border:1px solid var(--border);border-radius:9px;background:var(--bg-secondary);color:var(--text-secondary);padding:9px 13px;cursor:pointer}.customize-tab.active{border-color:var(--accent);color:var(--text-primary)}.customize-note{font-size:.82rem;color:var(--text-secondary);line-height:1.55;margin:0 0 14px}.customize-list{display:grid;gap:9px}.customize-item{display:flex;align-items:center;gap:12px;padding:10px;border:1px solid var(--border);border-radius:12px;min-width:0}.customize-item-preview{width:50px;height:50px;flex:0 0 50px;display:grid;place-items:center;border:1px solid var(--border);border-radius:11px;background:var(--bg-secondary);font-weight:800}.customize-item-info{display:flex;flex-direction:column;gap:3px;min-width:0;flex:1}.customize-item-info strong{font-size:.9rem;overflow-wrap:anywhere}.customize-item-info span,.customize-item-info small{font-size:.76rem;color:var(--text-secondary);overflow-wrap:anywhere}.customize-empty{padding:28px 12px;text-align:center;border:1px dashed var(--border);border-radius:12px;color:var(--text-secondary);font-size:.9rem;line-height:1.6}.customize-footer{display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;border-top:1px solid var(--border);padding-top:14px;margin-top:16px}@media(max-width:480px){.customize-item{gap:8px;padding:8px}.customize-item-preview{width:42px;height:42px;flex-basis:42px}.customize-item-info span{display:none}.customize-item .btn{padding:7px 9px;font-size:.75rem}}
+</style>
 function showProfileTab(name){
   document.querySelectorAll('.profile-tab-panel').forEach(function(p){ p.hidden = (p.id !== 'tab-' + name); });
   document.querySelectorAll('.profile-tab-btn').forEach(function(b){ b.classList.toggle('active', b.dataset.tab === name); });
