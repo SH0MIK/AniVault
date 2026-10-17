@@ -420,17 +420,15 @@ export class MalAPI {
     for (const item of resolved) {
       const anime = targets.find((a) => a.mal_id === item.id);
       if (!anime) continue;
-      const poster = item.hoshika?.poster || item.art.poster;
-      if (poster) {
-        anime.images = {
-          jpg: {
-            image_url: poster,
-            large_image_url: poster,
-          },
-        };
-      }
-      anime.cover_image = item.hoshika?.cover || item.art.cover || anime.cover_image;
-      anime.logo_image = item.art.logo || anime.logo_image;
+      const poster = item.hoshika?.poster || '';
+      anime.images = {
+        jpg: {
+          image_url: poster,
+          large_image_url: poster,
+        },
+      };
+      anime.cover_image = item.hoshika?.cover || '';
+      anime.logo_image = '';
       if (item.hoshika?.episodes !== null && item.hoshika?.episodes !== undefined) {
         anime.episodes = item.hoshika.episodes;
       }
@@ -988,8 +986,8 @@ export class MalAPI {
       animeId ? this.getAnimeArt(animeId, !isList) : Promise.resolve({ poster: '', cover: '', logo: '' }),
       animeId ? getHoshikaAnimeMetadata(animeId, node.title ?? '', this.kv, true).catch(() => null) : Promise.resolve(null),
     ]);
-    const mediumImage = hoshika?.poster || art.poster;
-    const largeImage = hoshika?.poster || art.poster;
+    const mediumImage = hoshika?.poster || '';
+    const largeImage = hoshika?.poster || '';
 
     const genres = (node.genres ?? []).filter(Boolean).map((g: any) => ({ mal_id: g?.id ?? 0, name: g?.name ?? '' }));
     const studios = (node.studios ?? []).filter(Boolean).map((s: any) => ({ mal_id: s?.id ?? 0, name: s?.name ?? '' }));
@@ -1002,7 +1000,7 @@ export class MalAPI {
         entry: {
           mal_id: entryId,
           title: entry?.title ?? '',
-          images: { jpg: { image_url: entryLocalImage || entry?.main_picture?.medium || '' } },
+          images: { jpg: { image_url: '' } },
         },
         relation_type_formatted: r?.relation_type_formatted ?? '',
       };
@@ -1016,7 +1014,7 @@ export class MalAPI {
         entry: {
           mal_id: entryId,
           title: entry?.title ?? '',
-          images: { jpg: { image_url: entryLocalImage || entry?.main_picture?.medium || '' } },
+          images: { jpg: { image_url: '' } },
         },
       };
     }));
@@ -1036,8 +1034,8 @@ export class MalAPI {
       title_english: altTitles.en ?? '',
       title_japanese: altTitles.ja ?? '',
       images: { jpg: { image_url: mediumImage, large_image_url: largeImage } },
-      cover_image: hoshika?.cover || art.cover,
-      logo_image: art.logo,
+      cover_image: hoshika?.cover || '',
+      logo_image: '',
       synopsis: node.synopsis ?? '',
       background: node.background ?? '',
       score: node.mean ?? null,
