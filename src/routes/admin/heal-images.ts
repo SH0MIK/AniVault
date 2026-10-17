@@ -73,14 +73,11 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
 
   const limit = Math.min(25, Math.max(1, parseInt(c.req.query('limit') ?? '10', 10) || 10));
   const auto = c.req.query('auto') === '1';
-  const skipIds = (c.req.query('skip') ?? '')
-    .split(',').map((s) => parseInt(s, 10)).filter((n) => n > 0).slice(0, 300);
-
-  const skipSql = skipIds.length ? ` AND anime_id NOT IN (${skipIds.map(() => '?').join(',')})` : '';
+  const afterId = Math.max(0, parseInt(c.req.query('after') ?? '0', 10) || 0);
   const missing = await db.fetchAll<{ anime_id: number; anime_title: string | null; anime_image: string | null }>(
     `SELECT anime_id, MIN(NULLIF(anime_title, '')) AS anime_title, MAX(NULLIF(anime_image, '')) AS anime_image
-     FROM anime_list WHERE 1=1 ${skipSql} GROUP BY anime_id ORDER BY anime_id LIMIT ${limit}`,
-    skipIds
+     FROM anime_list WHERE anime_id > ? GROUP BY anime_id ORDER BY anime_id LIMIT ${limit}`,
+    [afterId]
   );
   const remaining = await db.count('SELECT COUNT(DISTINCT anime_id) as cnt FROM anime_list');
 
@@ -110,7 +107,7 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
 <div class="heal-stats">
   <div class="heal-stat"><div class="heal-stat-val">${remaining.toLocaleString('en-US')}</div><div class="heal-stat-lbl">Tracked Anime</div></div>
   <div class="heal-stat"><div class="heal-stat-val">${missing.length}</div><div class="heal-stat-lbl">In This Batch</div></div>
-  ${skipIds.length ? `<div class="heal-stat"><div class="heal-stat-val">${skipIds.length.toLocaleString('en-US')}</div><div class="heal-stat-lbl">Already Scanned</div></div>` : ''}
+  ${afterId ? `<div class="heal-stat"><div class="heal-stat-val">${afterId.toLocaleString('en-US')}</div><div class="heal-stat-lbl">After Anime ID</div></div>` : ''}
 </div>
 
 <div class="card card-body mb-4">
@@ -205,13 +202,13 @@ async function healRow(row) {
   preview.innerHTML = \`<img src="\${imageUrl.replaceAll('"', '&quot;')}" alt="">\`;
 }
 function nextBatchUrl(processedIds) {
-  const params  = new URLSearchParams(window.location.search);
-  const skipped = new Set((params.get('skip') || '').split(',').filter(Boolean));
-  processedIds.forEach(id => skipped.add(String(id)));
+  const params = new URLSearchParams(window.location.search);
+  const lastId = processedIds.length ? processedIds[processedIds.length - 1] : params.get('after') || '0';
   params.set('limit', String(batchLimit));
+  params.set('after', String(lastId));
   params.set('auto', '1');
+  params.delete('skip');
   params.delete('mode');
-  skipped.size ? params.set('skip', Array.from(skipped).slice(-300).join(',')) : params.delete('skip');
   return \`\${window.location.pathname}?\${params.toString()}\`;
 }
 document.getElementById('start-heal')?.addEventListener('click', async function () {
