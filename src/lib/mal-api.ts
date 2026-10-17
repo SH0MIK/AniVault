@@ -234,6 +234,7 @@ export class MalAPI {
         },
       };
       anime.cover_image = item.hoshika?.cover || '';
+      anime.banner_image = item.hoshika?.cover || undefined;
       anime.logo_image = '';
       if (item.hoshika?.episodes !== null && item.hoshika?.episodes !== undefined) {
         anime.episodes = item.hoshika.episodes;
@@ -643,6 +644,7 @@ export class MalAPI {
       title_japanese: altTitles.ja ?? '',
       images: { jpg: { image_url: mediumImage, large_image_url: largeImage } },
       cover_image: pickArt(hoshika?.cover || '', art.cover),
+      banner_image: pickArt(hoshika?.cover || '', art.cover) || undefined,
       logo_image: art.logo,
       synopsis: node.synopsis ?? '',
       background: node.background ?? '',
