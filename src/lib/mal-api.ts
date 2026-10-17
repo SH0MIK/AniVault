@@ -1097,9 +1097,16 @@ export class MalAPI {
             const formatMap: Record<string, string> = {
               TV: 'TV', MOVIE: 'Movie', OVA: 'OVA', ONA: 'ONA', SPECIAL: 'Special', MUSIC: 'Music',
             };
+            // Hoshika's shortId is its own catalog ID, not a MAL ID
+            // (e.g. Naruto is shortId 41391 while its MAL ID is 20).
+            // AniVault's existing anime/watch routes and scraper endpoints
+            // depend on true MAL IDs, so only use Hoshika results when the
+            // API explicitly supplies a MAL ID field. Otherwise fall through
+            // to the existing MAL search to avoid generating broken links.
             const entries = payload.anime.filter((item: any) => {
               const itemFormat = String(item?.format ?? '').toUpperCase();
-              return item && Number(item.shortId) > 0 &&
+              const malId = Number(item?.mal_id ?? item?.malId);
+              return item && Number.isFinite(malId) && malId > 0 &&
                 (!type || itemFormat.toLowerCase() === type.toLowerCase());
             });
             const data: NormalisedAnime[] = entries.map((item: any) => {
@@ -1107,7 +1114,7 @@ export class MalAPI {
               const image = String(item.coverImage || '');
               const score = Number(item.averageScore);
               return {
-                mal_id: Number(item.shortId),
+                mal_id: Number(item.mal_id ?? item.malId),
                 title,
                 title_english: String(item.titleEnglish || ''),
                 title_japanese: '',
