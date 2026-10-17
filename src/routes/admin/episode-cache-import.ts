@@ -1,10 +1,13 @@
 // Admin page for bulk-importing episode thumbnails AND metadata (title,
 // aired, filler/recap) straight into D1 -- episode_thumb_cache for
-// thumbnails (lib/episode-thumb.ts) and epinfo_hoshika_all_* rows for
-// metadata (lib/episode-info.ts). Paste Hoshika's /api/v1/anime/{shortId}/episodes
-// response, whose relevant shape is { "items": [{ "number": 1, "title": "...",
-// "aired": "...", "filler": false, "recap": false, "thumbnail": "https://…" }] }.
-// Enter the corresponding MAL ID separately in the form.
+// thumbnails (lib/episode-thumb.ts) and the same table's epinfo_all_* rows
+// for metadata (lib/episode-info.ts) -- from raw JSON, instead of waiting
+// on a live scraper lookup. Paste (or upload a .json file containing) the
+// exact shape the scraper's own GET /api/episode?malId=X returns:
+//
+//   { "malId": 1, "episodes": [ { "episode": 1, "title": "...",
+//     "aired": "...", "filler": false, "recap": false,
+//     "thumbnail": "https://…" }, … ] }
 //
 // The info half is only cached if EVERY pasted episode has both a title and
 // an aired date (same all-or-nothing rule the live fetch path uses) --
@@ -50,8 +53,8 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
       }
       try {
         await db.query(
-          `DELETE FROM episode_thumb_cache WHERE cache_key = ? OR cache_key = ? OR cache_key = ? OR cache_key LIKE ? ESCAPE '\\'`,
-          [`epthumbs_all_${malId}`, `epinfo_hoshika_all_${malId}`, `epinfo_all_${malId}`, `epthumb\\_${malId}\\_%`]
+          `DELETE FROM episode_thumb_cache WHERE cache_key = ? OR cache_key = ? OR cache_key LIKE ? ESCAPE '\\'`,
+          [`epthumbs_all_${malId}`, `epinfo_all_${malId}`, `epthumb\\_${malId}\\_%`]
         );
         await session.save(c, lifetime);
         return c.json({ success: true, malId });
@@ -74,17 +77,7 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
     }
 
     const malId = parseInt(body.malId ?? raw?.malId ?? '0', 10) || 0;
-    const episodes = Array.isArray(raw?.items)
-      ? raw.items.map((item: any) => ({
-          episode: Number(item?.number) || 0,
-          thumbnail: item?.thumbnail ?? null,
-          title: item?.title ?? null,
-          titleJapanese: null,
-          aired: item?.aired ?? null,
-          filler: !!item?.filler,
-          recap: !!item?.recap,
-        }))
-      : null;
+    const episodes = Array.isArray(raw?.episodes) ? raw.episodes : null;
 
     if (!malId) {
       await session.save(c, lifetime);
@@ -92,12 +85,12 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
     }
     if (!episodes) {
       await session.save(c, lifetime);
-      return c.json({ success: false, error: 'JSON needs an "items" array from Hoshika\'s anime episodes endpoint.' });
+      return c.json({ success: false, error: 'JSON needs an "episodes" array -- use the scraper\'s full /api/episode response.' });
     }
 
     try {
-      const result = await importAnimeEpisodeThumbnails(db, malId, episodes, permanent, 'hoshika');
-      const infoResult = await importAnimeEpisodeInfo(db, malId, episodes, 'hoshika');
+      const result = await importAnimeEpisodeThumbnails(db, malId, episodes, permanent);
+      const infoResult = await importAnimeEpisodeInfo(db, malId, episodes);
       await session.save(c, lifetime);
       return c.json({ success: true, ...result, infoCached: infoResult.cached, infoCount: infoResult.count });
     } catch (e: any) {
@@ -132,7 +125,7 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
   let html = renderAdminHeader({ siteUrl, pageTitle: 'Episode Cache Import', adminPage: 'episode_cache_import', isOwner, impersonating });
   html += `
 <div class="admin-header">
-  <div><h1>${icon('database', 'icon-medium')} Episode Cache Import</h1><p class="text-muted" style="font-size:.9rem;">Paste or upload Hoshika's raw episode endpoint JSON to cache episode numbers, metadata, and thumbnails without a third-party fallback.</p></div>
+  <div><h1>${icon('database', 'icon-medium')} Episode Cache Import</h1><p class="text-muted" style="font-size:.9rem;">Paste or upload the scraper's raw <code>/api/episode?malId=…</code> JSON to save it straight into the site's episode thumbnail cache -- no per-episode scraper calls needed after this.</p></div>
 </div>
 
 <div class="card card-body mb-3" style="max-width:760px;">

@@ -17,9 +17,19 @@ const ART_CACHE_WARM_INTERVAL_MS = 12 * 60 * 1000; // just under the new 15-min 
 const ART_CACHE_WARM_BATCH = 20; // stays well inside a single invocation's subrequest budget alongside everything else in this file
 const ART_CACHE_WARM_KV_KEY = 'art_cache_last_warm';
 
-// Warm the Hoshika metadata cache in small batches. This deliberately avoids
-// the old scraper art endpoint, whose fallback chain included Kitsu/TMDB/
-// AniList and could mask missing Hoshika covers.
+// Home/grid rows (top, upcoming, watch-now, curated hero banners) resolve
+// art cache-only now (see isList/liveFetch in mal-api.ts) so a cold cache
+// entry just shows blank instead of live-fetching from the scraper and
+// risking the Worker's per-request subrequest limit (see the 500 this
+// fixed — the whole home page went down after a cache-key rename cleared
+// every art cache entry at once). This warms those same entries in the
+// background instead, a small batch at a time, so blank posters fill in
+// within a tick or two of a cache miss rather than staying blank forever.
+// Exported so the admin panel's "Warm Art Cache Now" button (see
+// src/routes/admin/anime-images.ts) can trigger this on demand instead of
+// waiting on the next cron tick — useful right after a "Reset All Art
+// Cache" action, which otherwise leaves the home grid blank until cron
+// catches up in batches.
 export async function warmArtCache(db: Db, mal: MalAPI, env: Env, limit: number): Promise<number> {
   const ids = new Set<number>();
 
@@ -55,8 +65,9 @@ export async function warmArtCache(db: Db, mal: MalAPI, env: Env, limit: number)
   let warmed = 0;
   for (const id of ids) {
     if (warmed >= limit) break;
-    // getAnime() runs the Hoshika-only metadata path; never warm scraper art.
-    await mal.getAnime(id, true).catch(() => null);
+    const cached = await env.API_CACHE.get(`scraper_art_${id}`);
+    if (cached) continue; // already warm -- doesn't count against the batch limit
+    await mal.getScraperArt(id, true).catch(() => {});
     warmed++;
   }
   return warmed;
