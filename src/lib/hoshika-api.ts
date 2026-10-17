@@ -75,7 +75,7 @@ function coverFrom(item: any): string {
   const images = obj(x.images);
   const banner = obj(x.banner);
   return imageUrl(
-    x.banner_url, x.bannerUrl, x.backdrop_url, x.backdropUrl,
+    x.banner_url, x.bannerUrl, x.bannerImage, x.backdrop_url, x.backdropUrl,
     banner, images.banner, images.backdrop, images.banner_url, images.backdrop_url,
   );
 }
@@ -98,11 +98,27 @@ function shortIdFrom(item: any): string {
   return typeof id === 'string' || typeof id === 'number' ? String(id) : '';
 }
 
-function matchesMalId(item: any, malId: number): boolean {
+function normaliseTitle(value: any): string {
+  return typeof value === 'string'
+    ? value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ')
+    : '';
+}
+
+/**
+ * Hoshika search records may not expose a MAL ID. Match title variants
+ * instead of treating Hoshika's internal shortId as a MAL ID.
+ */
+function titleMatchScore(item: any, title: string): number {
   const x = obj(item);
-  const ids = obj(x.external_ids ?? x.externalIds ?? x.external_ids ?? x.ids);
-  const mal = x.mal_id ?? x.malId ?? x.malID ?? ids.mal_id ?? ids.malId;
-  return mal !== undefined && mal !== null && Number(mal) === malId;
+  const wanted = normaliseTitle(title);
+  if (!wanted) return 0;
+  const variants = [
+    x.titleEnglish, x.titleRomaji, x.titleLocalized, x.titleJapanese,
+    x.title, x.slug,
+  ].map(normaliseTitle).filter(Boolean);
+  if (variants.some((candidate) => candidate === wanted)) return 100;
+  if (variants.some((candidate) => candidate.startsWith(wanted) || wanted.startsWith(candidate))) return 80;
+  return 0;
 }
 
 function metadataFrom(item: any): HoshikaAnimeMetadata {
@@ -148,7 +164,10 @@ export async function getHoshikaAnimeMetadata(
     const payload: any = await response.json();
     if (payload?.ok === false) return cached;
 
-    const match = resultsFrom(payload).find((item) => matchesMalId(item, malId));
+    const match = resultsFrom(payload)
+      .map((item) => ({ item, score: titleMatchScore(item, title) }))
+      .filter((entry) => entry.score >= 80)
+      .sort((a, b) => b.score - a.score)[0]?.item;
     if (!match) {
       if (kv) {
         try { await kv.put(cacheKey, JSON.stringify({ poster: '', cover: '', episodes: null }), { expirationTtl: 3600 }); } catch {}
