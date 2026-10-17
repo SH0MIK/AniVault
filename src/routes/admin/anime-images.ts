@@ -142,7 +142,7 @@ adminAnimeImagesRoutes.on(['GET', 'POST'], '/admin/anime_images.php', async (c) 
   }
   const images = await db.fetchAll<any>(`SELECT * FROM anime_images ${where} ORDER BY updated_at DESC LIMIT 80`, params);
   const total = await db.count('SELECT COUNT(*) as cnt FROM anime_images');
-  const priority = await new Settings(db).get('image_source_priority', 'saved');
+  const priority = await new Settings(db).get('image_source_priority', 'api');
 
   const flash = session.takeFlash();
   const err = flash?.type === 'error' ? flash.message : null;
