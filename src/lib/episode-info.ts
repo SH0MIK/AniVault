@@ -39,9 +39,8 @@ export async function getAnimeEpisodeInfo(
   if (cachedRaw) {
     try {
       const cached = JSON.parse(cachedRaw) as CacheValue;
-      if ((cached.source === 'hoshika' || cached.source === 'manual') && Array.isArray(cached.episodes)) {
-        return cached.episodes;
-      }
+      if (cached.source === 'manual' && Array.isArray(cached.episodes)) return cached.episodes;
+      if (cached.source === 'hoshika' && Array.isArray(cached.episodes)) return cached.episodes;
     } catch { /* ignore corrupt/legacy cache and refetch Hoshika */ }
   }
 
@@ -57,7 +56,7 @@ export async function getAnimeEpisodeInfo(
   }));
 
   if (list.length > 0 && list.every(isComplete)) {
-    await putCachedRaw(db, cacheKey, JSON.stringify({ episodes: list, source: 'hoshika' } as CacheValue), null);
+    await putCachedRaw(db, cacheKey, JSON.stringify({ episodes: list, source: 'hoshika' } as CacheValue), 21600);
   }
   return list;
 }
