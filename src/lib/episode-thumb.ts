@@ -91,8 +91,8 @@ export async function getCachedRaw(db: Db, key: string): Promise<string | null> 
       return null;
     }
     // Visible in `wrangler tail` / the Cloudflare dashboard's live Logs tab
-    // -- lets you confirm a repeat visit is skipping the scraper entirely.
-    console.log(`[episode-thumb] D1 hit ${key} (no scraper call)`);
+    // -- lets you confirm a repeat visit is using the Hoshika cache.
+    console.log(`[episode-thumb] D1 hit ${key} (no Hoshika call)`);
     return row.value;
   } catch (err: any) {
     console.warn('[episode-thumb] D1 get failed (continuing without cache):', key, '-', String(err?.message ?? err));
@@ -126,28 +126,19 @@ export async function putCachedRaw(db: Db, key: string, value: string, ttlSecond
   }
 }
 
-/** MAL/AniList status strings (see mal-api.ts mapStatus) that mean an
- * anime's episode count is locked in for good -- once every episode is
- * cached, there's nothing left to ever check again. Everything else
- * (Currently Airing, Not yet aired, or unknown/missing status) keeps
- * checking for a new episode every LIVE_CACHE_TTL_SECONDS. */
-function isPermanentStatus(status?: string | null): boolean {
-  return status === 'Finished Airing';
-}
-
 /**
  * Single-episode thumbnail, cached in D1. This is the drop-in replacement
  * for "check episode_overrides, else show the cover" -- callers should try
  * this after an admin override misses and before falling back to cover art.
- * Uses the same cache key/shape the admin thumb-search tool writes, so a
- * hit from either one benefits the other.
+ * Uses source-tagged D1 cache rows; legacy untagged third-party rows are
+ * ignored and refetched from Hoshika.
  *
  * Lookup order: 1) this episode's own cache row, 2) the per-anime bulk row
  * (`epthumbs_all_{malId}`) in case an admin import or an earlier
  * getAnimeEpisodeThumbnails call already resolved this episode without ever
  * writing an individual row for it -- promoting it to its own row on the
  * way out so the next single-episode read for THIS episode doesn't need to
- * fetch/parse the whole bulk blob again, 3) the scraper, as a last resort.
+ * fetch/parse the whole bulk blob again, 3) the Hoshika endpoint if no cache exists.
  *
  * A resolved thumbnail is always cached permanently, regardless of the
  * show's airing status -- a released episode's still doesn't change just
@@ -216,13 +207,6 @@ interface AnimeThumbCacheValue {
   checkedAt: number;
   source?: 'hoshika' | 'manual';
 }
-
-// Upper bound on how many NEW episode numbers get probed in a single check,
-// so a show that hasn't been visited in a long time (weeks) doesn't trigger
-// a burst of scraper calls all at once -- it just catches up a bit more on
-// each subsequent visit instead. Weekly-airing shows will basically never
-// hit this; it's a safety cap, not the expected case.
-const MAX_NEW_EPISODES_PER_CHECK = 15;
 
 /**
  * All episode thumbnails for one anime, cached as one D1 row shaped like
