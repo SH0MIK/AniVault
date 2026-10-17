@@ -91,7 +91,7 @@ export interface InfoImportResult {
  * result reflects that, so the admin UI can say so instead of implying a
  * successful (but silently incomplete) info cache.
  */
-export async function importAnimeEpisodeInfo(db: Db, malId: number, episodes: RawEpisodeInfoEntry[]): Promise<InfoImportResult> {
+export async function importAnimeEpisodeInfo(db: Db, malId: number, episodes: RawEpisodeInfoEntry[], source: 'hoshika' | 'manual' = 'manual'): Promise<InfoImportResult> {
   const list: EpisodeInfoEntry[] = episodes
     .filter((ep) => Number(ep.episode) > 0)
     .map((ep) => ({
@@ -108,6 +108,6 @@ export async function importAnimeEpisodeInfo(db: Db, malId: number, episodes: Ra
     return { malId, cached: false, count: list.length };
   }
 
-  await putCachedRaw(db, animeEpisodeInfoCacheKey(malId), JSON.stringify({ episodes: list, source: 'manual' } as CacheValue), null);
+  await putCachedRaw(db, animeEpisodeInfoCacheKey(malId), JSON.stringify({ episodes: list, source } as CacheValue), null);
   return { malId, cached: true, count: list.length };
 }
