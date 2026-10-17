@@ -67,11 +67,8 @@ export async function findEpisodeThumbnails(
 // higher and it's already the site's primary database, so no new binding
 // was needed.
 const LIVE_CACHE_TTL_SECONDS = 21600; // 6h -- how often an ongoing show gets
-// re-checked for a newly released episode. Does NOT mean "wipe everything
-// and refetch every 6h" -- see getAnimeEpisodeThumbnails below: episodes
-// already resolved are cached permanently (their stills don't change just
-// because the show is still airing), and only the *next* unseen episode
-// number gets probed once this window has passed.
+// re-checked for new episodes. Ongoing shows refresh their bulk Hoshika list
+// after this window; individual episode stills remain cached permanently.
 
 /**
  * Reads a raw cache entry (still-JSON-encoded string, same as the old KV
@@ -140,17 +137,12 @@ export async function putCachedRaw(db: Db, key: string, value: string, ttlSecond
  * way out so the next single-episode read for THIS episode doesn't need to
  * fetch/parse the whole bulk blob again, 3) the Hoshika endpoint if no cache exists.
  *
- * A resolved thumbnail is always cached permanently, regardless of the
- * show's airing status -- a released episode's still doesn't change just
- * because the show as a whole is still airing. Only a MISS (episode hasn't
- * aired yet / no source has a still for it yet) gets a TTL, and only if the
- * show isn't finished -- so a still-airing show's not-yet-released episode
- * gets retried, while a finished show's permanent miss means no source
- * ever got one for it.
+ * A resolved Hoshika thumbnail is cached permanently because released
+ * episode stills do not change. A miss is not cached here; the Hoshika episode
+ * list itself is KV-cached for six hours, after which the lookup can retry.
  *
- * @param animeStatus Pass the show's MAL/AniList status (e.g. "Finished
- *   Airing") when the caller already has it, so a miss on a finished show
- *   is cached permanently instead of retried forever. Omit if unknown.
+ * @param animeStatus Retained for call-site compatibility; bulk cache refresh
+ *   uses it to keep completed shows cached indefinitely.
  */
 export async function getEpisodeThumbnail(
   env: EpisodeThumbEnv,
@@ -221,10 +213,8 @@ interface AnimeThumbCacheValue {
  *
  * @param animeStatus Pass the show's MAL/AniList status (e.g. "Finished
  *   Airing") so a finished show stops checking entirely.
- * @param totalEpisodesKnown Pass MAL's total episode count when the caller
- *   already has it (e.g. api-episode-override.ts's `totalEps`), so probing
- *   never goes past a show's actual last episode. Optional -- without it,
- *   probing is still capped by MAX_NEW_EPISODES_PER_CHECK.
+ * @param totalEpisodesKnown Retained for call-site compatibility; Hoshika's
+ *   own episode list determines the complete number set.
  */
 export async function getAnimeEpisodeThumbnails(
   env: EpisodeThumbEnv,
