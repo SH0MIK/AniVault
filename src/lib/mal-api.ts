@@ -178,11 +178,8 @@ export class MalAPI {
     const data = await this.fetchAniListSeasonLive();
     if (!data || data.length === 0) return this.getSeasonNowFallback();
 
-    // Trending is rendered on every homepage request, so the cached payload
-    // should already contain the same TMDB poster art used by normal MAL
-    // cards. Resolve the first 12 cards once while refreshing the cache;
-    // normal page requests then only read this KV payload and never call
-    // AniList/TMDB/scraper for the Trending row.
+    // Trending is rendered from cached Hoshika metadata; no AniList, TMDB,
+    // or scraper artwork is allowed to fill a missing Hoshika image.
     await this.enrichTrendingArt(data);
 
     const result = { data };
@@ -221,9 +218,7 @@ export class MalAPI {
     const targets = data.filter((a) => a.mal_id).slice(0, 12);
     if (!targets.length) return;
 
-    // Hoshika is the preferred catalog source for poster/cover/count. Keep
-    // the scraper art as a fallback, but never let its TMDB result overwrite
-    // fields Hoshika supplied.
+    // Hoshika is the only automatic source for poster/cover/count.
     const resolved = await Promise.all(
       targets.map(async (anime) => ({
         id: anime.mal_id,
@@ -281,12 +276,7 @@ export class MalAPI {
         title: m.title?.romaji || m.title?.english || 'Unknown',
         title_english: m.title?.english || '',
         title_japanese: '',
-        images: {
-          jpg: {
-            image_url: m.coverImage?.large || '',
-            large_image_url: m.coverImage?.extraLarge || m.coverImage?.large || '',
-          },
-        },
+        images: { jpg: { image_url: '', large_image_url: '' } },
         synopsis: stripAniListHtml(m.description || ''),
         background: '',
         score: typeof m.averageScore === 'number' ? m.averageScore / 10 : null,
@@ -310,7 +300,7 @@ export class MalAPI {
         members: 0,
         broadcast: { day: null, time: null },
         duration_mins: null,
-        banner_image: m.bannerImage || undefined,
+        banner_image: undefined,
       }));
   }
 
@@ -332,7 +322,12 @@ export class MalAPI {
   // your own cover art instead of the wide banner (see home.ts).
   async getLocalAnimeImage(animeId: number): Promise<string> {
     if (!animeId) return '';
-    const row = await this.db.fetchOne<{ image_url: string }>('SELECT image_url FROM anime_images WHERE anime_id = ?', [animeId]);
+    // Keep explicit admin uploads/URLs as manual overrides, but never reuse
+    // old automatically healed images that may have come from Jikan/Kitsu.
+    const row = await this.db.fetchOne<{ image_url: string }>(
+      "SELECT image_url FROM anime_images WHERE anime_id = ? AND source IN ('upload', 'url')",
+      [animeId],
+    );
     return row ? row.image_url : '';
   }
 
@@ -640,16 +635,17 @@ export class MalAPI {
 
   private async normalise(node: any, _isList = false): Promise<NormalisedAnime> {
     const animeId = Number(node.id ?? 0);
-    // isList now gates whether art resolution is allowed to live-fetch from
-    // the scraper on a cache miss (see getScraperArt's liveFetch param).
-    // Grid/list contexts pass isList=true so a cold cache just falls back
-    // to saved/placeholder art instead of stacking a live scraper request
-    // per row on top of everything else the page needs.
-    const hoshika = animeId
-      ? await getHoshikaAnimeMetadata(animeId, node.title ?? '', this.kv, true).catch(() => null)
-      : null;
-    const mediumImage = hoshika?.poster || '';
-    const largeImage = hoshika?.poster || '';
+    // Hoshika is the only automatic catalog-art source. Explicit admin-saved
+    // images remain available as manual overrides via the image-priority setting.
+    const [art, hoshika] = await Promise.all([
+      animeId ? this.getAnimeArt(animeId, !_isList) : Promise.resolve({ poster: '', cover: '', logo: '' }),
+      animeId ? getHoshikaAnimeMetadata(animeId, node.title ?? '', this.kv, true).catch(() => null) : Promise.resolve(null),
+    ]);
+    const priority = await this.getImagePriority();
+    const pickArt = (catalog: string, saved: string) => priority === 'api' ? (catalog || saved) : (saved || catalog);
+    const mediumImage = pickArt(hoshika?.poster || '', art.poster);
+    const largeImage = mediumImage;
+
 
     const genres = (node.genres ?? []).filter(Boolean).map((g: any) => ({ mal_id: g?.id ?? 0, name: g?.name ?? '' }));
     const studios = (node.studios ?? []).filter(Boolean).map((s: any) => ({ mal_id: s?.id ?? 0, name: s?.name ?? '' }));
@@ -696,8 +692,8 @@ export class MalAPI {
       title_english: altTitles.en ?? '',
       title_japanese: altTitles.ja ?? '',
       images: { jpg: { image_url: mediumImage, large_image_url: largeImage } },
-      cover_image: hoshika?.cover || '',
-      logo_image: '',
+      cover_image: pickArt(hoshika?.cover || '', art.cover),
+      logo_image: art.logo,
       synopsis: node.synopsis ?? '',
       background: node.background ?? '',
       score: node.mean ?? null,
