@@ -105,7 +105,7 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
 @media (max-width:600px) { .heal-row { grid-template-columns:42px 1fr; } .heal-status, .heal-preview { grid-column:2; } }
 </style>
 
-<div class="admin-header"><div><h1>${icon('heal', 'icon-medium')} Heal Images</h1><p class="text-muted">Browser fetches missing anime images from Jikan, then the server saves them.</p></div></div>
+<div class="admin-header"><div><h1>${icon('heal', 'icon-medium')} Heal Images</h1><p class="text-muted">Checks Hoshika for missing anime covers. Titles with no Hoshika cover are flagged for review.</p></div></div>
 
 <div class="heal-stats">
   <div class="heal-stat"><div class="heal-stat-val">${remaining.toLocaleString('en-US')}</div><div class="heal-stat-lbl">Missing Images</div></div>
@@ -124,7 +124,7 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
 
 ${missing.length === 0 ? `
 <div class="card card-body" style="text-align:center; padding:2.5rem; color:var(--text-muted); margin-top:10px;">
-  ${icon('check', 'icon-medium')}<p style="margin-top:.5rem;">All anime images are present. Nothing to heal!</p>
+  ${icon('check', 'icon-medium')}<p style="margin-top:.5rem;">All listed anime have images recorded. Use the Hoshika cover audit on missing-image batches to flag missing Hoshika covers.</p>
 </div>` : `
 <div style="display:flex; flex-direction:column; gap:.5rem;" id="heal-log">
   ${missing.map((entry) => `
@@ -149,36 +149,61 @@ async function saveImage(animeId, animeTitle, imageUrl) {
   });
   return res.json();
 }
-function bestImage(images) {
-  return images?.jpg?.large_image_url || images?.jpg?.image_url || images?.webp?.large_image_url || images?.webp?.image_url || '';
+function normTitle(value) {
+  return String(value || '').toLowerCase().normalize('NFKD')
+    .replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\\s+/g, ' ');
 }
-async function jikan(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(\`Jikan HTTP \${res.status}\`);
-  return res.json();
+async function hoshikaJson(url) {
+  const res = await fetch(url, { headers: { Accept: 'application/json' } });
+  if (!res.ok) throw new Error(\`Hoshika HTTP \${res.status}\`);
+  const json = await res.json();
+  if (json?.ok === false) throw new Error('Hoshika returned an API error');
+  return json;
+}
+async function hoshikaCover(title) {
+  const searchUrl = new URL('https://hoshika.app/api/v1/search');
+  searchUrl.searchParams.set('q', title);
+  const search = await hoshikaJson(searchUrl.toString());
+  const records = Array.isArray(search?.anime) ? search.anime : [];
+  const wanted = normTitle(title);
+  const match = records.map(item => {
+    const variants = [item.titleEnglish, item.titleRomaji, item.titleLocalized, item.titleJapanese, item.title, item.slug].map(normTitle).filter(Boolean);
+    const score = variants.some(v => v === wanted) ? 100 : variants.some(v => v.startsWith(wanted) || wanted.startsWith(v)) ? 80 : 0;
+    return { item, score };
+  }).filter(x => x.score >= 80).sort((a, b) => b.score - a.score)[0]?.item;
+  if (!match) throw new Error('MISSING HOSHIKA COVER — no matching catalog entry; flagged for review');
+  const shortId = match.shortId ?? match.short_id;
+  if (!shortId) throw new Error('MISSING HOSHIKA COVER — catalog entry has no shortId; flagged for review');
+  let imageUrl = typeof match.coverImage === 'string' ? match.coverImage : '';
+  if (!imageUrl) {
+    const detail = await hoshikaJson(\`https://hoshika.app/api/v1/anime/\${encodeURIComponent(shortId)}\`);
+    const anime = detail?.anime ?? detail?.data?.anime ?? detail?.data ?? detail;
+    imageUrl = typeof anime?.coverImage === 'string' ? anime.coverImage : '';
+  }
+  if (!/^https?:\\/\\//i.test(imageUrl)) {
+    throw new Error('MISSING HOSHIKA COVER — no coverImage available; flagged for review');
+  }
+  return imageUrl;
 }
 async function healRow(row) {
   const animeId    = row.dataset.animeId;
   const animeTitle = row.dataset.animeTitle;
   const status  = row.querySelector('.heal-status');
   const preview = row.querySelector('.heal-preview');
-  status.textContent = 'Fetching…';
+  status.textContent = 'Checking Hoshika…';
   status.className   = 'heal-status';
   let imageUrl = '';
   try {
-    const data = await jikan(\`https://api.jikan.moe/v4/anime/\${animeId}/pictures\`);
-    imageUrl = bestImage(data?.data?.[0]);
-  } catch (_) {}
-  if (!imageUrl) {
-    status.textContent = 'Trying fallback…';
-    const data = await jikan(\`https://api.jikan.moe/v4/anime/\${animeId}\`);
-    imageUrl = bestImage(data?.data?.images);
+    imageUrl = await hoshikaCover(animeTitle);
+  } catch (err) {
+    status.textContent = err?.message || 'Missing Hoshika cover — flagged for review';
+    status.classList.add('fail');
+    throw err;
   }
-  if (!imageUrl) throw new Error('No image found');
-  status.textContent = 'Saving…';
+  status.textContent = 'Saving Hoshika cover…';
   const saved = await saveImage(animeId, animeTitle, imageUrl);
   if (!saved.success) throw new Error(saved.error || 'Save failed');
-  status.textContent = '✓ Healed';
+  status.textContent = '✓ Hoshika cover saved';
   status.classList.add('ok');
   const localUrl = saved.image_url || imageUrl;
   preview.innerHTML = \`<img src="\${localUrl.replaceAll('"', '&quot;')}" alt="">\`;
