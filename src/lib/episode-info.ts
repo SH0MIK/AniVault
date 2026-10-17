@@ -62,12 +62,9 @@ export async function getAnimeEpisodeInfo(
 }
 
 // ── Admin bulk import ────────────────────────────────────────────────────
-// Same raw JSON the admin "Episode Cache Import" page already accepts for
-// thumbnails (the scraper's own GET /api/episode?malId=X response) also
-// carries title/aired/filler/recap per episode -- so one paste can seed
-// both caches at once. See importAnimeEpisodeThumbnails in episode-thumb.ts
-// for the thumbnail half; this is the info half, called alongside it from
-// the same admin route.
+// Hoshika's episode response can seed title/aired/filler/recap metadata as
+// well as the thumbnail cache, using the same items[] records.
+
 export interface RawEpisodeInfoEntry {
   episode: number;
   title?: string | null;
