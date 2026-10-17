@@ -1009,27 +1009,6 @@ export class MalAPI {
 // the same { data: [...], pagination: { last_visible_page, has_next_page } }
 // shape Jikan returned, so every existing caller (episode-air.ts,
 // watch.ts, anime-tail.ts's server-rendered path) needs zero changes.
-function mapScraperEpisodes(raw: any): any {
-  const data = (raw?.data ?? []).map((ep: any) => ({
-    mal_id: ep.malId,
-    url: ep.url,
-    title: ep.title,
-    title_japanese: ep.titleJapanese,
-    aired: ep.aired,
-    filler: !!ep.filler,
-    recap: !!ep.recap,
-  }));
-  return {
-    data,
-    pagination: {
-      last_visible_page: raw?.pagination?.currentPage ?? 1,
-      has_next_page: !!raw?.pagination?.hasNextPage,
-    },
-  };
-}
-
-// Same idea for /api/mal/anime/{id}/characters -> Jikan's
-// { data: [{ character, role, voice_actors }] } shape.
 function mapScraperCharacters(raw: any): any {
   const data = (raw?.data ?? []).map((ch: any) => ({
     character: {
