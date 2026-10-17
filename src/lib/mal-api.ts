@@ -6,7 +6,8 @@
 import { Db } from './db';
 import { Settings } from './settings';
 import { getAnimeEpisodeInfo } from './episode-info';
-import { getHoshikaAnimeMetadata } from './hoshika-api';
+import { getHoshikaAnimeMetadata, getHoshikaAnimeEpisodes } from './hoshika-api';
+import { importAnimeEpisodeThumbnails } from './episode-thumb';
 
 const MAL_API_BASE = 'https://api.myanimelist.net/v2';
 const LIST_FIELDS = 'id,title,alternative_titles,main_picture,synopsis,mean,rank,popularity,num_episodes,status,genres,start_date,rating,media_type,nsfw,num_list_users,broadcast,average_episode_duration';
