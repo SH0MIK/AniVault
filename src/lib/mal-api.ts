@@ -975,17 +975,16 @@ export class MalAPI {
     for (const { id, art } of resolved) this.artCache.set(id, art);
   }
 
-  private async normalise(node: any, isList = false): Promise<NormalisedAnime> {
+  private async normalise(node: any, _isList = false): Promise<NormalisedAnime> {
     const animeId = Number(node.id ?? 0);
     // isList now gates whether art resolution is allowed to live-fetch from
     // the scraper on a cache miss (see getScraperArt's liveFetch param).
     // Grid/list contexts pass isList=true so a cold cache just falls back
     // to saved/placeholder art instead of stacking a live scraper request
     // per row on top of everything else the page needs.
-    const [art, hoshika] = await Promise.all([
-      animeId ? this.getAnimeArt(animeId, !isList) : Promise.resolve({ poster: '', cover: '', logo: '' }),
-      animeId ? getHoshikaAnimeMetadata(animeId, node.title ?? '', this.kv, true).catch(() => null) : Promise.resolve(null),
-    ]);
+    const hoshika = animeId
+      ? await getHoshikaAnimeMetadata(animeId, node.title ?? '', this.kv, true).catch(() => null)
+      : null;
     const mediumImage = hoshika?.poster || '';
     const largeImage = hoshika?.poster || '';
 
