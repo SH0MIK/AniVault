@@ -269,7 +269,11 @@ export async function getAnimeEpisodeThumbnails(
   if (cachedRaw) {
     try {
       const cached = JSON.parse(cachedRaw) as AnimeThumbCacheValue;
-      if ((cached.source === 'hoshika' || cached.source === 'manual') && cached.episodes) return cached.episodes;
+      if (cached.source === 'manual' && cached.episodes) return cached.episodes;
+      if (cached.source === 'hoshika' && cached.episodes) {
+        const fresh = Date.now() - (cached.checkedAt || 0) < LIVE_CACHE_TTL_SECONDS * 1000;
+        if (_animeStatus === 'Finished Airing' || fresh) return cached.episodes;
+      }
     } catch { /* refetch Hoshika on corrupt/legacy cache */ }
   }
 
@@ -284,15 +288,14 @@ export async function getAnimeEpisodeThumbnails(
     episodes: thumbs,
     checkedAt: Date.now(),
     source: 'hoshika',
-  } as AnimeThumbCacheValue), null);
+  } as AnimeThumbCacheValue), _animeStatus === 'Finished Airing' ? null : LIVE_CACHE_TTL_SECONDS);
   return thumbs;
 }
 
 // ── Admin bulk import ────────────────────────────────────────────────────
-// Backs the "Episode Cache Import" admin page: an admin pastes the raw JSON
-// the scraper's own /api/episode?malId=X endpoint returns (title, aired,
-// filler/recap flags, thumbnail, thumbnailSource per episode) and picks
-// ongoing/finished by hand. This writes straight into the same cache
+// Backs the "Episode Cache Import" admin page: an admin pastes Hoshika's
+// raw episode response (items with number/title/aired/filler/recap/thumbnail).
+// This writes straight into the same cache
 // getEpisodeThumbnail/getAnimeEpisodeThumbnails read from, so every page
 // (anime detail, watch, home, lists, embed) picks it up immediately with no
 // scraper round trip at all -- useful for backfilling a show in one shot,
