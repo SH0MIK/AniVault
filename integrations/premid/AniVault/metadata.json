@@ -1,0 +1,23 @@
+{
+  "apiVersion": 1,
+  "author": {
+    "name": "Shomik",
+    "id": "REPLACE_WITH_DISCORD_USER_ID"
+  },
+  "service": "AniVault",
+  "description": {
+    "en": "Show the anime and episode you're watching on AniVault in your Discord Rich Presence."
+  },
+  "url": "anivault.co",
+  "version": "0.1.0",
+  "logo": "https://www.anivault.co/favicon.ico",
+  "thumbnail": "https://www.anivault.co/favicon.ico",
+  "color": "#E8453C",
+  "category": "anime",
+  "tags": [
+    "anime",
+    "streaming",
+    "watching",
+    "anivault"
+  ]
+}
