@@ -77,12 +77,12 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
     .split(',').map((s) => parseInt(s, 10)).filter((n) => n > 0).slice(0, 300);
 
   const skipSql = skipIds.length ? ` AND anime_id NOT IN (${skipIds.map(() => '?').join(',')})` : '';
-  const missing = await db.fetchAll<{ anime_id: number; anime_title: string | null }>(
-    `SELECT anime_id, MIN(NULLIF(anime_title, '')) AS anime_title FROM anime_list
-     WHERE (anime_image IS NULL OR anime_image = '') ${skipSql} GROUP BY anime_id ORDER BY anime_id LIMIT ${limit}`,
+  const missing = await db.fetchAll<{ anime_id: number; anime_title: string | null; anime_image: string | null }>(
+    `SELECT anime_id, MIN(NULLIF(anime_title, '')) AS anime_title, MAX(NULLIF(anime_image, '')) AS anime_image
+     FROM anime_list WHERE 1=1 ${skipSql} GROUP BY anime_id ORDER BY anime_id LIMIT ${limit}`,
     skipIds
   );
-  const remaining = await db.count(`SELECT COUNT(DISTINCT anime_id) as cnt FROM anime_list WHERE anime_image IS NULL OR anime_image = ''`);
+  const remaining = await db.count('SELECT COUNT(DISTINCT anime_id) as cnt FROM anime_list');
 
   let html = renderAdminHeader({ siteUrl, pageTitle: 'Heal Images', adminPage: 'heal_images', isOwner, impersonating });
   html += `
@@ -105,10 +105,10 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
 @media (max-width:600px) { .heal-row { grid-template-columns:42px 1fr; } .heal-status, .heal-preview { grid-column:2; } }
 </style>
 
-<div class="admin-header"><div><h1>${icon('heal', 'icon-medium')} Heal Images</h1><p class="text-muted">Checks Hoshika for missing anime covers. Titles with no Hoshika cover are flagged for review.</p></div></div>
+<div class="admin-header"><div><h1>${icon('heal', 'icon-medium')} Heal Images</h1><p class="text-muted">Scans tracked anime against Hoshika only. Found covers are saved; missing Hoshika covers are marked in red for review.</p></div></div>
 
 <div class="heal-stats">
-  <div class="heal-stat"><div class="heal-stat-val">${remaining.toLocaleString('en-US')}</div><div class="heal-stat-lbl">Missing Images</div></div>
+  <div class="heal-stat"><div class="heal-stat-val">${remaining.toLocaleString('en-US')}</div><div class="heal-stat-lbl">Tracked Anime</div></div>
   <div class="heal-stat"><div class="heal-stat-val">${missing.length}</div><div class="heal-stat-lbl">In This Batch</div></div>
   ${skipIds.length ? `<div class="heal-stat"><div class="heal-stat-val">${skipIds.length.toLocaleString('en-US')}</div><div class="heal-stat-lbl">Skipped (Failed)</div></div>` : ''}
 </div>
@@ -124,11 +124,11 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
 
 ${missing.length === 0 ? `
 <div class="card card-body" style="text-align:center; padding:2.5rem; color:var(--text-muted); margin-top:10px;">
-  ${icon('check', 'icon-medium')}<p style="margin-top:.5rem;">All listed anime have images recorded. Use the Hoshika cover audit on missing-image batches to flag missing Hoshika covers.</p>
+  ${icon('check', 'icon-medium')}<p style="margin-top:.5rem;">No more anime in this batch. Use Auto-continue to scan further batches, or clear the skipped IDs to rescan.</p>
 </div>` : `
 <div style="display:flex; flex-direction:column; gap:.5rem;" id="heal-log">
   ${missing.map((entry) => `
-  <div class="heal-row" data-anime-id="${entry.anime_id}" data-anime-title="${h(entry.anime_title ?? '')}">
+  <div class="heal-row" data-anime-id="${entry.anime_id}" data-anime-title="${h(entry.anime_title ?? '')}" data-has-image="${entry.anime_image ? '1' : '0'}">
     <span class="heal-preview"></span>
     <div><div class="heal-anime-id">#${entry.anime_id}</div><div class="heal-anime-name">${h(entry.anime_title || 'Unknown title')}</div></div>
     <span class="heal-status">Waiting…</span>
@@ -203,15 +203,15 @@ async function healRow(row) {
   status.textContent = 'Saving Hoshika cover…';
   const saved = await saveImage(animeId, animeTitle, imageUrl);
   if (!saved.success) throw new Error(saved.error || 'Save failed');
-  status.textContent = '✓ Hoshika cover saved';
+  status.textContent = '✓ Hoshika cover found and saved';
   status.classList.add('ok');
   const localUrl = saved.image_url || imageUrl;
   preview.innerHTML = \`<img src="\${localUrl.replaceAll('"', '&quot;')}" alt="">\`;
 }
-function nextBatchUrl(failedIds) {
+function nextBatchUrl(processedIds) {
   const params  = new URLSearchParams(window.location.search);
   const skipped = new Set((params.get('skip') || '').split(',').filter(Boolean));
-  failedIds.forEach(id => skipped.add(String(id)));
+  processedIds.forEach(id => skipped.add(String(id)));
   params.set('limit', String(batchLimit));
   params.set('auto', '1');
   params.delete('mode');
@@ -223,17 +223,18 @@ document.getElementById('start-heal')?.addEventListener('click', async function 
   this.dataset.running = '1';
   this.disabled = true;
   this.textContent = 'Healing…';
-  const failedIds = [];
+  const processedIds = [];
   for (const row of rows) {
     const status = row.querySelector('.heal-status');
-    try { await healRow(row); } catch (err) { status.textContent = err.message; status.classList.add('fail'); failedIds.push(row.dataset.animeId); }
+    try { await healRow(row); } catch (err) { status.textContent = err.message; status.classList.add('fail'); }
+    processedIds.push(row.dataset.animeId);
     await sleep(900);
   }
   this.textContent = 'Batch Complete';
   if (document.getElementById('auto-continue')?.checked) {
     this.textContent = 'Loading next batch…';
     await sleep(1500);
-    window.location.href = nextBatchUrl(failedIds);
+    window.location.href = nextBatchUrl(processedIds);
   }
 });
 if (autoStart && rows.length) { setTimeout(() => document.getElementById('start-heal')?.click(), 600); }
