@@ -1,8 +1,8 @@
 // Full port of includes/api.php's MalAPI class (aliased as JikanAPI in the old
-// codebase). Talks to the official MyAnimeList v2 API for most endpoints and
-// falls back to the public Jikan API for characters/episodes/streaming, which
-// MAL v2 doesn't expose -- exactly like the PHP version. File-based caching
-// (CACHE_DIR/mal_*.json) is replaced with Workers KV.
+// codebase). Talks to the official MyAnimeList v2 API for most endpoints.
+// Hoshika is the sole source for anime poster/banner art and episode lists;
+// Jikan remains a fallback only for unrelated metadata endpoints that MAL v2
+// doesn't expose (e.g. characters and streaming). File caching is Workers KV.
 import { Db } from './db';
 import { Settings } from './settings';
 import { getHoshikaAnimeMetadata, getHoshikaAnimeEpisodes } from './hoshika-api';
