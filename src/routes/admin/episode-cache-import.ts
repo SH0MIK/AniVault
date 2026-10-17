@@ -54,7 +54,7 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
       try {
         await db.query(
           `DELETE FROM episode_thumb_cache WHERE cache_key = ? OR cache_key = ? OR cache_key LIKE ? ESCAPE '\\'`,
-          [`epthumbs_all_${malId}`, `epinfo_all_${malId}`, `epthumb\\_${malId}\\_%`]
+          [`epthumbs_all_${malId}`, `epinfo_hoshika_all_${malId}`, `epthumb\\_${malId}\\_%`]
         );
         await session.save(c, lifetime);
         return c.json({ success: true, malId });
@@ -77,7 +77,17 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
     }
 
     const malId = parseInt(body.malId ?? raw?.malId ?? '0', 10) || 0;
-    const episodes = Array.isArray(raw?.episodes) ? raw.episodes : null;
+    const episodes = Array.isArray(raw?.items)
+      ? raw.items.map((item: any) => ({
+          episode: Number(item?.number) || 0,
+          thumbnail: item?.thumbnail ?? null,
+          title: item?.title ?? null,
+          titleJapanese: null,
+          aired: item?.aired ?? null,
+          filler: !!item?.filler,
+          recap: !!item?.recap,
+        }))
+      : null;
 
     if (!malId) {
       await session.save(c, lifetime);
@@ -85,12 +95,12 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
     }
     if (!episodes) {
       await session.save(c, lifetime);
-      return c.json({ success: false, error: 'JSON needs an "episodes" array -- use the scraper\'s full /api/episode response.' });
+      return c.json({ success: false, error: 'JSON needs an "items" array from Hoshika\'s anime episodes endpoint.' });
     }
 
     try {
-      const result = await importAnimeEpisodeThumbnails(db, malId, episodes, permanent);
-      const infoResult = await importAnimeEpisodeInfo(db, malId, episodes);
+      const result = await importAnimeEpisodeThumbnails(db, malId, episodes, permanent, 'hoshika');
+      const infoResult = await importAnimeEpisodeInfo(db, malId, episodes, 'hoshika');
       await session.save(c, lifetime);
       return c.json({ success: true, ...result, infoCached: infoResult.cached, infoCount: infoResult.count });
     } catch (e: any) {
