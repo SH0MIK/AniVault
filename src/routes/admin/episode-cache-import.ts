@@ -1,13 +1,10 @@
 // Admin page for bulk-importing episode thumbnails AND metadata (title,
 // aired, filler/recap) straight into D1 -- episode_thumb_cache for
-// thumbnails (lib/episode-thumb.ts) and the same table's epinfo_all_* rows
-// for metadata (lib/episode-info.ts) -- from raw JSON, instead of waiting
-// on a live Hoshika lookup. Paste (or upload a .json file containing) the
-// exact response shape from Hoshika's /api/v1/anime/{shortId}/episodes endpoint:
-//
-//   { "malId": 1, "episodes": [ { "episode": 1, "title": "...",
-//     "aired": "...", "filler": false, "recap": false,
-//     "thumbnail": "https://…" }, … ] }
+// thumbnails (lib/episode-thumb.ts) and epinfo_hoshika_all_* rows for
+// metadata (lib/episode-info.ts). Paste Hoshika's /api/v1/anime/{shortId}/episodes
+// response, whose relevant shape is { "items": [{ "number": 1, "title": "...",
+// "aired": "...", "filler": false, "recap": false, "thumbnail": "https://…" }] }.
+// Enter the corresponding MAL ID separately in the form.
 //
 // The info half is only cached if EVERY pasted episode has both a title and
 // an aired date (same all-or-nothing rule the live fetch path uses) --
