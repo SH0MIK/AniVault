@@ -25,6 +25,70 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
     const imageUrl = String(body.image_url ?? '').trim();
     const action = String(body.action ?? '');
 
+    if (action === 'check_cover') {
+      if (!animeId || !title) {
+        await session.save(c, lifetime);
+        return c.json({ success: false, error: 'Missing anime id or title' }, 400);
+      }
+      const normalizeTitle = (value: unknown) => String(value ?? '').toLowerCase().normalize('NFKD')
+        .replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\\s+/g, ' ');
+      const markMissing = async (reason: string) => {
+        await db.query(
+          `INSERT INTO hoshika_cover_flags (anime_id, anime_title, reason, status, created_at, updated_at)
+           VALUES (?, ?, ?, 'missing', datetime('now'), datetime('now'))
+           ON CONFLICT(anime_id) DO UPDATE SET anime_title=excluded.anime_title, reason=excluded.reason,
+             status='missing', updated_at=datetime('now')`,
+          [animeId, title, reason]
+        );
+        await session.save(c, lifetime);
+      };
+      try {
+        const searchUrl = new URL('https://hoshika.app/api/v1/search');
+        searchUrl.searchParams.set('q', title);
+        const searchResponse = await fetch(searchUrl.toString(), { headers: { Accept: 'application/json' } });
+        if (!searchResponse.ok) throw new Error('Hoshika HTTP ' + searchResponse.status);
+        const search = await searchResponse.json() as any;
+        if (search?.ok === false) throw new Error('Hoshika returned an API error');
+        const records = Array.isArray(search?.anime) ? search.anime : [];
+        const wanted = normalizeTitle(title);
+        const match = records.map((item: any) => {
+          const variants = [item.titleEnglish, item.titleRomaji, item.titleLocalized, item.titleJapanese, item.title, item.slug]
+            .map(normalizeTitle).filter(Boolean);
+          const score = variants.some((value: string) => value === wanted) ? 100 :
+            variants.some((value: string) => value.startsWith(wanted) || wanted.startsWith(value)) ? 80 : 0;
+          return { item, score };
+        }).filter((entry: any) => entry.score >= 80).sort((a: any, b: any) => b.score - a.score)[0]?.item;
+        if (!match) {
+          const reason = 'MISSING HOSHIKA COVER — no matching catalog entry';
+          await markMissing(reason);
+          return c.json({ success: true, missing: true, flagged: true, reason });
+        }
+        const shortId = match.shortId ?? match.short_id;
+        if (!shortId) {
+          const reason = 'MISSING HOSHIKA COVER — catalog entry has no shortId';
+          await markMissing(reason);
+          return c.json({ success: true, missing: true, flagged: true, reason });
+        }
+        let imageUrl = typeof match.coverImage === 'string' ? match.coverImage : '';
+        if (!imageUrl) {
+          const detailResponse = await fetch('https://hoshika.app/api/v1/anime/' + encodeURIComponent(shortId), { headers: { Accept: 'application/json' } });
+          if (!detailResponse.ok) throw new Error('Hoshika detail HTTP ' + detailResponse.status);
+          const detail = await detailResponse.json() as any;
+          if (detail?.ok === false) throw new Error('Hoshika returned an API error');
+          const anime = detail?.anime ?? detail?.data?.anime ?? detail?.data ?? detail;
+          imageUrl = typeof anime?.coverImage === 'string' ? anime.coverImage : '';
+        }
+        if (!/^https?:\\/\\//i.test(imageUrl)) {
+          const reason = 'MISSING HOSHIKA COVER — no coverImage available';
+          await markMissing(reason);
+          return c.json({ success: true, missing: true, flagged: true, reason });
+        }
+        return c.json({ success: true, missing: false, image_url: imageUrl });
+      } catch (error: any) {
+        return c.json({ success: false, error: error?.message ?? 'Hoshika lookup failed' }, 502);
+      }
+    }
+
     if (action === 'flag_missing') {
       if (!animeId) {
         await session.save(c, lifetime);
@@ -205,30 +269,15 @@ async function hoshikaJson(url) {
   if (json?.ok === false) throw new Error('Hoshika returned an API error');
   return json;
 }
-async function hoshikaCover(title) {
-  const searchUrl = new URL('https://hoshika.app/api/v1/search');
-  searchUrl.searchParams.set('q', title);
-  const search = await hoshikaJson(searchUrl.toString());
-  const records = Array.isArray(search?.anime) ? search.anime : [];
-  const wanted = normTitle(title);
-  const match = records.map(item => {
-    const variants = [item.titleEnglish, item.titleRomaji, item.titleLocalized, item.titleJapanese, item.title, item.slug].map(normTitle).filter(Boolean);
-    const score = variants.some(v => v === wanted) ? 100 : variants.some(v => v.startsWith(wanted) || wanted.startsWith(v)) ? 80 : 0;
-    return { item, score };
-  }).filter(x => x.score >= 80).sort((a, b) => b.score - a.score)[0]?.item;
-  if (!match) throw new Error('MISSING HOSHIKA COVER — no matching catalog entry; flagged for review');
-  const shortId = match.shortId ?? match.short_id;
-  if (!shortId) throw new Error('MISSING HOSHIKA COVER — catalog entry has no shortId; flagged for review');
-  let imageUrl = typeof match.coverImage === 'string' ? match.coverImage : '';
-  if (!imageUrl) {
-    const detail = await hoshikaJson(\`https://hoshika.app/api/v1/anime/\${encodeURIComponent(shortId)}\`);
-    const anime = detail?.anime ?? detail?.data?.anime ?? detail?.data ?? detail;
-    imageUrl = typeof anime?.coverImage === 'string' ? anime.coverImage : '';
-  }
-  if (!/^https?:\\/\\//i.test(imageUrl)) {
-    throw new Error('MISSING HOSHIKA COVER — no coverImage available; flagged for review');
-  }
-  return imageUrl;
+async function hoshikaCover(title, animeId) {
+  const res = await fetch('heal_images.php', {
+    method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ action: 'check_cover', anime_id: animeId, anime_title: title })
+  });
+  const result = await res.json();
+  if (!res.ok || !result.success) throw new Error(result.error || ('AniVault HTTP ' + res.status));
+  if (result.missing) throw new Error((result.reason || 'MISSING HOSHIKA COVER') + (result.flagged ? ' — flag saved' : ''));
+  return result.image_url;
 }
 async function healRow(row) {
   const animeId    = row.dataset.animeId;
@@ -239,7 +288,7 @@ async function healRow(row) {
   status.className   = 'heal-status';
   let imageUrl = '';
   try {
-    imageUrl = await hoshikaCover(animeTitle);
+    imageUrl = await hoshikaCover(animeTitle, animeId);
   } catch (err) {
     const message = String(err?.message || 'Hoshika lookup failed');
     status.textContent = message;
