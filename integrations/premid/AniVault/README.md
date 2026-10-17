@@ -13,8 +13,9 @@ A standalone PreMiD Activity prototype for https://www.anivault.co/.
 
 1. Clone the official [PreMiD Activities repository](https://github.com/PreMiD/Activities) and install its dependencies using the official instructions.
 2. Copy this folder into `websites/A/AniVault/` in that checkout.
-3. Replace `REPLACE_WITH_DISCORD_USER_ID` in `metadata.json` with the activity author's Discord user ID before validation/submission.
-4. Run `npx pmd dev AniVault` from the PreMiD Activities repository.
+3. Create a Discord Developer Portal application for the activity and copy its Application ID into `REPLACE_WITH_DISCORD_APPLICATION_ID` in `presence.ts`. Keep this separate from AniVault production OAuth credentials.
+4. Replace `REPLACE_WITH_DISCORD_USER_ID` in `metadata.json` with the activity author's Discord user ID before validation/submission.
+5. Run `npx pmd dev AniVault` from the PreMiD Activities repository.
 5. Install the PreMiD browser extension, enable Activity Developer Mode, open AniVault in the same desktop browser, and check Discord Rich Presence.
 
 ## Important limitations
