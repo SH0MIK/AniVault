@@ -1272,7 +1272,7 @@ btnPip?.addEventListener('click', async e => {
 /* Keyboard Hotkeys */
 window.addEventListener('keydown', e => {
   if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
-  const k = e.key.toLowerCase();
+  const k = String(e.key || '').toLowerCase();
 
   switch(k) {
     case ' ':
