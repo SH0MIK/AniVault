@@ -1117,7 +1117,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     // same id both sides, since watch.ts bakes it into data-server
     // server-side and this script looks buttons up by it client-side.
     function providerId(source, provider) {
-        const slug = (provider || source).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
+        const slug = String(provider || source || '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+|-+$)/g, '');
         return \`\${source}__\${slug}\`;
     }
 
@@ -1351,7 +1351,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         // harmlessly otherwise.
         const lang = (def.source === 'watchanimeworld' && audio === 'dub') ? String(def.provider || '').toLowerCase() : '';
         return checkSourceProvider(def.source, def.provider, audio, lang)
-            .then(ok => ok ? (\`\${def.source}:\${audio}:\${lang}:\${def.String(provider || '').toLowerCase().trim()}\`) : null);
+            .then(ok => ok ? (\`\${def.source}:\${audio}:\${lang}:\${String(def.provider || '').toLowerCase().trim()}\`) : null);
     }
 
     // ── Resolve one whole fixed group (sub / dub / hindi) ───────────────
