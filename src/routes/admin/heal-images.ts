@@ -23,6 +23,37 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
     const animeId = parseInt(body.anime_id ?? '0', 10) || 0;
     const title = String(body.anime_title ?? '').trim();
     const imageUrl = String(body.image_url ?? '').trim();
+    const action = String(body.action ?? '');
+
+    if (action === 'flag_missing') {
+      if (!animeId) {
+        await session.save(c, lifetime);
+        return c.json({ success: false, error: 'Invalid anime id' }, 400);
+      }
+      const reason = String(body.reason ?? 'No Hoshika coverImage found').slice(0, 500);
+      await db.query(
+        `INSERT INTO hoshika_cover_flags (anime_id, anime_title, reason, status, created_at, updated_at)
+         VALUES (?, ?, ?, 'missing', datetime('now'), datetime('now'))
+         ON CONFLICT(anime_id) DO UPDATE SET anime_title=excluded.anime_title, reason=excluded.reason,
+           status='missing', updated_at=datetime('now')`,
+        [animeId, title, reason]
+      );
+      await session.save(c, lifetime);
+      return c.json({ success: true, flagged: true });
+    }
+
+    if (action === 'resolve_flag') {
+      if (!animeId) {
+        await session.save(c, lifetime);
+        return c.json({ success: false, error: 'Invalid anime id' }, 400);
+      }
+      await db.query(
+        `UPDATE hoshika_cover_flags SET status='resolved', updated_at=datetime('now') WHERE anime_id=?`,
+        [animeId]
+      );
+      await session.save(c, lifetime);
+      return c.json({ success: true, resolved: true });
+    }
 
     let valid = false;
     try { const u = new URL(imageUrl); valid = u.protocol === 'http:' || u.protocol === 'https:'; } catch { /* invalid */ }
@@ -80,8 +111,12 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
     [afterId]
   );
   const remaining = await db.count('SELECT COUNT(DISTINCT anime_id) as cnt FROM anime_list');
+  const flagged = await db.fetchAll<{ anime_id: number; anime_title: string; reason: string; updated_at: string }>(
+    `SELECT anime_id, anime_title, reason, updated_at FROM hoshika_cover_flags
+     WHERE status='missing' ORDER BY updated_at DESC LIMIT 100`
+  );
 
-  let html = renderAdminHeader({ siteUrl, pageTitle: 'Heal Images', adminPage: 'heal_images', isOwner, impersonating });
+  let html = renderAdminHeader({ siteUrl, pageTitle: 'Hoshika Cover Audit', adminPage: 'heal_images', isOwner, impersonating });
   html += `
 <style>
 .heal-row { display:grid; grid-template-columns:52px 1fr 160px 54px; gap:1rem; align-items:center; padding:.75rem 1rem; background:var(--bg-card); border:1px solid var(--border); border-radius:10px; transition:border-color .15s; }
@@ -103,6 +138,19 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
 </style>
 
 <div class="admin-header"><div><h1>${icon('heal', 'icon-medium')} Hoshika Cover Audit</h1><p class="text-muted">Scans tracked anime against Hoshika only. Missing covers are marked in red for review; no fallback source is used.</p></div></div>
+
+<div class="card card-body mb-4">
+  <h2 class="mb-2">Flagged Missing Hoshika Covers (${flagged.length})</h2>
+  <p class="text-muted" style="font-size:.84rem;">These flags stay here until you mark them resolved.</p>
+  ${flagged.length ? flagged.map((flag) => `
+    <div class="flex-between" style="gap:1rem;padding:.65rem 0;border-bottom:1px solid var(--border);">
+      <div style="min-width:0;flex:1;">
+        <strong>${h(flag.anime_title || 'Unknown title')}</strong>
+        <div class="text-muted" style="font-size:.78rem;">#${flag.anime_id} · ${h(flag.reason)}</div>
+      </div>
+      <button class="btn btn-ghost btn-sm resolve-hoshika-flag" data-anime-id="${flag.anime_id}">Mark resolved</button>
+    </div>`).join('') : '<p class="text-muted" style="font-size:.85rem;">No missing Hoshika covers have been flagged.</p>'}
+</div>
 
 <div class="heal-stats">
   <div class="heal-stat"><div class="heal-stat-val">${remaining.toLocaleString('en-US')}</div><div class="heal-stat-lbl">Tracked Anime</div></div>
@@ -193,9 +241,20 @@ async function healRow(row) {
   try {
     imageUrl = await hoshikaCover(animeTitle);
   } catch (err) {
-    status.textContent = err?.message || 'Missing Hoshika cover — flagged for review';
+    const message = String(err?.message || 'Hoshika lookup failed');
+    status.textContent = message;
     status.classList.add('fail');
-    throw err;
+    if (message.includes('MISSING HOSHIKA COVER')) {
+      try {
+        const response = await fetch('heal_images.php', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'flag_missing', anime_id: animeId, anime_title: animeTitle, reason: message })
+        });
+        const result = await response.json();
+        if (result.success) status.textContent = message + ' — flag saved';
+      } catch (_) { /* keep the visible warning if flag storage is unavailable */ }
+    }
+    return;
   }
   status.textContent = '✓ Hoshika cover found';
   status.classList.add('ok');
@@ -211,6 +270,20 @@ function nextBatchUrl(processedIds) {
   params.delete('mode');
   return \`\${window.location.pathname}?\${params.toString()}\`;
 }
+document.querySelectorAll('.resolve-hoshika-flag').forEach(button => {
+  button.addEventListener('click', async function () {
+    const animeId = this.dataset.animeId;
+    this.disabled = true;
+    const response = await fetch('heal_images.php', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'resolve_flag', anime_id: animeId })
+    });
+    const result = await response.json();
+    if (result.success) this.closest('.flex-between')?.remove();
+    else { this.disabled = false; alert(result.error || 'Could not resolve flag'); }
+  });
+});
+
 document.getElementById('start-heal')?.addEventListener('click', async function () {
   if (this.dataset.running === '1') return;
   this.dataset.running = '1';
