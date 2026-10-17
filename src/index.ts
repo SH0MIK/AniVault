@@ -83,6 +83,7 @@ export interface Env {
   DISCORD_LOG_CHANNEL_ID?: string;
   BOT_SECRET?: string;
   MAL_CLIENT_ID?: string;
+  HOSHIKA_ACCESS_TOKEN?: string;
   MAL_CLIENT_SECRET?: string;
   MAL_REDIRECT_URI?: string;
   ANILIST_CLIENT_ID?: string;

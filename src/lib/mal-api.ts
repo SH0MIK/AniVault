@@ -6,6 +6,7 @@
 import { Db } from './db';
 import { Settings } from './settings';
 import { getAnimeEpisodeInfo } from './episode-info';
+import { getHoshikaAnimeMetadata } from './hoshika-api';
 
 const MAL_API_BASE = 'https://api.myanimelist.net/v2';
 const LIST_FIELDS = 'id,title,alternative_titles,main_picture,synopsis,mean,rank,popularity,num_episodes,status,genres,start_date,rating,media_type,nsfw,num_list_users,broadcast,average_episode_duration';
@@ -1137,6 +1138,20 @@ export class MalAPI {
       }
       if (fresh.cover) anime.cover_image = fresh.cover;
       if (fresh.logo) anime.logo_image = fresh.logo;
+    }
+
+    // Hoshika is an optional source for exactly two fields: the anime cover
+    // and episode count. The existing MAL/TMDB/scraper path remains the
+    // fallback, and episode thumbnail fetching remains on episode-thumb.ts
+    // because Hoshika does not document an episode-thumbnail endpoint.
+    if (id && this.env.HOSHIKA_ACCESS_TOKEN) {
+      const hoshika = await getHoshikaAnimeMetadata(id, anime.title, this.env.HOSHIKA_ACCESS_TOKEN, this.kv);
+      if (hoshika?.cover) {
+        anime.images = { jpg: { image_url: hoshika.cover, large_image_url: hoshika.cover } };
+      }
+      if (hoshika?.episodes !== null && hoshika?.episodes !== undefined) {
+        anime.episodes = hoshika.episodes;
+      }
     }
 
     return { data: anime };
