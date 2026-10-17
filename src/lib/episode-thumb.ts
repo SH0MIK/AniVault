@@ -4,9 +4,8 @@
 import type { Db } from './db';
 import { getHoshikaAnimeEpisodes } from './hoshika-api';
 
-/** Cache key shared between the admin thumb-search tool and the live
- * site-facing lookups below. Was a KV key; now a D1 primary key -- kept the
- * same string shape so nothing else needs to change. */
+/** Per-episode D1 cache key. Legacy cache rows without a source marker are
+ * ignored so old third-party thumbnails cannot become automatic fallbacks. */
 export function episodeThumbCacheKey(malId: number, epNum: number): string {
   return `epthumb_${malId}_${epNum}`;
 }
@@ -58,12 +57,9 @@ export async function findEpisodeThumbnails(
 }
 
 // ── Site-facing helpers (with D1 caching) ───────────────────────────────────
-// The functions above return a full log and are meant for the admin tool.
-// Everything below is what the live spots (og:image, watch sidebar,
-// Continue Watching, Watch History, episode grid, embed.php, and the admin
-// thumb-search tool's own cache) call: same scraper endpoint, but cached in
-// D1 so a scraper request only happens once per episode (or once per anime
-// for the bulk version) instead of on every page view.
+// The helpers below serve the watch page, episode grid, Open Graph preview,
+// and continue-watching UI. They cache Hoshika results in D1 so the public
+// endpoint is not called repeatedly for the same episode.
 //
 // This used to be KV. Moved to D1 (a table, `episode_thumb_cache`, see
 // migrations/episode_thumb_cache.sql) because KV's free-tier daily write
@@ -234,19 +230,10 @@ const MAX_NEW_EPISODES_PER_CHECK = 15;
  * getEpisodeThumbnail-per-episode wherever a page can show many episodes at
  * once (episode grid, watch page sidebar).
  *
- * First-ever lookup for a show does one bulk scraper call (GET
- * /api/episode?malId=X, no &ep=) to seed everything at once. After that:
- * - Finished shows: just return the cached episodes. Nothing new will ever
- *   air, so there's nothing left to check, ever.
- * - Ongoing shows, within the 6h window since the last check: return the
- *   cached episodes as-is. No scraper call at all.
- * - Ongoing shows, past the 6h window: do NOT refetch the whole show.
- *   Already-cached episodes are left untouched (their stills don't change).
- *   Only probe forward from the highest episode number already cached,
- *   one at a time via the single-episode endpoint (GET
- *   /api/episode?malId=X&ep=N), stopping at the first miss (that episode
- *   isn't out yet) or after MAX_NEW_EPISODES_PER_CHECK, whichever comes
- *   first. Each hit gets written as its own permanent per-episode row too.
+ * The first lookup fetches Hoshika's episode list in one request and caches
+ * its thumbnails together. Finished shows can keep that list indefinitely;
+ * ongoing shows refresh the bulk list every six hours to discover new episodes.
+ * Individual released episode stills are cached separately.
  *
  * @param animeStatus Pass the show's MAL/AniList status (e.g. "Finished
  *   Airing") so a finished show stops checking entirely.
@@ -295,11 +282,7 @@ export async function getAnimeEpisodeThumbnails(
 // ── Admin bulk import ────────────────────────────────────────────────────
 // Backs the "Episode Cache Import" admin page: an admin pastes Hoshika's
 // raw episode response (items with number/title/aired/filler/recap/thumbnail).
-// This writes straight into the same cache
-// getEpisodeThumbnail/getAnimeEpisodeThumbnails read from, so every page
-// (anime detail, watch, home, lists, embed) picks it up immediately with no
-// scraper round trip at all -- useful for backfilling a show in one shot,
-// or for shows the scraper's auto-resolution keeps getting wrong.
+// This writes into the same Hoshika-only cache read by the live helpers.
 export interface RawEpisodeThumbEntry {
   episode: number;
   thumbnail?: string | null;
@@ -315,9 +298,8 @@ export interface BulkImportResult {
 /**
  * Writes the bulk cache row (`epthumbs_all_{malId}`, read by the episode
  * grid / watch sidebar / home / lists) from a parsed episode list. Episodes
- * with no thumbnail are skipped (nothing to cache), so a later live scraper
- * lookup can still fill them in rather than the import baking in a null
- * forever.
+ * with no thumbnail are skipped (nothing to cache), so the UI can show the
+ * still as missing instead of storing a fabricated or third-party fallback.
  *
  * Deliberately does NOT also write an individual `epthumb_{malId}_{epNum}`
  * row per episode here. Earlier versions did (either one-at-a-time, or
@@ -327,15 +309,12 @@ export interface BulkImportResult {
  * them toward the limit, so the whole import died mid-request). Individual
  * rows are instead promoted lazily, one at a time, by getEpisodeThumbnail
  * the first time each specific episode is actually looked up -- it checks
- * this bulk row as a fallback before ever hitting the scraper. So a single
- * import here is always exactly ONE D1 write, regardless of episode count.
+ * this Hoshika bulk row first. A single import is exactly ONE D1 write,
+ * regardless of episode count.
  *
- * The bulk row is always written permanently -- an imported thumbnail is a
- * resolved thumbnail either way, same as a live lookup hit. `permanent`
- * only affects `checkedAt`: an ongoing show gets `checkedAt = now`, so
- * getAnimeEpisodeThumbnails treats this import as a fresh check and won't
- * probe for a new episode again for another 6h. A finished show is marked
- * as never needing to check again at all.
+ * The bulk row is written with a source marker. `permanent` is kept for
+ * API compatibility with the admin UI; live Hoshika lookups use the show's
+ * status to decide whether the cache should expire.
  */
 export async function importAnimeEpisodeThumbnails(
   db: Db,
