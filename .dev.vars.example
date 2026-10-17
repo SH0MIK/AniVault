@@ -4,5 +4,3 @@
 
 SCRAPER_API_BASE=https://your-scraper-service.example.com
 
-# Optional Hoshika OAuth access token (24-hour access tokens; refresh as needed)
-HOSHIKA_ACCESS_TOKEN=
