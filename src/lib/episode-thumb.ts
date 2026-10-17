@@ -1,28 +1,8 @@
-// Shared episode-thumbnail lookup used by the admin thumb-search tool
-// (api/thumb_search.php, see routes/api-thumb-search.ts).
-//
-// Previously this ran its own 5-source chain directly from the Worker
-// (Kitsu -> TMDB -> AniList streamingEpisodes -> Jikan -> AniSearch scrape).
-// That's been replaced with a single call to our own scraper API's
-// /api/episode endpoint (SCRAPER_API_BASE) -- the scraper already does that
-// same multi-source resolution server-side and returns the winning
-// thumbnail plus its own resolution log, so the Worker no longer needs to
-// talk to any third-party API for this at all.
+// Episode-thumbnail lookup and cache helpers. Hoshika is the only automatic
+// source for episode stills; missing Hoshika thumbnails remain missing instead
+// of silently falling back to Kitsu, TMDB, AniList, Jikan, or a scraper.
 import type { Db } from './db';
-
-export async function httpGetText(url: string, headers: Record<string, string> = {}, timeoutMs = 10000): Promise<string | null> {
-  try {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(url, {
-      headers: { Accept: 'application/json', ...headers },
-      signal: controller.signal,
-    });
-    clearTimeout(t);
-    if (!res.ok) return null;
-    return await res.text();
-  } catch { return null; }
-}
+import { getHoshikaAnimeEpisodes } from './hoshika-api';
 
 /** Cache key shared between the admin thumb-search tool and the live
  * site-facing lookups below. Was a KV key; now a D1 primary key -- kept the
@@ -32,75 +12,48 @@ export function episodeThumbCacheKey(malId: number, epNum: number): string {
 }
 
 export interface EpisodeThumbEnv {
-  SCRAPER_API_BASE?: string;
+  API_CACHE?: KVNamespace;
 }
 
 export interface EpisodeThumbResult {
   thumbs: string[];
   log: string[];
-  scraperConfigured: boolean;
-}
-
-// Same "strip trailing /api" normalisation used by routes/api-scraper.ts and
-// routes/watch.ts, so SCRAPER_API_BASE can be set either as "https://host"
-// or "https://host/api". Exported so the site-facing spots below (and any
-// other caller) don't need to re-implement this.
-export function getScraperBase(env: EpisodeThumbEnv): string | null {
-  const base = env.SCRAPER_API_BASE;
-  if (!base) return null;
-  return base.replace(/\/+$/, '').replace(/\/api$/i, '');
+  hoshikaConfigured: boolean;
 }
 
 /**
- * Looks up an episode-specific thumbnail via our own scraper API
- * (GET /api/episode?malId=&ep=), which is the single source of truth now.
- *
- * @param isList Kept for API-shape compatibility with callers (mode=list
- *   used to mean "keep querying every source so all candidates can be shown
- *   side by side"). With one source there's only ever one candidate, so
- *   this no longer changes behavior -- it's a no-op parameter.
+ * Look up a single episode still from Hoshika's public catalog. If the title
+ * does not match or the episode has no thumbnail, return no candidates.
  */
 export async function findEpisodeThumbnails(
   env: EpisodeThumbEnv,
   epNum: number,
   malId: number,
-  isList = false
+  _isList = false,
+  animeTitle = '',
 ): Promise<EpisodeThumbResult> {
   const log: string[] = [];
-  const base = getScraperBase(env);
-  if (!base) {
-    log.push('Scraper API: not configured (SCRAPER_API_BASE not set)');
-    return { thumbs: [], log, scraperConfigured: false };
-  }
-  if (!malId || !epNum) {
-    log.push('Scraper API: missing malId or ep');
-    return { thumbs: [], log, scraperConfigured: true };
-  }
-
-  const body = await httpGetText(`${base}/api/episode?malId=${malId}&ep=${epNum}`);
-  if (!body) {
-    log.push('Scraper API: HTTP failed');
-    return { thumbs: [], log, scraperConfigured: true };
+  if (!malId || !epNum || !animeTitle) {
+    log.push('Hoshika: missing anime title, MAL ID, or episode number');
+    return { thumbs: [], log, hoshikaConfigured: false };
   }
 
   try {
-    const json: any = JSON.parse(body);
-    // Bubble up the scraper's own resolution log (e.g. "Kitsu ID lookup:
-    // cache hit", "Thumbnail: not found on Kitsu, trying TMDB") so the
-    // admin debug view still shows exactly where the thumbnail came from.
-    if (Array.isArray(json.log)) {
-      for (const line of json.log) log.push(`Scraper: ${line}`);
+    const episodes = await getHoshikaAnimeEpisodes(animeTitle, env.API_CACHE);
+    if (!episodes) {
+      log.push(`Hoshika: no matching anime or episode list for "${animeTitle}"`);
+      return { thumbs: [], log, hoshikaConfigured: true };
     }
-    const thumb: string | null = json.data?.thumbnail ?? null;
-    if (thumb) {
-      log.push(`Scraper API ep ${epNum}: found ${thumb} (source: ${json.data?.thumbnailSource ?? 'unknown'})`);
-      return { thumbs: [thumb], log, scraperConfigured: true };
+    const episode = episodes.find((item) => item.number === epNum);
+    if (!episode?.thumbnail) {
+      log.push(`Hoshika: episode ${epNum} has no thumbnail; no fallback used`);
+      return { thumbs: [], log, hoshikaConfigured: true };
     }
-    log.push(`Scraper API ep ${epNum}: no thumbnail`);
-    return { thumbs: [], log, scraperConfigured: true };
-  } catch {
-    log.push('Scraper API: parse failed');
-    return { thumbs: [], log, scraperConfigured: true };
+    log.push(`Hoshika episode ${epNum}: found ${episode.thumbnail}`);
+    return { thumbs: [episode.thumbnail], log, hoshikaConfigured: true };
+  } catch (error) {
+    log.push(`Hoshika lookup failed: ${String(error)}`);
+    return { thumbs: [], log, hoshikaConfigured: true };
   }
 }
 
@@ -217,42 +170,36 @@ export async function getEpisodeThumbnail(
   db: Db,
   malId: number,
   epNum: number,
-  animeStatus?: string | null
+  _animeStatus?: string | null,
+  animeTitle = '',
 ): Promise<string | null> {
-  if (!malId || !epNum) return null;
+  if (!malId || !epNum || !animeTitle) return null;
   const cacheKey = episodeThumbCacheKey(malId, epNum);
   const cachedRaw = await getCachedRaw(db, cacheKey);
   if (cachedRaw) {
     try {
-      const cached = JSON.parse(cachedRaw) as { thumb?: string | null };
-      return cached.thumb ?? null;
-    } catch { /* fall through and re-fetch on a corrupt cache row */ }
+      const cached = JSON.parse(cachedRaw) as { thumb?: string | null; source?: string };
+      if (cached.source === 'hoshika' || cached.source === 'manual') return cached.thumb ?? null;
+    } catch { /* refetch Hoshika on corrupt/legacy cache */ }
   }
 
-  // Not cached individually -- check the per-anime bulk row before ever
-  // touching the scraper. A large admin import (see importAnimeEpisodeThumbnails)
-  // or a prior getAnimeEpisodeThumbnails call may already have this
-  // episode's thumbnail sitting in there without an individual row existing
-  // for it yet (writing one row per episode for a 1000+ episode show in a
-  // single request blows Workers' per-invocation subrequest limit -- see
-  // importAnimeEpisodeThumbnails for the full story). Promotion here spreads
-  // those individual writes out one-at-a-time across normal page views instead.
   const bulkRaw = await getCachedRaw(db, animeEpisodeThumbsCacheKey(malId));
   if (bulkRaw) {
     try {
       const bulk = JSON.parse(bulkRaw) as AnimeThumbCacheValue;
-      const thumb = bulk.episodes?.[epNum];
+      const thumb = (bulk.source === 'hoshika' || bulk.source === 'manual') ? bulk.episodes?.[epNum] : '';
       if (thumb) {
-        await putCachedRaw(db, cacheKey, JSON.stringify({ success: true, thumb }), null);
+        await putCachedRaw(db, cacheKey, JSON.stringify({ success: true, thumb, source: bulk.source }), null);
         return thumb;
       }
-    } catch { /* corrupt bulk row -- fall through to the scraper */ }
+    } catch { /* ignore corrupt or legacy non-Hoshika cache */ }
   }
 
-  const { thumbs } = await findEpisodeThumbnails(env, epNum, malId);
+  const { thumbs } = await findEpisodeThumbnails(env, epNum, malId, false, animeTitle);
   const thumb = thumbs[0] ?? null;
-  const ttl = thumb ? null : (isPermanentStatus(animeStatus) ? null : LIVE_CACHE_TTL_SECONDS);
-  await putCachedRaw(db, cacheKey, JSON.stringify({ success: true, thumb }), ttl);
+  if (thumb) {
+    await putCachedRaw(db, cacheKey, JSON.stringify({ success: true, thumb, source: 'hoshika' }), null);
+  }
   return thumb;
 }
 
@@ -271,6 +218,7 @@ export function animeEpisodeThumbsCacheKey(malId: number): string {
 interface AnimeThumbCacheValue {
   episodes: Record<number, string>;
   checkedAt: number;
+  source?: 'hoshika' | 'manual';
 }
 
 // Upper bound on how many NEW episode numbers get probed in a single check,
@@ -311,72 +259,33 @@ export async function getAnimeEpisodeThumbnails(
   env: EpisodeThumbEnv,
   db: Db,
   malId: number,
-  animeStatus?: string | null,
-  totalEpisodesKnown?: number | null
+  _animeStatus?: string | null,
+  _totalEpisodesKnown?: number | null,
+  animeTitle = '',
 ): Promise<Record<number, string>> {
-  if (!malId) return {};
+  if (!malId || !animeTitle) return {};
   const cacheKey = animeEpisodeThumbsCacheKey(malId);
   const cachedRaw = await getCachedRaw(db, cacheKey);
-  const permanent = isPermanentStatus(animeStatus);
-  const now = Date.now();
-
-  let cached: AnimeThumbCacheValue | null = null;
   if (cachedRaw) {
-    try { cached = JSON.parse(cachedRaw) as AnimeThumbCacheValue; } catch { cached = null; }
+    try {
+      const cached = JSON.parse(cachedRaw) as AnimeThumbCacheValue;
+      if ((cached.source === 'hoshika' || cached.source === 'manual') && cached.episodes) return cached.episodes;
+    } catch { /* refetch Hoshika on corrupt/legacy cache */ }
   }
 
-  if (cached) {
-    if (permanent) return cached.episodes; // finished -- nothing new will ever air, never check again
+  const episodes = await getHoshikaAnimeEpisodes(animeTitle, env.API_CACHE);
+  if (!episodes?.length) return {};
 
-    const due = now - cached.checkedAt >= LIVE_CACHE_TTL_SECONDS * 1000;
-    if (!due) return cached.episodes; // still within the window -- no scraper call
-
-    // Past the window: probe forward from the highest known episode only.
-    // Already-cached episodes below this are never touched or re-requested.
-    const known = Object.keys(cached.episodes).map(Number);
-    const highest = known.length > 0 ? Math.max(...known) : 0;
-    const ceiling = totalEpisodesKnown && totalEpisodesKnown > 0
-      ? Math.min(totalEpisodesKnown, highest + MAX_NEW_EPISODES_PER_CHECK)
-      : highest + MAX_NEW_EPISODES_PER_CHECK;
-
-    for (let ep = highest + 1; ep <= ceiling; ep++) {
-      const { thumbs } = await findEpisodeThumbnails(env, ep, malId);
-      const thumb = thumbs[0] ?? null;
-      if (!thumb) break; // that episode isn't out yet (or nothing has a still for it yet) -- stop, try again next check
-      cached.episodes[ep] = thumb;
-      await putCachedRaw(db, episodeThumbCacheKey(malId, ep), JSON.stringify({ success: true, thumb }), null); // permanent
-    }
-
-    cached.checkedAt = now;
-    await putCachedRaw(db, cacheKey, JSON.stringify(cached), null); // row itself is always permanent -- freshness lives in checkedAt
-    return cached.episodes;
+  const thumbs: Record<number, string> = {};
+  for (const episode of episodes) {
+    if (episode.number > 0 && episode.thumbnail) thumbs[episode.number] = episode.thumbnail;
   }
-
-  // No cache yet at all -- first-ever lookup for this anime, one full bulk fetch to seed everything.
-  const result: Record<number, string> = {};
-  const base = getScraperBase(env);
-  if (base) {
-    const body = await httpGetText(`${base}/api/episode?malId=${malId}`);
-    if (body) {
-      try {
-        const json: any = JSON.parse(body);
-        for (const ep of json.episodes ?? []) {
-          const n = Number(ep?.episode ?? 0);
-          if (n && ep?.thumbnail) result[n] = ep.thumbnail;
-        }
-      } catch { /* return whatever we parsed before the error, if anything */ }
-    }
-  }
-
-  await putCachedRaw(db, cacheKey, JSON.stringify({ episodes: result, checkedAt: now } as AnimeThumbCacheValue), null);
-  // Individual per-episode rows are NOT seeded here -- for a long-running
-  // show (Naruto Shippuden, One Piece) that would mean hundreds/thousands
-  // of D1 writes in this one request, which blows Workers' per-invocation
-  // subrequest limit outright (see importAnimeEpisodeThumbnails for the
-  // full story -- this hit that exact wall). getEpisodeThumbnail promotes
-  // an episode from this bulk row to its own permanent row lazily, one at a
-  // time, the first time that specific episode is actually looked up.
-  return result;
+  await putCachedRaw(db, cacheKey, JSON.stringify({
+    episodes: thumbs,
+    checkedAt: Date.now(),
+    source: 'hoshika',
+  } as AnimeThumbCacheValue), null);
+  return thumbs;
 }
 
 // ── Admin bulk import ────────────────────────────────────────────────────
@@ -429,7 +338,8 @@ export async function importAnimeEpisodeThumbnails(
   db: Db,
   malId: number,
   episodes: RawEpisodeThumbEntry[],
-  permanent: boolean
+  permanent: boolean,
+  source: 'hoshika' | 'manual' = 'manual'
 ): Promise<BulkImportResult> {
   const bulk: Record<number, string> = {};
   let imported = 0;
@@ -443,7 +353,7 @@ export async function importAnimeEpisodeThumbnails(
     imported++;
   }
 
-  const value: AnimeThumbCacheValue = { episodes: bulk, checkedAt: Date.now() };
+  const value: AnimeThumbCacheValue = { episodes: bulk, checkedAt: Date.now(), source };
   await putCachedRaw(db, animeEpisodeThumbsCacheKey(malId), JSON.stringify(value), null);
   return { malId, imported, skipped, permanent };
 }
