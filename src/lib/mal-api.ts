@@ -983,9 +983,12 @@ export class MalAPI {
     // Grid/list contexts pass isList=true so a cold cache just falls back
     // to saved/placeholder art instead of stacking a live scraper request
     // per row on top of everything else the page needs.
-    const [art, hoshika] = await Promise.all([\n      animeId ? this.getAnimeArt(animeId, !isList) : Promise.resolve({ poster: '', cover: '', logo: '' }),\n      animeId ? getHoshikaAnimeMetadata(animeId, node.title ?? '', this.kv, !isList).catch(() => null) : Promise.resolve(null),\n    ]);
-    const mediumImage = art.poster;
-    const largeImage = art.poster;
+    const [art, hoshika] = await Promise.all([
+      animeId ? this.getAnimeArt(animeId, !isList) : Promise.resolve({ poster: '', cover: '', logo: '' }),
+      animeId ? getHoshikaAnimeMetadata(animeId, node.title ?? '', this.kv, !isList).catch(() => null) : Promise.resolve(null),
+    ]);
+    const mediumImage = hoshika?.poster || art.poster;
+    const largeImage = hoshika?.poster || art.poster;
 
     const genres = (node.genres ?? []).filter(Boolean).map((g: any) => ({ mal_id: g?.id ?? 0, name: g?.name ?? '' }));
     const studios = (node.studios ?? []).filter(Boolean).map((s: any) => ({ mal_id: s?.id ?? 0, name: s?.name ?? '' }));
