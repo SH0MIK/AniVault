@@ -32,10 +32,15 @@ episodeOverrideRoutes.on(['GET', 'POST'], '/api/episode_override.php', async (c)
       const animeData = await mal.getAnime(animeId);
       const totalEps = animeData.data?.episodes ?? 0;
 
-      // Fill in episodes that don't have an admin-saved override from
-      // Hoshika's public episode list. Missing Hoshika stills stay missing.
+      // Fill in episodes that don't have an admin-saved override with a
+      // live lookup against our own scraper API (one HTTP call for the
+      // whole anime, D1-cached -- see getAnimeEpisodeThumbnails). This is
+      // what both the watch page sidebar and the episode grid on anime
+      // detail pages call, so fixing it here covers both. Passing the
+      // show's status lets a Finished Airing show get cached permanently
+      // instead of re-fetched every 6h.
       const overriddenEps = new Set(rows.map((r) => Number(r.episode_num)));
-      const scraped = await getAnimeEpisodeThumbnails(c.env, db, animeId, animeData.data?.status, totalEps, animeData.data?.title ?? '');
+      const scraped = await getAnimeEpisodeThumbnails(c.env, db, animeId, animeData.data?.status, totalEps);
       const combined = [...rows];
       for (const [epNumStr, image_url] of Object.entries(scraped)) {
         const epNum = Number(epNumStr);
@@ -54,12 +59,18 @@ episodeOverrideRoutes.on(['GET', 'POST'], '/api/episode_override.php', async (c)
     let watchLinks: any[] = [];
     if (row?.watch_links) { try { watchLinks = JSON.parse(row.watch_links); } catch { /* ignore */ } }
 
-    // An admin override wins; otherwise use only Hoshika's episode still.
+    // Same fallback as the ?all=1 branch above, just for one episode: an
+    // admin override wins, otherwise fall back to our own scraper's D1
+    // cache (getEpisodeThumbnail already checks the per-episode row, then
+    // the per-anime bulk row, before ever hitting the scraper live). This
+    // used to be missing entirely here, which is why the episode modal on
+    // the anime detail page had its own separate direct-to-AniList call --
+    // that's no longer needed now that this endpoint resolves it too.
     let thumbnail: string | null = row?.image_url ?? null;
     if (!thumbnail) {
       const mal = new MalAPI(c.env, c.env.API_CACHE, db);
       const animeData = await mal.getAnime(animeId).catch(() => null);
-      thumbnail = await getEpisodeThumbnail(c.env, db, animeId, epNum, animeData?.data?.status, animeData?.data?.title ?? '');
+      thumbnail = await getEpisodeThumbnail(c.env, db, animeId, epNum, animeData?.data?.status);
     }
 
     await session.save(c, lifetime);

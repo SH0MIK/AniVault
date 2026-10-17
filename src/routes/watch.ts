@@ -127,12 +127,16 @@ async function getAnilistIdFromMal(db: Db, malId: number, env: { SCRAPER_API_BAS
 
 /** Episode-specific thumbnail for the watch page's og:image, so link previews
  * (Discord, Twitter, etc.) show the actual episode instead of the anime's
- * generic cover. An admin-saved override wins first. Otherwise, the still is
- * looked up from Hoshika's public episode endpoint; if Hoshika has no still,
- * the Open Graph image falls back to the anime's Hoshika cover art. */
+ * generic cover. Previously this ran a multi-source auto-fetch chain (Kitsu
+ * -> TMDB -> AniList -> Jikan -> AniSearch) directly against those APIs.
+ * Priority now: an admin-saved override wins (episode_overrides.image_url,
+ * set via the Episode Thumbnails admin panel) -- that lets an admin correct
+ * a bad auto-fetched thumbnail. Otherwise, fetch it live from our own
+ * scraper API (cached in D1, see getEpisodeThumbnail). Only falls back to
+ * the anime's cover art if neither of those has anything. */
 async function getEpisodeOgImage(
-  db: Db, env: { API_CACHE?: KVNamespace },
-  malId: number, epNum: number, fallback: string, animeStatus?: string | null, animeTitle = ''
+  db: Db, env: { SCRAPER_API_BASE?: string },
+  malId: number, epNum: number, fallback: string, animeStatus?: string | null
 ): Promise<string> {
   try {
     const row = await db.fetchOne<{ image_url: string | null }>(
@@ -142,7 +146,7 @@ async function getEpisodeOgImage(
     if (row?.image_url) return row.image_url;
   } catch { /* fall through to scraper/fallback */ }
 
-  const scraped = await getEpisodeThumbnail(env, db, malId, epNum, animeStatus, animeTitle);
+  const scraped = await getEpisodeThumbnail(env, db, malId, epNum, animeStatus);
   return scraped ?? fallback;
 }
 
@@ -178,7 +182,7 @@ watchRoutes.get('/watch', async (c) => {
     const cover = anime.images?.jpg?.large_image_url ?? '';
     const bannerInfo = await mal.getLocalAnimeBannerInfo(animeId).catch(() => null);
     const coverFallback = bannerInfo?.image_url || cover;
-    const image = await getEpisodeOgImage(db, c.env, animeId, epNum, coverFallback, anime.status, title);
+    const image = await getEpisodeOgImage(db, c.env, animeId, epNum, coverFallback, anime.status);
     const __banner = await getBannerData(db);
     const html = renderHeader({
       ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: `Ep ${epNum} — ${title}`, currentPage: 'watch',
@@ -351,7 +355,7 @@ watchRoutes.get('/watch', async (c) => {
     : null;
 
   const bannerInfo = await mal.getLocalAnimeBannerInfo(animeId).catch(() => null);
-  const ogImage = await getEpisodeOgImage(db, c.env, animeId, epNum, bannerInfo?.image_url || image, anime.status, title);
+  const ogImage = await getEpisodeOgImage(db, c.env, animeId, epNum, bannerInfo?.image_url || image, anime.status);
 
   const __banner = await getBannerData(db);
   let html = renderHeader({

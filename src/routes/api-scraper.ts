@@ -523,20 +523,22 @@ scraperRoutes.get('/api/embed.php', async (c) => {
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   if (!animeId || !epNum) return c.text('Not found', 404);
 
-  const db = new Db(c.env.DB);
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-  const animeRes = await mal.getAnime(animeId);
-  const anime = animeRes.data;
-  const title = anime?.title ?? 'Anime';
-  const image = anime?.images?.jpg?.image_url ?? '';
+  const animeRes = await fetchJson(`https://api.jikan.moe/v4/anime/${animeId}`, 5000);
+  const title = animeRes.data?.data?.title ?? 'Anime';
+  const image = animeRes.data?.data?.images?.jpg?.image_url ?? '';
 
-  const episodeRes = await mal.getAnimeEpisodes(animeId);
-  const epTitle = (episodeRes.data ?? []).find((ep: any) => Number(ep.mal_id) === epNum)?.title || `Episode ${epNum}`;
+  const epRes = await fetchJson(`https://api.jikan.moe/v4/anime/${animeId}/episodes`, 5000);
+  let epTitle = `Episode ${epNum}`;
+  for (const ep of epRes.data?.data ?? []) {
+    if (Number(ep.mal_id ?? 0) === epNum && ep.title && ep.title !== 'TBA') { epTitle = ep.title; break; }
+  }
 
-  // An explicit admin override wins; otherwise use Hoshika's episode still.
-  // If Hoshika has no still, the preview uses the Hoshika cover (or no image).
+  // Priority: an admin-saved override wins (episode_overrides.image_url,
+  // set via the Episode Thumbnails admin panel), then a live lookup against
+  // our own scraper API (cached in D1), then the anime cover as last resort.
   let ogImage = image;
   try {
+    const db = new Db(c.env.DB);
     const row = await db.fetchOne<{ image_url: string | null }>(
       'SELECT image_url FROM episode_overrides WHERE anime_id = ? AND episode_num = ?',
       [animeId, epNum]
@@ -544,10 +546,10 @@ scraperRoutes.get('/api/embed.php', async (c) => {
     if (row?.image_url) {
       ogImage = row.image_url;
     } else {
-      const hoshikaThumb = await getEpisodeThumbnail(c.env, db, animeId, epNum, anime?.status, title);
-      if (hoshikaThumb) ogImage = hoshikaThumb;
+      const scraped = await getEpisodeThumbnail(c.env, db, animeId, epNum, animeRes.data?.data?.status);
+      if (scraped) ogImage = scraped;
     }
-  } catch { /* keep the Hoshika cover fallback */ }
+  } catch { /* fall back to anime cover */ }
 
   const watchUrl = `${siteUrl}/watch?anime=${animeId}&ep=${epNum}`;
   const html = `<!DOCTYPE html>
