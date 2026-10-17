@@ -1,6 +1,8 @@
 import { Assets, getTimestampsFromMedia } from "premid";
 
-const presence = new Presence({});
+const presence = new Presence({
+  clientId: "REPLACE_WITH_DISCORD_APPLICATION_ID"
+});
 
 const ANIVAULT_LOGO = "https://www.anivault.co/favicon.ico";
 const SITE_HOSTS = new Set(["anivault.co", "www.anivault.co"]);
@@ -61,13 +63,14 @@ presence.on("UpdateData", async () => {
     buttons: [{ label: "Open AniVault", url: href }]
   };
 
-  if (identity !== lastMediaIdentity) {
+  const identityChanged = identity !== lastMediaIdentity;
+  if (identityChanged) {
     lastMediaIdentity = identity;
     browsingTimestamp = Math.floor(Date.now() / 1000);
   }
 
   if (isMediaReady && video) {
-    if (identity !== lastMediaIdentity || !wasWatching) {
+    if (identityChanged || !wasWatching) {
       browsingTimestamp = Math.floor(Date.now() / 1000);
     }
 
