@@ -100,7 +100,7 @@ function shortIdFrom(item: any): string {
 
 function normaliseTitle(value: any): string {
   return typeof value === 'string'
-    ? value.toLowerCase().normalize('NFKD').replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\\s+/g, ' ')
+    ? value.toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\s+/g, ' ')
     : '';
 }
 
