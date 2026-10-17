@@ -983,7 +983,7 @@ export class MalAPI {
     // Grid/list contexts pass isList=true so a cold cache just falls back
     // to saved/placeholder art instead of stacking a live scraper request
     // per row on top of everything else the page needs.
-    const art = animeId ? await this.getAnimeArt(animeId, !isList) : { poster: '', cover: '', logo: '' };
+    const [art, hoshika] = await Promise.all([\n      animeId ? this.getAnimeArt(animeId, !isList) : Promise.resolve({ poster: '', cover: '', logo: '' }),\n      animeId ? getHoshikaAnimeMetadata(animeId, node.title ?? '', this.kv, !isList).catch(() => null) : Promise.resolve(null),\n    ]);
     const mediumImage = art.poster;
     const largeImage = art.poster;
 
@@ -1032,7 +1032,7 @@ export class MalAPI {
       title_english: altTitles.en ?? '',
       title_japanese: altTitles.ja ?? '',
       images: { jpg: { image_url: mediumImage, large_image_url: largeImage } },
-      cover_image: art.cover,
+      cover_image: hoshika?.cover || art.cover,
       logo_image: art.logo,
       synopsis: node.synopsis ?? '',
       background: node.background ?? '',
@@ -1040,7 +1040,7 @@ export class MalAPI {
       scored_by: node._scored_by ?? node.statistics?.scoring?.count ?? node.num_list_users ?? null,
       rank: node.rank ?? null,
       popularity: node.popularity ?? null,
-      episodes: node.num_episodes ?? 0,
+      episodes: hoshika?.episodes ?? node.num_episodes ?? 0,
       status: mapStatus(node.status ?? ''),
       type: (node.media_type ?? '').toUpperCase(),
       rating: node.rating ?? '',
@@ -1140,18 +1140,16 @@ export class MalAPI {
       if (fresh.logo) anime.logo_image = fresh.logo;
     }
 
-    // Hoshika is an optional source for exactly two fields: the anime cover
-    // and episode count. The existing MAL/TMDB/scraper path remains the
-    // fallback, and episode thumbnail fetching remains on episode-thumb.ts
-    // because Hoshika does not document an episode-thumbnail endpoint.
-    if (id && this.env.HOSHIKA_ACCESS_TOKEN) {
-      const hoshika = await getHoshikaAnimeMetadata(id, anime.title, this.env.HOSHIKA_ACCESS_TOKEN, this.kv);
-      if (hoshika?.cover) {
-        anime.images = { jpg: { image_url: hoshika.cover, large_image_url: hoshika.cover } };
+    // Detail pages may force-refresh scraper art above. Re-apply public
+    // Hoshika catalog fields last so the scraper/TMDB result cannot overwrite
+    // Hoshika's poster or episode count.
+    if (id) {
+      const hoshika = await getHoshikaAnimeMetadata(id, anime.title, this.kv, true);
+      if (hoshika?.poster) {
+        anime.images = { jpg: { image_url: hoshika.poster, large_image_url: hoshika.poster } };
       }
-      if (hoshika?.episodes !== null && hoshika?.episodes !== undefined) {
-        anime.episodes = hoshika.episodes;
-      }
+      if (hoshika?.cover) anime.cover_image = hoshika.cover;
+      if (hoshika?.episodes !== null && hoshika?.episodes !== undefined) anime.episodes = hoshika.episodes;
     }
 
     return { data: anime };
