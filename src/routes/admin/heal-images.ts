@@ -169,7 +169,7 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
 
 ${missing.length === 0 ? `
 <div class="card card-body" style="text-align:center; padding:2.5rem; color:var(--text-muted); margin-top:10px;">
-  ${icon('check', 'icon-medium')}<p style="margin-top:.5rem;">No more anime in this batch. Use Auto-continue to scan further batches, or clear the skipped IDs to rescan.</p>
+  ${icon('check', 'icon-medium')}<p style="margin-top:.5rem;">No more tracked anime after this ID. Reopen Hoshika Cover Audit without an after parameter to scan from the beginning.</p>
 </div>` : `
 <div style="display:flex; flex-direction:column; gap:.5rem;" id="heal-log">
   ${missing.map((entry) => `
