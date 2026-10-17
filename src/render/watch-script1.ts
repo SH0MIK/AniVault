@@ -443,7 +443,7 @@ function switchToDesidub(providerName, realType) {
     // Same reuse-the-probe-response pattern as Anikoto — avoids requesting
     // the same provider twice back-to-back right after the probe found it.
     window._desidubCache = window._desidubCache || {};
-    const cacheKey = realType + '::' + providerName.toLowerCase().trim();
+    const cacheKey = realType + '::' + String(providerName || '').toLowerCase().trim();
     const cached = window._desidubCache[cacheKey];
     if (cached && (Date.now() - cached.ts) < 8000) {
         delete window._desidubCache[cacheKey];
@@ -619,7 +619,7 @@ function switchToGenericSource(source, providerName, realType, langKey) {
     // etc.) — set by that source's own checkXProvider function below, keyed
     // the same way there and here so a successful probe can be reused
     // without firing a second identical request at the embed host.
-    const cacheKey = [realType, langKey || '', providerName.toLowerCase().trim()].join('::');
+    const cacheKey = [realType, langKey || '', String(providerName || '').toLowerCase().trim()].join('::');
     const cacheName = '_' + source + 'Cache';
     window[cacheName] = window[cacheName] || {};
     const cached = window[cacheName][cacheKey];
@@ -1263,7 +1263,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 // survive being requested twice in a row.
                 if (ok) {
                     window._anikotoCache = window._anikotoCache || {};
-                    window._anikotoCache[audio + '::' + provider.toLowerCase().trim()] = { data: d, ts: Date.now() };
+                    window._anikotoCache[audio + '::' + String(provider || '').toLowerCase().trim()] = { data: d, ts: Date.now() };
                 }
                 return ok;
             }).catch(() => false);
@@ -1293,7 +1293,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             if (ok) {
                 const cacheName = '_' + source + 'Cache';
                 window[cacheName] = window[cacheName] || {};
-                window[cacheName][[audio, lang || '', providerName.toLowerCase().trim()].join('::')] = {
+                window[cacheName][[audio, lang || '', String(providerName || '').toLowerCase().trim()].join('::')] = {
                     data: d, ts: Date.now()
                 };
             }
@@ -1338,7 +1338,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                     console.log('[AniVault player] desidub', providerName, ok ? 'OK' : 'FAILED', d);
                     if (ok) {
                         window._desidubCache = window._desidubCache || {};
-                        window._desidubCache['dub::' + providerName.toLowerCase().trim()] = { data: d, ts: Date.now() };
+                        window._desidubCache['dub::' + String(providerName || '').toLowerCase().trim()] = { data: d, ts: Date.now() };
                     }
                     return ok ? (\`desidub:dub:\${providerName}\`) : null;
                 }).catch(e => { console.error('[AniVault player] desidub', providerName, 'threw', e); return null; });
@@ -1349,9 +1349,9 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         // scraper only uses it to disambiguate providers that share an
         // identical display name across languages, and ignores it
         // harmlessly otherwise.
-        const lang = (def.source === 'watchanimeworld' && audio === 'dub') ? def.provider.toLowerCase() : '';
+        const lang = (def.source === 'watchanimeworld' && audio === 'dub') ? String(def.provider || '').toLowerCase() : '';
         return checkSourceProvider(def.source, def.provider, audio, lang)
-            .then(ok => ok ? (\`\${def.source}:\${audio}:\${lang}:\${def.provider.toLowerCase().trim()}\`) : null);
+            .then(ok => ok ? (\`\${def.source}:\${audio}:\${lang}:\${def.String(provider || '').toLowerCase().trim()}\`) : null);
     }
 
     // ── Resolve one whole fixed group (sub / dub / hindi) ───────────────
@@ -1570,7 +1570,7 @@ function switchWatchQuality(b,i){
 
 function filterEps(q){
   var rows=document.querySelectorAll('.ep-item');
-  var s=q.toLowerCase().trim();
+  var s=String(q || '').toLowerCase().trim();
   if (s) {
     // Active search overrides the range picker -- search across every
     // episode, not just the currently selected chunk.
