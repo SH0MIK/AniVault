@@ -73,7 +73,9 @@ window.addEventListener('error', function(e) {
     // Known legacy comment-handler errors are explicitly ignored as well.
     var msg = (e && e.message) || '';
     if (/^(wcSend|wcVote|wcReply|wcDelete) is not defined$/.test(msg)) return;
-    _showFatalClientError(msg || 'Unknown script error');
+    var where = e && e.filename ? (' at ' + e.filename.split('/').pop() + ':' + (e.lineno || 0) + ':' + (e.colno || 0)) : '';
+    if (e && e.error && e.error.stack) console.error('[AniVault player] uncaught stack:', e.error.stack);
+    _showFatalClientError((msg || 'Unknown script error') + where);
 });
 
 function buildMegaplayUrl(audio) {
