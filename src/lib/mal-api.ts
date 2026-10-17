@@ -490,78 +490,6 @@ export class MalAPI {
   // home page. A background cron warmer (see scheduled.ts) populates this
   // same cache in small batches instead, so grid art still shows up --
   // just not synchronously on the request that happens to be cache-cold.
-  async getScraperArt(malId: number, liveFetch = true): Promise<{ poster: string; cover: string; logo: string }> {
-    const empty = { poster: '', cover: '', logo: '' };
-    if (!malId) return empty;
-
-    const cacheKey = `scraper_art_${malId}`;
-    if (this.kv && this.cacheEnabled()) {
-      const cached = await this.safeKvGet(cacheKey, 'json') as typeof empty | null;
-      if (cached) return cached;
-
-      // Migration fallback: this key used to be split into `_full`/`_list`
-      // variants. Reusing whichever of those is still warm (up to a week
-      // post-rename) means a title only ever needs ONE live scraper fetch
-      // to migrate onto the unified key, instead of every title on the
-      // site going cold at once -- which is exactly what blew through the
-      // Worker's per-request subrequest limit on the first home page load
-      // right after this rename shipped. Safe to remove this block once
-      // enough time has passed that the old keys have all expired (a week
-      // after deploy, or once clearScraperArtCache has touched everything).
-      // Cheap KV reads, so worth doing even when liveFetch is false --
-      // it's only the network call below that's gated. Only trust a legacy
-      // entry if it actually has something in it -- a bare `if (legacy)`
-      // is true even for a fully-empty {poster:'',cover:'',logo:''}
-      // object (any parsed JSON object is truthy), so a title that once
-      // had a transient scraper failure cached under the old keys would
-      // get that emptiness "migrated" forward and locked in for a week,
-      // never even attempting a live fetch despite the scraper having real
-      // data right now. Ignore an empty legacy entry and fall through to a
-      // live fetch instead (still gated by liveFetch below, same as a
-      // normal cache miss).
-      let legacy = await this.safeKvGet(`scraper_art_${malId}_full`, 'json') as typeof empty | null;
-      if (!legacy || !(legacy.poster || legacy.cover || legacy.logo)) {
-        legacy = await this.safeKvGet(`scraper_art_${malId}_list`, 'json') as typeof empty | null;
-      }
-      if (legacy && (legacy.poster || legacy.cover || legacy.logo)) {
-        await this.safeKvPut(cacheKey, JSON.stringify(legacy), { expirationTtl: 604800 });
-        return legacy;
-      }
-    }
-
-    // Durable copy in D1 (scraper_art_cache): survives KV expiry, so a title
-    // that was already resolved once never needs a live scraper hit again
-    // (until the row ages out). Re-primes KV so the next read is a KV hit.
-    const stored = await this.getStoredArt(malId);
-    if (stored) {
-      if (this.kv && this.cacheEnabled()) {
-        await this.safeKvPut(cacheKey, JSON.stringify(stored), { expirationTtl: 604800 });
-      }
-      return stored;
-    }
-
-    if (!liveFetch) return empty;
-
-    const fromScraper = await this.scraperGet(`/api/anime?malId=${malId}`, 10000);
-    const d = fromScraper?.data;
-    const art = { poster: d?.poster || '', cover: d?.cover || '', logo: d?.logo || '' };
-    const hasAnyArt = !!(art.poster || art.cover || art.logo);
-
-    if (this.kv && this.cacheEnabled()) {
-      await this.safeKvPut(cacheKey, JSON.stringify(art), { expirationTtl: hasAnyArt ? 604800 : 300 });
-    }
-    // Only real results are stored in D1 -- an empty result is a transient
-    // scraper failure (or a title with no art) and must stay retryable.
-    if (hasAnyArt) await this.storeArt(malId, art);
-    return art;
-  }
-
-  // Homepage/list cards intentionally need fresh scraper art even when the
-  // durable scraper_art_cache still contains artwork from the old saved-art
-  // priority path. Bypass those caches, ask the active scraper directly, and
-  // refresh the shared scraper-art cache with the live result. This does NOT
-  // touch anime_images/anime_banners/anime_logos, so self-uploaded artwork is
-  // left completely untouched for detail/hero contexts.
   // Compatibility method name retained for existing callers. Artwork comes
   // from Hoshika only; this never calls TMDB or the external scraper.
   async getTmdbArtForCard(anime: NormalisedAnime, _isList = false): Promise<{ poster: string; cover: string; logo: string }> {
@@ -597,74 +525,6 @@ export class MalAPI {
     for (const { id, art } of resolved) this.artCache.set(id, art);
   }
 
-  // ── Durable D1 copy of scraper art (migrations/0007_scraper_art_cache.sql) ─
-  // TMDB art rarely changes, so rows are trusted for 90 days and then re-fetched.
-  // Every D1 call is wrapped: if the table doesn't exist yet (migration not
-  // run) this silently behaves exactly like before instead of breaking pages.
-  private static readonly ART_D1_MAX_AGE_SEC = 90 * 86400;
-
-  private async getStoredArt(malId: number): Promise<{ poster: string; cover: string; logo: string } | null> {
-    try {
-      const row = await this.db.fetchOne<{ poster: string; cover: string; logo: string }>(
-        'SELECT poster, cover, logo FROM scraper_art_cache WHERE mal_id = ? AND updated_at > ?',
-        [malId, Math.floor(Date.now() / 1000) - MalAPI.ART_D1_MAX_AGE_SEC],
-      );
-      if (row && (row.poster || row.cover || row.logo)) {
-        return { poster: row.poster || '', cover: row.cover || '', logo: row.logo || '' };
-      }
-    } catch { /* table missing / D1 hiccup -- fall through to live fetch */ }
-    return null;
-  }
-
-  // Batched D1 lookup used by list/grid prefetches. A genre page can inspect
-  // up to 100 MAL results before it knows which 20 belong to the requested
-  // genre. Doing one D1 request per title here trips Workers' per-invocation
-  // API request limits even though the data itself is tiny. Keep this as one
-  // query for the whole batch and silently treat D1 failures as cache misses.
-  private async getStoredArtMany(malIds: number[]): Promise<Map<number, { poster: string; cover: string; logo: string }>> {
-    const map = new Map<number, { poster: string; cover: string; logo: string }>();
-    const ids = [...new Set(malIds.filter(Boolean))];
-    if (!ids.length) return map;
-
-    try {
-      const placeholders = ids.map(() => '?').join(',');
-      const rows = await this.db.fetchAll<{ mal_id: number; poster: string; cover: string; logo: string }>(
-        `SELECT mal_id, poster, cover, logo
-         FROM scraper_art_cache
-         WHERE mal_id IN (${placeholders})
-           AND updated_at > ?`,
-        [...ids, Math.floor(Date.now() / 1000) - MalAPI.ART_D1_MAX_AGE_SEC],
-      );
-      for (const row of rows) {
-        if (row.poster || row.cover || row.logo) {
-          map.set(row.mal_id, {
-            poster: row.poster || '',
-            cover: row.cover || '',
-            logo: row.logo || '',
-          });
-        }
-      }
-    } catch { /* D1 hiccup -- treat all rows as cache misses */ }
-
-    return map;
-  }
-
-  private async storeArt(malId: number, art: { poster: string; cover: string; logo: string }): Promise<void> {
-    try {
-      await this.db.query(`INSERT INTO scraper_art_cache (mal_id, poster, cover, logo, updated_at) VALUES (?, ?, ?, ?, ?)
-         ON CONFLICT(mal_id) DO UPDATE SET poster = excluded.poster, cover = excluded.cover, logo = excluded.logo, updated_at = excluded.updated_at`,
-        [malId, art.poster, art.cover, art.logo, Math.floor(Date.now() / 1000)],
-      );
-    } catch { /* non-fatal -- KV still has it */ }
-  }
-
-  // Deletes the cached scraper art for a title, so the next page load
-  // re-fetches from the scraper instead of serving a stale/empty cached
-  // result. Exposed on admin/anime_images.php as a manual "Refresh Art
-  // Cache" action for exactly that kind of stuck entry. Also clears the
-  // old pre-merge `_list`/`_full` keys in case either is still lingering
-  // from before the cache was unified, so a re-run of this action fully
-  // resets a title even if it was last touched by the old code path.
   async clearScraperArtCache(malId: number): Promise<void> {
     if (malId) await this.db.query('DELETE FROM scraper_art_cache WHERE mal_id = ?', [malId]).catch(() => {});
     if (!malId || !this.kv) return;
@@ -696,14 +556,8 @@ export class MalAPI {
     return { deleted: keys.length, done, cursor: done ? undefined : listed.cursor };
   }
 
-  // The single choke point every poster/cover/logo on the site should go
-  // through. Merges the scraper's live art with your admin-saved overrides
-  // (anime_images for poster, anime_banners/home_hero_banners for cover,
-  // anime_logos/home_hero_banners for logo), ordered by whichever source
-  // getImagePriority() says should be tried first -- the other one is still
-  // used as a fallback if the preferred source came back empty for that
-  // piece. Silently returns empty strings on failure since art is always a
-  // visual enhancement, never something that should break a page.
+  // Legacy helper retained for admin compatibility only. Public anime cards
+  // resolve poster and banner art directly from Hoshika in normalise().
   async getAnimeArt(animeId: number, _liveFetch = true): Promise<{ poster: string; cover: string; logo: string }> {
     const empty = { poster: '', cover: '', logo: '' };
     if (!animeId) return empty;
