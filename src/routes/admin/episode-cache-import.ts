@@ -135,7 +135,7 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
   let html = renderAdminHeader({ siteUrl, pageTitle: 'Episode Cache Import', adminPage: 'episode_cache_import', isOwner, impersonating });
   html += `
 <div class="admin-header">
-  <div><h1>${icon('database', 'icon-medium')} Episode Cache Import</h1><p class="text-muted" style="font-size:.9rem;">Paste or upload the scraper's raw <code>/api/episode?malId=…</code> JSON to save it straight into the site's episode thumbnail cache -- no per-episode scraper calls needed after this.</p></div>
+  <div><h1>${icon('database', 'icon-medium')} Episode Cache Import</h1><p class="text-muted" style="font-size:.9rem;">Paste or upload Hoshika's raw episode endpoint JSON to cache episode numbers, metadata, and thumbnails without a third-party fallback.</p></div>
 </div>
 
 <div class="card card-body mb-3" style="max-width:760px;">
