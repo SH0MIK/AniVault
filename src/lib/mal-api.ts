@@ -235,9 +235,7 @@ export class MalAPI {
       anime.cover_image = item.hoshika?.cover || '';
       anime.banner_image = item.hoshika?.cover || undefined;
       anime.logo_image = '';
-      if (item.hoshika?.episodes !== null && item.hoshika?.episodes !== undefined) {
-        anime.episodes = item.hoshika.episodes;
-      }
+      anime.episodes = item.hoshika?.episodes ?? 0;
     }
   }
 
@@ -441,7 +439,7 @@ export class MalAPI {
   // artwork is considered an automatic source.
   async getImagePriority(): Promise<'api' | 'saved'> {
     const settings = new Settings(this.db);
-    const val = await settings.get('image_source_priority', 'saved');
+    const val = await settings.get('image_source_priority', 'api');
     return val === 'api' ? 'api' : 'saved';
   }
 
@@ -651,7 +649,7 @@ export class MalAPI {
       scored_by: node._scored_by ?? node.statistics?.scoring?.count ?? node.num_list_users ?? null,
       rank: node.rank ?? null,
       popularity: node.popularity ?? null,
-      episodes: hoshika?.episodes ?? node.num_episodes ?? 0,
+      episodes: hoshika?.episodes ?? 0,
       status: mapStatus(node.status ?? ''),
       type: (node.media_type ?? '').toUpperCase(),
       rating: node.rating ?? '',
