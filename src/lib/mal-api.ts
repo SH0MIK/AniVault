@@ -762,12 +762,9 @@ export class MalAPI {
     return this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/characters`);
   }
 
-  // Sourced from the unified /api/episode?malId=X scraper endpoint (see
-  // getAnimeEpisodeInfo in episode-info.ts) -- one bulk call/cache instead
-  // of the old separate paginated MAL-scrape route. That endpoint returns
-  // every episode at once, so everything comes back on "page 1" and later
-  // pages report no more data -- the client's page-looping fetch in
-  // anime-tail.ts still works unchanged, it just stops after one round trip.
+  // Hoshika returns the complete episode list in one response. Keep the
+  // existing paginated response shape for callers, but do not fall back to
+  // another provider when Hoshika has no matching episode list.
   async getAnimeEpisodes(id: number, page = 1): Promise<any> {
     const empty = { data: [], pagination: { last_visible_page: 1, has_next_page: false } };
     if (!id || page > 1) return empty;
@@ -971,10 +968,8 @@ export class MalAPI {
       await this.prefetchAnimeArt((raw.data ?? []).map((n: any) => Number(n.node?.id ?? 0)), false);
 
       for (const n of raw.data ?? []) {
-        // Check genres straight off the raw node before normalising --
-        // normalise() now resolves art via the scraper API, which isn't
-        // worth paying for on the ~80% of each 100-item page that gets
-        // discarded by the genre filter below.
+        // Check genres before normalising so Hoshika title/catalog lookups
+        // are only performed for rows that survive the genre filter.
         const nodeGenreIds = (n.node?.genres ?? []).map((g: any) => g?.id ?? -1);
         if (genreIds.some((g) => !nodeGenreIds.includes(g))) continue;
         if (skipped < skip) { skipped++; continue; }
