@@ -1494,6 +1494,10 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             }
 
             const multiList = list.filter(s => {
+                if (!s || typeof s !== 'object') return false;
+                const name = String(s.name || s.label || '').trim();
+                if (!name) return false;
+
                 const b = langBucket(s.lang);
                 if (b === 'en') return false;
                 if (b === 'hindi' && source === 'watchanimeworld') return false;
@@ -1501,10 +1505,15 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             });
 
             for (const entry of multiList) {
+                // Some stream-list responses can omit the provider name.
+                // Normalize it once so malformed entries cannot crash the player.
+                const entryName = String(entry?.name || entry?.label || '').trim();
+                if (!entryName) continue;
+
                 multiPending++;
-                const pKey = entry.name.toLowerCase().trim();
-                const langKey = entry.lang;
-                const ok = await checkSourceProvider(source, entry.name, 'dub', langKey);
+                const pKey = entryName.toLowerCase();
+                const langKey = String(entry.lang || '').trim();
+                const ok = await checkSourceProvider(source, entryName, 'dub', langKey);
                 multiPending--;
 
                 if (!ok) continue;
@@ -1512,10 +1521,10 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 const body = document.getElementById('servers-dub-multi-body');
                 const loading = document.getElementById('servers-dub-multi-loading');
                 const grp = document.getElementById('dub-multi-group');
-                const label = \`\${SOURCE_LABELS[source]}-\${entry.name} (\${prettyLang(entry.lang)})\`;
+                const label = \`${SOURCE_LABELS[source]}-${entryName} (${prettyLang(entry.lang)})\`;
                 const inserted = insertPriorityBtn(
                     body, loading, grp,
-                    \`\${source}:dub:\${langKey}:\${pKey}\`,
+                    \`${source}:dub:${langKey}:${pKey}\`,
                     label, prettyLang(entry.lang), priorityOf(MULTI_PRIORITY, source)
                 );
                 if (inserted) multiHasAny = true;
