@@ -49,13 +49,11 @@ export interface NormalisedAnime {
   members: number;
   broadcast: { day: string | null; time: string | null };
   duration_mins: number | null;
-  // Only populated for AniList-sourced entries (see getAniListSeasonNow) —
-  // MAL/Jikan has no equivalent field. A real wide banner image, not a poster.
+  // Hoshika catalog banner image. Empty when Hoshika has no banner; no
+  // automatic fallback source is used.
   banner_image?: string;
-  // Resolved via getAnimeArt() (see below) -- the scraper's /api/anime
-  // poster/cover/logo, blended with your admin-saved overrides per the
-  // Image Source Priority setting. Populated for every MAL/Jikan-sourced
-  // entry (i.e. everywhere except the AniList season path above).
+  // Hoshika catalog banner, with only explicit admin-saved art permitted as
+  // a manual override according to Image Source Priority.
   cover_image?: string;
   logo_image?: string;
 }
@@ -482,33 +480,25 @@ export class MalAPI {
     for (const { id, art } of resolved) this.artCache.set(id, art);
   }
 
+  // Legacy method names are kept for the admin page, but they now clear
+  // Hoshika metadata caches. Old scraper-art caches are no longer read.
   async clearScraperArtCache(malId: number): Promise<void> {
     if (malId) await this.db.query('DELETE FROM scraper_art_cache WHERE mal_id = ?', [malId]).catch(() => {});
     if (!malId || !this.kv) return;
     await Promise.all([
+      this.kv.delete(`hoshika_public_anime_v2_${malId}`).catch(() => {}),
       this.kv.delete(`scraper_art_${malId}`).catch(() => {}),
       this.kv.delete(`scraper_art_${malId}_list`).catch(() => {}),
       this.kv.delete(`scraper_art_${malId}_full`).catch(() => {}),
     ]);
   }
 
-  // Bulk version of clearScraperArtCache, exposed on admin/anime_images.php
-  // as "Reset All Art Cache" -- wipes every scraper_art_* entry (unified
-  // key and any leftover legacy `_list`/`_full` ones) instead of one title
-  // at a time. Deliberately batched and cursor-based rather than deleting
-  // everything in one call: a KV `list` + a `delete` per key are each a
-  // subrequest, and a library with hundreds of cached titles could easily
-  // rack up more than the Worker's 50-subrequest/request limit in one
-  // invocation -- the exact class of bug that took the home page down
-  // earlier. Deletes up to `limit` keys per call and returns the cursor to
-  // resume from; the admin page renders a "Continue" button when more
-  // remain instead of trying to do it all in one click.
   async resetAllScraperArtCache(limit = 40, cursor?: string): Promise<{ deleted: number; done: boolean; cursor?: string }> {
     if (!cursor) await this.db.query('DELETE FROM scraper_art_cache').catch(() => {});
     if (!this.kv) return { deleted: 0, done: true };
-    const listed = await this.kv.list({ prefix: 'scraper_art_', limit, cursor });
+    const listed = await this.kv.list({ prefix: 'hoshika_public_anime_v2_', limit, cursor });
     const keys: string[] = (listed.keys ?? []).map((k: any) => k.name);
-    await Promise.all(keys.map((k) => this.kv!.delete(k).catch(() => {})));
+    await Promise.all(keys.map((key) => this.kv!.delete(key).catch(() => {})));
     const done = !!listed.list_complete;
     return { deleted: keys.length, done, cursor: done ? undefined : listed.cursor };
   }
