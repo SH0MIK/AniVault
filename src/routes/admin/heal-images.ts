@@ -31,7 +31,7 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
         return c.json({ success: false, error: 'Missing anime id or title' }, 400);
       }
       const normalizeTitle = (value: unknown) => String(value ?? '').toLowerCase().normalize('NFKD')
-        .replace(/[\\u0300-\\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim().replace(/\\s+/g, ' ');
+        .replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(Boolean).join(' ');
       const markMissing = async (reason: string) => {
         await db.query(
           `INSERT INTO hoshika_cover_flags (anime_id, anime_title, reason, status, created_at, updated_at)
@@ -78,7 +78,7 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
           const anime = detail?.anime ?? detail?.data?.anime ?? detail?.data ?? detail;
           imageUrl = typeof anime?.coverImage === 'string' ? anime.coverImage : '';
         }
-        if (!/^https?:\\/\\//i.test(imageUrl)) {
+        if (!(imageUrl.startsWith('https://') || imageUrl.startsWith('http://'))) {
           const reason = 'MISSING HOSHIKA COVER — no coverImage available';
           await markMissing(reason);
           return c.json({ success: true, missing: true, flagged: true, reason });
