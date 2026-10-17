@@ -405,33 +405,34 @@ export class MalAPI {
     const targets = data.filter((a) => a.mal_id).slice(0, 12);
     if (!targets.length) return;
 
-    // getScraperArt() resolves the poster through the scraper's existing
-    // TMDB -> Kitsu -> AniList chain and caches it as scraper_art_<malId>.
-    // We only do this during the scheduled/season-cache refresh, never while
-    // rendering a warm homepage.
-    const arts = await Promise.all(
+    // Hoshika is the preferred catalog source for poster/cover/count. Keep
+    // the scraper art as a fallback, but never let its TMDB result overwrite
+    // fields Hoshika supplied.
+    const resolved = await Promise.all(
       targets.map(async (anime) => ({
         id: anime.mal_id,
         art: await this.getTmdbArtForCard(anime, true).catch(() => ({ poster: '', cover: '', logo: '' })),
+        hoshika: await getHoshikaAnimeMetadata(anime.mal_id, anime.title, this.kv, false).catch(() => null),
       }))
     );
 
-    const byId = new Map(arts.map((x) => [x.id, x.art]));
-    for (const anime of targets) {
-      const art = byId.get(anime.mal_id);
-      if (!art?.poster) continue;
-
-      // Keep AniList's title/score/episode data, but replace the card image
-      // with the cached TMDB poster. anime-card.ts already optimises TMDB
-      // URLs to w342/w500 via srcset.
-      anime.images = {
-        jpg: {
-          image_url: art.poster,
-          large_image_url: art.poster,
-        },
-      };
-      anime.cover_image = art.cover || anime.cover_image;
-      anime.logo_image = art.logo || anime.logo_image;
+    for (const item of resolved) {
+      const anime = targets.find((a) => a.mal_id === item.id);
+      if (!anime) continue;
+      const poster = item.hoshika?.poster || item.art.poster;
+      if (poster) {
+        anime.images = {
+          jpg: {
+            image_url: poster,
+            large_image_url: poster,
+          },
+        };
+      }
+      anime.cover_image = item.hoshika?.cover || item.art.cover || anime.cover_image;
+      anime.logo_image = item.art.logo || anime.logo_image;
+      if (item.hoshika?.episodes !== null && item.hoshika?.episodes !== undefined) {
+        anime.episodes = item.hoshika.episodes;
+      }
     }
   }
 
@@ -983,9 +984,12 @@ export class MalAPI {
     // Grid/list contexts pass isList=true so a cold cache just falls back
     // to saved/placeholder art instead of stacking a live scraper request
     // per row on top of everything else the page needs.
-    const art = animeId ? await this.getAnimeArt(animeId, !isList) : { poster: '', cover: '', logo: '' };
-    const mediumImage = art.poster;
-    const largeImage = art.poster;
+    const [art, hoshika] = await Promise.all([
+      animeId ? this.getAnimeArt(animeId, !isList) : Promise.resolve({ poster: '', cover: '', logo: '' }),
+      animeId ? getHoshikaAnimeMetadata(animeId, node.title ?? '', this.kv, !isList).catch(() => null) : Promise.resolve(null),
+    ]);
+    const mediumImage = hoshika?.poster || art.poster;
+    const largeImage = hoshika?.poster || art.poster;
 
     const genres = (node.genres ?? []).filter(Boolean).map((g: any) => ({ mal_id: g?.id ?? 0, name: g?.name ?? '' }));
     const studios = (node.studios ?? []).filter(Boolean).map((s: any) => ({ mal_id: s?.id ?? 0, name: s?.name ?? '' }));
@@ -1032,7 +1036,7 @@ export class MalAPI {
       title_english: altTitles.en ?? '',
       title_japanese: altTitles.ja ?? '',
       images: { jpg: { image_url: mediumImage, large_image_url: largeImage } },
-      cover_image: art.cover,
+      cover_image: hoshika?.cover || art.cover,
       logo_image: art.logo,
       synopsis: node.synopsis ?? '',
       background: node.background ?? '',
@@ -1040,7 +1044,7 @@ export class MalAPI {
       scored_by: node._scored_by ?? node.statistics?.scoring?.count ?? node.num_list_users ?? null,
       rank: node.rank ?? null,
       popularity: node.popularity ?? null,
-      episodes: node.num_episodes ?? 0,
+      episodes: hoshika?.episodes ?? node.num_episodes ?? 0,
       status: mapStatus(node.status ?? ''),
       type: (node.media_type ?? '').toUpperCase(),
       rating: node.rating ?? '',
@@ -1140,18 +1144,16 @@ export class MalAPI {
       if (fresh.logo) anime.logo_image = fresh.logo;
     }
 
-    // Hoshika is an optional source for exactly two fields: the anime cover
-    // and episode count. The existing MAL/TMDB/scraper path remains the
-    // fallback, and episode thumbnail fetching remains on episode-thumb.ts
-    // because Hoshika does not document an episode-thumbnail endpoint.
-    if (id && this.env.HOSHIKA_ACCESS_TOKEN) {
-      const hoshika = await getHoshikaAnimeMetadata(id, anime.title, this.env.HOSHIKA_ACCESS_TOKEN, this.kv);
-      if (hoshika?.cover) {
-        anime.images = { jpg: { image_url: hoshika.cover, large_image_url: hoshika.cover } };
+    // Detail pages may force-refresh scraper art above. Re-apply public
+    // Hoshika catalog fields last so the scraper/TMDB result cannot overwrite
+    // Hoshika's poster or episode count.
+    if (id) {
+      const hoshika = await getHoshikaAnimeMetadata(id, anime.title, this.kv, true);
+      if (hoshika?.poster) {
+        anime.images = { jpg: { image_url: hoshika.poster, large_image_url: hoshika.poster } };
       }
-      if (hoshika?.episodes !== null && hoshika?.episodes !== undefined) {
-        anime.episodes = hoshika.episodes;
-      }
+      if (hoshika?.cover) anime.cover_image = hoshika.cover;
+      if (hoshika?.episodes !== null && hoshika?.episodes !== undefined) anime.episodes = hoshika.episodes;
     }
 
     return { data: anime };

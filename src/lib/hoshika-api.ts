@@ -1,127 +1,193 @@
 /**
- * Optional Hoshika catalog metadata adapter.
+ * Public Hoshika catalog adapter.
  *
- * Hoshika's documented API exposes anime search and detail endpoints and
- * documents MAL ID mapping. It does not currently document an episode
- * thumbnail endpoint, so thumbnails intentionally remain on AniVault's
- * existing episode-thumb source.
+ * The documented catalog endpoints are searched without credentials. We
+ * intentionally do not call user-library endpoints or require an OAuth token.
+ * Hoshika does not document an episode-thumbnail endpoint, so episode stills
+ * remain on AniVault's existing scraper route until a supported field/endpoint
+ * can be confirmed.
  */
 export interface HoshikaAnimeMetadata {
+  poster: string;
   cover: string;
   episodes: number | null;
 }
 
-function asObject(value: any): any {
+function obj(value: any): any {
   return value && typeof value === 'object' ? value : {};
 }
 
-function listFrom(payload: any): any[] {
-  const p = asObject(payload);
-  const data = p.data ?? p.results ?? p.anime ?? p.items;
+function unwrap(payload: any): any {
+  let value = payload;
+  for (let i = 0; i < 4; i++) {
+    const x = obj(value);
+    if (x.data !== undefined) value = x.data;
+    else if (x.anime !== undefined) value = x.anime;
+    else if (x.item !== undefined) value = x.item;
+    else break;
+  }
+  return value;
+}
+
+function resultsFrom(payload: any): any[] {
+  const root = obj(payload);
+  const data = unwrap(root);
+  const candidates = [
+    root.results, root.items, root.anime,
+    data?.results, data?.items, data?.anime,
+    data?.data?.results, data?.data?.items,
+  ];
+  for (const candidate of candidates) {
+    if (Array.isArray(candidate)) return candidate;
+  }
   if (Array.isArray(data)) return data;
-  if (Array.isArray(data?.results)) return data.results;
-  if (Array.isArray(data?.items)) return data.items;
   if (data && typeof data === 'object') return [data];
   return [];
 }
 
-function findCover(item: any): string {
-  const x = asObject(item);
-  const images = asObject(x.images);
-  const picture = asObject(x.main_picture);
-  const cover = asObject(x.cover);
-  const candidates = [
-    x.cover_url, x.coverImage, x.cover_image, x.poster_url, x.poster,
-    cover.url, cover.src, cover.original, cover.large,
-    images.cover, images.cover_url, images.poster, images.poster_url,
-    images.original, images.large, images.medium,
-    picture.large, picture.medium,
-  ];
-  return candidates.find((v) => typeof v === 'string' && /^https?:\/\//i.test(v)) ?? '';
+function imageUrl(...values: any[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && /^https?:\/\//i.test(value)) return value;
+    if (value && typeof value === 'object') {
+      const nested = imageUrl(value.url, value.src, value.original, value.large, value.medium, value.webp);
+      if (nested) return nested;
+    }
+  }
+  return '';
 }
 
-function findEpisodeCount(item: any): number | null {
-  const x = asObject(item);
-  const raw = x.episodes ?? x.num_episodes ?? x.episode_count ?? x.total_episodes;
-  const value = typeof raw === 'object' ? (raw.total ?? raw.count ?? raw.sub ?? raw.eps) : raw;
+function posterFrom(item: any): string {
+  const x = obj(item);
+  const images = obj(x.images);
+  const poster = obj(x.poster);
+  const cover = obj(x.cover);
+  const mainPicture = obj(x.main_picture);
+  return imageUrl(
+    x.poster_url, x.posterUrl, x.cover_url, x.coverUrl, x.cover_image, x.coverImage,
+    poster, cover, images.poster, images.cover, images.cover_image, images.poster_url,
+    images.original, images.large, images.medium, mainPicture.large, mainPicture.medium,
+    x.image, x.image_url, x.thumbnail,
+  );
+}
+
+function coverFrom(item: any): string {
+  const x = obj(item);
+  const images = obj(x.images);
+  const banner = obj(x.banner);
+  return imageUrl(
+    x.banner_url, x.bannerUrl, x.backdrop_url, x.backdropUrl,
+    banner, images.banner, images.backdrop, images.banner_url, images.backdrop_url,
+  );
+}
+
+function episodeCountFrom(item: any): number | null {
+  const x = obj(item);
+  const raw = x.episodes ?? x.num_episodes ?? x.episode_count ?? x.episodeCount ?? x.total_episodes;
+  if (Array.isArray(raw)) return raw.length;
+  const value = raw && typeof raw === 'object'
+    ? (raw.total ?? raw.count ?? raw.sub ?? raw.eps)
+    : raw;
+  if (value === null || value === undefined || value === '') return null;
   const n = Number(value);
   return Number.isFinite(n) && n >= 0 ? n : null;
 }
 
-function findShortId(item: any): string {
-  const x = asObject(item);
-  const id = x.shortId ?? x.short_id ?? x.slug ?? x.id;
+function shortIdFrom(item: any): string {
+  const x = obj(item);
+  const id = x.shortId ?? x.short_id ?? x.shortId ?? x.slug ?? x.id;
   return typeof id === 'string' || typeof id === 'number' ? String(id) : '';
 }
 
 function matchesMalId(item: any, malId: number): boolean {
-  const x = asObject(item);
-  const ids = asObject(x.external_ids ?? x.externalIds ?? x.ids);
-  return Number(x.mal_id ?? x.malId ?? x.malID ?? ids.mal_id ?? ids.malId) === malId;
+  const x = obj(item);
+  const ids = obj(x.external_ids ?? x.externalIds ?? x.external_ids ?? x.ids);
+  const mal = x.mal_id ?? x.malId ?? x.malID ?? ids.mal_id ?? ids.malId;
+  return mal !== undefined && mal !== null && Number(mal) === malId;
+}
+
+function metadataFrom(item: any): HoshikaAnimeMetadata {
+  return {
+    poster: posterFrom(item),
+    cover: coverFrom(item),
+    episodes: episodeCountFrom(item),
+  };
 }
 
 /**
- * Fetches Hoshika's cover and episode count for a MAL ID. Failures are
- * non-fatal: AniVault continues using its existing MAL/TMDB/scraper data.
- * Requires HOSHIKA_ACCESS_TOKEN (a valid OAuth access token).
+ * Resolve a MAL ID against Hoshika's public catalog. Search is one request in
+ * the common case; detail is only fetched for a single-title/detail request
+ * when search results do not include the requested fields. Cache successful
+ * and empty results to avoid repeatedly hitting Hoshika for the same title.
  */
 export async function getHoshikaAnimeMetadata(
   malId: number,
   title: string,
-  accessToken?: string,
   kv?: KVNamespace,
+  includeDetail = false,
 ): Promise<HoshikaAnimeMetadata | null> {
-  if (!malId || !title || !accessToken) return null;
+  if (!malId || !title) return null;
 
-  const cacheKey = `hoshika_anime_${malId}`;
+  const cacheKey = `hoshika_public_anime_v2_${malId}`;
+  let cached: HoshikaAnimeMetadata | null = null;
   if (kv) {
     try {
-      const cached = await kv.get(cacheKey, 'json') as HoshikaAnimeMetadata | null;
-      if (cached && (cached.cover || cached.episodes !== null)) return cached;
-    } catch { /* Cache failures must not affect anime pages. */ }
+      cached = await kv.get(cacheKey, 'json') as HoshikaAnimeMetadata | null;
+      if (cached && (!includeDetail || (cached.poster && cached.cover && cached.episodes !== null))) {
+        return cached.poster || cached.cover || cached.episodes !== null ? cached : null;
+      }
+    } catch { /* Cache failures must not break anime pages. */ }
   }
 
   try {
-    const headers = { Authorization: `Bearer ${accessToken}`, Accept: 'application/json' };
-    const searchUrl = new URL('https://hoshika.app/api/v1/search');
-    searchUrl.searchParams.set('q', title);
-    const searchRes = await fetch(searchUrl.toString(), { headers });
-    if (!searchRes.ok) return null;
+    const url = new URL('https://hoshika.app/api/v1/search');
+    url.searchParams.set('q', title);
+    const response = await fetch(url.toString(), {
+      headers: { Accept: 'application/json' },
+    });
+    if (!response.ok) return cached;
+    const payload: any = await response.json();
+    if (payload?.ok === false) return cached;
 
-    const searchPayload: any = await searchRes.json();
-    if (searchPayload?.ok === false) return null;
-    const results = listFrom(searchPayload);
-    const match = results.find((item) => matchesMalId(item, malId));
-    if (!match) return null;
+    const match = resultsFrom(payload).find((item) => matchesMalId(item, malId));
+    if (!match) {
+      if (kv) {
+        try { await kv.put(cacheKey, JSON.stringify({ poster: '', cover: '', episodes: null }), { expirationTtl: 3600 }); } catch {}
+      }
+      return null;
+    }
 
-    let detail = match;
-    const shortId = findShortId(match);
-    if (shortId) {
-      const detailRes = await fetch(
+    let result = metadataFrom(match);
+    const shortId = shortIdFrom(match);
+    const needsDetail = includeDetail && shortId && (!result.poster || result.episodes === null || !result.cover);
+    if (needsDetail) {
+      const detailResponse = await fetch(
         `https://hoshika.app/api/v1/anime/${encodeURIComponent(shortId)}`,
-        { headers },
+        { headers: { Accept: 'application/json' } },
       );
-      if (detailRes.ok) {
-        const detailPayload: any = await detailRes.json();
+      if (detailResponse.ok) {
+        const detailPayload: any = await detailResponse.json();
         if (detailPayload?.ok !== false) {
-          const payload = asObject(detailPayload?.data ?? detailPayload?.anime ?? detailPayload);
-          detail = payload;
+          const detail = unwrap(detailPayload);
+          const detailMetadata = metadataFrom(detail);
+          result = {
+            poster: detailMetadata.poster || result.poster,
+            cover: detailMetadata.cover || result.cover,
+            episodes: detailMetadata.episodes ?? result.episodes,
+          };
         }
       }
     }
 
-    const metadata: HoshikaAnimeMetadata = {
-      cover: findCover(detail) || findCover(match),
-      episodes: findEpisodeCount(detail) ?? findEpisodeCount(match),
-    };
-    if (kv && (metadata.cover || metadata.episodes !== null)) {
+    if (kv) {
       try {
-        await kv.put(cacheKey, JSON.stringify(metadata), { expirationTtl: 86400 });
-      } catch { /* Metadata can be served even when cache writes fail. */ }
+        await kv.put(cacheKey, JSON.stringify(result), {
+          expirationTtl: result.poster || result.cover || result.episodes !== null ? 86400 : 3600,
+        });
+      } catch { /* Metadata is still usable if KV is unavailable. */ }
     }
-    return metadata.cover || metadata.episodes !== null ? metadata : null;
+    return result.poster || result.cover || result.episodes !== null ? result : null;
   } catch (error) {
-    console.warn('[hoshika] Metadata lookup failed:', String(error));
-    return null;
+    console.warn('[hoshika] Public catalog lookup failed:', String(error));
+    return cached;
   }
 }
