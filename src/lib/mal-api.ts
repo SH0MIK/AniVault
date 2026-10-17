@@ -747,43 +747,37 @@ export class MalAPI {
   // refresh the shared scraper-art cache with the live result. This does NOT
   // touch anime_images/anime_banners/anime_logos, so self-uploaded artwork is
   // left completely untouched for detail/hero contexts.
-  async getTmdbArtForCard(anime: NormalisedAnime, isList = false): Promise<{ poster: string; cover: string; logo: string }> {
+  // Compatibility method name retained for existing callers. Artwork comes
+  // from Hoshika only; this never calls TMDB or the external scraper.
+  async getTmdbArtForCard(anime: NormalisedAnime, _isList = false): Promise<{ poster: string; cover: string; logo: string }> {
     const empty = { poster: '', cover: '', logo: '' };
-    if (!anime?.mal_id || !this.env.TMDB_API_KEY) return empty;
-
-    const rawTitles = [...new Set([anime.title_english, anime.title, anime.title_japanese].filter(Boolean))];
-    // TMDB indexes Kyoukai no Kanata under its English title as well; include
-    // both spellings so title variants from MAL cannot prevent a direct match.
-    const titleKey = rawTitles.join(' ').toLowerCase();
-    if (titleKey.includes('kyoukai no kanata') || titleKey.includes('beyond the boundary')) {
-      rawTitles.unshift('Beyond the Boundary', 'Kyoukai no Kanata');
-    }
-    return fetchTmdbArtDirect(this.env.TMDB_API_KEY, [...new Set(rawTitles)], isList);
+    if (!anime?.mal_id || !anime.title) return empty;
+    const metadata = await getHoshikaAnimeMetadata(anime.mal_id, anime.title, this.kv, true).catch(() => null);
+    return { poster: metadata?.poster || '', cover: metadata?.cover || '', logo: '' };
   }
+
   async prefetchTmdbArtForCards(anime: NormalisedAnime[]): Promise<void> {
     const items = anime.filter((a) => a?.mal_id);
     if (!items.length) return;
-    const resolved = await Promise.all(items.map(async (anime) => ({
-      id: anime.mal_id,
-      art: await this.getTmdbArtForCard(anime, true).catch(() => ({ poster: '', cover: '', logo: '' })),
-      anime,
+    const resolved = await Promise.all(items.map(async (entry) => ({
+      anime: entry,
+      art: await this.getTmdbArtForCard(entry).catch(() => ({ poster: '', cover: '', logo: '' })),
     })));
-    for (const { id, art, anime } of resolved) {
-      this.artCache.set(id, art);
-      if (art.poster) anime.images = { jpg: { image_url: art.poster, large_image_url: art.poster } };
-      if (art.cover) anime.cover_image = art.cover;
-      if (art.logo) anime.logo_image = art.logo;
+    for (const { anime: entry, art } of resolved) {
+      this.artCache.set(entry.mal_id, art);
+      entry.images = { jpg: { image_url: art.poster, large_image_url: art.poster } };
+      entry.cover_image = art.cover;
+      entry.logo_image = '';
     }
   }
-  // Legacy compatibility: callers that still use this method get the same
-  // direct-TMDB card art path. New homepage code uses prefetchTmdbArtForCards().
+
+  // Legacy compatibility for old homepage callers; this is Hoshika-only too.
   async prefetchScraperArtForCards(animeIds: number[]): Promise<void> {
     const ids = [...new Set(animeIds.filter(Boolean))];
     if (!ids.length) return;
     const resolved = await Promise.all(ids.map(async (id) => {
       const result = await this.getAnime(id, true);
-      const anime = result.data;
-      return anime ? { id, art: await this.getTmdbArtForCard(anime).catch(() => ({ poster: '', cover: '', logo: '' })) } : { id, art: { poster: '', cover: '', logo: '' } };
+      return result.data ? { id, art: await this.getTmdbArtForCard(result.data).catch(() => ({ poster: '', cover: '', logo: '' })) } : { id, art: { poster: '', cover: '', logo: '' } };
     }));
     for (const { id, art } of resolved) this.artCache.set(id, art);
   }
