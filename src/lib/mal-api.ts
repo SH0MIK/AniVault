@@ -405,33 +405,34 @@ export class MalAPI {
     const targets = data.filter((a) => a.mal_id).slice(0, 12);
     if (!targets.length) return;
 
-    // getScraperArt() resolves the poster through the scraper's existing
-    // TMDB -> Kitsu -> AniList chain and caches it as scraper_art_<malId>.
-    // We only do this during the scheduled/season-cache refresh, never while
-    // rendering a warm homepage.
-    const arts = await Promise.all(
+    // Hoshika is the preferred catalog source for poster/cover/count. Keep
+    // the scraper art as a fallback, but never let its TMDB result overwrite
+    // fields Hoshika supplied.
+    const resolved = await Promise.all(
       targets.map(async (anime) => ({
         id: anime.mal_id,
         art: await this.getTmdbArtForCard(anime, true).catch(() => ({ poster: '', cover: '', logo: '' })),
+        hoshika: await getHoshikaAnimeMetadata(anime.mal_id, anime.title, this.kv, false).catch(() => null),
       }))
     );
 
-    const byId = new Map(arts.map((x) => [x.id, x.art]));
-    for (const anime of targets) {
-      const art = byId.get(anime.mal_id);
-      if (!art?.poster) continue;
-
-      // Keep AniList's title/score/episode data, but replace the card image
-      // with the cached TMDB poster. anime-card.ts already optimises TMDB
-      // URLs to w342/w500 via srcset.
-      anime.images = {
-        jpg: {
-          image_url: art.poster,
-          large_image_url: art.poster,
-        },
-      };
-      anime.cover_image = art.cover || anime.cover_image;
-      anime.logo_image = art.logo || anime.logo_image;
+    for (const item of resolved) {
+      const anime = targets.find((a) => a.mal_id === item.id);
+      if (!anime) continue;
+      const poster = item.hoshika?.poster || item.art.poster;
+      if (poster) {
+        anime.images = {
+          jpg: {
+            image_url: poster,
+            large_image_url: poster,
+          },
+        };
+      }
+      anime.cover_image = item.hoshika?.cover || item.art.cover || anime.cover_image;
+      anime.logo_image = item.art.logo || anime.logo_image;
+      if (item.hoshika?.episodes !== null && item.hoshika?.episodes !== undefined) {
+        anime.episodes = item.hoshika.episodes;
+      }
     }
   }
 
