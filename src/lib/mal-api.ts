@@ -1190,6 +1190,35 @@ export class MalAPI {
   // pages report no more data -- the client's page-looping fetch in
   // anime-tail.ts still works unchanged, it just stops after one round trip.
   async getAnimeEpisodes(id: number, page = 1): Promise<any> {
+    // Hoshika's shortId is separate from MAL's ID; resolve it from the anime title.
+    try {
+      const anime = await this.getAnime(id);
+      const hoshikaEpisodes = anime.data?.title
+        ? await getHoshikaAnimeEpisodes(anime.data.title, this.kv)
+        : null;
+      if (hoshikaEpisodes?.length) {
+        await importAnimeEpisodeThumbnails(this.db, id, hoshikaEpisodes.map((episode) => ({
+          episode: episode.number,
+          thumbnail: episode.thumbnail || null,
+        })), false);
+        const data = hoshikaEpisodes.map((episode) => ({
+          mal_id: episode.number,
+          title: episode.title,
+          title_japanese: null,
+          aired: episode.aired,
+          filler: episode.filler,
+          recap: episode.recap,
+          images: { jpg: { image_url: episode.thumbnail } },
+          thumbnail: episode.thumbnail,
+        }));
+        return page > 1
+          ? { data: [], pagination: { last_visible_page: 1, has_next_page: false } }
+          : { data, pagination: { last_visible_page: 1, has_next_page: false } };
+      }
+    } catch (error) {
+      console.warn('[mal-api] Hoshika episode lookup failed; using fallback:', String(error));
+    }
+
     const episodes = await getAnimeEpisodeInfo(this.env, this.db, id);
     if (episodes.length > 0) {
       return page > 1
@@ -1197,9 +1226,7 @@ export class MalAPI {
         : { data: episodes, pagination: { last_visible_page: 1, has_next_page: false } };
     }
 
-    // Nothing resolved/cached yet (cold cache, scraper unreachable, or the
-    // show has no complete episodes yet) -- fall back to the old paths so a
-    // page still shows something instead of nothing.
+    // Keep the existing scraper/Jikan fallback if Hoshika has no matching list.
     const fromScraper = await this.scraperGet(`/api/mal/anime/${id}/episodes?page=${page}`);
     if (fromScraper) return mapScraperEpisodes(fromScraper);
     return this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/episodes?page=${page}`);
