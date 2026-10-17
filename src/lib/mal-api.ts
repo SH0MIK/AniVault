@@ -248,7 +248,7 @@ export class MalAPI {
     const month = now.getUTCMonth() + 1; // 1-12
     const seasonYear = now.getUTCFullYear();
     const season = month <= 3 ? 'WINTER' : month <= 6 ? 'SPRING' : month <= 9 ? 'SUMMER' : 'FALL';
-    return `anilist_season_${season}_${seasonYear}`;
+    return `anilist_season_hoshika_${season}_${seasonYear}`;
   }
 
   private async fetchAniListSeasonLive(): Promise<NormalisedAnime[] | null> {
@@ -354,11 +354,8 @@ export class MalAPI {
     return heroRow?.banner_image_url ? { image_url: heroRow.banner_image_url, order_index: heroRow.display_order ?? 0 } : null;
   }
 
-  // A manually-saved logo (admin/anime_banners.php "Add Logo" button) takes
-  // priority over the automatic TMDB search — lets you fix a wrong/missing
-  // match without waiting on TMDB to have the right one. Falls back to
-  // home_hero_banners' logo_image_url (Homepage Hero Carousel) if nothing's
-  // saved in the dedicated anime_logos library, for the same reason as above.
+  // A manually saved logo remains a deliberate admin override. Hoshika does
+  // not provide a logo field, so there is no automatic logo fallback.
   async getLocalAnimeLogo(animeId: number): Promise<string> {
     if (!animeId) return '';
     const row = await this.db.fetchOne<{ image_url: string }>('SELECT image_url FROM anime_logos WHERE anime_id = ?', [animeId]);
@@ -450,37 +447,6 @@ export class MalAPI {
     return val === 'api' ? 'api' : 'saved';
   }
 
-  // Calls our own scraper's combined GET /api/anime?malId=X endpoint (see
-  // AniVault-Scraper's src/routes.ts), which resolves poster, cover
-  // (backdrop), and logo art itself via TMDB -> Kitsu -> AniList, each tier
-  // independently. This replaces every direct MAL main_picture / TMDB call
-  // this file used to make -- the scraper is now the single source of live
-  // (non-admin-saved) art for the whole site.
-  // One cache entry per malId, always resolved at full size -- there used
-  // to be a separate `list`-sized variant (smaller image, own cache key)
-  // for grid/card contexts, but that let the two entries drift out of sync:
-  // if the list-sized fetch failed while the full-sized one succeeded (or
-  // vice versa), a title could show different art -- or art vs. no art --
-  // on the home grid vs. its detail page, for up to a week (the success
-  // TTL) until both happened to refresh in step. Not worth the bandwidth
-  // savings of a smaller grid image. A result with at least one non-empty
-  // field is cached for a week, since this art essentially never changes.
-  // A fully-empty result (scraper timeout/error, or a title it genuinely
-  // has no art for) is only cached for 5 minutes -- long enough to absorb
-  // a burst of page loads, short enough that a transient failure (e.g. the
-  // scraper's host cold-starting) heals itself on its own instead of
-  // getting stuck showing no art for a week.
-  //
-  // `liveFetch = false` (grid/list contexts -- see normalise()) skips the
-  // network call entirely on a cache miss and just returns empty. Grid
-  // rows can have a dozen-plus items resolving art in the same request; if
-  // every single one is allowed to hit the scraper live on a cold cache,
-  // that's a dozen-plus extra subrequests stacked on top of everything
-  // else the page needs, which is exactly what blew through the Worker's
-  // 50-subrequest/request limit (Free/Bundled plan) and 500'd the whole
-  // home page. A background cron warmer (see scheduled.ts) populates this
-  // same cache in small batches instead, so grid art still shows up --
-  // just not synchronously on the request that happens to be cache-cold.
   // Compatibility method name retained for existing callers. Artwork comes
   // from Hoshika only; this never calls TMDB or the external scraper.
   async getTmdbArtForCard(anime: NormalisedAnime, _isList = false): Promise<{ poster: string; cover: string; logo: string }> {
@@ -775,36 +741,11 @@ export class MalAPI {
     };
   }
 
-  async getAnime(id: number, isList = false, preferFreshScraperArt = false): Promise<{ data: NormalisedAnime | null }> {
+  async getAnime(id: number, isList = false, _preferFreshScraperArt = false): Promise<{ data: NormalisedAnime | null }> {
     const raw = await this.get(`/anime/${id}`, { fields: DETAIL_FIELDS });
     if (raw.error) return { data: null };
 
     const anime = await this.normalise(raw, isList);
-
-    // Detail pages explicitly use the current scraper result for automatic
-    // poster/cover/logo art. This bypasses stale scraper_art D1/KV entries
-    // and the global saved-art priority setting, while leaving all
-    // admin-uploaded anime_images/anime_banners/anime_logos rows untouched.
-    if (preferFreshScraperArt && id) {
-      const fresh = await this.getTmdbArtForCard(anime);
-      if (fresh.poster) {
-        anime.images = { jpg: { image_url: fresh.poster, large_image_url: fresh.poster } };
-      }
-      if (fresh.cover) anime.cover_image = fresh.cover;
-      if (fresh.logo) anime.logo_image = fresh.logo;
-    }
-
-    // Detail pages may force-refresh scraper art above. Re-apply public
-    // Hoshika catalog fields last so the scraper/TMDB result cannot overwrite
-    // Hoshika's poster or episode count.
-    if (id) {
-      const hoshika = await getHoshikaAnimeMetadata(id, anime.title, this.kv, true);
-      if (hoshika?.poster) {
-        anime.images = { jpg: { image_url: hoshika.poster, large_image_url: hoshika.poster } };
-      }
-      if (hoshika?.cover) anime.cover_image = hoshika.cover;
-      if (hoshika?.episodes !== null && hoshika?.episodes !== undefined) anime.episodes = hoshika.episodes;
-    }
 
     return { data: anime };
   }
