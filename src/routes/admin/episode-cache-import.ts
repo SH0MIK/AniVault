@@ -2,8 +2,8 @@
 // aired, filler/recap) straight into D1 -- episode_thumb_cache for
 // thumbnails (lib/episode-thumb.ts) and the same table's epinfo_all_* rows
 // for metadata (lib/episode-info.ts) -- from raw JSON, instead of waiting
-// on a live scraper lookup. Paste (or upload a .json file containing) the
-// exact shape the scraper's own GET /api/episode?malId=X returns:
+// on a live Hoshika lookup. Paste (or upload a .json file containing) the
+// exact response shape from Hoshika's /api/v1/anime/{shortId}/episodes endpoint:
 //
 //   { "malId": 1, "episodes": [ { "episode": 1, "title": "...",
 //     "aired": "...", "filler": false, "recap": false,
