@@ -132,7 +132,7 @@ export async function getHoshikaAnimeMetadata(
   if (kv) {
     try {
       cached = await kv.get(cacheKey, 'json') as HoshikaAnimeMetadata | null;
-      if (cached && (!includeDetail || cached.poster || cached.cover || cached.episodes !== null)) {
+      if (cached && (!includeDetail || (cached.poster && cached.cover && cached.episodes !== null))) {
         return cached.poster || cached.cover || cached.episodes !== null ? cached : null;
       }
     } catch { /* Cache failures must not break anime pages. */ }
