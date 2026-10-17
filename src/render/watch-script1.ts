@@ -1521,10 +1521,10 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 const body = document.getElementById('servers-dub-multi-body');
                 const loading = document.getElementById('servers-dub-multi-loading');
                 const grp = document.getElementById('dub-multi-group');
-                const label = \\`\\${SOURCE_LABELS[source]}-\\${entryName} (\\${prettyLang(entry.lang)})\\`;
+                const label = \`\${SOURCE_LABELS[source]}-\${entryName} (\${prettyLang(entry.lang)})\`;
                 const inserted = insertPriorityBtn(
                     body, loading, grp,
-                    \\`${source}:dub:\\${langKey}:\\${pKey}\\`,
+                    \`${source}:dub:\${langKey}:\${pKey}\`,
                     label, prettyLang(entry.lang), priorityOf(MULTI_PRIORITY, source)
                 );
                 if (inserted) multiHasAny = true;
