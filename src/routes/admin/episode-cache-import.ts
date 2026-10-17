@@ -50,8 +50,8 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
       }
       try {
         await db.query(
-          `DELETE FROM episode_thumb_cache WHERE cache_key = ? OR cache_key = ? OR cache_key LIKE ? ESCAPE '\\'`,
-          [`epthumbs_all_${malId}`, `epinfo_hoshika_all_${malId}`, `epthumb\\_${malId}\\_%`]
+          `DELETE FROM episode_thumb_cache WHERE cache_key = ? OR cache_key = ? OR cache_key = ? OR cache_key LIKE ? ESCAPE '\\'`,
+          [`epthumbs_all_${malId}`, `epinfo_hoshika_all_${malId}`, `epinfo_all_${malId}`, `epthumb\\_${malId}\\_%`]
         );
         await session.save(c, lifetime);
         return c.json({ success: true, malId });
