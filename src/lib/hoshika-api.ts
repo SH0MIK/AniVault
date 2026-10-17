@@ -3,9 +3,8 @@
  *
  * The documented catalog endpoints are searched without credentials. We
  * intentionally do not call user-library endpoints or require an OAuth token.
- * Hoshika does not document an episode-thumbnail endpoint, so episode stills
- * remain on AniVault's existing scraper route until a supported field/endpoint
- * can be confirmed.
+ * Episode metadata and episode stills are loaded from Hoshika's public
+ * /api/v1/anime/{shortId}/episodes endpoint when available.
  */
 export interface HoshikaAnimeMetadata {
   poster: string;
@@ -119,6 +118,100 @@ function titleMatchScore(item: any, title: string): number {
   if (variants.some((candidate) => candidate === wanted)) return 100;
   if (variants.some((candidate) => candidate.startsWith(wanted) || wanted.startsWith(candidate))) return 80;
   return 0;
+}
+
+
+export interface HoshikaEpisode {
+  number: number;
+  title: string;
+  aired: string | null;
+  thumbnail: string;
+  filler: boolean;
+  recap: boolean;
+}
+
+/**
+ * Resolve episode numbers and stills from Hoshika's public catalog.
+ * Search results identify Hoshika anime by shortId; this is NOT a MAL ID.
+ * The endpoint's documented response shape is { items, total, nextAfter }.
+ */
+export async function getHoshikaAnimeEpisodes(
+  title: string,
+  kv?: KVNamespace,
+): Promise<HoshikaEpisode[] | null> {
+  if (!title) return null;
+
+  const searchUrl = new URL('https://hoshika.app/api/v1/search');
+  searchUrl.searchParams.set('q', title);
+  try {
+    const searchResponse = await fetch(searchUrl.toString(), {
+      headers: { Accept: 'application/json' },
+    });
+    if (!searchResponse.ok) return null;
+    const searchPayload: any = await searchResponse.json();
+    if (searchPayload?.ok === false) return null;
+
+    const match = resultsFrom(searchPayload)
+      .map((item) => ({ item, score: titleMatchScore(item, title) }))
+      .filter((entry) => entry.score >= 80)
+      .sort((a, b) => b.score - a.score)[0]?.item;
+    const shortId = shortIdFrom(match);
+    if (!match || !shortId) return null;
+
+    const cacheKey = `hoshika_public_episodes_v1_${shortId}`;
+    if (kv) {
+      try {
+        const cached = await kv.get(cacheKey, 'json') as HoshikaEpisode[] | null;
+        if (cached && Array.isArray(cached)) return cached;
+      } catch { /* Cache failures must not block the live request. */ }
+    }
+
+    const episodes: HoshikaEpisode[] = [];
+    let after: string | null = null;
+    // Bound pagination so malformed cursors cannot cause an unbounded Worker request.
+    for (let page = 0; page < 10; page++) {
+      const url = new URL(`https://hoshika.app/api/v1/anime/${encodeURIComponent(shortId)}/episodes`);
+      url.searchParams.set('locale', 'en');
+      url.searchParams.set('limit', '100');
+      if (after) url.searchParams.set('after', after);
+      const response = await fetch(url.toString(), {
+        headers: { Accept: 'application/json' },
+      });
+      if (!response.ok) return episodes.length ? episodes : null;
+      const payload: any = await response.json();
+      if (payload?.ok === false || !Array.isArray(payload?.items)) {
+        return episodes.length ? episodes : null;
+      }
+
+      for (const item of payload.items) {
+        const number = Number(item?.number);
+        const thumbnail = typeof item?.thumbnail === 'string' && /^https?:\/\//i.test(item.thumbnail)
+          ? item.thumbnail
+          : '';
+        if (!Number.isInteger(number) || number < 1) continue;
+        episodes.push({
+          number,
+          title: typeof item?.title === 'string' ? item.title : `Episode ${number}`,
+          aired: typeof item?.aired === 'string' ? item.aired : null,
+          thumbnail,
+          filler: !!item?.filler,
+          recap: !!item?.recap,
+        });
+      }
+
+      after = typeof payload.nextAfter === 'string' && payload.nextAfter ? payload.nextAfter : null;
+      if (!after || payload.items.length === 0) break;
+    }
+
+    episodes.sort((a, b) => a.number - b.number);
+    if (kv && episodes.length) {
+      try { await kv.put(cacheKey, JSON.stringify(episodes), { expirationTtl: 21600 }); } catch {}
+    }
+    return episodes.length ? episodes : null;
+  } catch (error) {
+    console.warn('[hoshika] Public episode lookup failed:', String(error));
+    return null;
+  }
 }
 
 function metadataFrom(item: any): HoshikaAnimeMetadata {
