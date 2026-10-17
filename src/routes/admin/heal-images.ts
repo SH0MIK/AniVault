@@ -105,12 +105,12 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
 @media (max-width:600px) { .heal-row { grid-template-columns:42px 1fr; } .heal-status, .heal-preview { grid-column:2; } }
 </style>
 
-<div class="admin-header"><div><h1>${icon('heal', 'icon-medium')} Heal Images</h1><p class="text-muted">Scans tracked anime against Hoshika only. Found covers are saved; missing Hoshika covers are marked in red for review.</p></div></div>
+<div class="admin-header"><div><h1>${icon('heal', 'icon-medium')} Hoshika Cover Audit</h1><p class="text-muted">Scans tracked anime against Hoshika only. Missing covers are marked in red for review; no fallback source is used.</p></div></div>
 
 <div class="heal-stats">
   <div class="heal-stat"><div class="heal-stat-val">${remaining.toLocaleString('en-US')}</div><div class="heal-stat-lbl">Tracked Anime</div></div>
   <div class="heal-stat"><div class="heal-stat-val">${missing.length}</div><div class="heal-stat-lbl">In This Batch</div></div>
-  ${skipIds.length ? `<div class="heal-stat"><div class="heal-stat-val">${skipIds.length.toLocaleString('en-US')}</div><div class="heal-stat-lbl">Skipped (Failed)</div></div>` : ''}
+  ${skipIds.length ? `<div class="heal-stat"><div class="heal-stat-val">${skipIds.length.toLocaleString('en-US')}</div><div class="heal-stat-lbl">Already Scanned</div></div>` : ''}
 </div>
 
 <div class="card card-body mb-4">
@@ -200,13 +200,9 @@ async function healRow(row) {
     status.classList.add('fail');
     throw err;
   }
-  status.textContent = 'Saving Hoshika cover…';
-  const saved = await saveImage(animeId, animeTitle, imageUrl);
-  if (!saved.success) throw new Error(saved.error || 'Save failed');
-  status.textContent = '✓ Hoshika cover found and saved';
+  status.textContent = '✓ Hoshika cover found';
   status.classList.add('ok');
-  const localUrl = saved.image_url || imageUrl;
-  preview.innerHTML = \`<img src="\${localUrl.replaceAll('"', '&quot;')}" alt="">\`;
+  preview.innerHTML = \`<img src="\${imageUrl.replaceAll('"', '&quot;')}" alt="">\`;
 }
 function nextBatchUrl(processedIds) {
   const params  = new URLSearchParams(window.location.search);
