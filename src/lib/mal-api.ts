@@ -202,10 +202,8 @@ export class MalAPI {
     const data = await this.fetchAniListSeasonLive();
     if (!data || data.length === 0) return false;
 
-    // Build the complete Trending card payload in the background. This is
-    // where the TMDB-backed poster is resolved; visitors only consume the
-    // finished KV object, so the homepage has no synchronous AniList/TMDB
-    // dependency for Trending.
+    // Build the Trending card payload in the background; Hoshika is the only
+    // automatic poster/cover source, so missing catalog art stays blank.
     await this.enrichTrendingArt(data);
 
     if (this.kv && this.cacheEnabled()) {
@@ -383,7 +381,7 @@ export class MalAPI {
     if (!ids.length) return map;
     const placeholders = ids.map(() => '?').join(',');
     const rows = await this.db.fetchAll<{ anime_id: number; image_url: string }>(
-      `SELECT anime_id, image_url FROM anime_images WHERE anime_id IN (${placeholders})`,
+      `SELECT anime_id, image_url FROM anime_images WHERE anime_id IN (${placeholders}) AND source IN ('upload', 'url')`,
       ids
     );
     for (const row of rows) map.set(row.anime_id, row.image_url);
@@ -443,11 +441,9 @@ export class MalAPI {
   }
 
   // ── Image Source Priority (admin/anime_images.php) ───────────────────────
-  // One global setting: whether the scraper's live API art (poster/cover/
-  // logo, resolved via its own TMDB -> Kitsu -> AniList chain) or your
-  // admin-saved art wins when both exist for a title. The loser still acts
-  // as a fallback either way -- this only controls which one is *preferred*,
-  // for comparing load speed between the two sources.
+  // One global setting: whether Hoshika catalog artwork or explicitly
+  // admin-saved overrides win when both exist. No scraper/TMDB/Kitsu/AniList
+  // artwork is considered an automatic source.
   async getImagePriority(): Promise<'api' | 'saved'> {
     const settings = new Settings(this.db);
     const val = await settings.get('image_source_priority', 'saved');
@@ -653,7 +649,6 @@ export class MalAPI {
     const related = await Promise.all((node.related_anime ?? []).filter(Boolean).map(async (r: any) => {
       const entry = r?.node ?? {};
       const entryId = Number(entry?.id ?? 0);
-      const entryLocalImage = entryId ? await this.getLocalAnimeImage(entryId) : '';
       return {
         entry: {
           mal_id: entryId,
@@ -667,7 +662,6 @@ export class MalAPI {
     const recommendations = await Promise.all((node.recommendations ?? []).filter(Boolean).map(async (r: any) => {
       const entry = r?.node ?? {};
       const entryId = Number(entry?.id ?? 0);
-      const entryLocalImage = entryId ? await this.getLocalAnimeImage(entryId) : '';
       return {
         entry: {
           mal_id: entryId,
