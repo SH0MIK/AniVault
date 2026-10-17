@@ -412,7 +412,7 @@ export class MalAPI {
       targets.map(async (anime) => ({
         id: anime.mal_id,
         art: await this.getTmdbArtForCard(anime, true).catch(() => ({ poster: '', cover: '', logo: '' })),
-        hoshika: await getHoshikaAnimeMetadata(anime.mal_id, anime.title, this.kv, false).catch(() => null),
+        hoshika: await getHoshikaAnimeMetadata(anime.mal_id, anime.title, this.kv, true).catch(() => null),
       }))
     );
 
@@ -986,7 +986,7 @@ export class MalAPI {
     // per row on top of everything else the page needs.
     const [art, hoshika] = await Promise.all([
       animeId ? this.getAnimeArt(animeId, !isList) : Promise.resolve({ poster: '', cover: '', logo: '' }),
-      animeId ? getHoshikaAnimeMetadata(animeId, node.title ?? '', this.kv, !isList).catch(() => null) : Promise.resolve(null),
+      animeId ? getHoshikaAnimeMetadata(animeId, node.title ?? '', this.kv, true).catch(() => null) : Promise.resolve(null),
     ]);
     const mediumImage = hoshika?.poster || art.poster;
     const largeImage = hoshika?.poster || art.poster;
