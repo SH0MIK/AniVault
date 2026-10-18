@@ -80,7 +80,6 @@ ${o.impersonating ? `
     <a href="heal_images.php" class="${active('heal_images')}">${icon('heal', 'icon-small')} Heal Images</a>
 
     <div class="nav-group">System</div>
-    <a href="episode_scanner.php" class="${active('episode_scanner')}">${icon('airing', 'icon-small')} Episode Scanner</a>
     <a href="cache.php" class="${active('cache')}">${icon('database', 'icon-small')} Clear Cache</a>
     <a href="turbovid_test.php" class="${active('turbovid_test')}">${icon('play', 'icon-small')} Turbovid Tester (CF)</a>
     <a href="turbovid_servers.php" class="${active('turbovid_servers')}">${icon('play', 'icon-small')} TurboVid Servers</a>
