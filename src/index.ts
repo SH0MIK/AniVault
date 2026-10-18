@@ -42,7 +42,6 @@ import { adminBadgesRoutes } from './routes/admin/badges';
 import { adminSurveyRoutes } from './routes/admin/survey';
 import { adminCacheRoutes } from './routes/admin/cache';
 import { adminHomepageCacheRoutes } from './routes/admin/home-cache';
-import { adminEpisodeScannerRoutes } from './routes/admin/episode-scanner';
 import { adminWatchStatsRoutes } from './routes/admin/watch-stats';
 import { adminHealImagesRoutes } from './routes/admin/heal-images';
 import { adminTurbovidRoutes } from './routes/admin/turbovid-test';
@@ -60,7 +59,6 @@ import { apiAnimeCommentsRoutes } from './routes/api-anime-comments';
 import { pointsRoutes } from './routes/points';
 import { bugReportRoutes } from './routes/bug-reports';
 import { healthRoutes } from './routes/health';
-import { handleScheduled } from './scheduled';
 
 export interface Env {
   DB: D1Database;
@@ -138,7 +136,6 @@ app.route('/', adminBadgesRoutes);
 app.route('/', adminSurveyRoutes);
 app.route('/', adminCacheRoutes);
 app.route('/', adminHomepageCacheRoutes);
-app.route('/', adminEpisodeScannerRoutes);
 app.route('/', adminWatchStatsRoutes);
 app.route('/', adminHealImagesRoutes);
 app.route('/', adminTurbovidRoutes);
@@ -169,7 +166,4 @@ app.onError((err, c) => {
 
 export default {
   fetch: app.fetch,
-  async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext) {
-    ctx.waitUntil(handleScheduled(env, event.cron));
-  },
 };
