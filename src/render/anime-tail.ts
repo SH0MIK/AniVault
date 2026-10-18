@@ -690,7 +690,7 @@ function afterPaint(fn) {
   }
 }
 
-document.addEventListener('DOMContentLoaded', function() {
+function startAnimePageLoaders() {
   afterPaint(() => {
     lazyLoadEpisodes();
     lazyLoadCharacters();
@@ -698,7 +698,16 @@ document.addEventListener('DOMContentLoaded', function() {
     lazyLoadVideos();
     lazyLoadPictures();
   });
-});
+}
+
+// The page tail may be evaluated after DOMContentLoaded (for example when
+// navigation restores/injects the page). In that case a listener alone never
+// fires, leaving the episode grid and its thumbnails stuck on the loader.
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', startAnimePageLoaders, { once: true });
+} else {
+  startAnimePageLoaders();
+}
 
 // ── Redirect ep-cards to watch page via data attribute ──
 // Handled by wrapping ep-cards in <a> tags inside buildEpCard()
