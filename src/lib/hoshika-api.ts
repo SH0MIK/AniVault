@@ -130,6 +130,48 @@ export interface HoshikaEpisode {
   recap: boolean;
 }
 
+function episodeThumbnailFrom(item: any): string {
+  const seen = new Set<any>();
+  const candidates = [
+    item?.thumbnail, item?.thumbnailUrl, item?.thumbnail_url,
+    item?.image, item?.imageUrl, item?.image_url,
+    item?.still, item?.stillUrl, item?.still_url,
+    item?.preview, item?.previewUrl, item?.preview_url,
+    item?.poster, item?.images, item?.artwork,
+  ];
+  const visit = (value: any, depth = 0): string => {
+    if (depth > 5 || value == null) return '';
+    if (typeof value === 'string') {
+      const raw = value.trim();
+      if (!raw || raw.startsWith('data:') || raw.startsWith('javascript:')) return '';
+      try {
+        const url = new URL(raw, 'https://hoshika.app');
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.toString() : '';
+      } catch { return ''; }
+    }
+    if (typeof value !== 'object' || seen.has(value)) return '';
+    seen.add(value);
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        const found = visit(entry, depth + 1);
+        if (found) return found;
+      }
+      return '';
+    }
+    for (const key of ['url', 'src', 'href', 'original', 'originalUrl', 'full', 'large', 'medium', 'small', 'webp', 'thumbnail', 'thumbnailUrl', 'image', 'imageUrl', 'still', 'preview', 'path']) {
+      const found = visit(value[key], depth + 1);
+      if (found) return found;
+    }
+    return '';
+  };
+  for (const candidate of candidates) {
+    const found = visit(candidate);
+    if (found) return found;
+  }
+  return '';
+}
+
+
 /**
  * Resolve episode numbers and stills from Hoshika's public catalog.
  * Search results identify Hoshika anime by shortId; this is NOT a MAL ID.
@@ -158,11 +200,11 @@ export async function getHoshikaAnimeEpisodes(
     const shortId = shortIdFrom(match);
     if (!match || !shortId) return null;
 
-    const cacheKey = `hoshika_public_episodes_v1_${shortId}`;
+    const cacheKey = `hoshika_public_episodes_v2_${shortId}`;
     if (kv) {
       try {
         const cached = await kv.get(cacheKey, 'json') as HoshikaEpisode[] | null;
-        if (cached && Array.isArray(cached)) return cached;
+        if (cached && Array.isArray(cached) && cached.some((episode) => !!episode?.thumbnail)) return cached;
       } catch { /* Cache failures must not block the live request. */ }
     }
 
@@ -185,9 +227,7 @@ export async function getHoshikaAnimeEpisodes(
 
       for (const item of payload.items) {
         const number = Number(item?.number);
-        const thumbnail = typeof item?.thumbnail === 'string' && /^https?:\/\//i.test(item.thumbnail)
-          ? item.thumbnail
-          : '';
+        const thumbnail = episodeThumbnailFrom(item);
         if (!Number.isInteger(number) || number < 1) continue;
         episodes.push({
           number,
