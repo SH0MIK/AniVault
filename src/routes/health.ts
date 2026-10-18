@@ -6,16 +6,9 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { Db } from '../lib/db';
-import { SCANNER_LAST_RUN_KV_KEY } from './admin/episode-scanner';
 
 export const healthRoutes = new Hono<{ Bindings: Env }>();
 
-const DUB_REFRESH_KV_KEY = 'dub_status_last_refresh';
-const DUB_REFRESH_INTERVAL_MS = 20 * 60 * 60 * 1000; // ~daily, see scheduled.ts
-const SCANNER_INTERVAL_MS = 60 * 60 * 1000; // hourly cron
-const SCANNER_SLACK_MS = 30 * 60 * 1000; // allow for a missed/late tick
-const SEASON_CACHE_KEY = 'anilist_season_now';
-const SEASON_CACHE_SLACK_MS = 24 * 60 * 60 * 1000; // generous fallback TTL, see mal-api.ts
 
 interface CheckResult {
   ok: boolean;
@@ -61,64 +54,6 @@ async function checkCache(env: Env): Promise<CheckResult> {
   }
 }
 
-async function checkEpisodeScanner(env: Env, db: Db): Promise<CheckResult> {
-  try {
-    const lastRunRaw = await env.API_CACHE.get(SCANNER_LAST_RUN_KV_KEY);
-    const lastRunMs = lastRunRaw ? Number(lastRunRaw) : null;
-    const alive = lastRunMs !== null && Date.now() - lastRunMs < SCANNER_INTERVAL_MS + SCANNER_SLACK_MS;
-    const tracked = await db.count('SELECT COUNT(*) as cnt FROM episode_air_cache');
-    return {
-      ok: alive,
-      label: 'Episode Scanner',
-      detail: alive ? 'Automatic episode sync is running on schedule.' : 'No scan recorded in the expected window.',
-      badges: [
-        { label: 'Last run', value: relativeTime(lastRunMs) },
-        { label: 'Tracked titles', value: String(tracked) },
-      ],
-      critical: false,
-    };
-  } catch (err: any) {
-    return { ok: false, label: 'Episode Scanner', detail: String(err?.message ?? err), critical: false };
-  }
-}
-
-async function checkDubRefresh(env: Env): Promise<CheckResult> {
-  try {
-    const lastRaw = await env.API_CACHE.get(DUB_REFRESH_KV_KEY);
-    const lastMs = lastRaw ? Number(lastRaw) : null;
-    const alive = lastMs !== null && Date.now() - lastMs < DUB_REFRESH_INTERVAL_MS + SCANNER_SLACK_MS;
-    return {
-      ok: alive,
-      label: 'Dub Status Refresh',
-      detail: alive ? 'Dub availability data is refreshed on schedule.' : 'Dub refresh is overdue.',
-      badges: [{ label: 'Last refresh', value: relativeTime(lastMs) }],
-      critical: false,
-    };
-  } catch (err: any) {
-    return { ok: false, label: 'Dub Status Refresh', detail: String(err?.message ?? err), critical: false };
-  }
-}
-
-async function checkAniListSeasonCache(env: Env): Promise<CheckResult> {
-  try {
-    const cached = await env.API_CACHE.get(SEASON_CACHE_KEY);
-    if (!cached) {
-      return { ok: false, label: 'AniList Season Cache', detail: 'No cached season data found.', critical: false };
-    }
-    // The cached payload doesn't carry its own write timestamp, so this is a
-    // presence check rather than a freshness check.
-    return {
-      ok: true,
-      label: 'AniList Season Cache',
-      detail: 'Populated by a GitHub Actions relay — AniList blocks Cloudflare Workers\u2019 IPs directly, so this isn\u2019t probed live.',
-      badges: [{ label: 'Cache', value: 'present' }],
-      critical: false,
-    };
-  } catch (err: any) {
-    return { ok: false, label: 'AniList Season Cache', detail: String(err?.message ?? err), critical: false };
-  }
-}
-
 async function probeExternal(url: string, init?: RequestInit): Promise<{ ok: boolean; ms: number; detail: string }> {
   const start = Date.now();
   const controller = new AbortController();
@@ -138,12 +73,9 @@ healthRoutes.get('/healthz', async (c) => {
   const env = c.env;
   const db = new Db(env.DB);
 
-  const [database, cache, episodeScanner, dubRefresh, seasonCache] = await Promise.all([
+  const [database, cache] = await Promise.all([
     checkDatabase(env),
     checkCache(env),
-    checkEpisodeScanner(env, db),
-    checkDubRefresh(env),
-    checkAniListSeasonCache(env),
   ]);
 
   const externalChecks: Record<string, { ok: boolean; label: string; configured: boolean; critical: boolean; ms?: number; detail: string }> = {};
@@ -167,13 +99,9 @@ healthRoutes.get('/healthz', async (c) => {
     externalChecks.tmdb = { ok: true, label: 'TMDB API', configured: false, critical: false, detail: 'Not configured on this environment.' };
   }
 
-  const checks = { database, cache, episodeScanner, dubRefresh, seasonCache };
+  const checks = { database, cache };
   const criticalOk = database.ok && cache.ok;
-  const anyDegraded =
-    !episodeScanner.ok ||
-    !dubRefresh.ok ||
-    !seasonCache.ok ||
-    Object.values(externalChecks).some((e) => e.configured && !e.ok);
+  const anyDegraded = Object.values(externalChecks).some((e) => e.configured && !e.ok);
 
   const status = !criticalOk ? 'down' : anyDegraded ? 'degraded' : 'ok';
 
