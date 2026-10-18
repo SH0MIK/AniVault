@@ -1,5 +1,13 @@
 // AnimeVault — Main JS
 
+// Remove the one-time cache-busting marker after an auth refresh.
+(() => {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has('__auth_refresh')) return;
+  url.searchParams.delete('__auth_refresh');
+  window.history.replaceState(window.history.state, '', url.pathname + url.search + url.hash);
+})();
+
 // ══════════════════════════════════════════════════════════════
 //  AUTH POPUP MODAL
 //  requireLogin()  — call instead of redirecting to login.php
@@ -74,7 +82,20 @@ async function authSubmitLogin() {
       sucEl.textContent = 'Signed in! Redirecting…';
       sucEl.style.display = '';
       setTimeout(() => {
-        window.location.href = window.__authRedirect || (window.__siteUrl + '/');
+        const destination = window.__authRedirect || (window.__siteUrl + '/');
+        const target = new URL(destination, window.location.href);
+        const current = new URL(window.location.href);
+        // Refresh the server-rendered navigation after successful auth.
+        if (target.origin === current.origin &&
+            target.pathname === current.pathname &&
+            target.search === current.search &&
+            target.hash === current.hash) {
+          // Force a fresh response in case an intermediary cached guest HTML.
+          target.searchParams.set('__auth_refresh', String(Date.now()));
+          window.location.replace(target.href);
+        } else {
+          window.location.assign(target.href);
+        }
       }, 600);
     } else {
       errEl.textContent = data.message || 'Invalid credentials.';
@@ -119,7 +140,20 @@ async function authSubmitSignup() {
       sucEl.textContent = 'Account created! Welcome to AniVault 🎌 Redirecting…';
       sucEl.style.display = '';
       setTimeout(() => {
-        window.location.href = window.__authRedirect || (window.__siteUrl + '/');
+        const destination = window.__authRedirect || (window.__siteUrl + '/');
+        const target = new URL(destination, window.location.href);
+        const current = new URL(window.location.href);
+        // Refresh the server-rendered navigation after successful auth.
+        if (target.origin === current.origin &&
+            target.pathname === current.pathname &&
+            target.search === current.search &&
+            target.hash === current.hash) {
+          // Force a fresh response in case an intermediary cached guest HTML.
+          target.searchParams.set('__auth_refresh', String(Date.now()));
+          window.location.replace(target.href);
+        } else {
+          window.location.assign(target.href);
+        }
       }, 800);
     } else {
       errEl.textContent = data.message || 'Registration failed.';
