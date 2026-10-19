@@ -190,7 +190,19 @@ homeRoutes.get('/', async (c) => {
     requestUrl: c.req.url,
   });
 
-  // Hero slider slides. Curated admin banners are authoritative and are
+  // Resize hero artwork at fetch time for Hoshika, TMDB, and admin-entered URLs.
+// The original image is never modified; the proxy returns an optimized variant.
+function resizeHeroImageUrl(url: string, width: number, height: number, fit: 'cover' | 'contain'): string {
+  if (!url || !/^https?:\/\//i.test(url)) return url;
+  if (/^https?:\/\/images\.weserv\.nl\//i.test(url)) return url;
+  const proxy = new URL('https://images.weserv.nl/');
+  proxy.searchParams.set('url', url.replace(/^https?:\/\//i, ''));
+  proxy.searchParams.set('w', String(width));
+  proxy.searchParams.set('h', String(height));
+  proxy.searchParams.set('fit', fit);
+  return proxy.toString();
+}
+// Hero slider slides. Curated admin banners are authoritative and are
   // read directly from D1. Auto slides use the local D1 artwork libraries.
   let heroPool: NormalisedAnime[] = [];
   let heroBanners: string[] = [];
@@ -263,8 +275,8 @@ homeRoutes.get('/', async (c) => {
   if (heroPool.length > 0) {
     const p0 = heroPool[0];
     const poster0 = p0.images?.jpg?.large_image_url || p0.images?.jpg?.image_url || '';
-    const bg0 = heroBanners[0] || p0.banner_image || poster0;
-    const cover0 = heroCovers[0] || poster0;
+    const bg0 = resizeHeroImageUrl(heroBanners[0] || p0.banner_image || poster0, 1344, 756, 'cover');
+    const cover0 = resizeHeroImageUrl(heroCovers[0] || poster0, 500, 750, 'cover');
     const pre = [
       cover0 ? `<link rel="preload" as="image" href="${h(cover0)}" media="(max-width: 768px)" fetchpriority="high">` : '',
       bg0 ? `<link rel="preload" as="image" href="${h(bg0)}" media="(min-width: 769px)" fetchpriority="high">` : '',
@@ -452,8 +464,9 @@ const LAZY_PX = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAA
 function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?: string, mobileCover?: string, logo?: string, meta?: AnimeCardMeta): string {
   const title = a.title_english && a.title_english !== a.title ? a.title_english : (a.title || 'Unknown');
   const poster = a.images?.jpg?.large_image_url || a.images?.jpg?.image_url || '';
-  const bg = banner || poster;
-  const cover = mobileCover || poster;
+  const bg = resizeHeroImageUrl(banner || poster, 1344, 756, 'cover');
+  const cover = resizeHeroImageUrl(mobileCover || poster, 500, 750, 'cover');
+  logo = logo ? resizeHeroImageUrl(logo, 420, 146, 'contain') : '';
   const desc = a.synopsis || '';
   const genres = (a.genres || []).slice(0, 3);
   const aurl = `${siteUrl}/anime?id=${a.mal_id}`;
@@ -471,7 +484,7 @@ function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?
   <div class="hero-bg${banner ? '' : ' hero-bg-fallback'}">
     <picture>
       ${cover ? `<source media="(max-width: 768px)" ${i === 0 ? 'srcset' : 'data-srcset'}="${h(cover)}">` : ''}
-      ${bg ? `${i === 0 ? `<img src="${h(bg)}" alt="${h(title)}" loading="eager" fetchpriority="high" decoding="async">` : `<img src="${LAZY_PX}" data-src="${h(bg)}" alt="${h(title)}" decoding="async">`}` : ''}
+      ${bg ? `${i === 0 ? `<img src="${h(bg)}" width="1344" height="756" alt="${h(title)}" loading="eager" fetchpriority="high" decoding="async">` : `<img src="${LAZY_PX}" data-src="${h(bg)}" width="1344" height="756" alt="${h(title)}" decoding="async">`}` : ''}
     </picture>
   </div>
   <div class="hero-gradient"></div>
@@ -479,7 +492,7 @@ function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?
     <div class="container">
       <div class="hero-info${logo ? ' has-logo' : ''}">
         <h1 class="hero-title">${h(title)}</h1>
-        ${logo ? `${i === 0 ? `<img class="hero-logo" src="${h(logo)}" alt="${h(title)}" loading="eager" decoding="async">` : `<img class="hero-logo" src="${LAZY_PX}" data-src="${h(logo)}" alt="${h(title)}" decoding="async">`}` : ''}
+        ${logo ? `${i === 0 ? `<img class="hero-logo" src="${h(logo)}" width="420" height="146" alt="${h(title)}" loading="eager" decoding="async">` : `<img class="hero-logo" src="${LAZY_PX}" data-src="${h(logo)}" width="420" height="146" alt="${h(title)}" decoding="async">`}` : ''}
         ${desc ? `<p class="hero-desc">${h(desc)}</p>` : ''}
         ${genres.length ? `<div class="hero-genres">${genres.map((g) => `<span class="hero-genre-tag">${h(g.name)}</span>`).join('')}</div>` : ''}
         <div class="hero-stat-strip">
