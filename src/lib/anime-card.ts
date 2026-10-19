@@ -36,8 +36,26 @@ export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus:
   // Cards display at ~224x336 CSS px, so TMDB's w500 is oversized. Serve w342
   // by default and let retina screens step up to w500 via srcset.
   const tmdb = aimg.match(/^(https:\/\/image\.tmdb\.org\/t\/p\/)w\d+(\/.+)$/);
-  const cardSrc = tmdb ? `${tmdb[1]}w342${tmdb[2]}` : aimg;
-  const cardSrcSet = tmdb ? `${tmdb[1]}w342${tmdb[2]} 342w, ${tmdb[1]}w500${tmdb[2]} 500w` : '';
+  // Hoshika and other catalog CDNs may serve full-resolution originals even
+  // when the card is only ~165–224px wide. Resize/compress those at request
+  // time; originals remain untouched at their source.
+  const resizeCardImage = (url: string, width: number): string => {
+    if (!url || !/^https?:\/\//i.test(url) || /^https?:\/\/images\.weserv\.nl\//i.test(url)) return url;
+    const proxy = new URL('https://images.weserv.nl/');
+    proxy.searchParams.set('url', url.replace(/^https?:\/\//i, ''));
+    proxy.searchParams.set('w', String(width));
+    proxy.searchParams.set('h', String(Math.round(width * 1.5)));
+    proxy.searchParams.set('fit', 'cover');
+    proxy.searchParams.set('output', 'webp');
+    proxy.searchParams.set('q', '75');
+    return proxy.toString();
+  };
+  const cardSrc = tmdb ? `${tmdb[1]}w342${tmdb[2]}` : resizeCardImage(aimg, 342);
+  const cardSrcSet = tmdb
+    ? `${tmdb[1]}w342${tmdb[2]} 342w, ${tmdb[1]}w500${tmdb[2]} 500w`
+    : aimg && !/^https?:\/\/images\.weserv\.nl\//i.test(aimg)
+      ? `${resizeCardImage(aimg, 342)} 342w, ${resizeCardImage(aimg, 500)} 500w`
+      : '';
   const cardSizes = '(max-width: 768px) 38vw, 224px';
   const ascore = a.score;
   const atype = a.type ?? '';
