@@ -62,9 +62,13 @@ function posterFrom(item: any): string {
   const cover = obj(x.cover);
   const mainPicture = obj(x.main_picture);
   return imageUrl(
+    // Prefer a CDN-provided medium/small variant for card posters instead of
+    // downloading the original artwork when Hoshika exposes multiple sizes.
+    poster.medium, poster.small, images.poster_medium, images.poster_small,
+    images.medium, images.small, mainPicture.medium, mainPicture.small,
     x.poster_url, x.posterUrl, x.cover_url, x.coverUrl, x.cover_image, x.coverImage,
     poster, cover, images.poster, images.cover, images.cover_image, images.poster_url,
-    images.original, images.large, images.medium, mainPicture.large, mainPicture.medium,
+    images.original, images.large, images.medium, mainPicture.large,
     x.image, x.image_url, x.thumbnail,
   );
 }
