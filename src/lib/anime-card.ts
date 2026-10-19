@@ -29,7 +29,7 @@ export async function buildCardMetaMap(db: Db, items: NormalisedAnime[]): Promis
   return out;
 }
 
-export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus: string | null, meta?: AnimeCardMeta): string {
+export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus: string | null, meta?: AnimeCardMeta, imageUrlTransform?: (url: string, width: number) => string): string {
   const aid = a.mal_id ?? 0;
   const atitle = a.title_english && a.title_english !== a.title ? a.title_english : (a.title || 'Unknown');
   const aimg = a.images?.jpg?.image_url ?? '';
@@ -50,12 +50,16 @@ export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus:
     proxy.searchParams.set('q', '75');
     return proxy.toString();
   };
-  const cardSrc = tmdb ? `${tmdb[1]}w342${tmdb[2]}` : resizeCardImage(aimg, 342);
-  const cardSrcSet = tmdb
-    ? `${tmdb[1]}w342${tmdb[2]} 342w, ${tmdb[1]}w500${tmdb[2]} 500w`
-    : aimg && !/^https?:\/\/images\.weserv\.nl\//i.test(aimg)
-      ? `${resizeCardImage(aimg, 342)} 342w, ${resizeCardImage(aimg, 500)} 500w`
-      : '';
+  const cardSrc = imageUrlTransform
+    ? imageUrlTransform(aimg, 342)
+    : tmdb ? `${tmdb[1]}w342${tmdb[2]}` : resizeCardImage(aimg, 342);
+  const cardSrcSet = imageUrlTransform && aimg
+    ? `${imageUrlTransform(aimg, 342)} 342w, ${imageUrlTransform(aimg, 500)} 500w`
+    : tmdb
+      ? `${tmdb[1]}w342${tmdb[2]} 342w, ${tmdb[1]}w500${tmdb[2]} 500w`
+      : aimg && !/^https?:\/\/images\.weserv\.nl\//i.test(aimg)
+        ? `${resizeCardImage(aimg, 342)} 342w, ${resizeCardImage(aimg, 500)} 500w`
+        : '';
   const cardSizes = '(max-width: 768px) 38vw, 224px';
   const ascore = a.score;
   const atype = a.type ?? '';
