@@ -24,17 +24,16 @@ import { getHomepageSnapshot } from '../lib/home-cache';
 
 export const homeRoutes = new Hono<{ Bindings: Env }>();
 
-// Resize hero artwork at fetch time for Hoshika, TMDB, and admin-entered URLs.
-// The original image is never modified; the proxy returns an optimized variant.
+// Homepage-only Cloudflare Image Transformations for Hoshika, TMDB, and
+// admin-entered art. Stable dimensions let repeat visits reuse cached variants.
 function resizeHeroImageUrl(url: string, width: number, height: number, fit: 'cover' | 'contain'): string {
   if (!url || !/^https?:\/\//i.test(url)) return url;
-  if (/^https?:\/\/images\.weserv\.nl\//i.test(url)) return url;
-  const proxy = new URL('https://images.weserv.nl/');
-  proxy.searchParams.set('url', url.replace(/^https?:\/\//i, ''));
-  proxy.searchParams.set('w', String(width));
-  proxy.searchParams.set('h', String(height));
-  proxy.searchParams.set('fit', fit);
-  return proxy.toString();
+  return `/cdn-cgi/image/width=${width},height=${height},fit=${fit},format=auto,quality=75/${url}`;
+}
+
+function transformHomepageCardImage(url: string, width: number): string {
+  if (!url || !/^https?:\/\//i.test(url)) return url;
+  return `/cdn-cgi/image/width=${width},height=${Math.round(width * 1.5)},fit=cover,format=auto,quality=75/${url}`;
 }
 
 interface WatchHistoryRow {
@@ -351,7 +350,7 @@ ${heroSliderScript(heroPool.length)}
       <section class="content-section">
         ${sectionHeader('Watch Now', 'row-watchnow', `${siteUrl}/watch-now`)}
         <div class="scroll-row" id="row-watchnow">
-          ${watchNowList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}
+          ${watchNowList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id), transformHomepageCardImage)).join('')}
         </div>
       </section>`;
   }
@@ -359,14 +358,14 @@ ${heroSliderScript(heroPool.length)}
   html += `
       <section class="content-section">
         ${sectionHeader('Most Popular', 'row-popular', `${siteUrl}/top`, 'View Full Rankings')}
-        <div class="scroll-row" id="row-popular">${topList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}</div>
+        <div class="scroll-row" id="row-popular">${topList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id), transformHomepageCardImage)).join('')}</div>
       </section>`;
 
   if (upcomingList.length > 0) {
     html += `
       <section class="content-section">
         ${sectionHeader('Coming Soon', 'row-upcoming')}
-        <div class="scroll-row" id="row-upcoming">${upcomingList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}</div>
+        <div class="scroll-row" id="row-upcoming">${upcomingList.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id), transformHomepageCardImage)).join('')}</div>
       </section>`;
   }
 
@@ -522,7 +521,8 @@ function renderSidebarItem(a: NormalisedAnime, rank: number, siteUrl: string): s
   const title = a.title_english && a.title_english !== a.title ? a.title_english : (a.title || 'Unknown');
   // Top-10 sidebar cards are intentionally tiny. Resize only TMDB posters;
   // never rewrite self-hosted/custom artwork URLs.
-  const img = toSmallTmdbPoster(a.images?.jpg?.image_url || '');
+  const originalImg = a.images?.jpg?.image_url || '';
+  const img = originalImg ? transformHomepageCardImage(originalImg, 185) : '';
   const aurl = `${siteUrl}/anime?id=${a.mal_id}`;
 
   return `
