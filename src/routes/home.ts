@@ -494,7 +494,7 @@ function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?
     <div class="container">
       <div class="hero-info${logo ? ' has-logo' : ''}">
         <h1 class="hero-title">${h(title)}</h1>
-        ${logo ? `${i === 0 ? `<img class="hero-logo" src="${h(logo)}" data-original="${h(originalLogo)}" width="420" height="146" alt="${h(title)}" loading="eager" decoding="async">` : `<img class="hero-logo" src="${LAZY_PX}" data-src="${h(logo)}" data-original="${h(originalLogo)}" onerror="this.onerror=null;this.src=this.dataset.original" width="420" height="146" alt="${h(title)}" decoding="async">`}` : ''}
+        ${logo ? `${i === 0 ? `<img class="hero-logo" src="${h(logo)}" data-original="${h(originalLogo)}" onerror="this.onerror=null;this.src=this.dataset.original" width="420" height="146" alt="${h(title)}" loading="eager" decoding="async">` : `<img class="hero-logo" src="${LAZY_PX}" data-src="${h(logo)}" data-original="${h(originalLogo)}" onerror="this.onerror=null;this.src=this.dataset.original" width="420" height="146" alt="${h(title)}" decoding="async">`}` : ''}
         ${desc ? `<p class="hero-desc">${h(desc)}</p>` : ''}
         ${genres.length ? `<div class="hero-genres">${genres.map((g) => `<span class="hero-genre-tag">${h(g.name)}</span>`).join('')}</div>` : ''}
         <div class="hero-stat-strip">
