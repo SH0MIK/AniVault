@@ -44,6 +44,8 @@ browseRoutes.get('/browse', async (c) => {
   }
 
   const items = result.data ?? [];
+  // Browse posters/covers are Hoshika-only; clear any MAL/scraper art fallback.
+  await mal.prefetchHoshikaArtForCards(items);
   const pagination = result.pagination ?? {};
   const totalPages = pagination.last_visible_page ?? 1;
   const cardMeta = await buildCardMetaMap(db, items);
