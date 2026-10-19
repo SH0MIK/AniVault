@@ -51,10 +51,10 @@ export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus:
     return proxy.toString();
   };
   const cardSrc = imageUrlTransform
-    ? imageUrlTransform(aimg, 342)
+    ? imageUrlTransform(aimg, 240)
     : tmdb ? `${tmdb[1]}w342${tmdb[2]}` : resizeCardImage(aimg, 342);
   const cardSrcSet = imageUrlTransform && aimg
-    ? `${imageUrlTransform(aimg, 342)} 342w, ${imageUrlTransform(aimg, 500)} 500w`
+    ? `${imageUrlTransform(aimg, 240)} 240w, ${imageUrlTransform(aimg, 342)} 342w, ${imageUrlTransform(aimg, 500)} 500w`
     : tmdb
       ? `${tmdb[1]}w342${tmdb[2]} 342w, ${tmdb[1]}w500${tmdb[2]} 500w`
       : aimg && !/^https?:\/\/images\.weserv\.nl\//i.test(aimg)
