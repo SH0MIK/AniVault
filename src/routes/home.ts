@@ -279,8 +279,8 @@ homeRoutes.get('/', async (c) => {
   if (heroPool.length > 0) {
     const p0 = heroPool[0];
     const poster0 = p0.images?.jpg?.large_image_url || p0.images?.jpg?.image_url || '';
-    const bg0 = resizeHeroImageUrl(heroBanners[0] || p0.banner_image || poster0, 1344, 756, 'cover');
-    const cover0 = resizeHeroImageUrl(heroCovers[0] || poster0, 500, 750, 'cover');
+    const bg0 = resizeHeroImageUrl(heroBanners[0] || p0.banner_image || poster0, 1344, 756, 'cover', 60);
+    const cover0 = resizeHeroImageUrl(heroCovers[0] || poster0, 500, 750, 'cover', 70);
     const pre = [
       cover0 ? `<link rel="preload" as="image" href="${h(cover0)}" media="(max-width: 768px)" fetchpriority="high">` : '',
       bg0 ? `<link rel="preload" as="image" href="${h(bg0)}" media="(min-width: 769px)" fetchpriority="high">` : '',
@@ -470,9 +470,9 @@ function renderHeroSlide(a: NormalisedAnime, i: number, siteUrl: string, banner?
   const poster = a.images?.jpg?.large_image_url || a.images?.jpg?.image_url || '';
   const originalBanner = banner || poster;
   const originalLogo = logo || '';
-  const bg = resizeHeroImageUrl(originalBanner, 1344, 756, 'cover');
-  const cover = resizeHeroImageUrl(mobileCover || poster, 500, 750, 'cover');
-  logo = originalLogo ? resizeHeroImageUrl(originalLogo, 420, 146, 'contain') : '';
+  const bg = resizeHeroImageUrl(originalBanner, 1344, 756, 'cover', 60);
+  const cover = resizeHeroImageUrl(mobileCover || poster, 500, 750, 'cover', 70);
+  logo = originalLogo ? resizeHeroImageUrl(originalLogo, 420, 146, 'contain', 65) : '';
   const desc = a.synopsis || '';
   const genres = (a.genres || []).slice(0, 3);
   const aurl = `${siteUrl}/anime?id=${a.mal_id}`;
@@ -522,7 +522,7 @@ function renderSidebarItem(a: NormalisedAnime, rank: number, siteUrl: string): s
   // Top-10 sidebar cards are intentionally tiny. Resize only TMDB posters;
   // never rewrite self-hosted/custom artwork URLs.
   const originalImg = a.images?.jpg?.image_url || '';
-  const img = originalImg ? transformHomepageCardImage(originalImg, 185) : '';
+  const img = originalImg ? transformHomepageCardImage(originalImg, 96) : '';
   const aurl = `${siteUrl}/anime?id=${a.mal_id}`;
 
   return `
