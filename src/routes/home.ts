@@ -33,7 +33,11 @@ function resizeHeroImageUrl(url: string, width: number, height: number, fit: 'co
 
 function transformHomepageCardImage(url: string, width: number): string {
   if (!url || !/^https?:\/\//i.test(url)) return url;
-  return `/cdn-cgi/image/width=${width},height=${Math.round(width * 1.5)},fit=cover,format=auto,quality=75/${url}`;
+  // Use a consistent, reasonably high-resolution TMDB source for every
+  // variant; otherwise a w342 source could be upscaled for the 500px card.
+  const tmdb = url.match(/^(https:\/\/image\.tmdb\.org\/t\/p\/)w\d+(\/.+)$/);
+  const source = tmdb ? `${tmdb[1]}w500${tmdb[2]}` : url;
+  return `/cdn-cgi/image/width=${width},height=${Math.round(width * 1.5)},fit=cover,format=auto,quality=75/${source}`;
 }
 
 interface WatchHistoryRow {
