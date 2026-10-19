@@ -24,6 +24,19 @@ import { getHomepageSnapshot } from '../lib/home-cache';
 
 export const homeRoutes = new Hono<{ Bindings: Env }>();
 
+// Resize hero artwork at fetch time for Hoshika, TMDB, and admin-entered URLs.
+// The original image is never modified; the proxy returns an optimized variant.
+function resizeHeroImageUrl(url: string, width: number, height: number, fit: 'cover' | 'contain'): string {
+  if (!url || !/^https?:\/\//i.test(url)) return url;
+  if (/^https?:\/\/images\.weserv\.nl\//i.test(url)) return url;
+  const proxy = new URL('https://images.weserv.nl/');
+  proxy.searchParams.set('url', url.replace(/^https?:\/\//i, ''));
+  proxy.searchParams.set('w', String(width));
+  proxy.searchParams.set('h', String(height));
+  proxy.searchParams.set('fit', fit);
+  return proxy.toString();
+}
+
 interface WatchHistoryRow {
   [key: string]: unknown;
   anime_id: number;
@@ -190,19 +203,7 @@ homeRoutes.get('/', async (c) => {
     requestUrl: c.req.url,
   });
 
-  // Resize hero artwork at fetch time for Hoshika, TMDB, and admin-entered URLs.
-// The original image is never modified; the proxy returns an optimized variant.
-function resizeHeroImageUrl(url: string, width: number, height: number, fit: 'cover' | 'contain'): string {
-  if (!url || !/^https?:\/\//i.test(url)) return url;
-  if (/^https?:\/\/images\.weserv\.nl\//i.test(url)) return url;
-  const proxy = new URL('https://images.weserv.nl/');
-  proxy.searchParams.set('url', url.replace(/^https?:\/\//i, ''));
-  proxy.searchParams.set('w', String(width));
-  proxy.searchParams.set('h', String(height));
-  proxy.searchParams.set('fit', fit);
-  return proxy.toString();
-}
-// Hero slider slides. Curated admin banners are authoritative and are
+  // Hero slider slides. Curated admin banners are authoritative and are
   // read directly from D1. Auto slides use the local D1 artwork libraries.
   let heroPool: NormalisedAnime[] = [];
   let heroBanners: string[] = [];
