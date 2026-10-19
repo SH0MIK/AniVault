@@ -1,0 +1,108 @@
+/* AniVault homepage-only styles. Loaded only on the homepage. */
+
+/* ==========================================================================
+   Home page — Anivexa-style layout
+   ========================================================================== */
+
+/* -- hero slider -- */
+#hero { position: relative; height: 56vh; min-height: 480px; max-height: 680px; overflow: hidden; margin-bottom: 8px; }
+.hero-slide { position: absolute; inset: 0; opacity: 0; transition: opacity .7s ease; pointer-events: none; z-index: 0; }
+.hero-slide.active { opacity: 1; pointer-events: auto; z-index: 1; }
+.hero-bg { position: absolute; inset: 0; }
+.hero-bg img { width: 100%; height: 100%; object-fit: cover; object-position: center 30%; transform: scale(1.03); transition: transform 8s ease; }
+.hero-slide.active .hero-bg img { transform: scale(1); }
+/* Fallback (no banner on file at all — neither your own nor AniList's):
+   using the poster art full-bleed, so blur/darken it and push it
+   off-center a bit, since it's not composed as a banner. */
+.hero-bg-fallback img { object-position: center 15%; filter: blur(1px) brightness(.8); }
+.hero-gradient { position: absolute; inset: 0; background: var(--grad-hero); }
+.hero-gradient::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, rgba(8,8,8,.9) 0%, transparent 55%); }
+.hero-content { position: relative; z-index: 2; height: 100%; display: flex; align-items: flex-end; padding-bottom: 40px; }
+/* .container normally centers itself with a max-width (that's what keeps
+   the rest of the site's page content centered) — override that just here
+   so the hero text hugs the banner's actual left edge on every screen
+   size, instead of being inset by however much space is left over around
+   the centered 1280px container on a wide screen. */
+.hero-content .container { max-width: none; margin: 0; padding-left: clamp(20px, 5vw, 64px); padding-right: 20px; }
+.hero-info { max-width: 560px; }
+.hero-badges { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+.hero-title { font-size: clamp(1.7rem, 4vw, 3rem); font-weight: 800; line-height: 1.15; margin-bottom: 12px; }
+.hero-desc { font-size: .95rem; color: var(--text-secondary); line-height: 1.7; margin-bottom: 18px; max-width: 460px; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.hero-genres { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 22px; }
+.hero-genre-tag { padding: 3px 10px; border-radius: var(--radius-pill); background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.1); font-size: .75rem; font-weight: 500; color: var(--text-secondary); }
+.hero-stat-strip { display: flex; align-items: center; gap: 14px; margin-bottom: 18px; flex-wrap: wrap; font-size: .82rem; color: var(--text-secondary); }
+.hero-stat-strip span { display: flex; align-items: center; gap: 5px; }
+.hero-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.hero-prev, .hero-next { position: absolute; top: 50%; transform: translateY(-50%); width: 46px; height: 46px; border-radius: 50%; background: rgba(8,8,8,.5); backdrop-filter: blur(8px); border: 1px solid var(--glass-border); color: var(--text-primary); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 5; transition: var(--trans); opacity: 0; }
+#hero:hover .hero-prev, #hero:hover .hero-next { opacity: 1; }
+.hero-prev { left: 20px; } .hero-next { right: 20px; }
+.hero-prev:hover, .hero-next:hover { background: var(--accent); border-color: var(--border-accent); }
+.hero-indicators { position: absolute; bottom: 22px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; z-index: 5; }
+.hero-dot { width: 8px; height: 8px; border-radius: 99px; background: rgba(255,255,255,.3); cursor: pointer; transition: var(--trans); border: none; }
+.hero-dot.active { width: 28px; background: var(--accent); }
+
+/* The TMDB logo image (when found) replaces the plain text title on both
+   desktop and mobile — falls back to the plain text automatically when no
+   logo was found for that title (has-logo class only gets added then). */
+.hero-info.has-logo .hero-title { display: none; }
+.hero-logo { display: none; }
+.hero-info.has-logo .hero-logo { display: block; max-width: 420px; max-height: 150px; width: auto; height: auto; object-fit: contain; margin-bottom: 14px; filter: drop-shadow(0 4px 18px rgba(0,0,0,.6)); }
+
+/* Mobile: the <picture> swap serves your local (portrait) cover instead of
+   the wide banner — object-position needs to bias toward the top so faces
+   aren't cropped out, and per your call, genre tags are hidden here since
+   the cover art itself is the visual, no badges cluttering it. Text block
+   stays left-aligned here too, same as desktop. */
+@media (max-width: 768px) {
+  .hero-bg img { object-position: center top; }
+  .hero-badges, .hero-genres { display: none; }
+  .hero-info.has-logo .hero-logo { max-width: 78%; max-height: 130px; }
+  .hero-desc { max-width: 90%; -webkit-line-clamp: 3; }
+}
+
+
+/* -- genre nav bar -- */
+.genre-nav-wrap { position: relative; margin-bottom: 40px; }
+.genre-bar { display: flex; gap: 10px; overflow-x: auto; padding: 10px 4px 6px; scrollbar-width: none; }
+.genre-bar::-webkit-scrollbar { display: none; }
+.genre-pill { padding: 9px 20px; background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-pill); color: var(--text-secondary); font-size: .86rem; font-weight: 500; white-space: nowrap; transition: var(--trans); flex-shrink: 0; }
+.genre-pill:hover { background: var(--accent); border-color: var(--border-accent); color: #fff; transform: translateY(-3px); box-shadow: 0 6px 20px var(--accent-glow); }
+.genre-nav-btn { position: absolute; top: 50%; transform: translateY(-50%); z-index: 4; width: 34px; height: 34px; border-radius: 50%; opacity: 0; pointer-events: none; transition: var(--trans); }
+.genre-nav-wrap:hover .genre-nav-btn { opacity: 1; pointer-events: auto; }
+.genre-nav-btn.prev { left: -14px; } .genre-nav-btn.next { right: -14px; }
+@media (max-width: 768px) { .genre-nav-btn { display: none !important; } }
+
+/* -- section headers / scroll rows -- */
+.content-section { margin-bottom: 48px; position: relative; min-width: 0; }
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 12px; flex-wrap: wrap; }
+.section-title { display: flex; align-items: center; gap: 10px; font-size: 1.15rem; font-weight: 700; }
+.section-title::before { content: ''; display: block; width: 4px; height: 20px; background: var(--grad-accent); border-radius: 2px; }
+.section-link { font-size: .84rem; font-weight: 500; color: var(--accent-2); display: flex; align-items: center; gap: 4px; transition: var(--trans); }
+.section-link:hover { color: var(--purple); gap: 8px; }
+.row-nav-btn { opacity: .5; transition: var(--trans); }
+.content-section:hover .row-nav-btn { opacity: 1; }
+.scroll-row { display: flex; gap: 14px; overflow-x: auto; scroll-behavior: smooth; padding: 6px 2px 12px; scrollbar-width: thin; scrollbar-color: var(--accent) transparent; min-width: 0; }
+.scroll-row::-webkit-scrollbar { height: 4px; }
+.scroll-row::-webkit-scrollbar-thumb { background: var(--accent); border-radius: 99px; }
+.scroll-row .anime-card { flex-shrink: 0; width: 158px; }
+.scroll-row .cw-card { flex-shrink: 0; width: 260px; }
+.scroll-row .cw-card:nth-child(n+4) { display: flex !important; }
+@media (max-width: 640px) {
+  .scroll-row .anime-card { width: 130px; }
+  .scroll-row .cw-card { width: 200px; }
+}
+
+/* -- home grid + sidebar widget -- */
+.home-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 40px; align-items: start; }
+.home-grid > .home-sections { min-width: 0; }
+@media (max-width: 1024px) { .home-grid { grid-template-columns: minmax(0, 1fr); } }
+.sidebar-widget { position: sticky; top: calc(var(--header-h) + 16px); background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-md); overflow: hidden; }
+@media (max-width: 1024px) { .sidebar-widget { position: static; margin-top: 8px; } }
+.sidebar-widget-header { padding: 16px 16px 12px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,.02); font-size: .95rem; font-weight: 700; display: flex; align-items: center; gap: 8px; }
+.sidebar-item { display: flex; align-items: center; gap: 12px; padding: 12px 16px; transition: var(--trans); border-bottom: 1px solid var(--border); text-decoration: none; color: inherit; }
+.sidebar-item:last-child { border-bottom: none; }
+.sidebar-item:hover { background: var(--bg-hover); }
+.sidebar-thumb { width: 46px; height: 64px; object-fit: cover; border-radius: 6px; flex-shrink: 0; }
+.sidebar-rank { font-size: .8rem; font-weight: 800; color: var(--text-muted); width: 20px; flex-shrink: 0; }
+.sidebar-title { font-size: .85rem; font-weight: 600; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; flex: 1; }
+.sidebar-meta { font-size: .7rem; color: var(--text-muted); margin-top: 4px; display: flex; align-items: center; gap: 4px; }
