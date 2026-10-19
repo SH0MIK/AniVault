@@ -75,7 +75,7 @@ homeRoutes.get('/', async (c) => {
   // Trending/seasonal is intentionally not loaded on the homepage.
   // Resolve only the sections that are actually rendered.
   const homepageArtItems = [...topList, ...upcomingList];
-  await mal.prefetchTmdbArtForCards(homepageArtItems);
+  await mal.prefetchHoshikaArtForCards(homepageArtItems);
 
   // Watch Now — anime that have episodes available in episode_videos
   let watchNowList: any[] = [];
@@ -92,7 +92,7 @@ homeRoutes.get('/', async (c) => {
       .map((r) => snapshotById.get(r.anime_id))
       .filter(Boolean) as NormalisedAnime[];
     // Only resolve TMDB art for cards we can render from the D1/MAL snapshot.
-    await mal.prefetchTmdbArtForCards(watchNowList);
+    await mal.prefetchHoshikaArtForCards(watchNowList);
   } catch {
     watchNowList = [];
   }
