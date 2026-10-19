@@ -762,6 +762,28 @@ export class MalAPI {
     }
     return fetchTmdbArtDirect(this.env.TMDB_API_KEY, [...new Set(rawTitles)], isList);
   }
+  // Home and Browse card artwork must come exclusively from Hoshika.
+  // Always overwrite the incoming MAL/scraper artwork, including with an empty
+  // URL when Hoshika has no image; this prevents another provider from leaking
+  // through as a fallback on these two pages.
+  async prefetchHoshikaArtForCards(anime: NormalisedAnime[]): Promise<void> {
+    const items = anime.filter((a) => a?.mal_id);
+    if (!items.length) return;
+    const resolved = await Promise.all(items.map(async (anime) => {
+      const title = anime.title_english || anime.title || anime.title_japanese || '';
+      const metadata = title
+        ? await getHoshikaAnimeMetadata(anime.mal_id, title, this.kv, true).catch(() => null)
+        : null;
+      return { anime, poster: metadata?.poster || '', cover: metadata?.cover || '' };
+    }));
+    for (const { anime, poster, cover } of resolved) {
+      anime.images = { jpg: { image_url: poster, large_image_url: poster } };
+      anime.cover_image = cover;
+      anime.banner_image = cover || undefined;
+      anime.logo_image = '';
+    }
+  }
+
   async prefetchTmdbArtForCards(anime: NormalisedAnime[]): Promise<void> {
     const items = anime.filter((a) => a?.mal_id);
     if (!items.length) return;
