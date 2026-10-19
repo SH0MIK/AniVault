@@ -48,7 +48,7 @@ function imageUrl(...values: any[]): string {
   for (const value of values) {
     if (typeof value === 'string' && /^https?:\/\//i.test(value)) return value;
     if (value && typeof value === 'object') {
-      const nested = imageUrl(value.url, value.src, value.original, value.large, value.medium, value.webp);
+      const nested = imageUrl(value.url, value.src, value.medium, value.large, value.original, value.webp);
       if (nested) return nested;
     }
   }
