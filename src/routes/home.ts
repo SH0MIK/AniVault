@@ -26,9 +26,9 @@ export const homeRoutes = new Hono<{ Bindings: Env }>();
 
 // Homepage-only Cloudflare Image Transformations for Hoshika, TMDB, and
 // admin-entered art. Stable dimensions let repeat visits reuse cached variants.
-function resizeHeroImageUrl(url: string, width: number, height: number, fit: 'cover' | 'contain'): string {
+function resizeHeroImageUrl(url: string, width: number, height: number, fit: 'cover' | 'contain', quality = 75): string {
   if (!url || !/^https?:\/\//i.test(url)) return url;
-  return `/cdn-cgi/image/width=${width},height=${height},fit=${fit},format=auto,quality=75/${url}`;
+  return `/cdn-cgi/image/width=${width},height=${height},fit=${fit},format=auto,quality=${quality}/${url}`;
 }
 
 function transformHomepageCardImage(url: string, width: number): string {
