@@ -161,6 +161,7 @@ ${(() => {
   return cssName ? `<link rel="stylesheet" href="${o.siteUrl}/assets/css/${cssName}.css">` : '';
 })()}
 <link rel="stylesheet" href="${o.siteUrl}/assets/css/anivexa-theme.css?v=2">
+${o.currentPage === 'index' ? `<link rel="stylesheet" href="${o.siteUrl}/assets/css/homepage.css?v=1">` : ''}
 <link rel="icon" type="image/svg+xml" href="${o.siteUrl}/assets/img/site-img/favicon.svg">
 <link rel="canonical" href="${h(og?.url ?? o.requestUrl)}">
 <script type="application/ld+json">
