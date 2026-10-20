@@ -29,7 +29,7 @@ async function saveLuluSource(e){tvDebug('Save form submit handler called');e.pr
 window.openLuluModal=openLuluModal;window.closeLuluModal=closeLuluModal;window.saveLuluSource=saveLuluSource;
 // Delegate UI clicks from the document so the controls keep working even if
 // the browser reparses parts of the admin markup. Handle each click exactly once.
-document.addEventListener('click',e=>{
+document.addEventListener('click',async e=>{
   const target=e.target instanceof Element?e.target:null;
   if(!target)return;
   const refreshSeries=target.closest('#tv-refresh-series');
