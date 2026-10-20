@@ -6,7 +6,7 @@ export function watchScript1(params: {
 }): string {
   const { anilistId, epNum, resumeParam, animeId, siteUrl, qSub, qDub, isLoggedIn } = params;
   return `<script>
-console.log('[AniVault player] SCRIPT VERSION: debug-v3 (video lifecycle logging)');
+
 const anilistId = ${JSON.stringify(anilistId)};
 const epNum = ${epNum};
 const resumeTime = ${resumeParam};
@@ -57,7 +57,7 @@ function fetchAnimeHeavenOnce(audio) {
 // straight into that box (and the console) so a broken deploy is obvious
 // instead of looking identical to a slow/dead backend.
 function _showFatalClientError(msg) {
-    console.error('[AniVault player]', msg);
+    
     var fs = document.getElementById('wp-finding-server');
     if (fs) {
         fs.innerHTML = '<div class="wpfs-text" style="color:#7c3aed;max-width:320px;text-align:center;">Player script error:<br><span style="font-size:0.8em;opacity:.85;">' + String(msg).replace(/</g,'&lt;') + '</span></div>';
@@ -74,7 +74,7 @@ window.addEventListener('error', function(e) {
     var msg = (e && e.message) || '';
     if (/^(wcSend|wcVote|wcReply|wcDelete) is not defined$/.test(msg)) return;
     var where = e && e.filename ? (' at ' + e.filename.split('/').pop() + ':' + (e.lineno || 0) + ':' + (e.colno || 0)) : '';
-    if (e && e.error && e.error.stack) console.error('[AniVault player] uncaught stack:', e.error.stack);
+    if (e && e.error && e.error.stack) 
     _showFatalClientError((msg || 'Unknown script error') + where);
 });
 
@@ -158,9 +158,9 @@ function switchToAnimeHeaven(audio) {
     }
 
     function applyAnimeHeavenResult(d) {
-        console.log('[AniVault player] applying AnimeHeaven result', d);
+        
         function fail(msg) {
-            console.error('[AniVault player] AnimeHeaven FAIL:', msg, '| readyState=' + vid.readyState, 'networkState=' + vid.networkState, 'currentTime=' + vid.currentTime, 'error=' + JSON.stringify(vid.error && { code: vid.error.code, message: vid.error.message }));
+            
             const errMsg = document.getElementById('sp-err-msg');
             if (errMsg) errMsg.textContent = msg;
             const errEl = document.getElementById('sp-error');
@@ -195,14 +195,14 @@ function switchToAnimeHeaven(audio) {
             vid.removeEventListener('playing', clearStallTimer);
         }
         const onPlaying = () => {
-            console.log('[AniVault player] AnimeHeaven <video> "playing" fired — playback started OK');
+            
             settled = true; spinEl_hide(); cleanupErrorOnly();
             const preplayEl = document.getElementById('sp-preplay');
             if (preplayEl) preplayEl.classList.add('hide');
         };
         function cleanupErrorOnly() { vid.removeEventListener('error', onError); }
         const onError = () => {
-            console.error('[AniVault player] AnimeHeaven <video> "error" event fired, settled=' + settled);
+            
             if (!settled) {
                 const code = vid.error ? vid.error.code : 0;
                 fail('AnimeHeaven: video failed to load (code ' + code + '). The proxy link may be dead/expired or blocked by CORS — try another server.');
@@ -216,11 +216,11 @@ function switchToAnimeHeaven(audio) {
         // the underlying MP4 link died mid-stream — surface that instead
         // of leaving the spinner running forever.
         const onWaiting = () => {
-            console.log('[AniVault player] AnimeHeaven <video> "waiting/stalled" fired, settled=' + settled + ', readyState=' + vid.readyState);
+            
             if (!settled) return; // still in the initial start-up phase, handled by onError's 12s check below
             clearStallTimer();
             stallTimer = setTimeout(() => {
-                console.error('[AniVault player] AnimeHeaven stall watchdog fired — no recovery within 10s');
+                
                 fail('AnimeHeaven: video stalled and did not recover. Try another server.');
                 cleanup();
             }, 10000);
@@ -235,22 +235,20 @@ function switchToAnimeHeaven(audio) {
         vid.addEventListener('stalled', onWaiting);
         vid.addEventListener('timeupdate', clearStallTimer);
         vid.addEventListener('playing', clearStallTimer);
-        vid.addEventListener('loadstart', () => console.log('[AniVault player] <video> loadstart'));
-        vid.addEventListener('loadedmetadata', () => console.log('[AniVault player] <video> loadedmetadata, duration=' + vid.duration));
-        vid.addEventListener('canplay', () => console.log('[AniVault player] <video> canplay, readyState=' + vid.readyState));
+        vid.addEventListener('loadstart', () => );
+        vid.addEventListener('loadedmetadata', () => );
+        vid.addEventListener('canplay', () => );
         setTimeout(() => {
-            console.log('[AniVault player] 12s start-up check: settled=' + settled + ', readyState=' + vid.readyState + ', networkState=' + vid.networkState + ', currentTime=' + vid.currentTime);
+            
             if (!settled && vid.readyState === 0) onError();
         }, 12000);
 
-        console.log('[AniVault player] setting <video> src to AnimeHeaven proxy URL and calling play()');
+        
         if (window._setSenshiLastSource) window._setSenshiLastSource(d.mp4, d.subtitles || []);
         vid.src = d.mp4;
         vid.load();
-        vid.play().then(() => {
-            console.log('[AniVault player] <video>.play() promise resolved');
-        }).catch(err => {
-            console.error('[AniVault player] <video>.play() promise rejected:', err && err.name, err && err.message);
+        vid.play().catch(err => {
+            
             // Browsers block programmatic autoplay unless the page has
             // recent user-gesture context — on a fresh navigation the tap
             // that got you here counts, but on a reload that context is
@@ -268,10 +266,8 @@ function switchToAnimeHeaven(audio) {
                 if (preplayEl) {
                     preplayEl.classList.remove('hide');
                     const startPlayback = () => {
-                        vid.play().then(() => {
-                            console.log('[AniVault player] tap-to-play succeeded');
-                        }).catch(err2 => {
-                            console.error('[AniVault player] tap-to-play also failed:', err2 && err2.name, err2 && err2.message);
+                        vid.play().catch(err2 => {
+                            
                         });
                     };
                     (ppBtn || preplayEl).addEventListener('click', startPlayback, { once: true });
@@ -953,7 +949,7 @@ function switchToServer(serverName, audio = currentAudio, displayKey, luluTrackK
 // AnimeHeaven probe caches and re-runs whichever server was last active,
 // or falls back to whichever server button is currently marked active.
 window.retryCurrentServer = function() {
-    console.log('[AniVault player] retryCurrentServer called, currentServer:', currentServer, 'currentAudio:', currentAudio);
+    
     if (window._anikotoCache) window._anikotoCache = {};
     if (window._animeheavenReq) window._animeheavenReq = {};
     if (currentServer && typeof switchToServer === 'function') {
@@ -1104,7 +1100,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     const SITE  = '${siteUrl}';
     const ANIME = ${animeId};
     const EP    = ${epNum};
-    console.log('[AniVault player] probing servers on', SITE, 'anime', ANIME, 'ep', EP);
+    
 
     const MULTI_LANG_SOURCES = ['anizone', 'watchanimeworld'];
     const MULTI_PRIORITY = ['anizone', 'watchanimeworld'];
@@ -1141,7 +1137,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     );
     if (initialAvSub) {
         playbackStarted = true;
-        console.log('[AniVault player] triggering AV Sub startup button', initialAvSub.dataset.server);
+        
         initialAvSub.click();
     }
 
@@ -1247,9 +1243,9 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         return fetchAnimeHeavenOnce(audio)
             .then(d => {
                 const ok = !d.error && !!d.mp4;
-                console.log('[AniVault player] animeheaven', audio, ok ? 'OK' : 'FAILED', d);
+                
                 return ok;
-            }).catch(e => { console.error('[AniVault player] animeheaven fetch threw', e); return false; });
+            }).catch(e => {  return false; });
     }
 
     // ── Anikoto (its own dedicated endpoint/cache shape) ────────────────
@@ -1257,7 +1253,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         return fetch(\`\${SITE}/api/anikoto_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${audio}&server=\${encodeURIComponent(provider)}\`)
             .then(r => r.json()).then(d => {
                 const ok = !d.error && !!d.m3u8;
-                console.log('[AniVault player] anikoto', provider, audio, ok ? 'OK' : 'FAILED', d);
+                
                 // Stash the response so the auto-activated first play can
                 // reuse it instead of firing a second identical request
                 // at the scraper for the same provider — some embed
@@ -1277,8 +1273,8 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     // is declared once, up in switchToGenericSource, and is reused here.
     function fetchSourceList(source, audio, attempt = 1) {
         return fetchJsonTimeout(\`\${SITE}/api/\${STREAM_ENDPOINT[source]}?anime=\${ANIME}&ep=\${EP}&audio=\${audio}\`)
-            .then(d => { console.log('[AniVault player]', source, 'list', audio, 'attempt', attempt, d); return d.servers || []; })
-            .catch(e => { console.error('[AniVault player]', source, 'list fetch failed/timed out', audio, e); return []; })
+            .then(d => {  return d.servers || []; })
+            .catch(e => {  return []; })
             .then(list => {
                 if (list.length > 0 || attempt >= 3) return list;
                 return new Promise(res => setTimeout(res, attempt * 1500)).then(() => fetchSourceList(source, audio, attempt + 1));
@@ -1290,7 +1286,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
 
         return fetchJsonTimeout(url, 15000).then(d => {
             const ok = !d.error && !!(d.m3u8 || d.mp4 || d.iframeOnly);
-            console.log('[AniVault player]', source, providerName, audio, lang || '', ok ? 'OK' : 'FAILED', d);
+            
 
             if (ok) {
                 const cacheName = '_' + source + 'Cache';
@@ -1301,7 +1297,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             }
             return ok;
         }).catch(e => {
-            console.error('[AniVault player]', source, providerName, audio, lang || '', 'timed out/failed', e);
+            
             return false;
         });
     }
@@ -1337,13 +1333,13 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 .then(r => r.json())
                 .then(d => {
                     const ok = !d.error && !!(d.m3u8 || d.mp4 || d.iframeOnly);
-                    console.log('[AniVault player] desidub', providerName, ok ? 'OK' : 'FAILED', d);
+                    
                     if (ok) {
                         window._desidubCache = window._desidubCache || {};
                         window._desidubCache['dub::' + String(providerName || '').toLowerCase().trim()] = { data: d, ts: Date.now() };
                     }
                     return ok ? (\`desidub:dub:\${providerName}\`) : null;
-                }).catch(e => { console.error('[AniVault player] desidub', providerName, 'threw', e); return null; });
+                }).catch(e => {  return null; });
         }
         // Generic (ReAnime / AniWaves / WatchAnimeWorld / AnimeNoSub) —
         // WatchAnimeWorld's English/Hindi providers are literally named
@@ -1377,7 +1373,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             try {
                 realKey = await resolveProvider(defs[i], audio);
             } catch (e) {
-                console.error('[AniVault player] sequential probe failed', group, defs[i], e);
+                
             }
 
             if (realKey) {
@@ -1496,7 +1492,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             try {
                 list = await getDubListOnce(source);
             } catch (e) {
-                console.error('[AniVault player] multi list failed', source, e);
+                
             }
 
             const multiList = list.filter(s => {
@@ -1540,9 +1536,6 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         finishMultiUI();
     })();
 
-    // Debug hook — inspect live group resolution from the console
-    // (window._debugPending() at any time) if a button seems stuck.
-    window._debugPending = () => ({ playbackStarted, multiPending, multiHasAny, probeMode: 'sequential' });
     } catch (e) {
       _showFatalClientError('probeAndRenderServers crashed: ' + (e && e.message ? e.message : e));
     }
