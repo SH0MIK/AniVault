@@ -57,7 +57,7 @@ function fetchAnimeHeavenOnce(audio) {
 // straight into that box (and the console) so a broken deploy is obvious
 // instead of looking identical to a slow/dead backend.
 function _showFatalClientError(msg) {
-    
+
     var fs = document.getElementById('wp-finding-server');
     if (fs) {
         fs.innerHTML = '<div class="wpfs-text" style="color:#7c3aed;max-width:320px;text-align:center;">Player script error:<br><span style="font-size:0.8em;opacity:.85;">' + String(msg).replace(/</g,'&lt;') + '</span></div>';
@@ -74,7 +74,6 @@ window.addEventListener('error', function(e) {
     var msg = (e && e.message) || '';
     if (/^(wcSend|wcVote|wcReply|wcDelete) is not defined$/.test(msg)) return;
     var where = e && e.filename ? (' at ' + e.filename.split('/').pop() + ':' + (e.lineno || 0) + ':' + (e.colno || 0)) : '';
-    if (e && e.error && e.error.stack) 
     _showFatalClientError((msg || 'Unknown script error') + where);
 });
 
@@ -158,9 +157,9 @@ function switchToAnimeHeaven(audio) {
     }
 
     function applyAnimeHeavenResult(d) {
-        
+
         function fail(msg) {
-            
+
             const errMsg = document.getElementById('sp-err-msg');
             if (errMsg) errMsg.textContent = msg;
             const errEl = document.getElementById('sp-error');
@@ -195,14 +194,14 @@ function switchToAnimeHeaven(audio) {
             vid.removeEventListener('playing', clearStallTimer);
         }
         const onPlaying = () => {
-            
+
             settled = true; spinEl_hide(); cleanupErrorOnly();
             const preplayEl = document.getElementById('sp-preplay');
             if (preplayEl) preplayEl.classList.add('hide');
         };
         function cleanupErrorOnly() { vid.removeEventListener('error', onError); }
         const onError = () => {
-            
+
             if (!settled) {
                 const code = vid.error ? vid.error.code : 0;
                 fail('AnimeHeaven: video failed to load (code ' + code + '). The proxy link may be dead/expired or blocked by CORS — try another server.');
@@ -216,11 +215,11 @@ function switchToAnimeHeaven(audio) {
         // the underlying MP4 link died mid-stream — surface that instead
         // of leaving the spinner running forever.
         const onWaiting = () => {
-            
+
             if (!settled) return; // still in the initial start-up phase, handled by onError's 12s check below
             clearStallTimer();
             stallTimer = setTimeout(() => {
-                
+
                 fail('AnimeHeaven: video stalled and did not recover. Try another server.');
                 cleanup();
             }, 10000);
@@ -235,20 +234,17 @@ function switchToAnimeHeaven(audio) {
         vid.addEventListener('stalled', onWaiting);
         vid.addEventListener('timeupdate', clearStallTimer);
         vid.addEventListener('playing', clearStallTimer);
-        vid.addEventListener('loadstart', () => );
-        vid.addEventListener('loadedmetadata', () => );
-        vid.addEventListener('canplay', () => );
         setTimeout(() => {
-            
+
             if (!settled && vid.readyState === 0) onError();
         }, 12000);
 
-        
+
         if (window._setSenshiLastSource) window._setSenshiLastSource(d.mp4, d.subtitles || []);
         vid.src = d.mp4;
         vid.load();
         vid.play().catch(err => {
-            
+
             // Browsers block programmatic autoplay unless the page has
             // recent user-gesture context — on a fresh navigation the tap
             // that got you here counts, but on a reload that context is
@@ -267,7 +263,7 @@ function switchToAnimeHeaven(audio) {
                     preplayEl.classList.remove('hide');
                     const startPlayback = () => {
                         vid.play().catch(err2 => {
-                            
+
                         });
                     };
                     (ppBtn || preplayEl).addEventListener('click', startPlayback, { once: true });
@@ -949,7 +945,7 @@ function switchToServer(serverName, audio = currentAudio, displayKey, luluTrackK
 // AnimeHeaven probe caches and re-runs whichever server was last active,
 // or falls back to whichever server button is currently marked active.
 window.retryCurrentServer = function() {
-    
+
     if (window._anikotoCache) window._anikotoCache = {};
     if (window._animeheavenReq) window._animeheavenReq = {};
     if (currentServer && typeof switchToServer === 'function') {
@@ -1100,7 +1096,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     const SITE  = '${siteUrl}';
     const ANIME = ${animeId};
     const EP    = ${epNum};
-    
+
 
     const MULTI_LANG_SOURCES = ['anizone', 'watchanimeworld'];
     const MULTI_PRIORITY = ['anizone', 'watchanimeworld'];
@@ -1137,7 +1133,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     );
     if (initialAvSub) {
         playbackStarted = true;
-        
+
         initialAvSub.click();
     }
 
@@ -1243,7 +1239,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         return fetchAnimeHeavenOnce(audio)
             .then(d => {
                 const ok = !d.error && !!d.mp4;
-                
+
                 return ok;
             }).catch(e => {  return false; });
     }
@@ -1253,7 +1249,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         return fetch(\`\${SITE}/api/anikoto_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${audio}&server=\${encodeURIComponent(provider)}\`)
             .then(r => r.json()).then(d => {
                 const ok = !d.error && !!d.m3u8;
-                
+
                 // Stash the response so the auto-activated first play can
                 // reuse it instead of firing a second identical request
                 // at the scraper for the same provider — some embed
@@ -1286,7 +1282,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
 
         return fetchJsonTimeout(url, 15000).then(d => {
             const ok = !d.error && !!(d.m3u8 || d.mp4 || d.iframeOnly);
-            
+
 
             if (ok) {
                 const cacheName = '_' + source + 'Cache';
@@ -1297,7 +1293,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             }
             return ok;
         }).catch(e => {
-            
+
             return false;
         });
     }
@@ -1333,7 +1329,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 .then(r => r.json())
                 .then(d => {
                     const ok = !d.error && !!(d.m3u8 || d.mp4 || d.iframeOnly);
-                    
+
                     if (ok) {
                         window._desidubCache = window._desidubCache || {};
                         window._desidubCache['dub::' + String(providerName || '').toLowerCase().trim()] = { data: d, ts: Date.now() };
@@ -1373,7 +1369,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             try {
                 realKey = await resolveProvider(defs[i], audio);
             } catch (e) {
-                
+
             }
 
             if (realKey) {
@@ -1492,7 +1488,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             try {
                 list = await getDubListOnce(source);
             } catch (e) {
-                
+
             }
 
             const multiList = list.filter(s => {
