@@ -1384,11 +1384,9 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 resolvedMap[id] = realKey;
                 setBtnResolved(group, id, realKey, false);
 
-                // Start the FIRST working API server immediately. Do not
-                // wait for the remaining providers to finish probing.
-                if (!playbackStarted && !window._manualServerSelection) {
-                    activateFixedButton(group, id, audio);
-                }
+                // Do not autoplay from inside an individual group. Sub and
+                // English Dub are resolved independently, while the shared
+                // fallback chain below preserves Sub-first autoplay priority.
             } else {
                 setBtnDead(group, id);
             }
@@ -1415,10 +1413,12 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         return null;
     }
 
-    // Run the groups themselves in sequence as well. This keeps the
-    // scraper API from receiving Sub + Dub + Hindi resolver bursts.
+    // Run Sub and English Dub as independent sequential lanes. A slow/dead
+    // Sub provider must not block Dub watchers from seeing their servers.
+    // Each lane still probes one provider at a time to avoid a request burst.
+    // Hindi waits for English Dub to finish, keeping total concurrency bounded.
     const subMapPromise = resolveGroupUI('sub', SUB_PROVIDERS, 'sub');
-    const dubMapPromise = subMapPromise.then(() => resolveGroupUI('dub', DUB_PROVIDERS, 'dub'));
+    const dubMapPromise = resolveGroupUI('dub', DUB_PROVIDERS, 'dub');
     const hindiMapPromise = dubMapPromise.then(() => resolveGroupUI('hindi', HINDI_PROVIDERS, 'dub'));
 
     // Autoplay priority: Sub first; if Sub has nothing at all for this
