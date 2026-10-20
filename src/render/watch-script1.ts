@@ -1384,9 +1384,13 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                 resolvedMap[id] = realKey;
                 setBtnResolved(group, id, realKey, false);
 
-                // Do not autoplay from inside an individual group. Sub and
-                // English Dub are resolved independently, while the shared
-                // fallback chain below preserves Sub-first autoplay priority.
+                // Start Sub as soon as its first priority-ordered provider
+                // works. Never autoplay Dub from this lane: the fallback chain
+                // below waits for Sub to finish before choosing Dub, preserving
+                // Sub-first autoplay while Dub buttons populate independently.
+                if (group === 'sub' && !playbackStarted && !window._manualServerSelection) {
+                    activateFixedButton(group, id, audio);
+                }
             } else {
                 setBtnDead(group, id);
             }
