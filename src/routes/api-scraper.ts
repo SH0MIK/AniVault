@@ -36,11 +36,11 @@ function getScraperBase(env: Env): string | null {
   return base.replace(/\/+$/, '').replace(/\/api$/i, '');
 }
 
-async function fetchJson(url: string, timeoutMs = 12000): Promise<{ ok: boolean; code: number; data: any }> {
+async function fetchJson(url: string, timeoutMs = 12000, apiKey = ''): Promise<{ ok: boolean; code: number; data: any }> {
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), timeoutMs);
-    const res = await fetch(url, { headers: { Accept: 'application/json' }, signal: controller.signal });
+    const res = await fetch(url, { headers: { Accept: 'application/json', ...(apiKey ? { 'x-anivault-api-key': apiKey } : {}) }, signal: controller.signal });
     clearTimeout(t);
     const data = await res.json().catch(() => null);
     return { ok: res.ok, code: res.status, data };
@@ -64,7 +64,7 @@ scraperRoutes.get('/api/animeheaven_stream.php', async (c) => {
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
-  const { ok, code, data } = await fetchJson(`${base}/api/watch/animeheaven/mal-${animeId}/${epNum}/sub`, 20000);
+  const { ok, code, data } = await fetchJson(`${base}/api/watch/animeheaven/mal-${animeId}/${epNum}/sub`, 20000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `Scraper API error HTTP ${code}` });
   const mp4 = data?.mp4ProxyUrl ?? data?.streamUrl ?? data?.mp4 ?? null;
   if (!mp4) return c.json({ error: 'No stream URL in response', raw: data });
@@ -91,7 +91,7 @@ scraperRoutes.get('/api/anikoto_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/anikoto/mal-${animeId}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000);
+  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `Anikoto fetch failed HTTP ${code}` });
 
   const servers = (data?.availableServers ?? []).map((s: string) => ({ name: s, type: audio }));
@@ -122,7 +122,7 @@ scraperRoutes.get('/api/desidub_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/desidub/mal-${animeId}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000);
+  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `DesiDub fetch failed HTTP ${code}` });
 
   const servers = (data?.availableServers ?? []).map((s: string) => ({ name: s, type: audio }));
@@ -151,7 +151,7 @@ scraperRoutes.get('/api/reanime_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/reanime/mal-${animeId}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000);
+  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `ReAnime fetch failed HTTP ${code}` });
 
   const servers = (data?.availableServers ?? []).map((s: string) => ({ name: s, type: audio }));
@@ -179,7 +179,7 @@ scraperRoutes.get('/api/animenosub_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/animenosub/mal-${animeId}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000);
+  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `AnimeNoSub fetch failed HTTP ${code}` });
 
   const servers = (data?.availableServers ?? []).map((s: string) => ({ name: s, type: audio }));
@@ -207,7 +207,7 @@ scraperRoutes.get('/api/aniwaves_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/aniwaves/mal-${animeId}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000);
+  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `AniWaves fetch failed HTTP ${code}` });
 
   const servers = (data?.availableServers ?? []).map((s: string) => ({ name: s, type: audio }));
@@ -241,7 +241,7 @@ scraperRoutes.get('/api/anizone_stream.php', async (c) => {
 
   if (server === '') {
     const listUrl = `${base}/api/servers?malId=${animeId}&ep=${epNum}&type=${audio}&source=anizone`;
-    const { ok, code, data } = await fetchJson(listUrl, 20000);
+    const { ok, code, data } = await fetchJson(listUrl, 20000, c.env.SCRAPER_API_KEY || '');
     if (!ok) return c.json({ error: data?.error ?? `AniZone list failed HTTP ${code}` });
     const servers = (data?.servers ?? []).map((s: any) => ({ name: s.name, type: s.type, lang: String(s.lang ?? '').toLowerCase() }));
     return c.json({ servers });
@@ -250,7 +250,7 @@ scraperRoutes.get('/api/anizone_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/anizone/mal-${animeId}/${epNum}/${audio}?server=${encodeURIComponent(server)}`;
   if (lang !== '') watchUrl += `&lang=${encodeURIComponent(lang)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000);
+  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `AniZone fetch failed HTTP ${code}` });
 
   if (data?.iframeOnly) return c.json({ embedUrl: data.embedUrl ?? '', iframeOnly: true, server: data.server ?? server });
@@ -278,7 +278,7 @@ scraperRoutes.get('/api/watchanimeworld_stream.php', async (c) => {
 
   if (server === '') {
     const listUrl = `${base}/api/servers?malId=${animeId}&ep=${epNum}&type=${audio}&source=watchanimeworld`;
-    const { ok, code, data } = await fetchJson(listUrl, 20000);
+    const { ok, code, data } = await fetchJson(listUrl, 20000, c.env.SCRAPER_API_KEY || '');
     if (!ok) return c.json({ error: data?.error ?? `WatchAnimeWorld list failed HTTP ${code}` });
     const servers = (data?.servers ?? []).map((s: any) => ({ name: s.name, type: s.type, lang: String(s.lang ?? '').toLowerCase() }));
     return c.json({ servers });
@@ -287,7 +287,7 @@ scraperRoutes.get('/api/watchanimeworld_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/watchanimeworld/mal-${animeId}/${epNum}/${audio}?server=${encodeURIComponent(server)}`;
   if (lang !== '') watchUrl += `&lang=${encodeURIComponent(lang)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000);
+  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `WatchAnimeWorld fetch failed HTTP ${code}` });
 
   if (data?.iframeOnly) return c.json({ embedUrl: data.embedUrl ?? '', iframeOnly: true, server: data.server ?? server });
@@ -304,7 +304,7 @@ scraperRoutes.get('/api/watchanimeworld_stream.php', async (c) => {
 const ERROR_PHRASES = ['episode not found', 'video not found', '404 not found', 'page not found', 'no video found', 'no sources found', 'no servers found', 'this episode is not available', 'something went wrong'];
 
 async function checkSenshiUp(base: string, malId: number, epNum: number): Promise<boolean> {
-  const { ok, data } = await fetchJson(`${base}/watch/senshi/mal-${malId}/${epNum}/sub`, 10000);
+  const { ok, data } = await fetchJson(`${base}/watch/senshi/mal-${malId}/${epNum}/sub`, 10000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return false;
   return !!(data?.hlsProxyUrl ?? data?.m3u8);
 }
@@ -619,7 +619,7 @@ scraperRoutes.get('/api/anime_info.php', async (c) => {
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
-  const { ok, code, data } = await fetchJson(`${base}/api/info?malId=${malId}`, 8000);
+  const { ok, code, data } = await fetchJson(`${base}/api/info?malId=${malId}`, 8000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `Scraper API error HTTP ${code}` }, 502);
   return c.json(data);
 });
