@@ -1141,7 +1141,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     // particular source instead of erroring, that fetch's promise never
     // settles. Force a hard ceiling so "never responds" is treated the
     // same as "responded with an error".
-    function fetchJsonTimeout(url, ms = 28000) {
+    function fetchJsonTimeout(url, ms = 32000) {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), ms);
         return fetch(url, { signal: controller.signal })
@@ -1280,7 +1280,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         let url = \`\${SITE}/api/\${STREAM_ENDPOINT[source]}?anime=\${ANIME}&ep=\${EP}&audio=\${audio}&server=\${encodeURIComponent(providerName)}\`;
         if (lang) url += \`&lang=\${encodeURIComponent(lang)}\`;
 
-        return fetchJsonTimeout(url, 15000).then(d => {
+        return fetchJsonTimeout(url, 25000).then(d => {
             const ok = !d.error && !!(d.m3u8 || d.mp4 || d.iframeOnly);
 
 
