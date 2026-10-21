@@ -189,7 +189,8 @@ function syncVol(){
 
 /* ── Progress bar ────────────────────────────────────────── */
 function updateProg(){
-  if(!vid.duration||isDrag)return;
+  if(!vid.duration||!Number.isFinite(vid.duration))return;
+  if(isDrag)return;
   const pct=(vid.currentTime/vid.duration)*100;
   progFill.style.width=pct+'%';
   progThumb.style.left=pct+'%';
@@ -661,6 +662,9 @@ function loadHLS(m3u8){
   if(window.Hls&&Hls.isSupported()){
     hls=new Hls({
       enableWorker:true,lowLatencyMode:false,
+      // Fetch the first media fragment as soon as its level is known, rather
+      // than waiting for the full manifest/attach sequence to settle.
+      startFragPrefetch:true,
       backBufferLength:90,maxBufferLength:60,maxMaxBufferLength:120,
       xhrSetup:xhr=>{xhr.withCredentials=false},
     });
@@ -670,6 +674,15 @@ function loadHLS(m3u8){
       buildQual(d.levels);
       refreshTrackList();
       attemptAutoplay();showCtrl();
+    });
+    // HLS level playlists often reveal the full stream duration before the
+    // video element fires loadedmetadata. Show it immediately so the timeline
+    // doesn't sit at 0:00 / 0:00 while the first fragment is being fetched.
+    hls.on(Hls.Events.LEVEL_LOADED,(_,data)=>{
+      const duration=data&&data.details&&data.details.totalduration;
+      if(Number.isFinite(duration)&&duration>0&&(!Number.isFinite(vid.duration)||vid.duration<=0)){
+        timeEl.innerHTML=\`0:00<span class="sp-time-sep">/</span>\${fmt(duration)}\`;
+      }
     });
     hls.on(Hls.Events.FRAG_LOADED,()=>{
       sSegs.textContent=+sSegs.textContent+1;
