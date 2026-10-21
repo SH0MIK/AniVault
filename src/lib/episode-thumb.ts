@@ -33,6 +33,7 @@ export function episodeThumbCacheKey(malId: number, epNum: number): string {
 
 export interface EpisodeThumbEnv {
   SCRAPER_API_BASE?: string;
+  SCRAPER_API_KEY?: string;
 }
 
 export interface EpisodeThumbResult {
@@ -77,7 +78,7 @@ export async function findEpisodeThumbnails(
     return { thumbs: [], log, scraperConfigured: true };
   }
 
-  const body = await httpGetText(`${base}/api/episode?malId=${malId}&ep=${epNum}`);
+  const body = await httpGetText(`${base}/api/episode?malId=${malId}&ep=${epNum}`, env.SCRAPER_API_KEY ? { 'x-anivault-api-key': env.SCRAPER_API_KEY } : {});
   if (!body) {
     log.push('Scraper API: HTTP failed');
     return { thumbs: [], log, scraperConfigured: true };
@@ -356,7 +357,7 @@ export async function getAnimeEpisodeThumbnails(
   const result: Record<number, string> = {};
   const base = getScraperBase(env);
   if (base) {
-    const body = await httpGetText(`${base}/api/episode?malId=${malId}`);
+    const body = await httpGetText(`${base}/api/episode?malId=${malId}`, env.SCRAPER_API_KEY ? { 'x-anivault-api-key': env.SCRAPER_API_KEY } : {});
     if (body) {
       try {
         const json: any = JSON.parse(body);
