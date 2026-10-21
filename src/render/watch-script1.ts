@@ -1385,11 +1385,14 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                     setBtnDead(group, id);
                 }
 
-                // Keep priority order for autoplay: only activate a working
-                // provider once every provider ahead of it has completed.
-                if (group === 'sub' && !playbackStarted && !window._manualServerSelection && realKey) {
-                    const higherPrioritySettled = defs.slice(0, i).every((_, j) => completed.has(j));
-                    if (higherPrioritySettled) activateFixedButton(group, id, audio);
+                // Keep priority order for autoplay: after each completion,
+                // activate the highest-priority working provider whose earlier
+                // providers have all settled (including earlier failures).
+                if (group === 'sub' && !playbackStarted && !window._manualServerSelection) {
+                    const candidate = defs.findIndex((_, j) =>
+                        !!resolvedMap[ids[j]] && defs.slice(0, j).every((__, k) => completed.has(k))
+                    );
+                    if (candidate >= 0) activateFixedButton(group, ids[candidate], audio);
                 }
             }
         }
