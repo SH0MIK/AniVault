@@ -91,7 +91,7 @@ scraperRoutes.get('/api/anikoto_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/anikoto/mal-${animeId}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
+  const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `Anikoto fetch failed HTTP ${code}` });
 
   const servers = (data?.availableServers ?? []).map((s: string) => ({ name: s, type: audio }));
@@ -122,7 +122,7 @@ scraperRoutes.get('/api/desidub_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/desidub/mal-${animeId}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
+  const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `DesiDub fetch failed HTTP ${code}` });
 
   const servers = (data?.availableServers ?? []).map((s: string) => ({ name: s, type: audio }));
@@ -151,7 +151,7 @@ scraperRoutes.get('/api/reanime_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/reanime/mal-${animeId}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
+  const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `ReAnime fetch failed HTTP ${code}` });
 
   const servers = (data?.availableServers ?? []).map((s: string) => ({ name: s, type: audio }));
@@ -179,7 +179,7 @@ scraperRoutes.get('/api/animenosub_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/animenosub/mal-${animeId}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
+  const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `AnimeNoSub fetch failed HTTP ${code}` });
 
   const servers = (data?.availableServers ?? []).map((s: string) => ({ name: s, type: audio }));
@@ -207,7 +207,7 @@ scraperRoutes.get('/api/aniwaves_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/aniwaves/mal-${animeId}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
+  const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `AniWaves fetch failed HTTP ${code}` });
 
   const servers = (data?.availableServers ?? []).map((s: string) => ({ name: s, type: audio }));
@@ -250,7 +250,7 @@ scraperRoutes.get('/api/anizone_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/anizone/mal-${animeId}/${epNum}/${audio}?server=${encodeURIComponent(server)}`;
   if (lang !== '') watchUrl += `&lang=${encodeURIComponent(lang)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
+  const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `AniZone fetch failed HTTP ${code}` });
 
   if (data?.iframeOnly) return c.json({ embedUrl: data.embedUrl ?? '', iframeOnly: true, server: data.server ?? server });
@@ -287,7 +287,7 @@ scraperRoutes.get('/api/watchanimeworld_stream.php', async (c) => {
   let watchUrl = `${base}/api/watch/watchanimeworld/mal-${animeId}/${epNum}/${audio}?server=${encodeURIComponent(server)}`;
   if (lang !== '') watchUrl += `&lang=${encodeURIComponent(lang)}`;
 
-  const { ok, code, data } = await fetchJson(watchUrl, 20000, c.env.SCRAPER_API_KEY || '');
+  const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `WatchAnimeWorld fetch failed HTTP ${code}` });
 
   if (data?.iframeOnly) return c.json({ embedUrl: data.embedUrl ?? '', iframeOnly: true, server: data.server ?? server });
