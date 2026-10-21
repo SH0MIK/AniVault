@@ -1360,33 +1360,40 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         ids.forEach(id => setBtnPending(group, id));
         const resolvedMap = {};
 
-        // IMPORTANT: probe API providers one-by-one. The old Promise.all()
-        // fired every resolver at once and could overload the scraper API,
-        // causing several requests to time out together.
-        for (let i = 0; i < defs.length; i++) {
-            const id = ids[i];
-            let realKey = null;
-            try {
-                realKey = await resolveProvider(defs[i], audio);
-            } catch (e) {
-
-            }
-
-            if (realKey) {
-                resolvedMap[id] = realKey;
-                setBtnResolved(group, id, realKey, false);
-
-                // Start Sub as soon as its first priority-ordered provider
-                // works. Never autoplay Dub from this lane: the fallback chain
-                // below waits for Sub to finish before choosing Dub, preserving
-                // Sub-first autoplay while Dub buttons populate independently.
-                if (group === 'sub' && !playbackStarted && !window._manualServerSelection) {
-                    activateFixedButton(group, id, audio);
+        // Use a small bounded worker pool: fully sequential probing made one
+        // slow provider block every provider behind it, while Promise.all()
+        // previously overloaded the scraper. Two workers per lane keep load
+        // bounded and let healthy providers resolve sooner.
+        let nextIndex = 0;
+        const completed = new Set();
+        async function worker() {
+            while (nextIndex < defs.length) {
+                const i = nextIndex++;
+                const id = ids[i];
+                let realKey = null;
+                try {
+                    realKey = await resolveProvider(defs[i], audio);
+                } catch (e) {
+                    // A failed provider must not block other providers.
                 }
-            } else {
-                setBtnDead(group, id);
+
+                completed.add(i);
+                if (realKey) {
+                    resolvedMap[id] = realKey;
+                    setBtnResolved(group, id, realKey, false);
+                } else {
+                    setBtnDead(group, id);
+                }
+
+                // Keep priority order for autoplay: only activate a working
+                // provider once every provider ahead of it has completed.
+                if (group === 'sub' && !playbackStarted && !window._manualServerSelection && realKey) {
+                    const higherPrioritySettled = defs.slice(0, i).every((_, j) => completed.has(j));
+                    if (higherPrioritySettled) activateFixedButton(group, id, audio);
+                }
             }
         }
+        await Promise.all(Array.from({ length: Math.min(2, defs.length) }, () => worker()));
 
         // Preserve the existing visual fallback behavior without doing any
         // additional network requests.
