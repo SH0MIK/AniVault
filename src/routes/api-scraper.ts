@@ -241,7 +241,7 @@ scraperRoutes.get('/api/anizone_stream.php', async (c) => {
 
   if (server === '') {
     const listUrl = `${base}/api/servers?malId=${animeId}&ep=${epNum}&type=${audio}&source=anizone`;
-    const { ok, code, data } = await fetchJson(listUrl, 20000, c.env.SCRAPER_API_KEY || '');
+    const { ok, code, data } = await fetchJson(listUrl, 28000, c.env.SCRAPER_API_KEY || '');
     if (!ok) return c.json({ error: data?.error ?? `AniZone list failed HTTP ${code}` });
     const servers = (data?.servers ?? []).map((s: any) => ({ name: s.name, type: s.type, lang: String(s.lang ?? '').toLowerCase() }));
     return c.json({ servers });
@@ -278,7 +278,7 @@ scraperRoutes.get('/api/watchanimeworld_stream.php', async (c) => {
 
   if (server === '') {
     const listUrl = `${base}/api/servers?malId=${animeId}&ep=${epNum}&type=${audio}&source=watchanimeworld`;
-    const { ok, code, data } = await fetchJson(listUrl, 20000, c.env.SCRAPER_API_KEY || '');
+    const { ok, code, data } = await fetchJson(listUrl, 28000, c.env.SCRAPER_API_KEY || '');
     if (!ok) return c.json({ error: data?.error ?? `WatchAnimeWorld list failed HTTP ${code}` });
     const servers = (data?.servers ?? []).map((s: any) => ({ name: s.name, type: s.type, lang: String(s.lang ?? '').toLowerCase() }));
     return c.json({ servers });
