@@ -18,7 +18,8 @@ export interface MalEnv {
   API_CACHE_ENABLED?: string; // "1" / "0" via wrangler.toml var
   API_CACHE_TIME?: string; // seconds
   TMDB_API_KEY?: string;
-  SCRAPER_API_BASE?: string; // same secret as api-scraper.ts / episode-air.ts
+  SCRAPER_API_BASE?: string; // private scraper service URL
+  SCRAPER_API_KEY?: string; // server-side key, never sent to browsers
 }
 
 export interface NormalisedAnime {
@@ -1328,7 +1329,7 @@ export class MalAPI {
         const controller = new AbortController();
         const t = setTimeout(() => controller.abort(), timeoutMs);
         const res = await fetch(`${base}${path}`, {
-          headers: { Accept: 'application/json' },
+          headers: { Accept: 'application/json', ...(this.env.SCRAPER_API_KEY ? { 'x-anivault-api-key': this.env.SCRAPER_API_KEY } : {}) },
           signal: controller.signal,
         });
         clearTimeout(t);
