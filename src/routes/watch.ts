@@ -95,7 +95,7 @@ export function parseDurationSeconds(durationStr: string | null | undefined): nu
 /** Ports getAnilistIdFromMal(): looks up (and caches in D1) the AniList ID
  * for a MAL id via AniList's GraphQL API, since AniList's streaming-episode
  * thumbnails / episode data key off their own IDs, not MAL's. */
-async function getAnilistIdFromMal(db: Db, malId: number, env: { SCRAPER_API_BASE?: string }): Promise<number | null> {
+async function getAnilistIdFromMal(db: Db, malId: number, env: { SCRAPER_API_BASE?: string; SCRAPER_API_KEY?: string }): Promise<number | null> {
   const row = await db.fetchOne<{ anilist_id: number }>('SELECT anilist_id FROM anime_mal_map WHERE mal_id = ?', [malId]);
   if (row?.anilist_id) return row.anilist_id;
 
@@ -109,7 +109,7 @@ async function getAnilistIdFromMal(db: Db, malId: number, env: { SCRAPER_API_BAS
   try {
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 8000);
-    const res = await fetch(`${base}/api/anilist/id?malId=${malId}`, { headers: { Accept: 'application/json' }, signal: controller.signal });
+    const res = await fetch(`${base}/api/anilist/id?malId=${malId}`, { headers: { Accept: 'application/json', ...(env.SCRAPER_API_KEY ? { 'x-anivault-api-key': env.SCRAPER_API_KEY } : {}) }, signal: controller.signal });
     clearTimeout(t);
     if (!res.ok) return null;
     const json: any = await res.json().catch(() => null);
