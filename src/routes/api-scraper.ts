@@ -64,7 +64,7 @@ scraperRoutes.get('/api/animeheaven_stream.php', async (c) => {
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
-  const { ok, code, data } = await fetchJson(`${base}/api/watch/animeheaven/mal-${animeId}/${epNum}/sub`, 20000, c.env.SCRAPER_API_KEY || '');
+  const { ok, code, data } = await fetchJson(`${base}/api/watch/animeheaven/${hoshikaId || `mal-${animeId}`}/${epNum}/sub`, 20000, c.env.SCRAPER_API_KEY || '');
   if (!ok) return c.json({ error: data?.error ?? `Scraper API error HTTP ${code}` });
   const mp4 = data?.mp4ProxyUrl ?? data?.streamUrl ?? data?.mp4 ?? null;
   if (!mp4) return c.json({ error: 'No stream URL in response', raw: data });
@@ -82,13 +82,14 @@ scraperRoutes.get('/api/anikoto_stream.php', async (c) => {
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
   const server = (c.req.query('server') ?? '').trim();
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
   // Anikoto moved from the anivault-scraper Railway service to the same
   // one senshi_stream.php uses, and now expects a "mal-" prefixed ID.
-  let watchUrl = `${base}/api/watch/anikoto/mal-${animeId}/${epNum}/${audio}`;
+  let watchUrl = `${base}/api/watch/anikoto/${hoshikaId || `mal-${animeId}`}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
@@ -115,11 +116,12 @@ scraperRoutes.get('/api/desidub_stream.php', async (c) => {
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'dub';
   const server = (c.req.query('server') ?? '').trim();
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
-  let watchUrl = `${base}/api/watch/desidub/mal-${animeId}/${epNum}/${audio}`;
+  let watchUrl = `${base}/api/watch/desidub/${hoshikaId || `mal-${animeId}`}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
@@ -144,11 +146,12 @@ scraperRoutes.get('/api/reanime_stream.php', async (c) => {
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
   const server = (c.req.query('server') ?? '').trim();
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
-  let watchUrl = `${base}/api/watch/reanime/mal-${animeId}/${epNum}/${audio}`;
+  let watchUrl = `${base}/api/watch/reanime/${hoshikaId || `mal-${animeId}`}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
@@ -172,11 +175,12 @@ scraperRoutes.get('/api/animenosub_stream.php', async (c) => {
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
   const server = (c.req.query('server') ?? '').trim();
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
-  let watchUrl = `${base}/api/watch/animenosub/mal-${animeId}/${epNum}/${audio}`;
+  let watchUrl = `${base}/api/watch/animenosub/${hoshikaId || `mal-${animeId}`}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
@@ -200,11 +204,12 @@ scraperRoutes.get('/api/aniwaves_stream.php', async (c) => {
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
   const server = (c.req.query('server') ?? '').trim();
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
-  let watchUrl = `${base}/api/watch/aniwaves/mal-${animeId}/${epNum}/${audio}`;
+  let watchUrl = `${base}/api/watch/aniwaves/${hoshikaId || `mal-${animeId}`}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
@@ -234,6 +239,7 @@ scraperRoutes.get('/api/anizone_stream.php', async (c) => {
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
   const server = (c.req.query('server') ?? '').trim();
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   const lang = (c.req.query('lang') ?? '').trim();
   if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
   const base = getScraperBase(c.env);
@@ -247,7 +253,7 @@ scraperRoutes.get('/api/anizone_stream.php', async (c) => {
     return c.json({ servers });
   }
 
-  let watchUrl = `${base}/api/watch/anizone/mal-${animeId}/${epNum}/${audio}?server=${encodeURIComponent(server)}`;
+  let watchUrl = `${base}/api/watch/anizone/${hoshikaId || `mal-${animeId}`}/${epNum}/${audio}?server=${encodeURIComponent(server)}`;
   if (lang !== '') watchUrl += `&lang=${encodeURIComponent(lang)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
@@ -271,6 +277,7 @@ scraperRoutes.get('/api/watchanimeworld_stream.php', async (c) => {
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
   const server = (c.req.query('server') ?? '').trim();
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   const lang = (c.req.query('lang') ?? '').trim();
   if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
   const base = getScraperBase(c.env);
@@ -284,7 +291,7 @@ scraperRoutes.get('/api/watchanimeworld_stream.php', async (c) => {
     return c.json({ servers });
   }
 
-  let watchUrl = `${base}/api/watch/watchanimeworld/mal-${animeId}/${epNum}/${audio}?server=${encodeURIComponent(server)}`;
+  let watchUrl = `${base}/api/watch/watchanimeworld/${hoshikaId || `mal-${animeId}`}/${epNum}/${audio}?server=${encodeURIComponent(server)}`;
   if (lang !== '') watchUrl += `&lang=${encodeURIComponent(lang)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
