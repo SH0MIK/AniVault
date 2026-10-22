@@ -59,6 +59,7 @@ async function fetchJson(url: string, timeoutMs = 12000, apiKey = ''): Promise<{
 // request is fast in isolation.
 scraperRoutes.get('/api/animeheaven_stream.php', async (c) => {
   const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
   const base = getScraperBase(c.env);
