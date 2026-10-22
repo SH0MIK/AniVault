@@ -45,7 +45,7 @@ function fetchAnimeHeavenOnce(audio) {
     const rec = store[audio];
     if (rec && (rec.pending || (Date.now() - rec.ts) < 8000)) return rec.promise;
     const newRec = { pending: true, ts: Date.now(), promise: null };
-    newRec.promise = fetch(\`\${SITE_URL}/api/animeheaven_stream.php?anime=\${ANIME_ID}&ep=\${epNum}&audio=\${audio}\`)
+    newRec.promise = fetch(\`\${SITE_URL}/api/animeheaven_stream.php?anime=\${ANIME_ID}&ep=\${epNum}&audio=\${audio}\${HOSHIKA_QUERY}\`)
         .then(r => r.json())
         .then(d => { newRec.pending = false; newRec.ts = Date.now(); return d; })
         .catch(e => { newRec.pending = false; newRec.ts = Date.now(); throw e; });
@@ -1248,7 +1248,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
 
     // ── Anikoto (its own dedicated endpoint/cache shape) ────────────────
     function checkAnikotoProvider(provider, audio) {
-        return fetch(\`\${SITE}/api/anikoto_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${audio}&server=\${encodeURIComponent(provider)}\`)
+        return fetch(\`\${SITE}/api/anikoto_stream.php?anime=\${ANIME}&ep=\${EP}&audio=\${audio}\${HOSHIKA_QUERY}&server=\${encodeURIComponent(provider)}\`)
             .then(r => r.json()).then(d => {
                 const ok = !d.error && !!d.m3u8;
 
@@ -1270,7 +1270,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     // dedicated endpoint each, differing only in which one. STREAM_ENDPOINT
     // is declared once, up in switchToGenericSource, and is reused here.
     function fetchSourceList(source, audio, attempt = 1) {
-        return fetchJsonTimeout(\`\${SITE}/api/\${STREAM_ENDPOINT[source]}?anime=\${ANIME}&ep=\${EP}&audio=\${audio}\`)
+        return fetchJsonTimeout(\`\${SITE}/api/\${STREAM_ENDPOINT[source]}?anime=\${ANIME}&ep=\${EP}&audio=\${audio}\${HOSHIKA_QUERY}\`)
             .then(d => {  return d.servers || []; })
             .catch(e => {  return []; })
             .then(list => {
@@ -1279,7 +1279,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             });
     }
     function checkSourceProvider(source, providerName, audio, lang) {
-        let url = \`\${SITE}/api/\${STREAM_ENDPOINT[source]}?anime=\${ANIME}&ep=\${EP}&audio=\${audio}&server=\${encodeURIComponent(providerName)}\`;
+        let url = \`\${SITE}/api/\${STREAM_ENDPOINT[source]}?anime=\${ANIME}&ep=\${EP}&audio=\${audio}\${HOSHIKA_QUERY}&server=\${encodeURIComponent(providerName)}\`;
         if (lang) url += \`&lang=\${encodeURIComponent(lang)}\`;
 
         return fetchJsonTimeout(url, 25000).then(d => {
@@ -1327,7 +1327,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
             // name (per the scraper's own /servers listing) — no raw
             // fallback needed here since each is its own fixed button.
             const providerName = def.provider;
-            return fetch(\`\${SITE}/api/desidub_stream.php?anime=\${ANIME}&ep=\${EP}&audio=dub&server=\${encodeURIComponent(providerName)}\`)
+            return fetch(\`\${SITE}/api/desidub_stream.php?anime=\${ANIME}&ep=\${EP}&audio=dub\${HOSHIKA_QUERY}&server=\${encodeURIComponent(providerName)}\`)
                 .then(r => r.json())
                 .then(d => {
                     const ok = !d.error && !!(d.m3u8 || d.mp4 || d.iframeOnly);
