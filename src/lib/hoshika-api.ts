@@ -347,26 +347,3 @@ export async function getHoshikaAnimeMetadata(
     return cached;
   }
 }
-
-
-/** Resolve the public Hoshika short ID for a title. This ID is distinct from
- * AniVault's internal/MAL-compatible numeric ID and is used by scraper watch routes. */
-export async function getHoshikaShortId(title: string): Promise<string | null> {
-  if (!title) return null;
-  try {
-    const url = new URL('https://hoshika.app/api/v1/search');
-    url.searchParams.set('q', title);
-    const response = await fetch(url.toString(), { headers: { Accept: 'application/json' } });
-    if (!response.ok) return null;
-    const payload: any = await response.json();
-    if (payload?.ok === false) return null;
-    const match = resultsFrom(payload)
-      .map((item) => ({ item, score: titleMatchScore(item, title) }))
-      .filter((entry) => entry.score >= 80)
-      .sort((a, b) => b.score - a.score)[0]?.item;
-    const id = shortIdFrom(match);
-    return id ? (id.startsWith('hsk-') ? id : `hsk-${id}`) : null;
-  } catch {
-    return null;
-  }
-}
