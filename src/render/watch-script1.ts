@@ -1,16 +1,18 @@
 import { SUB_PROVIDERS, DUB_PROVIDERS, HINDI_PROVIDERS } from '../lib/stream-sources';
 
 export function watchScript1(params: {
-  anilistId: number | null; epNum: number; resumeParam: number; animeId: number;
+  anilistId: number | null; epNum: number; resumeParam: number; animeId: number; hoshikaId: string | null;
   siteUrl: string; qSub: any[]; qDub: any[]; isLoggedIn: boolean;
 }): string {
-  const { anilistId, epNum, resumeParam, animeId, siteUrl, qSub, qDub, isLoggedIn } = params;
+  const { anilistId, epNum, resumeParam, animeId, hoshikaId, siteUrl, qSub, qDub, isLoggedIn } = params;
   return `<script>
 
 const anilistId = ${JSON.stringify(anilistId)};
 const epNum = ${epNum};
 const resumeTime = ${resumeParam};
 const ANIME_ID = ${animeId};
+const HOSHIKA_ID = ${JSON.stringify(hoshikaId ?? '')};
+const HOSHIKA_QUERY = HOSHIKA_ID ? '&hoshikaId=' + encodeURIComponent(HOSHIKA_ID) : '';
 const SITE_URL = '${siteUrl}';
 const SUB_PROVIDERS = ${JSON.stringify(SUB_PROVIDERS)};
 const DUB_PROVIDERS = ${JSON.stringify(DUB_PROVIDERS)};
