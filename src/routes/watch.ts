@@ -28,6 +28,7 @@ import { AnimeTracker } from '../lib/tracker';
 import { EpisodeAir, AiredInfo } from '../lib/episode-air';
 import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
 import { getEpisodeThumbnail } from '../lib/episode-thumb';
+import { getHoshikaShortId } from '../lib/hoshika-api';
 import { SUB_PROVIDERS, DUB_PROVIDERS, HINDI_PROVIDERS, fixedServerBtn } from '../lib/stream-sources';
 import { renderWatchComments } from '../render/watch-comments';
 
@@ -265,6 +266,7 @@ watchRoutes.get('/watch', async (c) => {
   const lulustreamServers = await db.fetchAll<LuluStreamServerRow>('SELECT id,anime_id,episode_num,label,embed_url,audio_tracks,is_active FROM lulustream_servers WHERE anime_id=? AND episode_num=? AND is_active=1 ORDER BY id',[animeId,epNum]);
 
   const anilistId = await getAnilistIdFromMal(db, animeId, c.env);
+  const hoshikaId = await getHoshikaShortId(title);
 
   const allVideos = await db.fetchAll<{ episode_num: number; title: string | null }>(
     'SELECT episode_num, title FROM episode_videos WHERE anime_id=? AND is_active=1 ORDER BY episode_num ASC',
@@ -419,7 +421,7 @@ watchRoutes.get('/watch', async (c) => {
   // syntax error that silently kills this entire block before anything,
   // including the server probe, ever runs).
   html += watchScript1({
-    anilistId, epNum, resumeParam, animeId, siteUrl, qSub, qDub, isLoggedIn: auth.check(),
+    anilistId, epNum, resumeParam, animeId, hoshikaId, siteUrl, qSub, qDub, isLoggedIn: auth.check(),
   });
 
   // Wall-clock progress tracker (logged-in users only, matches the PHP Auth::check() gate)
