@@ -3,8 +3,8 @@ import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
-import { MalAPI } from '../lib/mal-api';
-import { buildCardMetaMap } from '../lib/anime-card';
+import { getHoshikaAnimeById, getHoshikaSeason } from '../lib/hoshika-api';
+import { findIdentityByLegacyMalId } from '../lib/anime-identity';
 import { getUserAnimeStatuses } from '../lib/user-list';
 
 export const mobileHomeRoutes = new Hono<{ Bindings: Env }>();
@@ -14,50 +14,68 @@ async function buildCtx(c: any) {
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const session = await Session.load(c, db, lifetime);
   const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
-  const mal = new MalAPI(c.env as any, c.env.API_CACHE, db);
-  return { db, session, auth, mal };
+  return { db, session, auth };
 }
 
-function toCard(a: any, meta: any, userStatus: string | null) {
+function toCard(a: any, userStatus: string | null) {
   return {
-    id: a.mal_id,
-    title: a.title_english && a.title_english !== a.title ? a.title_english : a.title,
-    image: a.images?.jpg?.large_image_url ?? a.images?.jpg?.image_url ?? '',
+    id: a.id,
+    title: a.title,
+    image: a.image || '',
     score: a.score ?? null,
     type: a.type ?? '',
     episodes: a.episodes ?? 0,
-    airedInfo: meta?.airedInfo ?? null,
-    dubbedLangs: meta?.dubbedLangs ?? [],
+    airedInfo: null,
+    dubbedLangs: [],
     userStatus,
   };
 }
 
+async function hoshikaForLegacyId(db: Db, legacyId: number, apiKey?: string) {
+  const identity = await findIdentityByLegacyMalId(db, legacyId).catch(() => null);
+  if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) return null;
+  const anime = await getHoshikaAnimeById(identity.hoshika_short_id, apiKey);
+  if (!anime) return null;
+  return {
+    id: legacyId,
+    shortId: anime.shortId,
+    title: anime.titleEnglish && anime.titleEnglish !== anime.title ? anime.titleEnglish : anime.title,
+    image: anime.poster || '',
+    banner: anime.cover || '',
+    synopsis: anime.synopsis || '',
+    score: anime.score,
+    type: anime.type,
+    episodes: anime.episodes ?? 0,
+    genres: anime.genres.slice(0, 3),
+  };
+}
+
 mobileHomeRoutes.get('/api/mobile/home-v2', async (c) => {
-  const { db, auth, mal } = await buildCtx(c);
-  const [seasonal, topAnime, upcoming] = await Promise.all([
-    mal.getAniListSeasonNow(),
-    mal.getTopAnime('bypopularity', 1),
-    mal.getSeasonUpcoming(),
-  ]);
+  const { db, auth } = await buildCtx(c);
+  const currentUser = auth.check() ? await auth.getCurrentUser() : null;
+  const userStatuses = currentUser ? await getUserAnimeStatuses(db, currentUser.id) : {};
+
+  // Seasonal cards use Hoshika's dedicated season feed; other listing sections
+  // remain empty until Hoshika provides native endpoints for them.
+  const seasonFeed = await getHoshikaSeason(c.env.HOSHIKA_API_KEY);
+  const seasonal: any[] = seasonFeed.items.map((a) => ({
+    id: a.shortId, shortId: a.shortId, title: a.title, image: a.poster,
+    score: a.score, type: a.type, episodes: a.episodes ?? 0,
+    status: a.status, year: a.year, source: 'hoshika',
+  }));
+  const topAnime: any[] = [];
+  const upcoming: any[] = [];
 
   let watchNowList: any[] = [];
   try {
-    const rows = await db.fetchAll<{ anime_id: number }>('SELECT DISTINCT anime_id FROM episode_videos WHERE is_active = 1 ORDER BY updated_at DESC LIMIT 12');
-    const results = await Promise.all(rows.map((r) => mal.getAnime(r.anime_id, true)));
-    watchNowList = results.map((r) => r.data).filter(Boolean);
+    const rows = await db.fetchAll<{ anime_id: number }>(
+      'SELECT anime_id, MAX(updated_at) AS updated_at FROM episode_videos WHERE is_active = 1 GROUP BY anime_id ORDER BY MAX(updated_at) DESC LIMIT 12'
+    );
+    const resolved = await Promise.all(rows.map((row) => hoshikaForLegacyId(db, Number(row.anime_id), c.env.HOSHIKA_API_KEY)));
+    watchNowList = resolved.filter(Boolean) as any[];
   } catch {
     watchNowList = [];
   }
-
-  const currentUser = auth.check() ? await auth.getCurrentUser() : null;
-  const userStatuses = currentUser ? await getUserAnimeStatuses(db, currentUser.id) : {};
-  const allItems = [
-    ...(seasonal.data ?? []).slice(0, 12),
-    ...(topAnime.data ?? []).slice(0, 12),
-    ...(upcoming.data ?? []).slice(0, 8),
-    ...watchNowList,
-  ];
-  const cardMeta = await buildCardMetaMap(db, allItems);
 
   let continueWatching: any[] = [];
   if (currentUser) {
@@ -83,57 +101,39 @@ mobileHomeRoutes.get('/api/mobile/home-v2', async (c) => {
 
   const hero: any[] = [];
   try {
-    const curatedRows = await db.fetchAll<any>('SELECT anime_id, banner_image_url, logo_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8');
-    if (curatedRows.length) {
-      const curated = await Promise.all(curatedRows.map((r) => mal.getAnime(r.anime_id, true)));
-      const imageMap = await mal.getLocalAnimeImagesMany(curatedRows.map((r) => r.anime_id));
-      for (let i = 0; i < curatedRows.length; i++) {
-        const a = curated[i]?.data;
-        if (!a) continue;
-        hero.push({
-          id: a.mal_id,
-          title: a.title_english && a.title_english !== a.title ? a.title_english : a.title,
-          image: imageMap.get(a.mal_id) || a.images?.jpg?.large_image_url || '',
-          banner: curatedRows[i].banner_image_url || a.banner_image || '',
-          logo: curatedRows[i].logo_image_url || a.logo_image || '',
-          synopsis: a.synopsis || '',
-          score: a.score ?? null,
-          type: a.type ?? '',
-          episodes: a.episodes ?? 0,
-          genres: (a.genres ?? []).slice(0, 3).map((g: any) => g.name),
-        });
-      }
-    }
-  } catch {
-    // Fall through to AniList season banners.
-  }
-
-  if (!hero.length) {
-    for (const a of (seasonal.data ?? []).slice(0, 6)) {
+    const curatedRows = await db.fetchAll<any>(
+      'SELECT anime_id, banner_image_url, logo_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8'
+    );
+    const curated = await Promise.all(curatedRows.map((row) => hoshikaForLegacyId(db, Number(row.anime_id), c.env.HOSHIKA_API_KEY)));
+    for (let i = 0; i < curatedRows.length; i++) {
+      const anime = curated[i];
+      if (!anime) continue;
       hero.push({
-        id: a.mal_id,
-        title: a.title_english && a.title_english !== a.title ? a.title_english : a.title,
-        image: a.images?.jpg?.large_image_url ?? a.images?.jpg?.image_url ?? '',
-        banner: a.banner_image ?? '',
-        logo: a.logo_image ?? '',
-        synopsis: a.synopsis ?? '',
-        score: a.score ?? null,
-        type: a.type ?? '',
-        episodes: a.episodes ?? 0,
-        genres: (a.genres ?? []).slice(0, 3).map((g: any) => g.name),
+        id: anime.id,
+        title: anime.title,
+        image: anime.image,
+        banner: curatedRows[i].banner_image_url || anime.banner,
+        logo: '',
+        synopsis: anime.synopsis,
+        score: anime.score,
+        type: anime.type,
+        episodes: anime.episodes,
+        genres: anime.genres,
       });
     }
+  } catch {
+    // Curated hero slides are optional; no legacy catalog fallback.
   }
 
-  const genreList = mal.getAnimeGenres().data;
   return c.json({
     success: true,
     hero,
-    genres: genreList,
-    seasonal: (seasonal.data ?? []).slice(0, 12).map((a: any) => toCard(a, cardMeta.get(a.mal_id), userStatuses[a.mal_id] ?? null)),
-    top: (topAnime.data ?? []).slice(0, 12).map((a: any) => toCard(a, cardMeta.get(a.mal_id), userStatuses[a.mal_id] ?? null)),
-    upcoming: (upcoming.data ?? []).slice(0, 8).map((a: any) => toCard(a, cardMeta.get(a.mal_id), userStatuses[a.mal_id] ?? null)),
-    watchNow: watchNowList.map((a: any) => toCard(a, cardMeta.get(a.mal_id), userStatuses[a.mal_id] ?? null)),
+    genres: [],
+    catalogMessage: 'Seasonal anime is provided by Hoshika; other catalogue listing feeds are not available yet.',
+    seasonal: seasonal.map((a: any) => toCard(a, userStatuses[a.id] ?? null)),
+    top: topAnime.map((a: any) => toCard(a, userStatuses[a.id] ?? null)),
+    upcoming: upcoming.map((a: any) => toCard(a, userStatuses[a.id] ?? null)),
+    watchNow: watchNowList.map((a: any) => toCard(a, userStatuses[a.id] ?? null)),
     continueWatching,
   });
 });

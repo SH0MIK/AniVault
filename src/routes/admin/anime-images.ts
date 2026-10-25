@@ -5,7 +5,6 @@ import { buildAdminCtx } from '../../lib/admin-ctx';
 import { h } from '../../lib/helpers';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
 import { Settings } from '../../lib/settings';
-import { MalAPI } from '../../lib/mal-api';
 
 export const adminAnimeImagesRoutes = new Hono<{ Bindings: Env }>();
 
@@ -87,33 +86,11 @@ adminAnimeImagesRoutes.on(['GET', 'POST'], '/admin/anime_images.php', async (c) 
         const priority = (formData.get('priority') as string) === 'api' ? 'api' : 'saved';
         await new Settings(db).set('image_source_priority', priority);
         session.setFlash('success', `Image priority set to "${priority === 'api' ? 'API first' : 'Saved first'}".`);
-      } else if (action === 'refresh_art') {
-        // Manual escape hatch for a stuck cache entry — e.g. the scraper
-        // timed out once (cold start, etc.), that empty result got cached,
-        // and the title now shows no art until the negative-cache TTL
-        // (5 min) or the KV entry (up to a week) expires on its own. This
-        // deletes it immediately so the next page load re-fetches fresh.
-        if (!animeId) throw new Error('Enter a valid Anime ID to refresh.');
-        const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-        await mal.clearScraperArtCache(animeId);
-        session.setFlash('success', `Art cache cleared for Anime ID ${animeId} — it'll re-fetch from the API on next load.`);
-      } else if (action === 'reset_all_art') {
-        // Bulk version of refresh_art — batched (see resetAllScraperArtCache)
-        // so one click can't stack up enough KV deletes to hit the Worker's
-        // subrequest limit on a large library. Resumes from the cursor the
-        // previous batch left off at, carried through as a hidden field.
-        const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-        const cursor = ((formData.get('cursor') as string) || undefined) || undefined;
-        const priorProgress = parseInt((formData.get('progress') as string) ?? '0', 10) || 0;
-        const result = await mal.resetAllScraperArtCache(40, cursor);
-        const totalProgress = priorProgress + result.deleted;
-        if (result.done) {
-          session.setFlash('success', `Art cache fully reset (${totalProgress.toLocaleString('en-US')} entr${totalProgress === 1 ? 'y' : 'ies'} cleared total). Every title re-fetches from the API on next load.`);
-        } else {
-          await session.save(c, lifetime);
-          return c.redirect(`${siteUrl}/admin/anime_images.php?reset_cursor=${encodeURIComponent(result.cursor ?? '')}&reset_progress=${totalProgress}`);
-        }
-
+      } else if (action === 'refresh_art' || action === 'reset_all_art') {
+        // Legacy scraper-art cache refresh could re-trigger non-Hoshika
+        // catalogue lookups. Keep all existing KV/D1 data intact during this
+        // migration; saved image overrides can still be edited above.
+        session.setFlash('error', 'Legacy scraper-art cache refresh is paused during the Hoshika migration. Existing cache entries were left untouched.');
       }
     } catch (e: any) {
       session.setFlash('error', e.message ?? 'An error occurred.');

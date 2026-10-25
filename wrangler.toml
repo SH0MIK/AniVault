@@ -1,4 +1,4 @@
-name = "anivault"
+name = "anivault-beta"
 main = "src/index.ts"
 compatibility_date = "2026-06-01"
 compatibility_flags = ["nodejs_compat"]
@@ -27,7 +27,7 @@ bucket_name = "anivault"
 # Background refresh jobs and cron triggers have been removed to prevent automated KV writes.
 [vars]
 SITE_NAME = "AniVault"
-SITE_URL = "https://www.anivault.co"
+SITE_URL = "https://beta.anivault.co"
 SESSION_LIFETIME_SECONDS = "86400"
 GOOGLE_REDIRECT_URI = "https://www.anivault.co/pages/oauth_google.php"
 DISCORD_REDIRECT_URI = "https://www.anivault.co/pages/oauth_discord.php"

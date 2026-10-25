@@ -78,6 +78,7 @@ ${o.impersonating ? `
     <a href="home_banners.php" class="${active('home_banners')}">${icon('layout', 'icon-small')} Homepage Hero</a>
     <a href="home-cache.php" class="${active('home_cache')}">${icon('database', 'icon-small')} Homepage Data Cache</a>
     <a href="heal_images.php" class="${active('heal_images')}">${icon('heal', 'icon-small')} Heal Images</a>
+    ${o.isOwner ? `<a href="hoshika_migration.php" class="${active('hoshika_migration')}">${icon('database', 'icon-small')} Hoshika ID Migration</a>` : ''}
 
     <div class="nav-group">System</div>
     <a href="cache.php" class="${active('cache')}">${icon('database', 'icon-small')} Clear Cache</a>

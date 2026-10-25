@@ -5,7 +5,8 @@ import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
-import { MalAPI } from '../lib/mal-api';
+import { getHoshikaAnimeById } from '../lib/hoshika-api';
+import { findIdentityByLegacyMalId } from '../lib/anime-identity';
 import { getAnimeTitle } from '../lib/helpers';
 import { Logger } from '../lib/logger';
 
@@ -110,13 +111,15 @@ apiVideosRoutes.on(['GET', 'POST'], '/api/videos.php', async (c) => {
     let animeTitle = '';
     let animeSynopsis = '';
     try {
-      const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-      const animeData = await mal.getAnime(animeId);
-      if (animeData.data) {
-        animeTitle = getAnimeTitle(animeData.data);
-        animeSynopsis = animeData.data.synopsis ?? '';
+      const identity = await findIdentityByLegacyMalId(db, animeId);
+      if (identity?.verified === 1 && identity.hoshika_short_id) {
+        const animeData = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
+        if (animeData) {
+          animeTitle = animeData.title || identity.title || '';
+          animeSynopsis = animeData.synopsis || '';
+        }
       }
-    } catch { /* non-critical */ }
+    } catch { /* optional enrichment; never guess a legacy mapping */ }
 
     if (!title && animeTitle) title = animeTitle;
     if (!description && animeSynopsis) description = animeSynopsis.substring(0, 500);

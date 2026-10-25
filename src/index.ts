@@ -44,6 +44,7 @@ import { adminCacheRoutes } from './routes/admin/cache';
 import { adminHomepageCacheRoutes } from './routes/admin/home-cache';
 import { adminWatchStatsRoutes } from './routes/admin/watch-stats';
 import { adminHealImagesRoutes } from './routes/admin/heal-images';
+import { adminHoshikaMigrationRoutes } from './routes/admin/hoshika-migration';
 import { adminTurbovidRoutes } from './routes/admin/turbovid-test';
 import { adminTurbovidServerRoutes } from './routes/admin/turbovid-servers';
 import { adminLuluStreamRoutes } from './routes/admin/lulustream-test';
@@ -59,6 +60,8 @@ import { apiAnimeCommentsRoutes } from './routes/api-anime-comments';
 import { pointsRoutes } from './routes/points';
 import { bugReportRoutes } from './routes/bug-reports';
 import { healthRoutes } from './routes/health';
+import { hoshikaApiRoutes } from './routes/api-hoshika';
+import { hoshikaAnimeRoutes } from './routes/anime-hoshika';
 
 export interface Env {
   DB: D1Database;
@@ -87,6 +90,7 @@ export interface Env {
   ANILIST_CLIENT_SECRET?: string;
   ANILIST_REDIRECT_URI?: string;
   TMDB_API_KEY?: string;
+  HOSHIKA_API_KEY?: string;
   SCRAPER_API_BASE?: string;
   SCRAPER_API_KEY?: string;
 }
@@ -94,6 +98,8 @@ export interface Env {
 const app = new Hono<{ Bindings: Env }>();
 
 app.route('/', healthRoutes);
+app.route('/', hoshikaApiRoutes);
+app.route('/', hoshikaAnimeRoutes);
 app.route('/', authRoutes);
 app.route('/', mobileAuthRoutes);
 app.route('/', mobileHomeRoutes);
@@ -139,6 +145,7 @@ app.route('/', adminCacheRoutes);
 app.route('/', adminHomepageCacheRoutes);
 app.route('/', adminWatchStatsRoutes);
 app.route('/', adminHealImagesRoutes);
+app.route('/', adminHoshikaMigrationRoutes);
 app.route('/', adminTurbovidRoutes);
 app.route('/', adminTurbovidServerRoutes);
 app.route('/', adminLuluStreamRoutes);

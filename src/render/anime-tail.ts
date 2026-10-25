@@ -63,26 +63,9 @@ export function animeTailScript(animeDubConfirmed: boolean): string {
   const SEASON_TYPES    = new Set(['Sequel', 'Prequel', 'Alternative Version', 'Alternative Setting', 'Parent Story', 'Full Story']);
   const SPECIAL_TYPES   = new Set(['Movie', 'Side Story', 'Spin-off', 'Summary', 'Other']);
 
-  // Fetch start_date for a single MAL id via Jikan
-  async function fetchDate(id) {
-    try {
-      const res  = await fetch(\`https://api.jikan.moe/v4/anime/\${id}\`);
-      const data = await res.json();
-      return data?.data?.aired?.from ?? null; // ISO string or null
-    } catch { return null; }
-  }
-
-  // Build full list: current + related entries
-  const allIds = [currentId, ...entries.map(e => e.id).filter(Boolean)];
-
-  // Fetch dates in parallel (rate-limit: small stagger)
-  const dateMap = {};
-  await Promise.all(allIds.map((id, i) =>
-    new Promise(res => setTimeout(async () => {
-      dateMap[id] = await fetchDate(id);
-      res();
-    }, i * 340))
-  ));
+  // Do not make browser-side Jikan requests for season ordering.
+  // Related entries are kept in the order supplied by the server until the
+  // relationship data is migrated to Hoshika IDs.
 
   // Separate season-like entries from specials
   const seasonEntries = entries.filter(e => SEASON_TYPES.has(e.type));
@@ -92,11 +75,7 @@ export function animeTailScript(animeDubConfirmed: boolean): string {
   const seasonList = [
     { id: currentId, title: currentTitle, type: 'current' },
     ...seasonEntries.map(e => ({ id: e.id, title: e.title, type: e.type }))
-  ].sort((a, b) => {
-    const da = dateMap[a.id] ? new Date(dateMap[a.id]) : new Date('9999');
-    const db = dateMap[b.id] ? new Date(dateMap[b.id]) : new Date('9999');
-    return da - db;
-  });
+  ];
 
   // Assign season numbers
   seasonList.forEach((entry, idx) => { entry.seasonNum = idx + 1; });
@@ -190,9 +169,11 @@ const SVG_DUB = \`<svg width="11" height="11" viewBox="0 0 24 24" fill="none" st
 // filled in server-side with a live lookup against our own scraper API (see
 // api-episode-override.ts's ?all=1 handler). Only falls back to the anime
 // cover if the scraper has nothing for that episode either.
-async function fetchAniListThumbnails(malId) {
+async function fetchEpisodeThumbnails(malId) {
   try {
-    const res = await fetch((window.__siteUrl || '') + '/api/episode_override.php?anime_id=' + malId + '&all=1');
+    const overrideId = window.__legacyAnimeId || malId;
+    if (!overrideId) return {};
+    const res = await fetch((window.__siteUrl || '') + '/api/episode_override.php?anime_id=' + overrideId + '&all=1');
     if (!res.ok) return {};
     const data = await res.json();
     const overrides = data?.overrides || [];
@@ -202,7 +183,7 @@ async function fetchAniListThumbnails(malId) {
   } catch(e) { return {}; }
 }
 
-// ── Build an ep-card element from Jikan episode data ─────────────────────────
+// ── Build an episode card from Hoshika-shaped episode data ─────────────────────────
 function buildEpCard(ep, animeId, cover, thumbMap, banner) {
   const epNum   = ep.mal_id ?? '?';
   const epTitle = ep.title  ?? 'TBA';
@@ -219,10 +200,11 @@ function buildEpCard(ep, animeId, cover, thumbMap, banner) {
   // Use admin-saved override thumbnail if available; fall back to the anime's
   // wide banner (landscape, matches the 16:9 card) before the portrait cover,
   // which only gets used if there's no banner either.
-  const thumb = (thumbMap && thumbMap[parseInt(epNum)]) || banner || cover;
+  const thumb = (thumbMap && thumbMap[parseInt(epNum)]) || ep.thumbnail || banner || cover;
 
   const div = document.createElement('a');
-  div.href      = (window.__siteUrl || '') + '/watch?anime=' + animeId + '&ep=' + epNum;
+  const playbackId = window.__legacyAnimeId || animeId;
+  div.href      = (window.__siteUrl || '') + '/watch?anime=' + playbackId + '&ep=' + epNum;
   div.className = 'ep-card' + (hasVid ? ' has-video-ep' : '');
   div.dataset.title    = epTitle;
   div.dataset.meta     = meta;
@@ -287,13 +269,8 @@ function renderEpisodeGrid(fullEps, animeId, cover, thumbMap, banner) {
     grid.innerHTML = '';
     list.forEach(ep => grid.appendChild(buildEpCard(ep, animeId, cover, thumbMap, banner)));
     grid.style.display = '';
-    // Previously also called loadEpCardThumbnails() here, which re-fetched
-    // every thumbnail directly from graphql.anilist.co (uncached) and
-    // overwrote what buildEpCard() had just painted from thumbMap -- the
-    // exact same D1-cached data from getAnimeEpisodeThumbnails (permanent
-    // for aired/finished episodes, TTL-gated re-checks for ongoing shows).
-    // That overwrite was pure redundant work with no benefit, so it's
-    // removed: the grid now shows the cache-backed thumbnail as painted.
+    // The grid uses the Hoshika-backed thumbnail map returned by our same-origin
+    // episode override endpoint. Do not issue separate provider requests here.
   }
 
   if (fullEps.length <= EP_CHUNK_SIZE) {
@@ -362,111 +339,96 @@ async function lazyLoadEpisodes() {
   const loading = document.getElementById('ep-grid-loading');
   if (!grid) return;
   try {
-    // Fetch Jikan episodes + admin-saved thumbnail overrides in parallel
-    const [thumbMap, jikanEps] = await Promise.all([
-      fetchAniListThumbnails(animeId),
-      (async () => {
-        let allEps  = [];
-        let page    = 1;
-        let hasNext = true;
-        while (hasNext) {
-          if (page > 1) await new Promise(r => setTimeout(r, 400));
-          const res  = await fetch(\`\${window.__siteUrl || ''}/api/anime_episodes.php?anime=\${animeId}&page=\${page}\`);
-          const data = await res.json();
-          const eps  = data.data || [];
-          allEps = allEps.concat(eps);
-          const pagination = data.pagination || {};
-          hasNext = !!(pagination.has_next_page) && eps.length > 0;
-          page++;
-        }
-        return allEps;
-      })()
+    // Hoshika is the sole episode metadata source. Legacy thumbnail overrides
+    // are consulted only when this Hoshika ID has a verified legacy mapping.
+    const [thumbMap, response] = await Promise.all([
+      fetchEpisodeThumbnails(animeId),
+      fetch((window.__siteUrl || '') + '/api/hoshika/anime/' + encodeURIComponent(animeId) + '/episodes').then(r => r.ok ? r.json() : null),
     ]);
-
+    const hoshikaEpisodes = Array.isArray(response?.data) ? response.data : [];
+    const episodes = hoshikaEpisodes.map(ep => ({
+      mal_id: Number(ep.number),
+      title: ep.title || null,
+      aired: ep.aired || null,
+      score: null,
+      filler: !!ep.filler,
+      recap: !!ep.recap,
+      thumbnail: ep.thumbnail || '',
+    })).filter(ep => Number.isInteger(ep.mal_id) && ep.mal_id > 0);
     if (loading) loading.style.display = 'none';
-    // If Jikan has no episode data yet (common for airing anime),
-    // generate numbered stubs from the DB videos we already have
-    if (!jikanEps.length) {
+
+    // Keep the existing card UI; only the data source and field mapping change.
+    if (!episodes.length) {
       const totalEps = window.__totalEps || 0;
-      const videoEps = Object.keys(window.__videoEpMap || {}).map(Number).sort((a,b)=>a-b);
-      // Use DB video episodes + fill up to totalEps if known
-      const epNums = new Set(videoEps);
-      if (totalEps > 0) for (let i = 1; i <= totalEps; i++) epNums.add(i);
-      if (!epNums.size) {
+      if (!totalEps) {
         grid.style.display = 'block';
-        grid.innerHTML = '<p class="text-muted text-center">No episode data available yet.</p>';
+        grid.innerHTML = '<p class="text-muted text-center">Episode data is currently unavailable.</p>';
         return;
       }
-      const stubEps = [...epNums].sort((a,b)=>a-b).map(n => ({
-        mal_id: n, title: null, aired: null, score: null, filler: false, recap: false
+      const stubs = Array.from({ length: totalEps }, (_, i) => ({
+        mal_id: i + 1, title: null, aired: null, score: null, filler: false, recap: false, thumbnail: ''
       }));
-      updateEpTabCount(stubEps.length);
-      renderEpisodeGrid(stubEps, animeId, cover, thumbMap, banner);
+      updateEpTabCount(stubs.length);
+      renderEpisodeGrid(stubs, animeId, cover, thumbMap, banner);
       return;
     }
-    updateEpTabCount(jikanEps.length);
-    // Jikan's per-episode data commonly lags behind the show's real total
-    // (currently-airing shows especially -- it only lists episodes that
-    // have actually aired/been indexed). Pad the grid out with numbered
-    // stubs for anything beyond what Jikan gave us, up to the known
-    // total, so the card count always matches the "(N)" in the tab title
-    // instead of silently showing fewer cards than it claims.
+
     const totalEps = window.__totalEps || 0;
-    const jikanNums = new Set(jikanEps.map(ep => Number(ep.mal_id ?? 0)));
-    const fullEps = jikanEps.slice();
-    if (totalEps > jikanEps.length) {
+    const known = new Set(episodes.map(ep => ep.mal_id));
+    const fullEpisodes = episodes.slice();
+    if (totalEps > episodes.length) {
       for (let n = 1; n <= totalEps; n++) {
-        if (!jikanNums.has(n)) {
-          fullEps.push({ mal_id: n, title: null, aired: null, score: null, filler: false, recap: false });
-        }
+        if (!known.has(n)) fullEpisodes.push({
+          mal_id: n, title: null, aired: null, score: null, filler: false, recap: false, thumbnail: ''
+        });
       }
     }
-    renderEpisodeGrid(fullEps, animeId, cover, thumbMap, banner);
+    updateEpTabCount(fullEpisodes.length);
+    renderEpisodeGrid(fullEpisodes, animeId, cover, thumbMap, banner);
   } catch(e) {
     if (loading) loading.innerHTML = '<p class="text-muted" style="grid-column:1/-1;text-align:center;padding:1rem 0;">Failed to load episodes. <button class="btn btn-ghost btn-sm" onclick="lazyLoadEpisodes()">Retry</button></p>';
   }
 }
 
-// ── Fetch and render characters ────────────────────────────────
+// ── Fetch and render characters from Hoshika ────────────────────
 async function lazyLoadCharacters() {
   const animeId = window.__animeId;
-  const grid    = document.getElementById('char-grid-js');
+  const grid = document.getElementById('char-grid-js');
   const loading = document.getElementById('char-grid-loading');
-  if (!grid) return;
+  if (!grid || !animeId) return;
   try {
-    const res  = await fetch(\`\${window.__siteUrl || ''}/api/anime_characters.php?anime=\${animeId}\`);
-    const data = await res.json();
-    const chars = (data.data || []).slice(0, 12);
+    const res = await fetch((window.__siteUrl || '') + '/api/hoshika/anime/' + encodeURIComponent(animeId), { cache: 'no-store' });
+    if (!res.ok) throw new Error('Hoshika anime details unavailable');
+    const payload = await res.json();
+    const chars = (payload?.data?.raw?.characters || payload?.data?.characters || []).slice(0, 12);
     if (loading) loading.style.display = 'none';
+    grid.innerHTML = '';
     if (!chars.length) {
       grid.style.display = 'block';
       grid.innerHTML = '<p class="text-muted text-center">No character data available.</p>';
       return;
     }
     chars.forEach(ch => {
-      const char   = ch.character || {};
-      const va     = (ch.voice_actors || []).find(v => v.language === 'Japanese')?.person || ch.voice_actors?.[0]?.person || null;
-      const role   = ch.role || '';
-      const charId = char.mal_id || 0;
-      const img    = char.images?.jpg?.image_url || '';
-      const isMain = role.toLowerCase() === 'main';
+      const name = ch.name || 'Unknown character';
+      const role = ch.role || '';
+      const img = ch.avatar || '';
+      const va = ch.seiyuu || null;
+      const isMain = role.toUpperCase() === 'MAIN';
       const div = document.createElement('div');
       div.className = 'anime-card char-card';
-      div.style.cursor = 'pointer';
-      div.onclick = () => { window.location.href = window.__siteUrl + '/character?id=' + charId; };
       div.innerHTML = \`
         <div class="anime-card-poster char-card-poster">
-          \${img ? \`<img src="\${img}" alt="\${char.name || ''}" loading="lazy">\` : ''}
+          \${img ? \`<img src="\${img}" alt="\${name.replace(/"/g, '&quot;')}" loading="lazy">\` : ''}
           \${isMain ? '<span style="position:absolute;top:6px;left:6px;background:var(--accent);color:#fff;font-size:.65rem;font-weight:700;padding:2px 7px;border-radius:10px;text-transform:uppercase;letter-spacing:.04em;z-index:2;">Main</span>' : ''}
         </div>
         <div class="anime-card-info" style="text-align:center;">
-          <div class="anime-card-title">\${(char.name||'').replace(/</g,'&lt;')}</div>
-          <div class="anime-card-meta">\${role}\${va ? '<br><span style="color:var(--text-muted);">' + (va.name||'').replace(/</g,'&lt;') + '</span>' : ''}</div>
+          <div class="anime-card-title">\${name.replace(/</g, '&lt;')}</div>
+          <div class="anime-card-meta">\${role}\${va?.name ? '<br><span style="color:var(--text-muted);">' + va.name.replace(/</g, '&lt;') + '</span>' : ''}</div>
         </div>\`;
       grid.appendChild(div);
     });
     grid.style.display = '';
-  } catch(e) {
+  } catch (e) {
     if (loading) loading.innerHTML = '<p class="text-muted">Failed to load characters. <button class="btn btn-ghost btn-sm" onclick="lazyLoadCharacters()">Retry</button></p>';
   }
 }
@@ -640,42 +602,44 @@ async function lazyLoadPictures() {
   }
 }
 
-// ── Fetch and render related/recommendations ───────────────────
+// ── Fetch and render recommendations from Hoshika ──────────────
 async function lazyLoadRelated() {
   const animeId = window.__animeId;
-  const grid    = document.getElementById('related-grid-js');
+  const grid = document.getElementById('related-grid-js');
   const loading = document.getElementById('related-grid-loading');
-  if (!grid) return;
+  if (!grid || !animeId) return;
   try {
-    const res  = await fetch(\`https://api.jikan.moe/v4/anime/\${animeId}/recommendations\`);
-    const data = await res.json();
-    const recs = (data.data || []).slice(0, 8);
+    const res = await fetch((window.__siteUrl || '') + '/api/hoshika/anime/' + encodeURIComponent(animeId), { cache: 'no-store' });
+    if (!res.ok) throw new Error('Hoshika recommendations unavailable');
+    const payload = await res.json();
+    const recommendations = (payload?.data?.raw?.recommendations || payload?.data?.recommendations || []).slice(0, 12);
     if (loading) loading.style.display = 'none';
-    if (!recs.length) {
+    grid.innerHTML = '';
+    if (!recommendations.length) {
       grid.style.display = 'block';
       grid.innerHTML = '<p class="text-muted text-center">No recommendations available.</p>';
       return;
     }
-    recs.forEach(r => {
-      const a      = r.entry || {};
-      const aid    = a.mal_id || 0;
-      const atitle = a.title  || '';
-      const aimg   = a.images?.jpg?.image_url || '';
-      const div = document.createElement('div');
-      div.className = 'anime-card';
-      div.style.cursor = 'pointer';
-      div.onclick = () => { window.location.href = window.__siteUrl + '/anime?id=' + aid; };
-      div.innerHTML = \`
+    recommendations.forEach(item => {
+      const card = document.createElement('a');
+      card.className = 'anime-card';
+      card.href = (window.__siteUrl || '') + '/anime?id=' + encodeURIComponent(item.shortId);
+      card.style.cssText = 'flex-shrink:0;width:160px;text-decoration:none;';
+      const title = item.title || 'Unknown anime';
+      const image = item.coverImage || '';
+      const score = Number(item.averageScore);
+      card.innerHTML = \`
         <div class="anime-card-poster">
-          \${aimg ? \`<img src="\${aimg}" alt="\${atitle.replace(/"/g,'&quot;')}" loading="lazy">\` : ''}
+          \${image ? \`<img src="\${image}" alt="\${title.replace(/"/g, '&quot;')}" loading="lazy">\` : ''}
         </div>
         <div class="anime-card-info">
-          <div class="anime-card-title">\${atitle.replace(/</g,'&lt;')}</div>
+          <div class="anime-card-title">\${title.replace(/</g, '&lt;')}</div>
+          <div class="anime-card-meta">\${Number.isFinite(score) && score > 0 ? '★ ' + score : ''}</div>
         </div>\`;
-      grid.appendChild(div);
+      grid.appendChild(card);
     });
     grid.style.display = '';
-  } catch(e) {
+  } catch (e) {
     if (loading) loading.innerHTML = '<p class="text-muted">Failed to load recommendations. <button class="btn btn-ghost btn-sm" onclick="lazyLoadRelated()">Retry</button></p>';
   }
 }

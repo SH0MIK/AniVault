@@ -80,17 +80,12 @@ healthRoutes.get('/healthz', async (c) => {
 
   const externalChecks: Record<string, { ok: boolean; label: string; configured: boolean; critical: boolean; ms?: number; detail: string }> = {};
 
-  const jikan = await probeExternal('https://api.jikan.moe/v4/anime/1');
-  externalChecks.jikan = { ...jikan, label: 'Jikan API', configured: true, critical: false };
+  // Hoshika is the only anime catalog source in the migration branch.
+  const hoshika = await probeExternal('https://hoshika.app/api/v1/search?q=Naruto&limit=1', {
+    headers: { Accept: 'application/json', ...(env.HOSHIKA_API_KEY ? { 'X-Hoshika-Key': env.HOSHIKA_API_KEY } : {}) },
+  });
+  externalChecks.hoshika = { ...hoshika, label: 'Hoshika API', configured: true, critical: false };
 
-  if (env.MAL_CLIENT_ID) {
-    const mal = await probeExternal('https://api.myanimelist.net/v2/anime/1?fields=id', {
-      headers: { 'X-MAL-CLIENT-ID': env.MAL_CLIENT_ID },
-    });
-    externalChecks.mal = { ...mal, label: 'MyAnimeList API', configured: true, critical: false };
-  } else {
-    externalChecks.mal = { ok: true, label: 'MyAnimeList API', configured: false, critical: false, detail: 'Not configured on this environment.' };
-  }
 
   if (env.TMDB_API_KEY) {
     const tmdb = await probeExternal(`https://api.themoviedb.org/3/configuration?api_key=${env.TMDB_API_KEY}`);

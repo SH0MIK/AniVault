@@ -15,7 +15,6 @@ import { Logger } from '../../lib/logger';
 import { h } from '../../lib/helpers';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
 import { DubStatus, DUB_LANGUAGES } from '../../lib/dub-status';
-import { MalAPI } from '../../lib/mal-api';
 import { EpisodeAir } from '../../lib/episode-air';
 
 export const adminCacheRoutes = new Hono<{ Bindings: Env }>();
@@ -415,14 +414,16 @@ adminCacheRoutes.post('/admin/ep_refresh.php', async (c) => {
   const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
   if (!auth.isAdmin()) { await session.save(c, lifetime); return c.json({ error: 'Forbidden' }, 403); }
 
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-  // NOTE: refreshStale takes (db, env, mal, limit) — env was previously
-  // omitted here, which meant it silently skipped the scraper API and fell
-  // straight to the slow Jikan path on every manual refresh.
-  const refreshed = await EpisodeAir.refreshStale(db, c.env, mal, 20);
-  await Logger.log(db, session.user_id ?? 0, 'admin_ep_refresh', `Manually refreshed ${refreshed} stale episode-air cache entries`);
+  // EpisodeAir.refreshStale still contains a legacy Jikan fallback. Keep
+  // the admin action safe during the Hoshika-only migration; existing cache
+  // rows are preserved, and Hoshika-backed episode endpoints remain available.
+  await Logger.log(db, session.user_id ?? 0, 'admin_ep_refresh_paused', 'Episode-air refresh paused during Hoshika migration; legacy cache rows preserved');
   await session.save(c, lifetime);
-  return c.json({ success: true, refreshed });
+  return c.json({
+    success: false,
+    refreshed: 0,
+    message: 'Manual episode-air cache refresh is paused during the Hoshika migration. No Jikan request was made and no cache rows were changed.',
+  }, 503);
 });
 
 // ── Wipe episode_air_cache and/or episode_thumb_cache entirely (see the

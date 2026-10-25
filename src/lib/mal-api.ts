@@ -1,13 +1,13 @@
-// Full port of includes/api.php's MalAPI class (aliased as JikanAPI in the old
-// codebase). Talks to the official MyAnimeList v2 API for most endpoints and
-// falls back to the public Jikan API for characters/episodes/streaming, which
-// MAL v2 doesn't expose -- exactly like the PHP version. File-based caching
-// (CACHE_DIR/mal_*.json) is replaced with Workers KV.
+// Legacy compatibility helpers retained while account/list integrations are
+// migrated. Catalog-facing methods below use Hoshika only; unsupported listing
+// feeds return empty results, and legacy numeric IDs require verified mappings.
+// Do not use MAL/Jikan/AniList as catalog fallbacks.
 import { Db } from './db';
 import { Settings } from './settings';
 import { getAnimeEpisodeInfo } from './episode-info';
-import { getHoshikaAnimeMetadata, getHoshikaAnimeEpisodes } from './hoshika-api';
+import { getHoshikaAnimeMetadata, getHoshikaAnimeEpisodes, getHoshikaAnimeById, searchHoshikaAnime } from './hoshika-api';
 import { importAnimeEpisodeThumbnails } from './episode-thumb';
+import { findIdentityByLegacyMalId } from './anime-identity';
 
 const MAL_API_BASE = 'https://api.myanimelist.net/v2';
 const LIST_FIELDS = 'id,title,alternative_titles,main_picture,synopsis,mean,rank,popularity,num_episodes,status,genres,start_date,rating,media_type,nsfw,num_list_users,broadcast,average_episode_duration';
@@ -18,6 +18,7 @@ export interface MalEnv {
   API_CACHE_ENABLED?: string; // "1" / "0" via wrangler.toml var
   API_CACHE_TIME?: string; // seconds
   TMDB_API_KEY?: string;
+  HOSHIKA_API_KEY?: string;
   SCRAPER_API_BASE?: string; // private scraper service URL
   SCRAPER_API_KEY?: string; // server-side key, never sent to browsers
 }
@@ -316,33 +317,6 @@ export class MalAPI {
     return res.json();
   }
 
-  async jikanGet(url: string): Promise<any> {
-    if (this.kv && this.cacheEnabled()) {
-      const cacheKey = 'jikan_' + (await sha1(url));
-      const cached = await this.safeKvGet(cacheKey, 'json') as any;
-      if (cached && cached.data !== undefined) return cached;
-    }
-
-    // Jikan rate-limit: 3 req/sec. Retry once after a short wait on 429.
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const res = await fetch(url, { headers: { Accept: 'application/json', 'User-Agent': 'AnimeApp/1.0' } });
-      if (res.status === 429) {
-        await new Promise((r) => setTimeout(r, 1000));
-        continue;
-      }
-      if (!res.ok) return { data: [] };
-      const decoded: any = await res.json().catch(() => null);
-      if (!decoded || decoded.data === undefined) return { data: [] };
-
-      if (this.kv && this.cacheEnabled()) {
-        const cacheKey = 'jikan_' + (await sha1(url));
-        await this.safeKvPut(cacheKey, JSON.stringify(decoded), { expirationTtl: this.cacheTtl() });
-      }
-      return decoded;
-    }
-    return { data: [] };
-  }
-
   // AniList's "this season" data is far more current than MAL/Jikan's
   // season/now endpoint (which frequently lags real air dates or lists
   // shows as "airing" long after/before they actually are). This also
@@ -355,31 +329,11 @@ export class MalAPI {
   // only falls back to a live AniList call / then MAL if the cache is
   // somehow cold (e.g. right after first deploy, before the cron has run).
   async getAniListSeasonNow(): Promise<{ data: NormalisedAnime[] }> {
-    const cacheKey = this.seasonCacheKey();
-    if (this.kv && this.cacheEnabled()) {
-      const cached = await this.safeKvGet(cacheKey, 'json') as { data: NormalisedAnime[] } | null;
-      if (cached) return cached;
-    }
-
-    const data = await this.fetchAniListSeasonLive();
-    if (!data || data.length === 0) return this.getSeasonNowFallback();
-
-    // Trending is rendered on every homepage request, so the cached payload
-    // should already contain the same TMDB poster art used by normal MAL
-    // cards. Resolve the first 12 cards once while refreshing the cache;
-    // normal page requests then only read this KV payload and never call
-    // AniList/TMDB/scraper for the Trending row.
-    await this.enrichTrendingArt(data);
-
-    const result = { data };
-    if (this.kv && this.cacheEnabled()) {
-      // Generous TTL as a safety net — the cron is what actually keeps this
-      // fresh minute-to-minute; this just stops a cold cache from forcing
-      // every single request to call AniList live.
-      await this.safeKvPut(cacheKey, JSON.stringify(result), { expirationTtl: Math.max(this.cacheTtl(), 7200) });
-    }
-    return result;
+    // Deprecated legacy name retained for callers; AniList is not a catalog
+    // fallback during the Hoshika-only migration.
+    return { data: [] };
   }
+
 
   // Called by the scheduled cron handler — always hits AniList live (via
   // our own scraper, see fetchAniListSeasonLive) and overwrites the cache
@@ -388,20 +342,10 @@ export class MalAPI {
   // scheduled.ts) since routing through the scraper sidesteps AniList's
   // block on Cloudflare Workers IPs — no external relay needed.
   async refreshAniListSeasonCache(): Promise<boolean> {
-    const data = await this.fetchAniListSeasonLive();
-    if (!data || data.length === 0) return false;
-
-    // Build the complete Trending card payload in the background. This is
-    // where the TMDB-backed poster is resolved; visitors only consume the
-    // finished KV object, so the homepage has no synchronous AniList/TMDB
-    // dependency for Trending.
-    await this.enrichTrendingArt(data);
-
-    if (this.kv && this.cacheEnabled()) {
-      await this.safeKvPut(this.seasonCacheKey(), JSON.stringify({ data }), { expirationTtl: 7200 });
-    }
-    return true;
+    // Do not repopulate the old AniList season cache with non-Hoshika records.
+    return false;
   }
+
 
   private async enrichTrendingArt(data: NormalisedAnime[]): Promise<void> {
     const targets = data.filter((a) => a.mal_id).slice(0, 12);
@@ -414,7 +358,7 @@ export class MalAPI {
       targets.map(async (anime) => ({
         id: anime.mal_id,
         art: await this.getTmdbArtForCard(anime, true).catch(() => ({ poster: '', cover: '', logo: '' })),
-        hoshika: await getHoshikaAnimeMetadata(anime.mal_id, anime.title, this.kv, true).catch(() => null),
+        hoshika: await getHoshikaAnimeMetadata(anime.mal_id, anime.title, this.kv, true, this.env.HOSHIKA_API_KEY).catch(() => null),
       }))
     );
 
@@ -773,7 +717,7 @@ export class MalAPI {
     const resolved = await Promise.all(items.map(async (anime) => {
       const title = anime.title_english || anime.title || anime.title_japanese || '';
       const metadata = title
-        ? await getHoshikaAnimeMetadata(anime.mal_id, title, this.kv, true).catch(() => null)
+        ? await getHoshikaAnimeMetadata(anime.mal_id, title, this.kv, true, this.env.HOSHIKA_API_KEY).catch(() => null)
         : null;
       return { anime, poster: metadata?.poster || '', cover: metadata?.cover || '' };
     }));
@@ -1010,7 +954,7 @@ export class MalAPI {
     // per row on top of everything else the page needs.
     const [art, hoshika] = await Promise.all([
       animeId ? this.getAnimeArt(animeId, !isList) : Promise.resolve({ poster: '', cover: '', logo: '' }),
-      animeId ? getHoshikaAnimeMetadata(animeId, node.title ?? '', this.kv, true).catch(() => null) : Promise.resolve(null),
+      animeId ? getHoshikaAnimeMetadata(animeId, node.title ?? '', this.kv, true, this.env.HOSHIKA_API_KEY).catch(() => null) : Promise.resolve(null),
     ]);
     const mediumImage = hoshika?.poster || art.poster;
     const largeImage = hoshika?.poster || art.poster;
@@ -1111,76 +1055,71 @@ export class MalAPI {
   // ── Public API (same shapes as the old Jikan-backed version) ─────────────
 
   async searchAnime(query: string, page = 1, type = '', status = ''): Promise<{ data: NormalisedAnime[]; pagination: any }> {
-    const offset = (page - 1) * 20;
-    const params: Record<string, string | number> = { q: query, limit: 20, offset, fields: LIST_FIELDS, nsfw: 'false' };
-    if (type) params.media_type = type.toLowerCase();
-    if (status) params.status = status;
-    const raw = await this.get('/anime', params);
-    await this.prefetchAnimeArt((raw.data ?? []).map((n: any) => Number(n.node?.id ?? 0)), false);
-    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
-    return { data, pagination: { last_visible_page: Math.max(1, raw.paging?.next ? page + 5 : page), items: { total: data.length } } };
+    // Legacy callers store numeric MAL IDs, so expose only Hoshika search
+    // results with an explicitly verified legacy mapping.
+    const items = await searchHoshikaAnime(query, 50, this.env.HOSHIKA_API_KEY);
+    const data: NormalisedAnime[] = [];
+    for (const item of items) {
+      const identity = await this.db.fetchOne<any>(
+        'SELECT legacy_mal_id, verified FROM anime_identity_map WHERE hoshika_short_id = ?',
+        [item.shortId],
+      ).catch(() => null);
+      if (identity?.verified !== 1 || !Number.isSafeInteger(Number(identity.legacy_mal_id)) || Number(identity.legacy_mal_id) <= 0) continue;
+      if (type && item.type && item.type.toLowerCase() !== type.toLowerCase()) continue;
+      if (status && item.status && !item.status.toLowerCase().includes(status.toLowerCase())) continue;
+      const poster = item.poster || '';
+      data.push({
+        mal_id: Number(identity.legacy_mal_id), title: item.title,
+        title_english: item.titleEnglish, title_japanese: item.titleJapanese,
+        images: { jpg: { image_url: poster, large_image_url: poster } },
+        synopsis: item.synopsis, background: '', score: item.score, scored_by: null,
+        rank: null, popularity: null, episodes: item.episodes ?? 0, status: item.status,
+        type: item.type, rating: '', source: '', duration: null,
+        aired: { string: item.year ? String(item.year) : null },
+        start_date: item.year ? String(item.year) : null,
+        genres: item.genres.map((name, i) => ({ mal_id: i + 1, name })),
+        studios: [], related_anime: [], recommendations: [], trailer: [], themes: [],
+        members: 0, broadcast: { day: null, time: null }, duration_mins: null,
+      });
+    }
+    const perPage = 20;
+    const start = (Math.max(1, page) - 1) * perPage;
+    const pageData = data.slice(start, start + perPage);
+    return { data: pageData, pagination: { last_visible_page: pageData.length === perPage ? page + 1 : page, items: { total: data.length } } };
   }
 
-  // `isList = true` for callers using this in a grid/row context (e.g. the
-  // home page's Watch Now row, which calls this once per item) -- keeps
-  // art resolution cache-only for those calls instead of allowing a live
-  // scraper fetch per row on top of the MAL detail fetch itself.
-  // Lightweight metadata path for admin tables. Unlike getAnime(), this skips
-  // normalise() and its per-title D1/KV artwork lookups, related-anime images,
-  // and recommendations. It reuses the same cached MAL detail response.
+  // Legacy-shaped wrapper for admin tables. It delegates to getAnime(), which
+  // requires a verified identity and reads metadata from Hoshika.
   async getAnimeAdminSummary(id: number): Promise<{ data: any | null }> {
-    if (!Number.isFinite(id) || id <= 0) return { data: null };
-    const raw = await this.get(`/anime/${id}`, { fields: DETAIL_FIELDS });
-    if (!raw || raw.error) return { data: null };
-    const picture = raw.main_picture ?? {};
-    return {
-      data: {
-        title: raw.title || '',
-        images: {
-          jpg: {
-            image_url: picture.medium || picture.large || '',
-            large_image_url: picture.large || picture.medium || '',
-          },
-        },
-        episodes: Number(raw.num_episodes || 0),
-        status: raw.status || '',
-        type: raw.media_type || '',
-      },
-    };
+    const result = await this.getAnime(id);
+    const anime = result.data;
+    if (!anime) return { data: null };
+    return { data: { title: anime.title, images: anime.images, episodes: anime.episodes, status: anime.status, type: anime.type } };
   }
 
-  async getAnime(id: number, isList = false, preferFreshScraperArt = false): Promise<{ data: NormalisedAnime | null }> {
-    const raw = await this.get(`/anime/${id}`, { fields: DETAIL_FIELDS });
-    if (raw.error) return { data: null };
-
-    const anime = await this.normalise(raw, isList);
-
-    // Detail pages explicitly use the current scraper result for automatic
-    // poster/cover/logo art. This bypasses stale scraper_art D1/KV entries
-    // and the global saved-art priority setting, while leaving all
-    // admin-uploaded anime_images/anime_banners/anime_logos rows untouched.
-    if (preferFreshScraperArt && id) {
-      const fresh = await this.getTmdbArtForCard(anime);
-      if (fresh.poster) {
-        anime.images = { jpg: { image_url: fresh.poster, large_image_url: fresh.poster } };
-      }
-      if (fresh.cover) anime.cover_image = fresh.cover;
-      if (fresh.logo) anime.logo_image = fresh.logo;
-    }
-
-    // Detail pages may force-refresh scraper art above. Re-apply public
-    // Hoshika catalog fields last so the scraper/TMDB result cannot overwrite
-    // Hoshika's poster or episode count.
-    if (id) {
-      const hoshika = await getHoshikaAnimeMetadata(id, anime.title, this.kv, true);
-      if (hoshika?.poster) {
-        anime.images = { jpg: { image_url: hoshika.poster, large_image_url: hoshika.poster } };
-      }
-      if (hoshika?.cover) anime.cover_image = hoshika.cover;
-      if (hoshika?.episodes !== null && hoshika?.episodes !== undefined) anime.episodes = hoshika.episodes;
-    }
-
-    return { data: anime };
+  async getAnime(id: number, _isList = false, _preferFreshScraperArt = false): Promise<{ data: NormalisedAnime | null }> {
+    // This compatibility method accepts a legacy numeric ID. It must never
+    // pass that ID to Hoshika as if it were a shortId or fetch MAL/Jikan data.
+    if (!Number.isSafeInteger(id) || id <= 0) return { data: null };
+    const identity = await findIdentityByLegacyMalId(this.db, id).catch(() => null);
+    if (identity?.verified !== 1 || !identity.hoshika_short_id) return { data: null };
+    const item = await getHoshikaAnimeById(identity.hoshika_short_id, this.env.HOSHIKA_API_KEY);
+    if (!item) return { data: null };
+    const poster = item.poster || '';
+    return { data: {
+      mal_id: id, title: item.title, title_english: item.titleEnglish,
+      title_japanese: item.titleJapanese,
+      images: { jpg: { image_url: poster, large_image_url: poster } },
+      synopsis: item.synopsis, background: '', score: item.score, scored_by: null,
+      rank: null, popularity: null, episodes: item.episodes ?? 0, status: item.status,
+      type: item.type, rating: '', source: '', duration: null,
+      aired: { string: item.year ? String(item.year) : null },
+      start_date: item.year ? String(item.year) : null,
+      genres: item.genres.map((name, i) => ({ mal_id: i + 1, name })),
+      studios: [], related_anime: [], recommendations: [], trailer: [], themes: [],
+      members: 0, broadcast: { day: null, time: null }, duration_mins: null,
+      cover_image: item.cover || undefined, logo_image: undefined,
+    } };
   }
 
   // Replaces getCharacter + getCharacterAnime + getCharacterVoices (3
@@ -1188,22 +1127,13 @@ export class MalAPI {
   // animeography, and voice roles all on a single page, so one scrape
   // covers what used to take 3 requests. Falls back to the original 3
   // parallel Jikan calls if the scraper is unavailable/errors.
-  async getCharacterFull(id: number): Promise<{ character: any; animeography: any; voices: any }> {
-    const fromScraper = await this.scraperGet(`/api/mal/character/${id}`);
-    if (fromScraper) return mapScraperCharacterFull(fromScraper);
-
-    const [character, animeography, voices] = await Promise.all([
-      this.jikanGet(`https://api.jikan.moe/v4/characters/${id}`),
-      this.jikanGet(`https://api.jikan.moe/v4/characters/${id}/anime`),
-      this.jikanGet(`https://api.jikan.moe/v4/characters/${id}/voices`),
-    ]);
-    return { character, animeography, voices };
+  async getCharacterFull(_id: number): Promise<{ character: any; animeography: any; voices: any }> {
+    // Hoshika does not currently expose character/voice-role metadata.
+    return { character: { data: null }, animeography: { data: [] }, voices: { data: [] } };
   }
 
-  async getAnimeCharacters(id: number): Promise<any> {
-    const fromScraper = await this.scraperGet(`/api/mal/anime/${id}/characters`);
-    if (fromScraper) return mapScraperCharacters(fromScraper);
-    return this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/characters`);
+  async getAnimeCharacters(_id: number): Promise<any> {
+    return { data: [] };
   }
 
   // Sourced from the unified /api/episode?malId=X scraper endpoint (see
@@ -1213,50 +1143,39 @@ export class MalAPI {
   // pages report no more data -- the client's page-looping fetch in
   // anime-tail.ts still works unchanged, it just stops after one round trip.
   async getAnimeEpisodes(id: number, page = 1): Promise<any> {
-    // Hoshika's shortId is separate from MAL's ID; resolve it from the anime title.
+    // Compatibility wrapper for legacy callers. A MAL ID may reach Hoshika
+    // only through an explicitly verified identity-map row; never title-match
+    // or fall back to Jikan/scraper catalog data.
     try {
-      const anime = await this.getAnime(id);
-      const hoshikaEpisodes = anime.data?.title
-        ? await getHoshikaAnimeEpisodes(anime.data.title, this.kv)
-        : null;
-      if (hoshikaEpisodes?.length) {
-        await importAnimeEpisodeThumbnails(this.db, id, hoshikaEpisodes.map((episode) => ({
-          episode: episode.number,
-          thumbnail: episode.thumbnail || null,
-        })), false);
-        const data = hoshikaEpisodes.map((episode) => ({
-          mal_id: episode.number,
-          title: episode.title,
-          title_japanese: null,
-          aired: episode.aired,
-          filler: episode.filler,
-          recap: episode.recap,
-          images: { jpg: { image_url: episode.thumbnail } },
-          thumbnail: episode.thumbnail,
-        }));
-        return page > 1
-          ? { data: [], pagination: { last_visible_page: 1, has_next_page: false } }
-          : { data, pagination: { last_visible_page: 1, has_next_page: false } };
+      const { findIdentityByLegacyMalId } = await import('./anime-identity');
+      const { getHoshikaAnimeEpisodesById } = await import('./hoshika-api');
+      const identity = await findIdentityByLegacyMalId(this.db, id);
+      if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) {
+        return { data: [], pagination: { last_visible_page: 1, has_next_page: false } };
       }
+      const episodes = await getHoshikaAnimeEpisodesById(identity.hoshika_short_id, this.env.HOSHIKA_API_KEY);
+      const data = (episodes ?? []).map((episode) => ({
+        mal_id: episode.number,
+        title: episode.title,
+        title_japanese: null,
+        aired: episode.aired,
+        filler: episode.filler,
+        recap: episode.recap,
+        images: { jpg: { image_url: episode.thumbnail } },
+        thumbnail: episode.thumbnail,
+      }));
+      return {
+        data: page > 1 ? [] : data,
+        pagination: { last_visible_page: 1, has_next_page: false },
+      };
     } catch (error) {
-      console.warn('[mal-api] Hoshika episode lookup failed; using fallback:', String(error));
+      console.warn('[mal-api] Verified Hoshika episode lookup failed:', String(error));
+      return { data: [], pagination: { last_visible_page: 1, has_next_page: false } };
     }
-
-    const episodes = await getAnimeEpisodeInfo(this.env, this.db, id);
-    if (episodes.length > 0) {
-      return page > 1
-        ? { data: [], pagination: { last_visible_page: 1, has_next_page: false } }
-        : { data: episodes, pagination: { last_visible_page: 1, has_next_page: false } };
-    }
-
-    // Keep the existing scraper/Jikan fallback if Hoshika has no matching list.
-    const fromScraper = await this.scraperGet(`/api/mal/anime/${id}/episodes?page=${page}`);
-    if (fromScraper) return mapScraperEpisodes(fromScraper);
-    return this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/episodes?page=${page}`);
   }
 
-  async getAnimeStreaming(id: number): Promise<any> {
-    return this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/streaming`);
+  async getAnimeStreaming(_id: number): Promise<any> {
+    return { data: [] };
   }
 
   // New endpoints -- no prior site UI consumed these, so no Jikan-shape
@@ -1265,52 +1184,22 @@ export class MalAPI {
   // as everything else here, reshaped from Jikan's actual shape into ours
   // instead (the reverse direction, since our own shape is what the new
   // UI below is built against).
-  async getAnimeThemes(id: number): Promise<{ opening: any[]; ending: any[] }> {
-    const fromScraper = await this.scraperGet(`/api/mal/anime/${id}/themes`);
-    if (fromScraper) return fromScraper;
-
-    const jikan = await this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/themes`);
-    return {
-      opening: (jikan?.data?.openings ?? []).map((t: string, i: number) => ({ number: i + 1, title: t, artist: '', episodes: null, spotifyUrl: null })),
-      ending: (jikan?.data?.endings ?? []).map((t: string, i: number) => ({ number: i + 1, title: t, artist: '', episodes: null, spotifyUrl: null })),
-    };
+  async getAnimeThemes(_id: number): Promise<{ opening: any[]; ending: any[] }> {
+    return { opening: [], ending: [] };
   }
 
-  async getAnimeVideos(id: number): Promise<{ musicVideos: any[]; trailers: any[] }> {
-    const fromScraper = await this.scraperGet(`/api/mal/anime/${id}/videos`);
-    if (fromScraper) return fromScraper;
-
-    const jikan = await this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/videos`);
-    const trailer = jikan?.data?.promo?.[0]?.trailer;
-    return {
-      musicVideos: [],
-      trailers: trailer?.youtube_id
-        ? [{ label: 'PV 1', youtubeId: trailer.youtube_id, embedUrl: trailer.embed_url, songTitle: null, songArtist: null }]
-        : [],
-    };
+  async getAnimeVideos(_id: number): Promise<{ musicVideos: any[]; trailers: any[] }> {
+    return { musicVideos: [], trailers: [] };
   }
 
-  async getAnimePictures(id: number): Promise<{ data: any[] }> {
-    const fromScraper = await this.scraperGet(`/api/mal/anime/${id}/pictures`);
-    if (fromScraper) return fromScraper;
-
-    const jikan = await this.jikanGet(`https://api.jikan.moe/v4/anime/${id}/pictures`);
-    return { data: (jikan?.data ?? []).map((p: any) => ({ image: p.jpg?.image_url ?? null, thumbnail: p.jpg?.small_image_url ?? null })) };
+  async getAnimePictures(_id: number): Promise<{ data: any[] }> {
+    return { data: [] };
   }
 
-  async getCharacterPictures(id: number): Promise<{ data: any[] }> {
-    const fromScraper = await this.scraperGet(`/api/mal/character/${id}/pictures`);
-    if (fromScraper) return fromScraper;
-
-    const jikan = await this.jikanGet(`https://api.jikan.moe/v4/characters/${id}/pictures`);
-    return { data: (jikan?.data ?? []).map((p: any) => ({ image: p.jpg?.image_url ?? null, thumbnail: p.jpg?.small_image_url ?? null })) };
+  async getCharacterPictures(_id: number): Promise<{ data: any[] }> {
+    return { data: [] };
   }
 
-  // Own scraper (see AniVault-Scraper's src/scrapers/mal.ts) — same base-URL
-  // env var and stripping convention as api-scraper.ts / episode-air.ts.
-  // Returns null (not throw) on any failure/missing config so callers fall
-  // straight through to the Jikan path above, same "scraper first, Jikan as
-  // safety net" shape episode-air.ts already established.
   private async scraperGet(path: string, timeoutMs = 8000): Promise<any | null> {
     const configuredBase = this.env.SCRAPER_API_BASE?.replace(/\/+$/, '').replace(/\/api$/i, '');
     // This is the currently deployed AniVault scraper service. Keep the
@@ -1355,104 +1244,33 @@ export class MalAPI {
     return { data: result.data?.recommendations ?? [] };
   }
 
-  async getSeasonNow(page = 1): Promise<{ data: NormalisedAnime[]; pagination: any }> {
-    const year = new Date().getUTCFullYear();
-    const season = this.currentSeason();
-    const offset = (page - 1) * 20;
-    const raw = await this.get(`/anime/season/${year}/${season}`, { limit: 20, offset, fields: LIST_FIELDS, sort: 'anime_score', nsfw: 'false' });
-    await this.prefetchAnimeArt((raw.data ?? []).map((n: any) => Number(n.node?.id ?? 0)), false);
-    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
-    return { data, pagination: { last_visible_page: raw.paging?.next ? page + 1 : page } };
+  async getSeasonNow(_page = 1): Promise<{ data: NormalisedAnime[]; pagination: any }> {
+    // Hoshika has no seasonal-list endpoint. Do not substitute MAL/AniList.
+    return { data: [], pagination: { last_visible_page: 1 } };
   }
-
   async getSeasonUpcoming(): Promise<{ data: NormalisedAnime[] }> {
-    const [year, season] = this.nextSeason();
-    const raw = await this.get(`/anime/season/${year}/${season}`, { limit: 20, fields: LIST_FIELDS, nsfw: 'false' });
-    await this.prefetchAnimeArt((raw.data ?? []).map((n: any) => Number(n.node?.id ?? 0)), false);
-    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
-    return { data };
+    // Hoshika has no upcoming-list endpoint; an empty result is intentional.
+    return { data: [] };
   }
-
-  async getTopAnime(filter = 'bypopularity', page = 1): Promise<{ data: NormalisedAnime[]; pagination: any }> {
-    const rankingMap: Record<string, string> = { bypopularity: 'bypopularity', favorite: 'favorite', airing: 'airing', upcoming: 'upcoming', byrank: 'all' };
-    const rankingType = rankingMap[filter] ?? 'bypopularity';
-    const offset = (page - 1) * 25;
-    const raw = await this.get('/anime/ranking', { ranking_type: rankingType, limit: 25, offset, fields: LIST_FIELDS, nsfw: 'false' });
-    await this.prefetchAnimeArt((raw.data ?? []).map((n: any) => Number(n.node?.id ?? 0)), false);
-    const data = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
-    return { data, pagination: { last_visible_page: raw.paging?.next ? page + 5 : page } };
+  async getTopAnime(_filter = 'bypopularity', _page = 1): Promise<{ data: NormalisedAnime[]; pagination: any }> {
+    // No Hoshika-native ranking endpoint is available yet.
+    return { data: [], pagination: { last_visible_page: 1 } };
   }
-
   getAnimeGenres(): { data: { mal_id: number; name: string }[] } {
-    return {
-      data: [
-        { mal_id: 1, name: 'Action' }, { mal_id: 2, name: 'Adventure' }, { mal_id: 4, name: 'Comedy' },
-        { mal_id: 8, name: 'Drama' }, { mal_id: 10, name: 'Fantasy' }, { mal_id: 14, name: 'Horror' },
-        { mal_id: 7, name: 'Mystery' }, { mal_id: 22, name: 'Romance' }, { mal_id: 24, name: 'Sci-Fi' },
-        { mal_id: 36, name: 'Slice of Life' }, { mal_id: 30, name: 'Sports' }, { mal_id: 37, name: 'Supernatural' },
-        { mal_id: 41, name: 'Thriller' }, { mal_id: 62, name: 'Isekai' }, { mal_id: 63, name: 'Magical Girl' },
-        { mal_id: 17, name: 'Mecha' }, { mal_id: 18, name: 'Music' }, { mal_id: 38, name: 'Military' },
-        { mal_id: 23, name: 'School' }, { mal_id: 29, name: 'Space' },
-      ],
-    };
+    // Do not present a fabricated MAL genre list as Hoshika catalog metadata.
+    return { data: [] };
   }
 
-  async getAnimeByGenres(genreIds: number[], page = 1): Promise<{ data: NormalisedAnime[]; pagination: any }> {
-    const perPage = 20;
-    const collected: NormalisedAnime[] = [];
-    let apiPage = 1;
-    let hasMore = true;
-    const skip = (page - 1) * perPage;
-    let skipped = 0;
-
-    while (collected.length < perPage && hasMore && apiPage <= 20) {
-      const offset = (apiPage - 1) * 100;
-      const raw = await this.get('/anime/ranking', { ranking_type: 'bypopularity', limit: 100, offset, fields: LIST_FIELDS, nsfw: 'false' });
-      hasMore = !!raw.paging?.next;
-      apiPage++;
-
-      // Prefetch art for the whole 100-item raw page up front -- cheaper
-      // than letting each of the ~20 items that survive the genre filter
-      // below independently trigger normalise()'s per-item queries.
-      await this.prefetchAnimeArt((raw.data ?? []).map((n: any) => Number(n.node?.id ?? 0)), false);
-
-      for (const n of raw.data ?? []) {
-        // Check genres straight off the raw node before normalising --
-        // normalise() now resolves art via the scraper API, which isn't
-        // worth paying for on the ~80% of each 100-item page that gets
-        // discarded by the genre filter below.
-        const nodeGenreIds = (n.node?.genres ?? []).map((g: any) => g?.id ?? -1);
-        if (genreIds.some((g) => !nodeGenreIds.includes(g))) continue;
-        if (skipped < skip) { skipped++; continue; }
-        const anime = await this.normalise(n.node, true);
-        collected.push(anime);
-        if (collected.length >= perPage) break;
-      }
-    }
-    return { data: collected, pagination: { last_visible_page: collected.length === perPage ? page + 1 : page } };
+  async getAnimeByGenres(_genreIds: number[], _page = 1): Promise<{ data: NormalisedAnime[]; pagination: any }> {
+    // Hoshika search does not provide a full genre catalogue/filter endpoint.
+    return { data: [], pagination: { last_visible_page: 1 } };
   }
-
   async getAnimeByGenre(genreId: number, page = 1) {
     return this.getAnimeByGenres([genreId], page);
   }
-
-  async getSchedule(day = ''): Promise<{ data: NormalisedAnime[] }> {
-    const year = new Date().getUTCFullYear();
-    const season = this.currentSeason();
-    let all: NormalisedAnime[] = [];
-    for (let page = 1; page <= 3; page++) {
-      const offset = (page - 1) * 50;
-      const raw = await this.get(`/anime/season/${year}/${season}`, { limit: 50, offset, fields: LIST_FIELDS, sort: 'anime_score', nsfw: 'false' });
-      await this.prefetchAnimeArt((raw.data ?? []).map((n: any) => Number(n.node?.id ?? 0)), false);
-      const batch = await Promise.all((raw.data ?? []).map((n: any) => this.normalise(n.node, true)));
-      all = all.concat(batch);
-      if (!raw.paging?.next) break;
-    }
-    if (day !== '') {
-      all = all.filter((a) => (a.broadcast.day ?? '').toLowerCase() === day.toLowerCase());
-    }
-    all.sort((a, b) => (a.broadcast.time ?? '99:99').localeCompare(b.broadcast.time ?? '99:99'));
-    return { data: all };
+  async getSchedule(_day = ''): Promise<{ data: NormalisedAnime[] }> {
+    // Hoshika currently has no schedule listing endpoint.
+    return { data: [] };
   }
 }
 

@@ -54,7 +54,7 @@ bugReportRoutes.post('/bug-reports', async c => {
   const title = String(fd.get('title') ?? '').trim();
   const description = String(fd.get('description') ?? '').trim();
   const category = String(fd.get('category') ?? 'other');
-  const file = fd.get('image');
+  const file = fd.get('image') as unknown;
   if (title.length < 4 || title.length > 120) return c.json({success:false,message:'Title must be 4–120 characters.'},400);
   if (description.length < 10 || description.length > 5000) return c.json({success:false,message:'Description must be 10–5000 characters.'},400);
   if (!CATEGORIES[category]) return c.json({success:false,message:'Invalid category.'},400);

@@ -3,7 +3,7 @@
 import { h } from './helpers';
 import { icon } from './icons';
 import { NormalisedAnime } from './mal-api';
-import { AiredInfo, EpisodeAir } from './episode-air';
+import type { AiredInfo } from './episode-air';
 import { DubStatus } from './dub-status';
 import { Db } from './db';
 
@@ -21,11 +21,10 @@ export async function buildCardMetaMap(db: Db, items: NormalisedAnime[]): Promis
   const ids = [...new Set(items.map((a) => a.mal_id).filter((id): id is number => !!id))];
   const out = new Map<number, AnimeCardMeta>();
   if (!ids.length) return out;
-  const [airedMap, dubMap] = await Promise.all([
-    EpisodeAir.getForMany(db, ids),
-    DubStatus.getForMany(db, ids),
-  ]);
-  for (const id of ids) out.set(id, { airedInfo: airedMap.get(id) ?? null, dubbedLangs: dubMap.get(id) ?? [] });
+  // Do not consult legacy Jikan/scraper episode-count caches while the
+  // catalog is migrating to Hoshika. Keep user/admin-maintained dub status.
+  const dubMap = await DubStatus.getForMany(db, ids);
+  for (const id of ids) out.set(id, { airedInfo: null, dubbedLangs: dubMap.get(id) ?? [] });
   return out;
 }
 
@@ -64,7 +63,9 @@ export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus:
   const ascore = a.score;
   const atype = a.type ?? '';
   const aeps = a.episodes ?? 0;
-  const aurl = `${siteUrl}/anime?id=${aid}`;
+  // Catalog detail pages use Hoshika shortIds; keep the legacy ID only for user-list actions/status.
+  const hoshikaId = (a as NormalisedAnime & { hoshika_short_id?: string }).hoshika_short_id;
+  const aurl = `${siteUrl}/anime?id=${encodeURIComponent(hoshikaId || String(aid))}`;
 
   const jTitle = JSON.stringify(atitle);
   const jImage = JSON.stringify(aimg);
