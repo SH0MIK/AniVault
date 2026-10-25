@@ -1111,6 +1111,81 @@ export class MalAPI {
   // ── Public API (same shapes as the old Jikan-backed version) ─────────────
 
   async searchAnime(query: string, page = 1, type = '', status = ''): Promise<{ data: NormalisedAnime[]; pagination: any }> {
+    // Hoshika is the primary anime search catalog. Its public search response
+    // provides MAL-compatible short IDs, titles, cover art, format, and score.
+    // Keep MAL as a compatibility fallback (and for later pages/filters that
+    // the documented Hoshika search endpoint does not currently expose).
+    if (page === 1 && query.trim() && !status) {
+      try {
+        const response = await fetch(`https://hoshika.app/api/v1/search?q=${encodeURIComponent(query.trim())}`, {
+          headers: { Accept: 'application/json' },
+        });
+        if (response.ok) {
+          const payload: any = await response.json();
+          if (payload?.ok === true && Array.isArray(payload.anime)) {
+            const formatMap: Record<string, string> = {
+              TV: 'TV', MOVIE: 'Movie', OVA: 'OVA', ONA: 'ONA', SPECIAL: 'Special', MUSIC: 'Music',
+            };
+            // Hoshika's shortId is its own catalog ID, not a MAL ID
+            // (e.g. Naruto is shortId 41391 while its MAL ID is 20).
+            // AniVault's existing anime/watch routes and scraper endpoints
+            // depend on true MAL IDs, so only use Hoshika results when the
+            // API explicitly supplies a MAL ID field. Otherwise fall through
+            // to the existing MAL search to avoid generating broken links.
+            const entries = payload.anime.filter((item: any) => {
+              const itemFormat = String(item?.format ?? '').toUpperCase();
+              const malId = Number(item?.mal_id ?? item?.malId);
+              return item && Number.isFinite(malId) && malId > 0 &&
+                (!type || itemFormat.toLowerCase() === type.toLowerCase());
+            });
+            const data: NormalisedAnime[] = entries.map((item: any) => {
+              const title = String(item.titleRomaji || item.titleEnglish || 'Unknown');
+              const image = String(item.coverImage || '');
+              const score = Number(item.averageScore);
+              return {
+                mal_id: Number(item.mal_id ?? item.malId),
+                title,
+                title_english: String(item.titleEnglish || ''),
+                title_japanese: '',
+                images: { jpg: { image_url: image, large_image_url: image } },
+                synopsis: '',
+                background: '',
+                score: Number.isFinite(score) ? score / 10 : null,
+                scored_by: null,
+                rank: null,
+                popularity: null,
+                episodes: 0,
+                status: '',
+                type: formatMap[String(item.format || '').toUpperCase()] || String(item.format || ''),
+                rating: '',
+                source: '',
+                duration: null,
+                aired: { string: null },
+                start_date: null,
+                genres: [],
+                studios: [],
+                related_anime: [],
+                recommendations: [],
+                trailer: [],
+                themes: [],
+                members: 0,
+                broadcast: { day: null, time: null },
+                duration_mins: null,
+              };
+            });
+            if (data.length) {
+              return {
+                data,
+                pagination: { last_visible_page: 1, has_next_page: false, items: { total: data.length } },
+              };
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('[hoshika] anime search failed; falling back to MAL', error);
+      }
+    }
+
     const offset = (page - 1) * 20;
     const params: Record<string, string | number> = { q: query, limit: 20, offset, fields: LIST_FIELDS, nsfw: 'false' };
     if (type) params.media_type = type.toLowerCase();
