@@ -236,14 +236,14 @@ homeRoutes.get('/', async (c) => {
   });
 
   // Homepage hero banners are fully hardcoded; no admin-saved rows or live catalog feed is used.
-  const heroPool: NormalisedAnime[] = HOMEPAGE_BANNERS.map((banner) => Object.assign({
-    mal_id: -Number(banner.animeId), title: banner.title, title_english: banner.title,
+  const heroPool: NormalisedAnime[] = HOMEPAGE_BANNERS.map((banner) => ({
+    mal_id: Number(banner.animeId), title: banner.title, title_english: banner.title,
     title_japanese: '', images: { jpg: { image_url: banner.coverImage || banner.bannerImage, large_image_url: banner.coverImage || banner.bannerImage } },
-    synopsis: banner.description, background: '', score: 0, scored_by: null, rank: null, popularity: null,
-    episodes: 0, status: '', type: '', rating: '', source: '', duration: null, aired: { string: null },
-    start_date: null, genres: [], studios: [], related_anime: [], recommendations: [], trailer: [], themes: [],
+    synopsis: banner.description, background: '', score: banner.score, scored_by: null, rank: null, popularity: null,
+    episodes: banner.episodes, status: '', type: banner.format, rating: '', source: '', duration: null, aired: { string: null },
+    start_date: null, genres: banner.genres.map((name, index) => ({ mal_id: -(index + 1), name })), studios: [], related_anime: [], recommendations: [], trailer: [], themes: [],
     members: 0, broadcast: { day: null, time: null }, duration_mins: null,
-  } as NormalisedAnime, { hoshika_short_id: banner.animeId }));
+  } as NormalisedAnime));
   const heroBanners = HOMEPAGE_BANNERS.map((banner) => banner.bannerImage);
   const heroLogos = HOMEPAGE_BANNERS.map((banner) => banner.logoImage || '');
   const heroCovers = HOMEPAGE_BANNERS.map((banner) => banner.coverImage || banner.bannerImage);
