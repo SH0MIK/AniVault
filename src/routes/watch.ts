@@ -678,13 +678,15 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
       const isAct = n === epNum;
       const isWatched = episodesWatched > 0 && n <= episodesWatched;
       const outOfRange = useRangePicker && (n < rangeLo || n > rangeHi);
+      const episodeThumb = String(ep.images?.jpg?.image_url || ep.images?.jpg?.large_image_url || '').trim();
+      const thumbSrc = episodeThumb || coverSm || image;
       return `
           <a href="${h(`${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${n}`)}"
              class="ep-item${hasVid ? ' playable' : ''}${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}"
              data-ep-num="${n}"
              ${outOfRange ? 'style="display:none" ' : ''}data-s="${h(`ep ${n} ${ept || 'episode ' + n}`.toLowerCase())}">
             <div class="ep-thumb-box" data-ep="${n}">
-              <img src="${h(coverSm)}" alt="" class="ep-thumb-img" loading="lazy" onload="this.classList.add('vis')">
+              <img src="${h(thumbSrc)}" alt="" class="ep-thumb-img" loading="lazy" onload="this.classList.add('vis')" onerror="if(this.src!==${JSON.stringify(coverSm || image)}){this.src=${JSON.stringify(coverSm || image)};}else{this.style.display='none';}">
               <div class="ep-play-ov"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
               ${!hasVid ? `<span class="ep-num-fallback">${n}</span>` : ''}
             </div>
@@ -701,7 +703,7 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
       return `
           <a href="${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${n}" class="ep-item playable${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}" data-ep-num="${n}"${outOfRange ? ' style="display:none"' : ''} data-s="ep ${n} ${(v.title || 'episode ' + n).toLowerCase()}">
             <div class="ep-thumb-box" data-ep="${n}">
-              <img src="${h(coverSm)}" alt="" class="ep-thumb-img" loading="lazy" onload="this.classList.add('vis')">
+              <img src="${h(coverSm || image)}" alt="" class="ep-thumb-img" loading="lazy" onload="this.classList.add('vis')" onerror="this.style.display='none'">
               <div class="ep-play-ov"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
             </div>
             <div class="ep-meta"><div class="ep-num-txt">Episode ${n}</div><div class="ep-title-txt">${h(v.title || 'Episode ' + n)}</div></div>
@@ -722,7 +724,7 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
       return `
           <a href="${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${n}" class="ep-item${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}" data-ep-num="${n}"${outOfRange ? ' style="display:none"' : ''} data-s="ep ${n} episode ${n}">
             <div class="ep-thumb-box" data-ep="${n}">
-              <img src="${h(coverSm)}" alt="" class="ep-thumb-img" loading="lazy" onload="this.classList.add('vis')">
+              <img src="${h(coverSm || image)}" alt="" class="ep-thumb-img" loading="lazy" onload="this.classList.add('vis')" onerror="this.style.display='none'">
               <div class="ep-play-ov"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
               <span class="ep-num-fallback">${n}</span>
             </div>
