@@ -5,7 +5,7 @@
 // longer mixes in the auto-generated seasonal pool once any row exists here.
 //
 // Flow: search/add the anime first (no image required yet) → each row then
-// gets its own "Banner" / "Logo" buttons to add or replace that slide's
+// gets its own "Banner" / "Logo" / "Cover" buttons to add or replace that slide's
 // images inline, without re-entering the Anime ID.
 //
 // Table expected (create once via wrangler d1 execute):
@@ -135,7 +135,7 @@ adminHomeBannersRoutes.on(['GET', 'POST'], '/admin/home_banners.php', async (c) 
         } else {
           session.setFlash('success', 'All hero slides already have metadata.');
         }
-      } else if (action === 'set_banner' || action === 'set_logo') {
+      } else if (action === 'set_banner' || action === 'set_logo' || action === 'set_cover') {
         // Step 2: add or replace the banner/logo for a specific row. Keyed
         // by row id, so no need to re-enter the Anime ID.
         const id = parseInt((formData.get('id') as string) ?? '0', 10) || 0;
@@ -143,13 +143,13 @@ adminHomeBannersRoutes.on(['GET', 'POST'], '/admin/home_banners.php', async (c) 
         const row = await db.fetchOne<any>('SELECT * FROM home_hero_banners WHERE id=?', [id]);
         if (!row) throw new Error('That slide no longer exists.');
 
-        const field = action === 'set_banner' ? 'banner_image_url' : 'logo_image_url';
-        const prefix = action === 'set_banner' ? `banner-${row.anime_id}` : `logo-${row.anime_id}`;
+        const field = action === 'set_banner' ? 'banner_image_url' : action === 'set_logo' ? 'logo_image_url' : 'cover_image_url';
+        const prefix = action === 'set_banner' ? `banner-${row.anime_id}` : action === 'set_logo' ? `logo-${row.anime_id}` : `cover-${row.anime_id}`;
         const { url } = await resolveImage(c.env, formData, prefix);
 
         await deleteFromLibraryIfLocal(c.env, row[field]);
         await db.query(`UPDATE home_hero_banners SET ${field}=?, updated_at=datetime('now') WHERE id=?`, [url, id]);
-        session.setFlash('success', action === 'set_banner' ? 'Banner saved.' : 'Logo saved.');
+        session.setFlash('success', action === 'set_banner' ? 'Banner saved.' : action === 'set_logo' ? 'Logo saved.' : 'Cover saved.');
       } else if (action === 'move_up' || action === 'move_down') {
         const id = parseInt((formData.get('id') as string) ?? '0', 10) || 0;
         const current = await db.fetchOne<any>('SELECT id, display_order FROM home_hero_banners WHERE id=?', [id]);
@@ -165,10 +165,11 @@ adminHomeBannersRoutes.on(['GET', 'POST'], '/admin/home_banners.php', async (c) 
       } else if (action === 'delete') {
         const id = parseInt((formData.get('id') as string) ?? '0', 10) || 0;
         if (!id) throw new Error('Missing row id.');
-        const row = await db.fetchOne<any>('SELECT banner_image_url, logo_image_url FROM home_hero_banners WHERE id=?', [id]);
+        const row = await db.fetchOne<any>('SELECT banner_image_url, logo_image_url, cover_image_url FROM home_hero_banners WHERE id=?', [id]);
         if (row) {
           await deleteFromLibraryIfLocal(c.env, row.banner_image_url);
           await deleteFromLibraryIfLocal(c.env, row.logo_image_url);
+          await deleteFromLibraryIfLocal(c.env, row.cover_image_url);
         }
         await db.query('DELETE FROM home_hero_banners WHERE id=?', [id]);
         session.setFlash('success', 'Removed from the hero carousel.');
@@ -206,6 +207,8 @@ adminHomeBannersRoutes.on(['GET', 'POST'], '/admin/home_banners.php', async (c) 
 .hero-slide-thumb { width:120px; aspect-ratio:2.5/1; object-fit:cover; border-radius:6px; background:var(--bg-base); flex-shrink:0; }
 .hero-slide-thumb-empty { width:120px; aspect-ratio:2.5/1; border:1px dashed var(--border); border-radius:6px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.72rem; }
 .hero-slide-logo { width:70px; height:44px; object-fit:contain; background:var(--bg-base); border-radius:6px; flex-shrink:0; padding:4px; }
+.hero-slide-cover { width:48px; height:68px; object-fit:cover; background:var(--bg-base); border-radius:6px; flex-shrink:0; }
+.hero-slide-cover-empty { width:48px; height:68px; border:1px dashed var(--border); border-radius:6px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.65rem; text-align:center; }
 .hero-slide-logo-empty { width:70px; height:44px; border:1px dashed var(--border); border-radius:6px; flex-shrink:0; display:flex; align-items:center; justify-content:center; color:var(--text-muted); font-size:0.7rem; text-align:center; }
 .hero-slide-info { flex:1; min-width:160px; padding-top:6px; }
 .hero-slide-title { font-weight:700; color:var(--text-primary); font-size:0.92rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -224,7 +227,7 @@ details.hero-upload-toggle summary::-webkit-details-marker { display:none; }
 </style>
 
 <div class="admin-header">
-  <div><h1>Homepage Hero Carousel</h1><p class="text-muted" style="font-size:0.9rem;">Only titles added here appear in the homepage hero, in this exact order. Add the anime first, then set its banner and logo on the row below.</p></div>
+  <div><h1>Homepage Hero Carousel</h1><p class="text-muted" style="font-size:0.9rem;">Only titles added here appear in the homepage hero, in this exact order. Add the anime first, then set its banner, logo, and cover on the row below.</p></div>
   <span class="badge badge-default">${total.toLocaleString('en-US')} slides</span>
 </div>
 
@@ -233,7 +236,7 @@ ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
 
 <div class="card card-body mb-3">
   <h2 class="mb-2">🔍 Search &amp; Add Anime</h2>
-  <p class="text-muted" style="font-size:0.82rem;margin-top:-6px;margin-bottom:10px;">Adds the anime to the end of the order below — no image needed yet, use the Banner/Logo buttons on its row next.</p>
+  <p class="text-muted" style="font-size:0.82rem;margin-top:-6px;margin-bottom:10px;">Adds the anime to the end of the order below — no image needed yet, use the Banner/Logo/Cover buttons on its row next.</p>
   <form method="POST" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
     <input type="hidden" name="action" value="add_anime">
     <div class="form-group" style="margin-bottom:0;"><label class="form-label">Hoshika ID (shortId)</label><input class="form-control" type="number" name="anime_id" required placeholder="16498"></div>
@@ -278,6 +281,10 @@ ${slides.length === 0 ? `<div class="card card-body text-center text-muted">No h
         <span>Logo</span>
         ${s.logo_image_url ? `<img class="hero-slide-logo" src="${h(s.logo_image_url)}" alt="">` : `<div class="hero-slide-logo-empty">No logo</div>`}
       </div>
+      <div class="hero-slide-media-col">
+        <span>Cover</span>
+        ${s.cover_image_url ? `<img class="hero-slide-cover" src="${h(s.cover_image_url)}" alt="">` : `<div class="hero-slide-cover-empty">No cover</div>`}
+      </div>
     </div>
 
     <div class="hero-slide-info">
@@ -303,6 +310,16 @@ ${slides.length === 0 ? `<div class="card card-body text-center text-muted">No h
             <div class="form-group"><label class="form-label">File</label><input class="form-control" type="file" name="image_file" accept="image/jpeg,image/png,image/webp"></div>
             <div class="form-group"><label class="form-label">…or URL</label><input class="form-control" type="url" name="image_url" placeholder="https://..."></div>
             <button class="btn btn-primary btn-sm" type="submit">Save Logo</button>
+          </form>
+        </div>
+      </details>
+      <details class="hero-upload-toggle"><summary class="btn btn-ghost btn-sm">${s.cover_image_url ? 'Replace Cover' : 'Add Cover'}</summary>
+        <div class="hero-upload-panel">
+          <form method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="action" value="set_cover"><input type="hidden" name="id" value="${s.id}">
+            <div class="form-group"><label class="form-label">File</label><input class="form-control" type="file" name="image_file" accept="image/jpeg,image/png,image/webp"></div>
+            <div class="form-group"><label class="form-label">…or URL</label><input class="form-control" type="url" name="image_url" placeholder="https://..."></div>
+            <button class="btn btn-primary btn-sm" type="submit">Save Cover</button>
           </form>
         </div>
       </details>
