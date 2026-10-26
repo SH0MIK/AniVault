@@ -19,6 +19,52 @@ import { rowNavScript } from '../render/home-js';
 
 export const animeRoutes = new Hono<{ Bindings: Env }>();
 
+
+// Resolve a transparent title logo from TMDB for the anime detail page only.
+// Reject same-title live-action results; prefer Japanese animation, then any animation.
+async function resolveTmdbAnimeLogo(title: string, apiKey: string): Promise<string> {
+  if (!apiKey || !title.trim()) return '';
+  const headers = { Accept: 'application/json' };
+  const isAnimated = (x: any) => Array.isArray(x?.genre_ids) && x.genre_ids.includes(16);
+  const isJapanese = (x: any) => x?.original_language === 'ja' || (Array.isArray(x?.origin_country) && x.origin_country.includes('JP'));
+  const pickLogo = (logos: any[]) => {
+    const valid = (logos || []).filter((x: any) => typeof x?.file_path === 'string' && x.file_path.startsWith('/'));
+    valid.sort((a: any, b: any) => (b.vote_average ?? 0) - (a.vote_average ?? 0));
+    return valid.find((x: any) => x.iso_639_1 === 'en')
+      || valid.find((x: any) => !x.iso_639_1)
+      || valid[0]
+      || null;
+  };
+  try {
+    const query = new URLSearchParams({ api_key: apiKey, query: title.trim(), language: 'en-US' });
+    const tvRes = await fetch('https://api.themoviedb.org/3/search/tv?' + query.toString(), { headers });
+    let chosen: any = null;
+    let kind: 'tv' | 'movie' = 'tv';
+    if (tvRes.ok) {
+      const results = ((await tvRes.json()) as any)?.results || [];
+      chosen = results.find((x: any) => isAnimated(x) && isJapanese(x)) || results.find(isAnimated) || null;
+    }
+    // Anime films are stored under TMDB movie; only accept animation results.
+    if (!chosen) {
+      const movieQuery = new URLSearchParams({ api_key: apiKey, query: title.trim(), language: 'en-US' });
+      const movieRes = await fetch('https://api.themoviedb.org/3/search/movie?' + movieQuery.toString(), { headers });
+      if (movieRes.ok) {
+        const results = ((await movieRes.json()) as any)?.results || [];
+        chosen = results.find((x: any) => isAnimated(x) && isJapanese(x)) || results.find(isAnimated) || null;
+        kind = 'movie';
+      }
+    }
+    if (!chosen?.id) return '';
+    const imageQuery = new URLSearchParams({ api_key: apiKey, include_image_language: 'en,ja,null' });
+    const imageRes = await fetch(`https://api.themoviedb.org/3/${kind}/${chosen.id}/images?${imageQuery.toString()}`, { headers });
+    if (!imageRes.ok) return '';
+    const logo = pickLogo(((await imageRes.json()) as any)?.logos || []);
+    return logo?.file_path ? `https://image.tmdb.org/t/p/w500${logo.file_path}` : '';
+  } catch {
+    return '';
+  }
+}
+
 const SERIES_RELATION_TYPES = ['Sequel', 'Prequel', 'Alternative Version', 'Alternative Setting', 'Side Story', 'Parent Story', 'Full Story', 'Summary', 'Movie', 'Spin-off'];
 
 animeRoutes.get('/anime', async (c) => {
@@ -170,7 +216,8 @@ animeRoutes.get('/anime', async (c) => {
   // setting on admin/anime_images.php). Plus a simple sub/dub yes-no
   // readout for the meta row -- replaces the old "Watch on" list of every
   // streaming provider with just the two badges that actually matter.
-  const titleLogo = anime.logo_image ?? '';
+  // TMDB is intentionally used only for the anime detail title logo, never the homepage.
+  const titleLogo = anime.logo_image || await resolveTmdbAnimeLogo(title, String((c.env as any).TMDB_API_KEY || ''));
   const hasSub = videoEpRows.length > 0;
   const hasDub = animeDubConfirmed || dubbedLangs.length > 0 || Object.values(videoEpSet).some((v) => v.dub);
 
