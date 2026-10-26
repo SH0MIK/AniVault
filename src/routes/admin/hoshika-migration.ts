@@ -26,10 +26,11 @@ adminHoshikaMigrationRoutes.on(['GET', 'POST'], '/admin/hoshika_migration.php', 
              UNION ALL SELECT anime_id, anime_title FROM watch_history WHERE anime_id=?
              UNION ALL SELECT anime_id, anime_title FROM favorites WHERE anime_id=?
            ) GROUP BY anime_id LIMIT 1`, [legacyId, legacyId, legacyId]);
-        if (!row?.title) throw new Error('No stored title found for this ID.');
-        const results = await searchHoshikaAnime(String(row.title), 12, c.env.HOSHIKA_API_KEY);
+        const searchTitle = String(body.title || row?.title || '').trim();
+        if (!searchTitle) throw new Error('Enter the anime title to search Hoshika for this saved LuluStream ID.');
+        const results = await searchHoshikaAnime(searchTitle, 12, c.env.HOSHIKA_API_KEY);
         await session.save(c, lifetime);
-        return c.json({ ok: true, legacyId, title: row.title, results: results.map(a => ({
+        return c.json({ ok: true, legacyId, title: searchTitle, results: results.map(a => ({
           shortId: a.shortId, title: a.title, titleEnglish: a.titleEnglish, titleRomaji: a.titleRomaji,
           poster: a.poster, year: a.year, format: a.type || a.raw?.format || ''
         })) });
@@ -79,9 +80,9 @@ adminHoshikaMigrationRoutes.on(['GET', 'POST'], '/admin/hoshika_migration.php', 
   const limit = 40, offset = (page - 1) * limit;
   const counts = await db.fetchOne<any>(`
     SELECT
-      (SELECT COUNT(*) FROM (SELECT anime_id FROM anime_list UNION SELECT anime_id FROM watch_history UNION SELECT anime_id FROM favorites)) AS total_ids,
+      (SELECT COUNT(*) FROM (SELECT anime_id FROM anime_list UNION SELECT anime_id FROM watch_history UNION SELECT anime_id FROM favorites UNION SELECT anime_id FROM lulustream_servers)) AS total_ids,
       (SELECT COUNT(*) FROM anime_identity_map WHERE verified=1 AND legacy_mal_id IS NOT NULL) AS verified_mappings,
-      (SELECT COUNT(*) FROM (SELECT anime_id FROM anime_list UNION SELECT anime_id FROM watch_history UNION SELECT anime_id FROM favorites) ids
+      (SELECT COUNT(*) FROM (SELECT anime_id FROM anime_list UNION SELECT anime_id FROM watch_history UNION SELECT anime_id FROM favorites UNION SELECT anime_id FROM lulustream_servers) ids
        WHERE NOT EXISTS (SELECT 1 FROM anime_identity_map m WHERE CAST(m.legacy_mal_id AS TEXT)=CAST(ids.anime_id AS TEXT) OR m.hoshika_short_id=CAST(ids.anime_id AS TEXT))) AS unmapped
   `);
   const rows = await db.fetchAll<any>(`
@@ -90,6 +91,7 @@ adminHoshikaMigrationRoutes.on(['GET', 'POST'], '/admin/hoshika_migration.php', 
       SELECT anime_id, MAX(NULLIF(anime_title,'')) AS title, COUNT(*) AS uses FROM anime_list GROUP BY anime_id
       UNION ALL SELECT anime_id, MAX(NULLIF(anime_title,'')) AS title, COUNT(*) AS uses FROM watch_history GROUP BY anime_id
       UNION ALL SELECT anime_id, MAX(NULLIF(anime_title,'')) AS title, COUNT(*) AS uses FROM favorites GROUP BY anime_id
+      UNION ALL SELECT anime_id, NULL AS title, COUNT(*) AS uses FROM lulustream_servers GROUP BY anime_id
     ) ids
     WHERE NOT EXISTS (SELECT 1 FROM anime_identity_map m WHERE CAST(m.legacy_mal_id AS TEXT)=CAST(ids.anime_id AS TEXT) OR m.hoshika_short_id=CAST(ids.anime_id AS TEXT))
     GROUP BY ids.anime_id ORDER BY uses DESC, ids.anime_id ASC LIMIT ? OFFSET ?
@@ -109,7 +111,7 @@ adminHoshikaMigrationRoutes.on(['GET', 'POST'], '/admin/hoshika_migration.php', 
 </div>
 <div class="card card-body mb-3"><h2>Hoshika candidate review</h2><p class="hm-muted">Searches using the saved title. Nothing changes until you approve a candidate.</p><div id="hm-results"></div></div>
 <div class="card card-body mb-3"><h2>Apply verified mappings</h2><p class="hm-muted">Updates anime_list, watch_history and favorites for rows whose saved title matches the verified Hoshika title. Up to 100 mappings per click; duplicate rows and title mismatches are skipped.</p><button class="btn btn-danger" id="hm-apply">Apply verified mappings</button><p id="hm-apply-status" class="hm-muted"></p></div>
-<div class="card card-body"><h2>Unmapped anime IDs</h2><p class="hm-muted">Page ${page} · showing ${rows.length} IDs, ordered by number of records.</p>
+<div class="card card-body"><h2>Unmapped anime IDs</h2><p class="hm-muted">Includes saved LuluStream anime IDs. For LuluStream-only entries, enter the anime title when searching. Page ${page} · showing ${rows.length} IDs, ordered by number of records.</p>
 ${rows.map((r:any)=>`<div class="hm-row"><div><strong>${h(r.title||'Unknown title')}</strong><div class="hm-muted">ID ${h(String(r.anime_id))} · ${Number(r.uses||0)} references</div></div><button class="btn btn-secondary btn-sm hm-find" data-id="${h(String(r.anime_id))}" data-title="${h(String(r.title||''))}">Search Hoshika</button></div>`).join('')}
 <div style="display:flex;gap:8px;margin-top:14px">${page>1?`<a class="btn btn-ghost" href="?page=${page-1}">Previous</a>`:''}<a class="btn btn-ghost" href="?page=${page+1}">Next page</a></div></div>
 <script>
@@ -117,7 +119,7 @@ ${rows.map((r:any)=>`<div class="hm-row"><div><strong>${h(r.title||'Unknown titl
  const box=document.getElementById('hm-results');
  async function req(payload){const r=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});const d=await r.json();if(!r.ok||!d.ok)throw new Error(d.error||'Request failed');return d;}
  function esc(s){return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
- async function find(id,title){box.innerHTML='<p class="hm-muted">Searching Hoshika for '+esc(title||id)+'…</p>';try{const d=await req({action:'search',legacy_id:id});box.innerHTML='<h3>Matches for '+esc(d.title)+' (legacy ID '+id+')</h3><div class="hm-results">'+d.results.map(a=>'<div class="hm-candidate">'+(a.poster?'<img src="'+esc(a.poster)+'" alt="">':'')+'<strong>'+esc(a.title||a.titleEnglish||a.titleRomaji||'Untitled')+'</strong><p class="hm-muted">Hoshika shortId: '+esc(a.shortId)+(a.year?' · '+a.year:'')+'</p><div style="clear:both"></div><button class="btn btn-primary btn-sm hm-approve" data-legacy="'+id+'" data-short="'+esc(a.shortId)+'">Approve match</button></div>').join('')+'</div>';if(!d.results.length)box.insertAdjacentHTML('beforeend','<p class="hm-muted">No matches returned. Leave this ID unmapped if uncertain.</p>');}catch(e){box.innerHTML='<p class="hm-muted">'+esc(e.message)+'</p>';}}
+ async function find(id,title){if(!title){title=prompt('Enter the anime title for legacy ID '+id+' so Hoshika can be searched:','');if(!title||!title.trim())return;}box.innerHTML='<p class="hm-muted">Searching Hoshika for '+esc(title||id)+'…</p>';try{const d=await req({action:'search',legacy_id:id,title:title.trim()});box.innerHTML='<h3>Matches for '+esc(d.title)+' (legacy ID '+id+')</h3><div class="hm-results">'+d.results.map(a=>'<div class="hm-candidate">'+(a.poster?'<img src="'+esc(a.poster)+'" alt="">':'')+'<strong>'+esc(a.title||a.titleEnglish||a.titleRomaji||'Untitled')+'</strong><p class="hm-muted">Hoshika shortId: '+esc(a.shortId)+(a.year?' · '+a.year:'')+'</p><div style="clear:both"></div><button class="btn btn-primary btn-sm hm-approve" data-legacy="'+id+'" data-short="'+esc(a.shortId)+'">Approve match</button></div>').join('')+'</div>';if(!d.results.length)box.insertAdjacentHTML('beforeend','<p class="hm-muted">No matches returned. Leave this ID unmapped if uncertain.</p>');}catch(e){box.innerHTML='<p class="hm-muted">'+esc(e.message)+'</p>';}}
  document.querySelectorAll('.hm-find').forEach(b=>b.addEventListener('click',()=>find(b.dataset.id,b.dataset.title)));
  box.addEventListener('click',async e=>{const b=e.target.closest('.hm-approve');if(!b)return;if(!confirm('Approve mapping '+b.dataset.legacy+' → '+b.dataset.short+'? Check title/poster first.'))return;b.disabled=true;try{const d=await req({action:'approve',legacy_id:b.dataset.legacy,short_id:b.dataset.short});b.textContent='Approved';b.insertAdjacentHTML('afterend','<p class="hm-muted">'+esc(d.message)+'</p>');}catch(err){alert(err.message);b.disabled=false;}});
  document.getElementById('hm-apply').addEventListener('click',async()=>{if(!confirm('Apply verified mappings to anime_list, watch_history and favorites?'))return;const s=document.getElementById('hm-apply-status');s.textContent='Applying…';try{const d=await req({action:'apply'});s.textContent=d.message+' Updated: '+d.listUpdated+' list rows, '+d.historyUpdated+' history rows, '+d.favoritesUpdated+' favorites.';}catch(e){s.textContent=e.message;}});
