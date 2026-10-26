@@ -18,8 +18,8 @@ import { CONTINUE_WATCHING_CSS } from '../render/home-css';
 import { continueWatchingScript, heroSliderScript, rowNavScript } from '../render/home-js';
 import type { NormalisedAnime } from '../lib/mal-api';
 import { getBannerData } from '../lib/settings';
-import { getHoshikaAnimeById, getHoshikaAnimeEpisodesById, getHoshikaHomeSections, getHoshikaGenres, type HoshikaCatalogAnime } from '../lib/hoshika-api';
-import { findIdentityByLegacyMalId } from '../lib/anime-identity';
+import { getHoshikaAnimeById, searchHoshikaAnime, getHoshikaAnimeEpisodesById, getHoshikaHomeSections, getHoshikaGenres, type HoshikaCatalogAnime } from '../lib/hoshika-api';
+import { findIdentityByLegacyMalId, findIdentityByHoshikaId } from '../lib/anime-identity';
 
 export const homeRoutes = new Hono<{ Bindings: Env }>();
 
@@ -133,6 +133,7 @@ homeRoutes.get('/', async (c) => {
   let watchHistory: WatchHistoryRow[] = [];
   let episodeThumbOverrides: Record<string, string> = {};
   const historyPosters: Record<number, string> = {};
+  const historyHoshikaIds: Record<number, string> = {};
   const currentUser = auth.check() ? await auth.getCurrentUser() : null;
   if (currentUser) {
     try {
@@ -151,14 +152,28 @@ homeRoutes.get('/', async (c) => {
       try {
         // New watch-history rows may already use Hoshika IDs, so try the
         // current catalog ID directly before consulting the legacy-ID mapping.
-        let anime = await getHoshikaAnimeById(String(row.anime_id), c.env.HOSHIKA_API_KEY).catch(() => null);
-        if (!anime) {
-          const identity = await findIdentityByLegacyMalId(db, row.anime_id);
-          if (identity?.hoshika_short_id) {
-            anime = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY).catch(() => null);
-          }
+        let anime = row.anime_id > 0
+          ? await getHoshikaAnimeById(String(row.anime_id), c.env.HOSHIKA_API_KEY).catch(() => null)
+          : null;
+        if (anime && String(anime.shortId ?? '') !== String(row.anime_id)) anime = null;
+        if (!anime && row.anime_id > 0) {
+          const hoshikaIdentity = await findIdentityByHoshikaId(db, row.anime_id).catch(() => null);
+          const legacyIdentity = await findIdentityByLegacyMalId(db, row.anime_id).catch(() => null);
+          const mappedId = hoshikaIdentity?.hoshika_short_id || legacyIdentity?.hoshika_short_id;
+          if (mappedId) anime = await getHoshikaAnimeById(mappedId, c.env.HOSHIKA_API_KEY).catch(() => null);
         }
-        if (anime?.poster) historyPosters[row.anime_id] = anime.poster;
+        // Old migration-era rows may have anime_id=0. Recover the canonical
+        // Hoshika ID from the saved title so the card never links to anime=0.
+        if (!anime && row.anime_title?.trim()) {
+          const matches = await searchHoshikaAnime(row.anime_title.trim(), 5, c.env.HOSHIKA_API_KEY).catch(() => []);
+          const wanted = row.anime_title.trim().toLowerCase();
+          anime = matches.find(a => [a.title, a.titleEnglish, a.titleRomaji].some(t => String(t || '').trim().toLowerCase() === wanted))
+            || matches[0] || null;
+        }
+        if (anime) {
+          historyHoshikaIds[row.anime_id] = String(anime.shortId);
+          if (anime.poster) historyPosters[row.anime_id] = anime.poster;
+        }
       } catch { /* keep a neutral placeholder if Hoshika has no poster */ }
     }));
     if (watchHistory.length > 0) {
@@ -332,7 +347,7 @@ ${heroSliderScript(heroPool.length)}
           </div>
         </div>
         <div class="scroll-row" id="row-history">
-          ${watchHistory.map((hRow) => renderContinueWatchingCard(hRow, siteUrl, episodeThumbOverrides, historyPosters[hRow.anime_id] || '')).join('')}
+          ${watchHistory.map((hRow) => renderContinueWatchingCard(hRow, siteUrl, episodeThumbOverrides, historyPosters[hRow.anime_id] || '', historyHoshikaIds[hRow.anime_id] || '')).join('')}
         </div>
       </section>
       ${continueWatchingScript(siteUrl)}`;
@@ -397,8 +412,9 @@ ${heroSliderScript(heroPool.length)}
   return response;
 });
 
-function renderContinueWatchingCard(hRow: WatchHistoryRow, siteUrl: string, episodeThumbOverrides: Record<string, string>, animePoster = ''): string {
-  const watchUrl = `${siteUrl}/watch?anime=${hRow.anime_id}&ep=${hRow.episode_num}`;
+function renderContinueWatchingCard(hRow: WatchHistoryRow, siteUrl: string, episodeThumbOverrides: Record<string, string>, animePoster = '', hoshikaId = ''): string {
+  const watchId = hoshikaId || (hRow.anime_id > 0 ? String(hRow.anime_id) : '');
+  const watchUrl = `${siteUrl}/watch?anime=${encodeURIComponent(watchId)}&ep=${hRow.episode_num}`;
   // Prefer admin-saved episode artwork, then retain existing episode/anime
   // artwork already stored in watch_history. This avoids blank cards for
   // history created before the Hoshika migration.
