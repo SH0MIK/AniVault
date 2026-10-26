@@ -14,7 +14,7 @@ import { Session } from '../lib/session';
 import { Auth, AUTO_SESSION_LIFETIME_SECONDS } from '../lib/auth';
 import type { NormalisedAnime } from '../lib/mal-api';
 import { getHoshikaAnimeById, getHoshikaAnimeEpisodesById } from '../lib/hoshika-api';
-import { findIdentityByHoshikaId } from '../lib/anime-identity';
+import { findIdentityByHoshikaId, findIdentityByLegacyMalId } from '../lib/anime-identity';
 import { Notification } from '../lib/notification';
 import { h, getAnimeTitle } from '../lib/helpers';
 import { icon } from '../lib/icons';
@@ -168,15 +168,29 @@ async function getMappedWatchAnime(db: Db, requestedId: string | number, apiKey?
 watchRoutes.get('/watch', async (c) => {
   const siteUrl = c.env.SITE_URL;
   const animeParam = (c.req.query('anime') ?? '').trim();
-  const hoshikaParam = animeParam.replace(/^hsk-/i, '');
-  const animeId = /^\d+$/.test(hoshikaParam) ? Number(hoshikaParam) : 0;
+  const requestedId = animeParam.replace(/^hsk-/i, '');
+  const requestedNumericId = /^\d+$/.test(requestedId) ? Number(requestedId) : 0;
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
-  if (!hoshikaParam || !epNum) return c.redirect(siteUrl + '/');
+  if (!requestedId || !epNum) return c.redirect(siteUrl + '/');
+
+  const db = new Db(c.env.DB);
+  // Public watch URLs use Hoshika shortIds. Older AniVault links may still
+  // contain MAL IDs, so resolve those only through an explicitly verified map.
+  let hoshikaId = requestedId;
+  let identity = requestedNumericId
+    ? await findIdentityByHoshikaId(db, requestedId).catch(() => null)
+    : null;
+  if (!identity && requestedNumericId) {
+    identity = await findIdentityByLegacyMalId(db, requestedNumericId).catch(() => null);
+    if (identity?.verified === 1) hoshikaId = identity.hoshika_short_id;
+  }
+  const animeId = identity?.verified === 1 && identity.legacy_mal_id
+    ? identity.legacy_mal_id
+    : 0;
 
   const ua = c.req.header('user-agent') ?? '';
   if (PREVIEW_BOT_RE.test(ua)) {
-    const db = new Db(c.env.DB);
-    const mapped = await getMappedWatchAnime(db, hoshikaParam, c.env.HOSHIKA_API_KEY);
+    const mapped = await getMappedWatchAnime(db, hoshikaId, c.env.HOSHIKA_API_KEY);
     if (!mapped) return c.text('Anime not found in Hoshika. Please check the Hoshika ID.', 404);
     const anime = mapped.anime;
     const title = getAnimeTitle(anime);
@@ -190,19 +204,18 @@ watchRoutes.get('/watch', async (c) => {
         title: `Ep ${epNum} — ${title} | AniVault`,
         description: `Watch ${title} Episode ${epNum} on AniVault`,
         image, image_width: 1280, image_height: 720,
-        url: `${siteUrl}/watch?anime=${animeId}&ep=${epNum}`,
+        url: `${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${epNum}`,
         type: 'video.episode',
       },
     }) + `</main></body></html>`;
     return c.html(html);
   }
 
-  const db = new Db(c.env.DB);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const session = await Session.load(c, db, lifetime);
   const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
-  // Accept both plain Hoshika short IDs and the hsk-<id> URL form.
-  const mapped = await getMappedWatchAnime(db, hoshikaParam);
+  // Accept Hoshika IDs directly and resolve legacy MAL URLs through the verified map.
+  const mapped = await getMappedWatchAnime(db, hoshikaId, c.env.HOSHIKA_API_KEY);
   if (!mapped) return c.text('Anime not found in Hoshika. Please check the Hoshika ID.', 404);
   const anime = mapped.anime;
 
@@ -361,14 +374,14 @@ watchRoutes.get('/watch', async (c) => {
       title: `Ep ${epNum} — ${title} | AniVault`,
       description: `"${currentEpInfo?.title && currentEpInfo.title !== 'TBA' ? currentEpInfo.title : 'Episode ' + epNum}" · Watch on AniVault`,
       image: ogImage, image_width: 1280, image_height: 720,
-      url: `${siteUrl}/watch?anime=${animeId}&ep=${epNum}`,
+      url: `${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${epNum}`,
       type: 'video.episode',
     },
   });
 
   html += `<style>${WATCH_CSS}</style>`;
   html += renderWatchBody({
-    anime, image, coverSm, title, animeId, epNum, totalEps, video, qSub, hasMegaplayFallback,
+    anime, image, coverSm, title, animeId, hoshikaId: mapped.shortId, epNum, totalEps, video, qSub, hasMegaplayFallback,
     isLoggedIn: auth.check(), prevEp, nextEp, currentEpInfo, chars, allEps, allVideos,
     videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched, dubbedLangs, turbovidServers, lulustreamServers,
   });
@@ -377,7 +390,7 @@ watchRoutes.get('/watch', async (c) => {
   // is guaranteed to exist when watchScript1 begins its DOM-ready startup.
   // Senshi player -- pre-rendered hidden, moved into #watch-player-wrap by
   // the server-switching script on demand (same DOM-move pattern as the PHP version).
-  const watchBase = `${siteUrl}/watch?anime=${animeId}&ep=`;
+  const watchBase = `${siteUrl}/watch?anime=${encodeURIComponent(mapped.shortId)}&ep=`;
   let epNums: number[] = [];
   if (allVideos.length > 0) epNums = allVideos.map((v) => v.episode_num);
   else if (allEps.length > 0) epNums = allEps.map((e: any) => Number(e.mal_id ?? 0)).filter((n) => n > 0);
@@ -440,6 +453,7 @@ interface WatchBodyParams {
   coverSm: string;
   title: string;
   animeId: number;
+  hoshikaId: string;
   epNum: number;
   totalEps: number;
   video: EpisodeVideoRow | null;
@@ -463,7 +477,7 @@ interface WatchBodyParams {
 }
 
 export function renderWatchBody(p: WatchBodyParams): string {
-  const { anime, image, coverSm, title, animeId, epNum, totalEps, video, qSub, hasMegaplayFallback,
+  const { anime, image, coverSm, title, animeId, hoshikaId, epNum, totalEps, video, qSub, hasMegaplayFallback,
     isLoggedIn, prevEp, nextEp, currentEpInfo, chars, allEps, allVideos, videoEpNumSet, resumeT, layoutUser, siteUrl,
     episodesWatched, dubbedLangs, turbovidServers, lulustreamServers } = p;
 
@@ -471,7 +485,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
   const score = anime.score;
   const status = anime.status ?? '';
   const animeType = anime.type ?? '';
-  const animePage = `${siteUrl}/anime?id=${animeId}`;
+  const animePage = `${siteUrl}/anime?id=${encodeURIComponent(hoshikaId)}`;
 
   const hasRealVideo = !!video && (qSub.length > 0 || !!video.video_url);
   const hasTurboVid = turbovidServers.length > 0;
@@ -660,7 +674,7 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
       const isWatched = episodesWatched > 0 && n <= episodesWatched;
       const outOfRange = useRangePicker && (n < rangeLo || n > rangeHi);
       return `
-          <a href="${h(`${siteUrl}/watch?anime=${animeId}&ep=${n}`)}"
+          <a href="${h(`${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${n}`)}"
              class="ep-item${hasVid ? ' playable' : ''}${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}"
              data-ep-num="${n}"
              ${outOfRange ? 'style="display:none" ' : ''}data-s="${h(`ep ${n} ${ept || 'episode ' + n}`.toLowerCase())}">
@@ -680,7 +694,7 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
       const isWatched = episodesWatched > 0 && n <= episodesWatched;
       const outOfRange = useRangePicker && (n < rangeLo || n > rangeHi);
       return `
-          <a href="${siteUrl}/watch?anime=${animeId}&ep=${n}" class="ep-item playable${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}" data-ep-num="${n}"${outOfRange ? ' style="display:none"' : ''} data-s="ep ${n} ${(v.title || 'episode ' + n).toLowerCase()}">
+          <a href="${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${n}" class="ep-item playable${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}" data-ep-num="${n}"${outOfRange ? ' style="display:none"' : ''} data-s="ep ${n} ${(v.title || 'episode ' + n).toLowerCase()}">
             <div class="ep-thumb-box" data-ep="${n}">
               <img src="${h(coverSm)}" alt="" class="ep-thumb-img" loading="lazy" onload="this.classList.add('vis')">
               <div class="ep-play-ov"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
@@ -701,7 +715,7 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
       const isWatched = episodesWatched > 0 && n <= episodesWatched;
       const outOfRange = useRangePicker && (n < rangeLo || n > rangeHi);
       return `
-          <a href="${siteUrl}/watch?anime=${animeId}&ep=${n}" class="ep-item${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}" data-ep-num="${n}"${outOfRange ? ' style="display:none"' : ''} data-s="ep ${n} episode ${n}">
+          <a href="${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${n}" class="ep-item${isAct ? ' active' : ''}${isWatched ? ' watched' : ''}" data-ep-num="${n}"${outOfRange ? ' style="display:none"' : ''} data-s="ep ${n} episode ${n}">
             <div class="ep-thumb-box" data-ep="${n}">
               <img src="${h(coverSm)}" alt="" class="ep-thumb-img" loading="lazy" onload="this.classList.add('vis')">
               <div class="ep-play-ov"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
@@ -740,7 +754,7 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
       <section class="wp-player-zone">
         <div class="wp-player-glow"></div>
         ${playerHtml}
-        <div class="watch-quick-nav" data-next-url="${nextEp ? `${siteUrl}/watch?anime=${animeId}&ep=${nextEp}` : ''}" data-prev-url="${prevEp ? `${siteUrl}/watch?anime=${animeId}&ep=${prevEp}` : ''}">
+        <div class="watch-quick-nav" data-next-url="${nextEp ? `${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${nextEp}` : ''}" data-prev-url="${prevEp ? `${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${prevEp}` : ''}">
           <button type="button" class="watch-auto-next" id="watch-auto-next" aria-pressed="false" title="Auto play next episode">
             <span class="watch-auto-copy">Auto Next</span>
             <span class="watch-toggle" aria-hidden="true"><span class="watch-toggle-knob"></span></span>
@@ -749,8 +763,8 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
             <span class="watch-native-copy">Native</span>
             <span class="watch-native-toggle" aria-hidden="true"><span class="watch-native-knob"></span></span>
           </button>
-          ${prevEp ? `<a class="watch-quick-btn prev" href="${siteUrl}/watch?anime=${animeId}&ep=${prevEp}" aria-label="Previous episode">${icon('skip-back', 'watch-ep-icon')}<span>Prev</span></a>` : `<span class="watch-quick-btn prev disabled">${icon('skip-back', 'watch-ep-icon')}<span>Prev</span></span>`}
-          ${nextEp ? `<a class="watch-quick-btn next" href="${siteUrl}/watch?anime=${animeId}&ep=${nextEp}" aria-label="Next episode"><span>Ep ${nextEp}</span>${icon('skip-forward', 'watch-ep-icon')}</a>` : `<span class="watch-quick-btn next disabled"><span>Ep —</span>${icon('skip-forward', 'watch-ep-icon')}</span>`}
+          ${prevEp ? `<a class="watch-quick-btn prev" href="${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${prevEp}" aria-label="Previous episode">${icon('skip-back', 'watch-ep-icon')}<span>Prev</span></a>` : `<span class="watch-quick-btn prev disabled">${icon('skip-back', 'watch-ep-icon')}<span>Prev</span></span>`}
+          ${nextEp ? `<a class="watch-quick-btn next" href="${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${nextEp}" aria-label="Next episode"><span>Ep ${nextEp}</span>${icon('skip-forward', 'watch-ep-icon')}</a>` : `<span class="watch-quick-btn next disabled"><span>Ep —</span>${icon('skip-forward', 'watch-ep-icon')}</span>`}
         </div>
         <div class="watch-title-under-player">
           <div class="watch-title-ep">Episode ${epNum}</div>
