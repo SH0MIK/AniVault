@@ -54,7 +54,7 @@ function esc(value: unknown): string {
   return String(value ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
+adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', (c) => {\n  const target = new URL(c.req.url);\n  target.pathname = target.pathname.replace('/admin/lulustream_servers.php', '/admin/self-host.php');\n  return c.redirect(target.toString(), 301);\n});\n\nadminLuluStreamServerRoutes.get('/admin/self-host.php', async (c) => {
   const ctx = await buildAdminCtx(c);
   const siteUrl = c.env.SITE_URL;
   if (!ctx) return c.redirect(siteUrl + '/');
@@ -169,8 +169,8 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
 
   let html = renderAdminHeader({
     siteUrl,
-    pageTitle: 'LuluStream Servers',
-    adminPage: 'lulustream_servers',
+    pageTitle: 'Self Host',
+    adminPage: 'self-host',
     isOwner,
     impersonating
   });
@@ -187,7 +187,7 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
   return c.html(html);
 });
 
-adminLuluStreamServerRoutes.post('/admin/lulustream_servers.php', async (c) => {
+adminLuluStreamServerRoutes.post('/admin/self-host.php', async (c) => {
   const ctx=await buildAdminCtx(c); if(!ctx)return c.json({error:'Forbidden'},403);
   const body:any=(c.req.header('content-type')||'').includes('application/json') ? await c.req.json().catch(()=>null) : await c.req.parseBody().catch(()=>null);
   if (body?.action === 'search-hoshika') {
@@ -246,4 +246,4 @@ adminLuluStreamServerRoutes.post('/admin/lulustream_servers.php', async (c) => {
   return c.json({success:true});
 });
 
-adminLuluStreamServerRoutes.delete('/admin/lulustream_servers.php', async (c) => { const ctx=await buildAdminCtx(c); if(!ctx)return c.json({error:'Forbidden'},403); const id=Number(c.req.query('id')||0); if(!id)return c.json({error:'Missing id'},400); await ctx.db.query('DELETE FROM lulustream_servers WHERE id=?',[id]); return c.json({success:true}); });
+adminLuluStreamServerRoutes.delete('/admin/self-host.php', async (c) => { const ctx=await buildAdminCtx(c); if(!ctx)return c.json({error:'Forbidden'},403); const id=Number(c.req.query('id')||0); if(!id)return c.json({error:'Missing id'},400); await ctx.db.query('DELETE FROM lulustream_servers WHERE id=?',[id]); return c.json({success:true}); });
