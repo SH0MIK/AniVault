@@ -27,7 +27,7 @@ import { buildAdminCtx } from '../../lib/admin-ctx';
 import { h } from '../../lib/helpers';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
 import { getHoshikaAnimeById } from '../../lib/hoshika-api';
-import { findIdentityByLegacyMalId } from '../../lib/anime-identity';
+import { rememberHoshikaIdentity } from '../../lib/anime-identity';
 import { Db } from '../../lib/db';
 
 export const adminHomeBannersRoutes = new Hono<{ Bindings: Env }>();
@@ -92,24 +92,23 @@ adminHomeBannersRoutes.on(['GET', 'POST'], '/admin/home_banners.php', async (c) 
         // Banner/Logo to be filled in on the row itself. Title and logo
         // are auto-filled if left blank: title from Hoshika via a verified
         // legacy-ID mapping. Hoshika has no logo endpoint, so logo stays blank.
-        const animeId = parseInt((formData.get('anime_id') as string) ?? '0', 10) || 0;
+        const hoshikaId = parseInt((formData.get('anime_id') as string) ?? '0', 10) || 0;
         let title = ((formData.get('anime_title') as string) ?? '').trim();
-        if (!animeId) throw new Error('Enter a valid Anime ID.');
+        if (!Number.isSafeInteger(hoshikaId) || hoshikaId <= 0) throw new Error('Enter a valid numeric Hoshika shortId.');
 
-        const existing = await db.fetchOne<any>('SELECT id FROM home_hero_banners WHERE anime_id=?', [animeId]);
+        const existing = await db.fetchOne<any>('SELECT id FROM home_hero_banners WHERE anime_id=?', [hoshikaId]);
         if (existing) throw new Error('That anime is already in the hero carousel.');
 
-        const identity = await findIdentityByLegacyMalId(db, animeId);
-        if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) throw new Error('This legacy ID has no verified Hoshika mapping yet. Search for the title in Browse and map it before adding a hero slide.');
-        const fetched = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
-        if (!fetched) throw new Error(`Hoshika details are unavailable for ID ${animeId}.`);
-        if (!title) title = fetched.titleEnglish || fetched.title || identity.title || '';
+        const fetched = await getHoshikaAnimeById(String(hoshikaId), c.env.HOSHIKA_API_KEY);
+        if (!fetched || String(fetched.shortId ?? '') !== String(hoshikaId)) throw new Error(`Hoshika anime was not found for shortId ${hoshikaId}.`);
+        await rememberHoshikaIdentity(db, { shortId: fetched.shortId, id: fetched.id, slug: fetched.slug, title: fetched.titleEnglish || fetched.titleRomaji || fetched.title || '' });
+        if (!title) title = fetched.titleEnglish || fetched.titleRomaji || fetched.title || '';
         const logoUrl = '';
 
         const order = await nextDisplayOrder(db);
         await db.query(
           `INSERT INTO home_hero_banners (anime_id, anime_title, logo_image_url, metadata_json, display_order, source) VALUES (?,?,?,?,?,?)`,
-          [animeId, title || null, logoUrl || null, JSON.stringify(fetched), order, 'url']
+          [hoshikaId, title || null, logoUrl || null, JSON.stringify(fetched), order, 'url']
         );
         session.setFlash('success', 'Anime added — now add its banner below. Logo remains blank until the separate artwork phase.');
       } else if (action === 'sync_metadata') {
@@ -121,18 +120,18 @@ adminHomeBannersRoutes.on(['GET', 'POST'], '/admin/home_banners.php', async (c) 
           let synced = 0;
           let skipped = 0;
           for (const row of rows) {
-            const identity = await findIdentityByLegacyMalId(db, Number(row.anime_id));
-            if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) { skipped++; continue; }
-            const fetched = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
-            if (!fetched) { skipped++; continue; }
-            const title = fetched.titleEnglish || fetched.title || identity.title || null;
+            const hoshikaId = String(row.anime_id);
+            const fetched = await getHoshikaAnimeById(hoshikaId, c.env.HOSHIKA_API_KEY);
+            if (!fetched || String(fetched.shortId ?? '') !== hoshikaId) { skipped++; continue; }
+            await rememberHoshikaIdentity(db, { shortId: fetched.shortId, id: fetched.id, slug: fetched.slug, title: fetched.titleEnglish || fetched.titleRomaji || fetched.title || '' });
+            const title = fetched.titleEnglish || fetched.titleRomaji || fetched.title || null;
             await db.query(
               "UPDATE home_hero_banners SET anime_title = COALESCE(anime_title, ?), metadata_json = ?, updated_at=datetime('now') WHERE id = ?",
               [title, JSON.stringify(fetched), row.id]
             );
             synced++;
           }
-          session.setFlash('success', `Hero metadata synced for ${synced} slide(s); ${skipped} unmapped/unavailable slide(s) left unchanged.`);
+          session.setFlash('success', `Hero metadata synced for ${synced} slide(s); ${skipped} unavailable Hoshika ID(s) left unchanged.`);
         } else {
           session.setFlash('success', 'All hero slides already have metadata.');
         }
@@ -237,7 +236,7 @@ ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
   <p class="text-muted" style="font-size:0.82rem;margin-top:-6px;margin-bottom:10px;">Adds the anime to the end of the order below — no image needed yet, use the Banner/Logo buttons on its row next.</p>
   <form method="POST" style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;">
     <input type="hidden" name="action" value="add_anime">
-    <div class="form-group" style="margin-bottom:0;"><label class="form-label">Anime ID (MAL ID)</label><input class="form-control" type="number" name="anime_id" required placeholder="16498"></div>
+    <div class="form-group" style="margin-bottom:0;"><label class="form-label">Hoshika ID (shortId)</label><input class="form-control" type="number" name="anime_id" required placeholder="16498"></div>
     <div class="form-group" style="margin-bottom:0;"><label class="form-label">Title</label><input class="form-control" name="anime_title" placeholder="Optional, for searching"></div>
     <button class="btn btn-primary" type="submit">Add Anime</button>
   </form>
@@ -245,7 +244,7 @@ ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
 
 <div class="card card-body mb-3">
   <h2 class="mb-2">🧩 Hero Info</h2>
-  <p class="text-muted" style="font-size:0.82rem;margin-top:-6px;margin-bottom:10px;">Sync full MAL metadata for older hero slides. This is admin-only; the public homepage stays D1-only.</p>
+  <p class="text-muted" style="font-size:0.82rem;margin-top:-6px;margin-bottom:10px;">Refresh Hoshika metadata for hero slides. This is admin-only; the public homepage stays D1-only.</p>
   <form method="POST">
     <input type="hidden" name="action" value="sync_metadata">
     <button class="btn btn-secondary" type="submit">🔄 Sync Hero Info</button>
@@ -254,7 +253,7 @@ ${err ? `<div class="alert alert-error mb-2">${h(err)}</div>` : ''}
 
 <div class="card card-body mb-3">
   <form method="GET" style="display:flex;gap:8px;flex-wrap:wrap;">
-    <input class="form-control" name="q" value="${h(q)}" placeholder="Search added anime by title or Anime ID" style="max-width:320px;">
+    <input class="form-control" name="q" value="${h(q)}" placeholder="Search added anime by title or Hoshika ID" style="max-width:320px;">
     <button class="btn btn-primary" type="submit">Search</button>
     ${q ? `<a class="btn btn-ghost" href="home_banners.php">Clear</a>` : ''}
   </form>
