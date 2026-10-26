@@ -128,6 +128,7 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
       ...row,
       title: a?.title || `Anime #${row.anime_id} · mapping required`,
       hoshikaShortId: String(a?.hoshikaShortId || a?.shortId || metadataById.get(Number(row.anime_id))?.hoshikaShortId || row.anime_id),
+      hoshikaShortId: String(a?.hoshikaShortId || a?.shortId || metadataById.get(Number(row.anime_id))?.hoshikaShortId || row.anime_id),
       image: a?.poster || a?.images?.jpg?.large_image_url || a?.images?.jpg?.image_url || '',
       totalEps: Number(a?.episodes || 0),
       status: a?.status || '',
@@ -189,6 +190,12 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
 adminLuluStreamServerRoutes.post('/admin/lulustream_servers.php', async (c) => {
   const ctx=await buildAdminCtx(c); if(!ctx)return c.json({error:'Forbidden'},403);
   const body:any=(c.req.header('content-type')||'').includes('application/json') ? await c.req.json().catch(()=>null) : await c.req.parseBody().catch(()=>null);
+  if (body?.action === 'search-hoshika') {
+    const query = String(body?.query || '').trim();
+    if (!query) return c.json({ success: false, error: 'Enter an anime title to search Hoshika.' }, 400);
+    const results = await searchHoshikaAnime(query, 12, c.env.HOSHIKA_API_KEY);
+    return c.json({ success: true, results: results.map(a => ({ shortId: a.shortId, title: a.title, titleEnglish: a.titleEnglish, titleRomaji: a.titleRomaji, poster: a.poster, type: a.type })) });
+  }
   if (body?.action === 'search-hoshika') {
     const query = String(body?.query || '').trim();
     if (!query) return c.json({ success: false, error: 'Enter an anime title to search Hoshika.' }, 400);
