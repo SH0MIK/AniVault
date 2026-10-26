@@ -285,7 +285,7 @@ homeRoutes.get('/', async (c) => {
   for (const item of curatedHeroRows) {
     heroPool.push(item.anime);
     heroBanners.push(item.row.banner_image_url || '');
-    heroLogos.push(''); // Hoshika has no title-logo endpoint.
+    heroLogos.push(item.row.logo_image_url || ''); // Optional logo override from admin.
     heroCovers.push(item.anime.images?.jpg?.large_image_url || '');
   }
   // Preload slide 0's LCP image so it starts downloading during <head> parsing.
