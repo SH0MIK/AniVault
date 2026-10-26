@@ -5,6 +5,8 @@
 export interface HomepageBanner {
   /** AniVault anime ID used in the details URL and Add to List action. */
   animeId: string;
+  /** Hoshika shortId for catalog-backed actions, when available. */
+  hoshikaShortId?: number;
   title: string;
   description: string;
   genres: string[];
@@ -28,5 +30,18 @@ export const HOMEPAGE_BANNERS: HomepageBanner[] = [
     bannerImage: '',
     logoImage: '',
     coverImage: '',
+  },
+  {
+    animeId: '153',
+    hoshikaShortId: 89408,
+    title: 'Black Clover',
+    description: 'Asta and Yuno were abandoned together at a church and grew up as rivals with one shared dream: to become the Wizard King. While Yuno is a gifted mage, Asta is born without magic in a world where magic defines almost everything. Refusing to give up, Asta gains an unusual anti-magic power and joins the Black Bulls, beginning a journey filled with fierce battles, powerful rivals, and an unshakable determination to prove that anyone can rise to the top.',
+    genres: ['Action', 'Fantasy', 'Shounen'],
+    score: 82,
+    episodes: 170,
+    format: 'TV',
+    bannerImage: 'https://cdn.hoshika.app/catalog/banners/89408.webp',
+    logoImage: '',
+    coverImage: 'https://cdn.hoshika.app/catalog/covers/anime/89408.webp',
   },
 ];
