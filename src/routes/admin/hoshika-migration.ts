@@ -54,9 +54,21 @@ adminHoshikaMigrationRoutes.on(['GET', 'POST'], '/admin/hoshika_migration.php', 
         body: JSON.stringify({ source: 'mal', type: 'anime', ids: batch }),
       });
       if (!response.ok) throw new Error(`Hoshika ID mapping request failed (HTTP ${response.status}).`);
-      const payload: any = await response.json();
+      const responseText = await response.text();
+      let payload: any;
+      try {
+        payload = JSON.parse(responseText);
+      } catch {
+        const contentType = response.headers.get('content-type') || 'unknown content type';
+        const preview = responseText.trim().slice(0, 180).replace(/\\s+/g, ' ');
+        throw new Error(
+          `Hoshika returned non-JSON data (HTTP ${response.status}, ${contentType}).` +
+          (preview ? ` Response starts with: ${preview}` : ' The response body was empty.')
+        );
+      }
       if (payload?.ok !== true || !Array.isArray(payload.items) || !Array.isArray(payload.missing)) {
-        throw new Error('Hoshika returned an unexpected ID mapping response.');
+        const detail = typeof payload?.error === 'string' ? payload.error : '';
+        throw new Error(detail || 'Hoshika returned an unexpected ID mapping response.');
       }
 
       const returned = new Map<number, IdMapItem>();
@@ -137,9 +149,15 @@ adminHoshikaMigrationRoutes.on(['GET', 'POST'], '/admin/hoshika_migration.php', 
    if(!confirm('Ask Hoshika to map the next batch of up to 1,000 existing MAL anime IDs and save verified mappings?'))return;
    button.disabled=true;status.textContent='Requesting mappings from Hoshika…';
    try{
-     const response=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'bulk_map'})});
-     const data=await response.json();
-     if(!response.ok||!data.ok)throw new Error(data.error||'Migration request failed.');
+     const response=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({action:'bulk_map'})});
+     const responseText=await response.text();
+     let data;
+     try{data=JSON.parse(responseText);}catch{
+       const contentType=response.headers.get('content-type')||'unknown content type';
+       const preview=responseText.trim().slice(0,180).replace(/\\s+/g,' ');
+       throw new Error('AniVault returned non-JSON data (HTTP '+response.status+', '+contentType+').'+(preview?' Response starts with: '+preview:' The response body was empty.'));
+     }
+     if(!response.ok||!data.ok)throw new Error(data.error||('Migration request failed (HTTP '+response.status+').'));
      status.textContent=data.message+' Mapped: '+data.mapped+' · Missing: '+data.missing+' · Conflicts: '+data.conflicts+' · Remaining: '+data.remaining+'. Refresh the page to update the counters.';
      if(data.remaining>0)button.textContent='Map next batch (up to 1,000 IDs)';
      else button.textContent='No pending batch reported';
