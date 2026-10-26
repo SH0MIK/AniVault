@@ -20,7 +20,6 @@ import type { NormalisedAnime } from '../lib/mal-api';
 import { getBannerData } from '../lib/settings';
 import { getHoshikaAnimeById, searchHoshikaAnime, getHoshikaAnimeEpisodesById, getHoshikaHomeSections, getHoshikaGenres, type HoshikaCatalogAnime } from '../lib/hoshika-api';
 import { findIdentityByLegacyMalId, findIdentityByHoshikaId } from '../lib/anime-identity';
-import { HOMEPAGE_BANNERS } from '../data/homepage-banners';
 
 export const homeRoutes = new Hono<{ Bindings: Env }>();
 
