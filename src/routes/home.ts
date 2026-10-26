@@ -271,13 +271,14 @@ homeRoutes.get('/', async (c) => {
     .fetchAll<any>('SELECT anime_id, anime_title, banner_image_url, logo_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
     .catch(() => []);
   const curatedHeroRows = (await Promise.all(curatedRows.map(async (row) => {
-    const legacyId = Number(row.anime_id);
-    const identity = await findIdentityByLegacyMalId(db, legacyId).catch(() => null);
-    if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) return null;
-    const anime = await getCachedHeroAnime(identity.hoshika_short_id, legacyId);
+    // New homepage hero rows store Hoshika's canonical numeric shortId directly in anime_id.
+    const hoshikaId = String(row.anime_id);
+    if (!/^\\d+$/.test(hoshikaId) || Number(hoshikaId) <= 0) return null;
+    const anime = await getCachedHeroAnime(hoshikaId, Number(hoshikaId));
+    if (anime) Object.assign(anime, { hoshika_short_id: hoshikaId });
     return anime ? { row, anime } : null;
   }))).filter((item): item is { row: any; anime: NormalisedAnime } => item !== null);
-  // Hero slides use verified Hoshika metadata plus the admin-supplied banner art.
+  // Hero slides use Hoshika IDs directly plus the admin-supplied banner art.
   let heroPool: NormalisedAnime[] = [];
   let heroBanners: string[] = [];
   let heroLogos: string[] = [];
