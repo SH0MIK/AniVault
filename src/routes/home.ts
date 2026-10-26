@@ -95,6 +95,11 @@ homeRoutes.get('/', async (c) => {
   const db = new Db(c.env.DB);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const hasSession = /(?:^|;\s*)av_session=/.test(c.req.header('cookie') ?? '') || !!c.req.header('authorization');
+  const homepageCacheKey = new Request(c.req.url, { method: 'GET' });
+  if (!hasSession) {
+    const cached = await caches.default.match(homepageCacheKey);
+    if (cached) return cached;
+  }
   const session = await Session.load(c, db, lifetime);
   const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
   const siteUrl = c.env.SITE_URL;
@@ -230,42 +235,48 @@ homeRoutes.get('/', async (c) => {
     requestUrl: c.req.url,
   });
 
-  // Keep the featured anime selection static, but fetch its metadata fresh from Hoshika on every request.
-  // No D1/KV/CDN cache is used for hero metadata or the anonymous homepage HTML.
-  const heroResults = await Promise.all(HOMEPAGE_BANNERS.map(async (banner, index) => {
-    const hoshikaId = banner.hoshikaShortId;
-    const live = hoshikaId ? await getHoshikaAnimeById(hoshikaId, c.env.HOSHIKA_API_KEY) : null;
-    const animeTitle = live?.titleEnglish || live?.titleRomaji || live?.title || banner.title;
-    const poster = live?.poster || banner.coverImage || banner.bannerImage;
-    const background = live?.cover || banner.bannerImage || poster;
-    const normalized = live ? toHoshikaNormalisedAnime(live, -Number(hoshikaId || index + 1)) : null;
-    const anime = (normalized || {
-      mal_id: Number(banner.animeId), title: animeTitle, title_english: animeTitle,
-      title_japanese: '', images: { jpg: { image_url: poster, large_image_url: poster } },
-      synopsis: banner.description, background: '', score: banner.score, scored_by: null, rank: null, popularity: null,
-      episodes: banner.episodes, status: '', type: banner.format, rating: '', source: '', duration: null, aired: { string: null },
-      start_date: null, genres: banner.genres.map((name, genreIndex) => ({ mal_id: -(genreIndex + 1), name })), studios: [], related_anime: [], recommendations: [], trailer: [], themes: [],
-      members: 0, broadcast: { day: null, time: null }, duration_mins: null,
-    }) as NormalisedAnime & { hoshika_short_id?: string; banner_image?: string };
-    Object.assign(anime, {
-      hoshika_short_id: hoshikaId ? String(hoshikaId) : undefined,
-      title: animeTitle,
-      title_english: live?.titleEnglish || animeTitle,
-      synopsis: live?.synopsis || banner.description,
-      score: live?.score ?? banner.score,
-      episodes: live?.episodes ?? banner.episodes,
-      status: live?.status || '',
-      type: live?.type || banner.format,
-      genres: (live?.genres?.length ? live.genres : banner.genres).map((name, genreIndex) => ({ mal_id: -(genreIndex + 1), name })),
-      images: { jpg: { image_url: poster, large_image_url: poster } },
-      banner_image: background,
-    });
-    return { anime, banner: background, cover: poster, logo: banner.logoImage || '' };
-  }));
-  const heroPool: NormalisedAnime[] = heroResults.map((result) => result.anime);
-  const heroBanners = heroResults.map((result) => result.banner);
-  const heroLogos = heroResults.map((result) => result.logo);
-  const heroCovers = heroResults.map((result) => result.cover);
+  // Curated homepage banners are legacy-ID keyed. Resolve only verified mappings;
+  // never hydrate catalog details from the old metadata_json snapshot or MAL caches.
+  const curatedRows = await db
+    .fetchAll<any>('SELECT anime_id, anime_title, banner_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
+    .catch(() => []);
+  const curatedHeroRows = (await Promise.all(curatedRows.map(async (row) => {
+    const legacyId = Number(row.anime_id);
+    const identity = await findIdentityByLegacyMalId(db, legacyId).catch(() => null);
+    if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) return null;
+    const hoshika = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
+    const anime = toHoshikaNormalisedAnime(hoshika, legacyId);
+    return anime ? { row, anime } : null;
+  }))).filter((item): item is { row: any; anime: NormalisedAnime } => item !== null);
+  // Avoid stale Jikan/MAL aired-count and dub caches for Hoshika catalog cards.
+  const cardMeta = new Map<number, AnimeCardMeta>();
+  const layoutUser = currentUser
+    ? { id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url, role: currentUser.role }
+    : null;
+
+  const __banner = await getBannerData(db);
+  let html = renderHeader({
+    ...__banner,    siteUrl,
+    siteName: c.env.SITE_NAME,
+    pageTitle: 'Home',
+    pageDescription: 'Watch all anime subbed & dubbed Ad-free on Anivault!',
+    currentPage: 'index',
+    currentUser: layoutUser,
+    unreadCount,
+    requestUrl: c.req.url,
+  });
+
+  // Hero slides use verified Hoshika metadata plus the admin-supplied banner art.
+  let heroPool: NormalisedAnime[] = [];
+  let heroBanners: string[] = [];
+  let heroLogos: string[] = [];
+  let heroCovers: string[] = [];
+  for (const item of curatedHeroRows) {
+    heroPool.push(item.anime);
+    heroBanners.push(item.row.banner_image_url || '');
+    heroLogos.push(''); // Hoshika has no title-logo endpoint.
+    heroCovers.push(item.anime.images?.jpg?.large_image_url || '');
+  }
   // Preload slide 0's LCP image so it starts downloading during <head> parsing.
   if (heroPool.length > 0) {
     const p0 = heroPool[0];
@@ -401,9 +412,12 @@ ${heroSliderScript(heroPool.length)}
   html += renderFooter({ siteUrl, currentUser: layoutUser });
 
   const response = c.html(html);
-  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-  response.headers.set('CDN-Cache-Control', 'no-store');
-  if (hasSession) await session.save(c, lifetime);
+  if (!hasSession) {
+    response.headers.set('Cache-Control', 'public, max-age=30');
+    c.executionCtx.waitUntil(caches.default.put(homepageCacheKey, response.clone()));
+    return response;
+  }
+  await session.save(c, lifetime);
   return response;
 });
 
