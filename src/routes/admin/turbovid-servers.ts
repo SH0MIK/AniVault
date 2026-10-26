@@ -2,7 +2,8 @@ import { Hono } from 'hono';
 import type { Env } from '../../index';
 import { buildAdminCtx } from '../../lib/admin-ctx';
 import { h } from '../../lib/helpers';
-import { MalAPI } from '../../lib/mal-api';
+import { getHoshikaAnimeById } from '../../lib/hoshika-api';
+import { findIdentityByLegacyMalId } from '../../lib/anime-identity';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
 import { renderTurboVidAdmin } from '../../render/admin-turbovid';
 import { Settings } from '../../lib/settings';
@@ -33,13 +34,14 @@ adminTurbovidServerRoutes.get('/admin/turbovid_servers.php', async (c) => {
     `SELECT anime_id, COUNT(DISTINCT episode_num) AS episode_count, COUNT(*) AS source_count, MAX(updated_at) AS last_updated
        FROM turbovid_servers WHERE is_active=1 GROUP BY anime_id ORDER BY MAX(updated_at) DESC`
   );
-  const mal = new MalAPI(c.env as any, c.env.API_CACHE, db);
   const series = await Promise.all(seriesRows.map(async (row:any) => {
     try {
-      const a = (await mal.getAnime(Number(row.anime_id), true)).data;
-      return {...row, title:a?.title || `Anime #${row.anime_id}`, image:a?.images?.jpg?.large_image_url || a?.images?.jpg?.image_url || '', totalEps:Number(a?.episodes || 0), status:a?.status || '', type:a?.type || ''};
+      const identity = await findIdentityByLegacyMalId(db, Number(row.anime_id));
+      if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) throw new Error('Unmapped legacy ID');
+      const a = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
+      return {...row, title:a?.title || identity.title || `Anime #${row.anime_id}`, image:a?.poster || '', totalEps:Number(a?.episodes || 0), status:a?.status || '', type:a?.type || ''};
     } catch {
-      return {...row, title:`Anime #${row.anime_id}`, image:'', totalEps:0, status:'', type:''};
+      return {...row, title:`Anime #${row.anime_id} · mapping required`, image:'', totalEps:0, status:'', type:''};
     }
   }));
   const selected = selectedAnime ? series.find((s:any)=>Number(s.anime_id)===selectedAnime) || null : null;

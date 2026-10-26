@@ -1,99 +1,77 @@
 import { Hono } from 'hono';
 import type { Env } from '../index';
-import { Db } from '../lib/db';
-import { Session } from '../lib/session';
-import { Auth } from '../lib/auth';
-import { MalAPI, NormalisedAnime } from '../lib/mal-api';
-import { buildCardMetaMap } from '../lib/anime-card';
-import { getUserAnimeStatuses } from '../lib/user-list';
+import { searchHoshikaAnime, getHoshikaSeason } from '../lib/hoshika-api';
 
 export const mobileDiscoverRoutes = new Hono<{ Bindings: Env }>();
 
-async function ctx(c: any) {
-  const db = new Db(c.env.DB);
-  const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
-  const session = await Session.load(c, db, lifetime);
-  const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
-  const mal = new MalAPI(c.env as any, c.env.API_CACHE, db);
-  const currentUser = auth.check() ? await auth.getCurrentUser() : null;
-  const userStatuses = currentUser ? await getUserAnimeStatuses(db, currentUser.id) : {};
-  return { db, mal, userStatuses };
-}
-
-function card(a: any, userStatus: string | null = null) {
-  return {
-    id: a.mal_id,
-    title: a.title_english && a.title_english !== a.title ? a.title_english : a.title,
-    image: a.images?.jpg?.large_image_url ?? a.images?.jpg?.image_url ?? '',
-    score: a.score ?? null,
-    type: a.type ?? '',
-    episodes: a.episodes ?? 0,
-    status: a.status ?? '',
-    rank: a.rank ?? null,
-    members: a.members ?? 0,
-    userStatus,
-  };
+// Seasonal data comes from Hoshika's native season endpoint. Top rankings remain
+// unavailable and never fall back to MAL/Jikan/AniList.
+function unavailable(c: any, view: string) {
+  return c.json({
+    success: true,
+    source: 'hoshika',
+    view,
+    data: [],
+    pagination: { current_page: 1, last_visible_page: 1 },
+    message: 'This catalogue view is awaiting a Hoshika-native endpoint. Use title search in the meantime.',
+  }, 200, { 'Cache-Control': 'no-store' });
 }
 
 mobileDiscoverRoutes.get('/api/mobile/seasonal', async (c) => {
-  const { mal, userStatuses, db } = await ctx(c);
-  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1);
-  const season = c.req.query('season') === 'upcoming' ? 'upcoming' : 'now';
-  const result = season === 'upcoming' ? await mal.getSeasonUpcoming() : await mal.getSeasonNow(page);
-  const items = result.data ?? [];
-  const meta = await buildCardMetaMap(db, items);
+  const q = (c.req.query('q') ?? '').trim().toLowerCase();
+  const feed = await getHoshikaSeason(c.env.HOSHIKA_API_KEY);
+  const items = q ? feed.items.filter((a) => [a.title, a.titleEnglish, a.titleRomaji, a.slug].some((value) => value.toLowerCase().includes(q))) : feed.items;
   return c.json({
-    success: true,
-    season,
-    seasonName: season === 'now' ? mal.currentSeasonPublic() : 'upcoming',
-    year: new Date().getUTCFullYear(),
-    data: items.map((a: NormalisedAnime) => ({ ...card(a, userStatuses[a.mal_id] ?? null), airedInfo: meta.get(a.mal_id)?.airedInfo ?? null, dubbedLangs: meta.get(a.mal_id)?.dubbedLangs ?? [] })),
-    pagination: result.pagination ?? {},
-  });
-});
-
-const TOP_FILTERS = new Set(['bypopularity', 'favorite', 'airing', 'upcoming', 'byrank']);
-mobileDiscoverRoutes.get('/api/mobile/top', async (c) => {
-  const { mal, userStatuses, db } = await ctx(c);
-  const filter = TOP_FILTERS.has(c.req.query('filter') ?? '') ? c.req.query('filter')! : 'bypopularity';
-  const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1);
-  const result = await mal.getTopAnime(filter, page);
-  const items = result.data ?? [];
-  const meta = await buildCardMetaMap(db, items);
-  return c.json({
-    success: true,
-    filter,
-    data: items.map((a: NormalisedAnime, i: number) => ({ ...card(a, userStatuses[a.mal_id] ?? null), rank: a.rank ?? ((page - 1) * 25 + i + 1), airedInfo: meta.get(a.mal_id)?.airedInfo ?? null, dubbedLangs: meta.get(a.mal_id)?.dubbedLangs ?? [] })),
-    pagination: result.pagination ?? {},
-  });
-});
-
-const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
-mobileDiscoverRoutes.get('/api/mobile/schedule', async (c) => {
-  const { mal, userStatuses, db } = await ctx(c);
-  const todayIdx = new Date().getUTCDay();
-  const today = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][todayIdx];
-  const requested = (c.req.query('day') ?? today).toLowerCase();
-  const day = DAYS.includes(requested) ? requested : today;
-
-  // MAL's v2 API does not expose a dedicated schedule endpoint. The site's
-  // existing seasonal feed contains the broadcast day/time, so use the
-  // airing seasonal catalog as the source of truth and filter it here.
-  const seasonal = await mal.getSeasonNow(1);
-  const items = (seasonal.data ?? []).filter((a: NormalisedAnime) =>
-    a.broadcast?.day?.toLowerCase() === day
-  );
-  const meta = await buildCardMetaMap(db, items);
-  return c.json({
-    success: true,
-    day,
-    data: items.map((a: NormalisedAnime) => ({
-      ...card(a, userStatuses[a.mal_id] ?? null),
-      broadcast: a.broadcast ?? { day: null, time: null },
-      airedInfo: meta.get(a.mal_id)?.airedInfo ?? null,
-      dubbedLangs: meta.get(a.mal_id)?.dubbedLangs ?? [],
+    success: true, source: 'hoshika', season: feed.season, year: feed.year,
+    data: items.map((a) => ({
+      id: a.shortId, shortId: a.shortId, slug: a.slug, title: a.title,
+      image: a.poster, cover: a.cover, score: a.score, type: a.type,
+      episodes: a.episodes ?? 0, status: a.status, year: a.year, genres: a.genres,
     })),
-  });
+    pagination: { current_page: 1, last_visible_page: 1, has_next_page: false },
+  }, 200, { 'Cache-Control': 'public, max-age=300, s-maxage=300' });
+});
+mobileDiscoverRoutes.get('/api/mobile/top', async (c) => {
+  const q = (c.req.query('q') ?? '').trim();
+  if (!q) return unavailable(c, 'top');
+  const data = await searchHoshikaAnime(q, 50, c.env.HOSHIKA_API_KEY);
+  return c.json({
+    success: true, source: 'hoshika', filter: c.req.query('filter') ?? 'bypopularity',
+    data: data.map((a) => ({
+      id: a.shortId, shortId: a.shortId, title: a.title, image: a.poster,
+      score: a.score, type: a.type, episodes: a.episodes ?? 0,
+      status: a.status, year: a.year, genres: a.genres,
+    })),
+    pagination: { current_page: 1, last_visible_page: 1, has_next_page: false },
+  }, 200, { 'Cache-Control': 'no-store' });
+});
+
+mobileDiscoverRoutes.get('/api/mobile/schedule', async (c) => {
+  const url = new URL('https://hoshika.app/api/v1/schedule');
+  const year = Number.parseInt(c.req.query('year') ?? '', 10);
+  const week = Number.parseInt(c.req.query('week') ?? '', 10);
+  if (Number.isInteger(year) && year >= 1900 && year <= 2200) url.searchParams.set('year', String(year));
+  if (Number.isInteger(week) && week >= 1 && week <= 53) url.searchParams.set('week', String(week));
+  try {
+    const response = await fetch(url.toString(), { headers: { Accept: 'application/json', ...(c.env.HOSHIKA_API_KEY ? { 'X-Hoshika-Key': c.env.HOSHIKA_API_KEY } : {}) } });
+    if (!response.ok) {
+      return c.json({ success: false, source: 'hoshika', view: 'schedule', message: 'Hoshika schedule is temporarily unavailable.', data: [] }, 502, { 'Cache-Control': 'no-store' });
+    }
+    const payload: any = await response.json();
+    if (payload?.ok === false) {
+      return c.json({ success: false, source: 'hoshika', view: 'schedule', message: 'Hoshika could not return the schedule.', data: [] }, 502, { 'Cache-Control': 'no-store' });
+    }
+    return c.json({
+      success: true,
+      source: 'hoshika',
+      view: 'schedule',
+      week: payload?.week ?? null,
+      data: Array.isArray(payload?.items) ? payload.items : [],
+    }, 200, { 'Cache-Control': 'public, max-age=300, s-maxage=300' });
+  } catch (error) {
+    console.warn('[mobile-schedule] Hoshika request failed:', String(error));
+    return c.json({ success: false, source: 'hoshika', view: 'schedule', message: 'Hoshika schedule is temporarily unavailable.', data: [] }, 502, { 'Cache-Control': 'no-store' });
+  }
 });
 
 export default mobileDiscoverRoutes;

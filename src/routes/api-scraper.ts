@@ -14,10 +14,68 @@ import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
 import { h } from '../lib/helpers';
-import { MalAPI } from '../lib/mal-api';
-import { EpisodeAir } from '../lib/episode-air';
+import { findIdentityByHoshikaId, findIdentityByLegacyMalId } from '../lib/anime-identity';
+import { getHoshikaAnimeById, getHoshikaAnimeEpisodesById } from '../lib/hoshika-api';
 import { AnimeTracker } from '../lib/tracker';
-import { getEpisodeThumbnail } from '../lib/episode-thumb';
+import { resolveAnimeHeavenMp4 } from '../lib/scrapers/animeheaven';
+import { getReanimeEpisodes, getReanimeServers, getReanimeStream } from '../lib/scrapers/reanime';
+
+type ReanimeProxyResource = { url: string; playlistKey: string | null; referer: string; kind: 'playlist' | 'asset' };
+const REANIME_PROXY_TTL = 1800;
+
+// The scraper's playback routes require the explicit canonical `hsk-` prefix.
+// The site stores/passes the raw Hoshika short ID, so normalize it at this boundary.
+function scraperHoshikaId(id: string): string {
+  const raw = String(id ?? '').trim().replace(/^hsk-/i, '');
+  return raw ? `hsk-${raw}` : '';
+}
+
+async function storeReanimeResource(kv: KVNamespace, resource: ReanimeProxyResource): Promise<string> {
+  const token = crypto.randomUUID();
+  await kv.put('rean-hls:' + token, JSON.stringify(resource), { expirationTtl: REANIME_PROXY_TTL });
+  return '/api/reanime_hls/' + token;
+}
+
+function decodeReanimePlaylist(text: string, playlistKey: string | null): string {
+  if (text.trimStart().startsWith('#EXTM3U') || !playlistKey) return text;
+  try {
+    const keyBinary = atob(playlistKey.replace(/-/g, '+').replace(/_/g, '/'));
+    const encryptedBinary = atob(text.trim().replace(/-/g, '+').replace(/_/g, '/'));
+    const decoded = new Uint8Array(encryptedBinary.length);
+    for (let i = 0; i < encryptedBinary.length; i++) decoded[i] = encryptedBinary.charCodeAt(i) ^ keyBinary.charCodeAt(i % keyBinary.length);
+    const plain = new TextDecoder().decode(decoded);
+    return plain.trimStart().startsWith('#EXTM3U') ? plain : text;
+  } catch { return text; }
+}
+
+function reanimeResourceKind(url: string): 'playlist' | 'asset' {
+  try { return /\\.(?:m3u8?|m3u)(?:$|\\?)/i.test(new URL(url).pathname + new URL(url).search) ? 'playlist' : 'asset'; }
+  catch { return 'asset'; }
+}
+
+async function rewriteReanimePlaylist(text: string, baseUrl: string, kv: KVNamespace, playlistKey: string | null, referer: string): Promise<string> {
+  const proxyUrl = async (raw: string): Promise<string> => {
+    try {
+      const absolute = new URL(raw, baseUrl).toString();
+      if (!/^https?:$/.test(new URL(absolute).protocol)) return raw;
+      return await storeReanimeResource(kv, { url: absolute, playlistKey, referer, kind: reanimeResourceKind(absolute) });
+    } catch { return raw; }
+  };
+  const lines = text.split(/\\r?\\n/);
+  const rewritten: string[] = [];
+  for (const line of lines) {
+    if (!line.trim()) { rewritten.push(line); continue; }
+    if (line.trimStart().startsWith('#')) {
+      const match = line.match(/URI="([^"]+)"/);
+      if (match) rewritten.push(line.replace(match[0], 'URI="' + await proxyUrl(match[1]) + '"'));
+      else rewritten.push(line);
+    } else {
+      rewritten.push(await proxyUrl(line.trim()));
+    }
+  }
+  return rewritten.join('\\n');
+}
+
 
 export const scraperRoutes = new Hono<{ Bindings: Env }>();
 
@@ -50,45 +108,39 @@ async function fetchJson(url: string, timeoutMs = 12000, apiKey = ''): Promise<{
 }
 
 // ── api/animeheaven_stream.php ─────────────────────────────────────────────
-// Read-only proxy — doesn't set/change anything, so it doesn't touch the
-// session at all. The watch page fires this alongside several Anikoto
-// probes at once; every one of those used to do a D1 read+write against
-// the SAME session row, and concurrent writes to one row queue up in D1
-// instead of running in parallel. That's what was causing the whole
-// "Finding the best server..." probe burst to crawl even though each
-// request is fast in isolation.
+// Hoshika IDs are the only accepted playback identity.
+// AnimeHeaven is resolved by the external scraper service; the Worker only proxies it.
 scraperRoutes.get('/api/animeheaven_stream.php', async (c) => {
-  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
-  const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
-  if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
-  const base = getScraperBase(c.env);
-  if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
-
-  const { ok, code, data } = await fetchJson(`${base}/api/watch/animeheaven/mal-${animeId}/${epNum}/sub`, 20000, c.env.SCRAPER_API_KEY || '');
-  if (!ok) return c.json({ error: data?.error ?? `Scraper API error HTTP ${code}` });
-  const mp4 = data?.mp4ProxyUrl ?? data?.streamUrl ?? data?.mp4 ?? null;
-  if (!mp4) return c.json({ error: 'No stream URL in response', raw: data });
-  return c.json({ mp4, playbackMode: 'mp4' });
-});
-
-// ── api/anikoto_stream.php ─────────────────────────────────────────────────
-// ── api/anikoto_stream.php ─────────────────────────────────────────────────
-// Same reasoning as animeheaven_stream.php above: read-only proxy, no
-// session data to persist, and this is the one that gets hit MOST often
-// per page load (once for the list, then once per provider found) — so
-// it was the biggest contributor to the D1 session-row write pileup.
-scraperRoutes.get('/api/anikoto_stream.php', async (c) => {
-  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
   const server = (c.req.query('server') ?? '').trim();
-  if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
+  if (!hoshikaId || !epNum) return c.json({ error: 'Missing Hoshika ID or episode' }, 400);
+  const base = getScraperBase(c.env);
+  if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
+  let watchUrl = `${base}/api/watch/animeheaven/${scraperHoshikaId(hoshikaId)}/${epNum}/${audio}`;
+  if (server) watchUrl += `?server=${encodeURIComponent(server)}`;
+  const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
+  if (!ok) return c.json({ error: data?.error ?? `AnimeHeaven fetch failed HTTP ${code}` }, 502);
+  const m3u8 = data?.hlsProxyUrl ?? data?.m3u8 ?? null;
+  const mp4 = data?.mp4ProxyUrl ?? data?.mp4 ?? null;
+  if (data?.iframeOnly) return c.json({ servers: data?.availableServers ?? [], embedUrl: data.embedUrl ?? '', iframeOnly: true, server: data.server ?? server });
+  if (m3u8) return c.json({ servers: data?.availableServers ?? [], m3u8, server: data.server ?? server, subtitles: data.subtitles ?? [], qualities: data.qualities ?? [] });
+  if (mp4) return c.json({ servers: data?.availableServers ?? [], mp4, server: data.server ?? server, qualities: data.qualities ?? [] });
+  return c.json({ error: 'No stream URL in response' });
+});
+
+scraperRoutes.get('/api/anikoto_stream.php', async (c) => {
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
+  const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
+  const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
+  const server = (c.req.query('server') ?? '').trim();
+  if (!hoshikaId || !epNum) return c.json({ error: 'Missing Hoshika ID or episode' }, 400);
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
-  // Anikoto moved from the anivault-scraper Railway service to the same
-  // one senshi_stream.php uses, and now expects a "mal-" prefixed ID.
-  let watchUrl = `${base}/api/watch/anikoto/mal-${animeId}/${epNum}/${audio}`;
+  // Anikoto receives the canonical Hoshika ID directly.
+  let watchUrl = `${base}/api/watch/anikoto/${scraperHoshikaId(hoshikaId)}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
@@ -111,15 +163,15 @@ scraperRoutes.get('/api/anikoto_stream.php', async (c) => {
 // Abyss/CLOUD — surfaced on the watch page with an "Embed" badge and played
 // back in a plain iframe instead of the custom player).
 scraperRoutes.get('/api/desidub_stream.php', async (c) => {
-  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'dub';
   const server = (c.req.query('server') ?? '').trim();
-  if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
+  if (!hoshikaId || !epNum) return c.json({ error: 'Missing Hoshika ID or episode' }, 400);
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
-  let watchUrl = `${base}/api/watch/desidub/mal-${animeId}/${epNum}/${audio}`;
+  let watchUrl = `${base}/api/watch/desidub/${scraperHoshikaId(hoshikaId)}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
@@ -136,47 +188,76 @@ scraperRoutes.get('/api/desidub_stream.php', async (c) => {
 });
 
 // ── api/reanime_stream.php ───────────────────────────────────────────────
-// English-dub-only source. Same shape and reasoning as anikoto_stream.php
-// above — a single request lists servers (via /watch's availableServers,
-// no `server=` param) or resolves one specific server (with `server=`).
+// ReAnime now resolves directly in the Worker; no external scraper API call.
+// ReAnime playback is handled by the scraper API, not a Worker-side resolver.
 scraperRoutes.get('/api/reanime_stream.php', async (c) => {
-  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
   const server = (c.req.query('server') ?? '').trim();
-  if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
+  if (!hoshikaId || !epNum) return c.json({ error: 'Missing Hoshika ID or episode' }, 400);
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
-
-  let watchUrl = `${base}/api/watch/reanime/mal-${animeId}/${epNum}/${audio}`;
-  if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
-
+  let watchUrl = `${base}/api/watch/reanime/${scraperHoshikaId(hoshikaId)}/${epNum}/${audio}`;
+  if (server) watchUrl += `?server=${encodeURIComponent(server)}`;
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
-  if (!ok) return c.json({ error: data?.error ?? `ReAnime fetch failed HTTP ${code}` });
-
+  if (!ok) return c.json({ error: data?.error ?? `ReAnime fetch failed HTTP ${code}` }, 502);
   const servers = (data?.availableServers ?? []).map((s: string) => ({ name: s, type: audio }));
   const m3u8 = data?.hlsProxyUrl ?? data?.m3u8 ?? null;
   const mp4 = data?.mp4ProxyUrl ?? data?.mp4 ?? null;
   const qualities = Array.isArray(data?.qualities) ? data.qualities : [];
-
   if (data?.iframeOnly) return c.json({ servers, embedUrl: data.embedUrl ?? '', iframeOnly: true, server: data.server ?? server });
   if (m3u8) return c.json({ servers, m3u8, server: data.server ?? server, subtitles: data.subtitles ?? [], qualities });
   if (mp4) return c.json({ servers, mp4, server: data.server ?? server, qualities });
   return c.json({ error: 'No stream URL in response' });
 });
 
+scraperRoutes.get('/api/reanime_hls/:token', async (c) => {
+  const token = c.req.param('token');
+  if (!/^[0-9a-f-]{36}$/i.test(token)) return c.text('Not found', 404);
+  const stored = await c.env.API_CACHE.get('rean-hls:' + token);
+  if (!stored) return c.text('Stream link expired; reload the episode.', 410);
+  let resource: ReanimeProxyResource;
+  try { resource = JSON.parse(stored) as ReanimeProxyResource; } catch { return c.text('Invalid stream link', 500); }
+  let target: URL;
+  try { target = new URL(resource.url); } catch { return c.text('Invalid stream URL', 400); }
+  if (!['http:', 'https:'].includes(target.protocol)) return c.text('Invalid stream protocol', 400);
+
+  try {
+    const upstream = await fetch(target.toString(), {
+      headers: { Accept: '*/*', Referer: resource.referer || 'https://flixcloud.cc/', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124.0.0.0 Safari/537.36' },
+      redirect: 'follow',
+    });
+    if (!upstream.ok) return c.text('Upstream stream returned HTTP ' + upstream.status, 502);
+    if (resource.kind === 'playlist') {
+      const raw = await upstream.text();
+      const decoded = decodeReanimePlaylist(raw, resource.playlistKey);
+      if (!decoded.trimStart().startsWith('#EXTM3U')) return c.text('Invalid HLS playlist', 502);
+      const rewritten = await rewriteReanimePlaylist(decoded, target.toString(), c.env.API_CACHE, resource.playlistKey, resource.referer);
+      return new Response(rewritten, { headers: { 'Content-Type': 'application/vnd.apple.mpegurl; charset=utf-8', 'Cache-Control': 'no-store' } });
+    }
+    return new Response(upstream.body, {
+      status: upstream.status,
+      headers: { 'Content-Type': upstream.headers.get('Content-Type') || 'application/octet-stream', 'Cache-Control': 'no-store' },
+    });
+  } catch (error) {
+    console.error('[ReAnime HLS] Proxy failed:', error instanceof Error ? error.message : String(error));
+    return c.text('Could not fetch ReAnime stream resource', 502);
+  }
+});
+
 // ── api/animenosub_stream.php ────────────────────────────────────────────
 // English-dub-only source. Same shape as reanime_stream.php above.
 scraperRoutes.get('/api/animenosub_stream.php', async (c) => {
-  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
   const server = (c.req.query('server') ?? '').trim();
-  if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
+  if (!hoshikaId || !epNum) return c.json({ error: 'Missing Hoshika ID or episode' }, 400);
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
-  let watchUrl = `${base}/api/watch/animenosub/mal-${animeId}/${epNum}/${audio}`;
+  let watchUrl = `${base}/api/watch/animenosub/${scraperHoshikaId(hoshikaId)}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
@@ -196,15 +277,15 @@ scraperRoutes.get('/api/animenosub_stream.php', async (c) => {
 // ── api/aniwaves_stream.php ──────────────────────────────────────────────
 // English-dub-only source. Same shape as reanime_stream.php above.
 scraperRoutes.get('/api/aniwaves_stream.php', async (c) => {
-  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
   const server = (c.req.query('server') ?? '').trim();
-  if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
+  if (!hoshikaId || !epNum) return c.json({ error: 'Missing Hoshika ID or episode' }, 400);
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
-  let watchUrl = `${base}/api/watch/aniwaves/mal-${animeId}/${epNum}/${audio}`;
+  let watchUrl = `${base}/api/watch/aniwaves/${scraperHoshikaId(hoshikaId)}/${epNum}/${audio}`;
   if (server !== '') watchUrl += `?server=${encodeURIComponent(server)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
@@ -230,24 +311,24 @@ scraperRoutes.get('/api/aniwaves_stream.php', async (c) => {
 // Hindi Dub / Multi Dub groups). Resolve mode forwards an optional `lang`
 // to disambiguate same-named servers across languages.
 scraperRoutes.get('/api/anizone_stream.php', async (c) => {
-  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
   const server = (c.req.query('server') ?? '').trim();
   const lang = (c.req.query('lang') ?? '').trim();
-  if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
+  if (!hoshikaId || !epNum) return c.json({ error: 'Missing Hoshika ID or episode' }, 400);
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
   if (server === '') {
-    const listUrl = `${base}/api/servers?malId=${animeId}&ep=${epNum}&type=${audio}&source=anizone`;
+    const listUrl = `${base}/api/servers?hoshikaId=${encodeURIComponent(hoshikaId)}&ep=${epNum}&type=${audio}&source=anizone`;
     const { ok, code, data } = await fetchJson(listUrl, 28000, c.env.SCRAPER_API_KEY || '');
     if (!ok) return c.json({ error: data?.error ?? `AniZone list failed HTTP ${code}` });
     const servers = (data?.servers ?? []).map((s: any) => ({ name: s.name, type: s.type, lang: String(s.lang ?? '').toLowerCase() }));
     return c.json({ servers });
   }
 
-  let watchUrl = `${base}/api/watch/anizone/mal-${animeId}/${epNum}/${audio}?server=${encodeURIComponent(server)}`;
+  let watchUrl = `${base}/api/watch/anizone/${scraperHoshikaId(hoshikaId)}/${epNum}/${audio}?server=${encodeURIComponent(server)}`;
   if (lang !== '') watchUrl += `&lang=${encodeURIComponent(lang)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
@@ -267,24 +348,24 @@ scraperRoutes.get('/api/anizone_stream.php', async (c) => {
 // Multi-dub-language source (English, Hindi, Tamil, Telugu...). Same shape
 // and reasoning as anizone_stream.php above.
 scraperRoutes.get('/api/watchanimeworld_stream.php', async (c) => {
-  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
   const server = (c.req.query('server') ?? '').trim();
   const lang = (c.req.query('lang') ?? '').trim();
-  if (!animeId || !epNum) return c.json({ error: 'Missing anime or ep' }, 400);
+  if (!hoshikaId || !epNum) return c.json({ error: 'Missing Hoshika ID or episode' }, 400);
   const base = getScraperBase(c.env);
   if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
 
   if (server === '') {
-    const listUrl = `${base}/api/servers?malId=${animeId}&ep=${epNum}&type=${audio}&source=watchanimeworld`;
+    const listUrl = `${base}/api/servers?hoshikaId=${encodeURIComponent(hoshikaId)}&ep=${epNum}&type=${audio}&source=watchanimeworld`;
     const { ok, code, data } = await fetchJson(listUrl, 28000, c.env.SCRAPER_API_KEY || '');
     if (!ok) return c.json({ error: data?.error ?? `WatchAnimeWorld list failed HTTP ${code}` });
     const servers = (data?.servers ?? []).map((s: any) => ({ name: s.name, type: s.type, lang: String(s.lang ?? '').toLowerCase() }));
     return c.json({ servers });
   }
 
-  let watchUrl = `${base}/api/watch/watchanimeworld/mal-${animeId}/${epNum}/${audio}?server=${encodeURIComponent(server)}`;
+  let watchUrl = `${base}/api/watch/watchanimeworld/${scraperHoshikaId(hoshikaId)}/${epNum}/${audio}?server=${encodeURIComponent(server)}`;
   if (lang !== '') watchUrl += `&lang=${encodeURIComponent(lang)}`;
 
   const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
@@ -303,8 +384,8 @@ scraperRoutes.get('/api/watchanimeworld_stream.php', async (c) => {
 // ── api/server_check.php ───────────────────────────────────────────────────
 const ERROR_PHRASES = ['episode not found', 'video not found', '404 not found', 'page not found', 'no video found', 'no sources found', 'no servers found', 'this episode is not available', 'something went wrong'];
 
-async function checkSenshiUp(base: string, malId: number, epNum: number): Promise<boolean> {
-  const { ok, data } = await fetchJson(`${base}/watch/senshi/mal-${malId}/${epNum}/sub`, 10000, c.env.SCRAPER_API_KEY || '');
+async function checkSenshiUp(base: string, malId: number, epNum: number, apiKey: string): Promise<boolean> {
+  const { ok, data } = await fetchJson(`${base}/watch/senshi/mal-${malId}/${epNum}/sub`, 10000, apiKey);
   if (!ok) return false;
   return !!(data?.hlsProxyUrl ?? data?.m3u8);
 }
@@ -346,7 +427,7 @@ scraperRoutes.get('/api/server_check.php', async (c) => {
   if (cached) { await session.save(c, lifetime); return c.json(cached); }
 
   const [volt, warp, ayame] = await Promise.all([
-    checkSenshiUp(base, malId, epNum),
+    checkSenshiUp(base, malId, epNum, c.env.SCRAPER_API_KEY || ''),
     checkEmbedUp(`https://tryembed.us.cc/embed/anime/${anilistId}/${epNum}/sub`),
     checkEmbedUp(`https://vidnest.fun/animepahe/${anilistId}/${epNum}/sub`),
   ]);
@@ -390,7 +471,7 @@ scraperRoutes.get('/api/server_check_stream.php', async (c) => {
 
       const results: Record<string, boolean> = {};
       const checks: [string, Promise<boolean>][] = [
-        ['volt', checkSenshiUp(base, malId, epNum)],
+        ['volt', checkSenshiUp(base, malId, epNum, c.env.SCRAPER_API_KEY || '')],
         ['warp', checkEmbedUp(`https://tryembed.us.cc/embed/anime/${anilistId}/${epNum}/sub`)],
         ['ayame', checkEmbedUp(`https://vidnest.fun/animepahe/${anilistId}/${epNum}/sub`)],
       ];
@@ -523,33 +604,27 @@ scraperRoutes.get('/api/embed.php', async (c) => {
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
   if (!animeId || !epNum) return c.text('Not found', 404);
 
-  const animeRes = await fetchJson(`https://api.jikan.moe/v4/anime/${animeId}`, 5000);
-  const title = animeRes.data?.data?.title ?? 'Anime';
-  const image = animeRes.data?.data?.images?.jpg?.image_url ?? '';
+  // This legacy URL still receives a MAL ID. Resolve it through the
+  // verified map; never pass it to Hoshika as though it were a shortId.
+  const db = new Db(c.env.DB);
+  const identity = await findIdentityByLegacyMalId(db, animeId).catch(() => null);
+  const hoshikaId = identity?.verified === 1 ? identity.hoshika_short_id : null;
+  const [animeData, episodes] = hoshikaId
+    ? await Promise.all([getHoshikaAnimeById(hoshikaId, c.env.HOSHIKA_API_KEY), getHoshikaAnimeEpisodesById(hoshikaId, c.env.HOSHIKA_API_KEY)])
+    : [null, null];
+  const title = animeData?.titleEnglish || animeData?.title || 'Anime';
+  const image = animeData?.poster || '';
+  const epTitle = episodes?.find((ep) => ep.number === epNum)?.title || `Episode ${epNum}`;
 
-  const epRes = await fetchJson(`https://api.jikan.moe/v4/anime/${animeId}/episodes`, 5000);
-  let epTitle = `Episode ${epNum}`;
-  for (const ep of epRes.data?.data ?? []) {
-    if (Number(ep.mal_id ?? 0) === epNum && ep.title && ep.title !== 'TBA') { epTitle = ep.title; break; }
-  }
-
-  // Priority: an admin-saved override wins (episode_overrides.image_url,
-  // set via the Episode Thumbnails admin panel), then a live lookup against
-  // our own scraper API (cached in D1), then the anime cover as last resort.
-  let ogImage = image;
+  // Admin overrides win; otherwise use the Hoshika episode still, then cover art.
+  let ogImage = episodes?.find((ep) => ep.number === epNum)?.thumbnail || image;
   try {
-    const db = new Db(c.env.DB);
     const row = await db.fetchOne<{ image_url: string | null }>(
       'SELECT image_url FROM episode_overrides WHERE anime_id = ? AND episode_num = ?',
       [animeId, epNum]
     );
-    if (row?.image_url) {
-      ogImage = row.image_url;
-    } else {
-      const scraped = await getEpisodeThumbnail(c.env, db, animeId, epNum, animeRes.data?.data?.status);
-      if (scraped) ogImage = scraped;
-    }
-  } catch { /* fall back to anime cover */ }
+    if (row?.image_url) ogImage = row.image_url;
+  } catch { /* fall back to Hoshika art */ }
 
   const watchUrl = `${siteUrl}/watch?anime=${animeId}&ep=${epNum}`;
   const html = `<!DOCTYPE html>
@@ -625,86 +700,74 @@ scraperRoutes.get('/api/anime_info.php', async (c) => {
 });
 
 // ── api/ep_count.php ────────────────────────────────────────────────────
-// Does the full scraper-API-then-Jikan lookup and writes through to
-// episode_air_cache (same as EpisodeAir.get) — this is the "slow" work.
-// anime.ts renders instantly off the cache (see EpisodeAir.getCachedAny)
-// and calls this from the client, in the background, only when that cache
-// was missing or stale, so a slow scraper response never blocks the page.
-// In practice anime.ts only ever triggers this for a currently-airing show
-// (see epsNeedsRefresh there) — finished/not-yet-aired shows already have
-// their final count straight from MAL and never need it. The status check
-// below is just a second line of defense (direct hits, stale clients, etc.)
-// so a finished/upcoming show can never end up writing to the cache either.
+// Legacy episode-count endpoint: only verified Hoshika mappings can resolve
+// a MAL-keyed request. Unmapped records return null rather than using another
+// anime provider or guessing from a title.
 scraperRoutes.get('/api/ep_count.php', async (c) => {
   const animeId = parseInt(c.req.query('anime_id') ?? '0', 10) || 0;
   if (!animeId) return c.json({ error: 'Missing anime_id' }, 400);
   const db = new Db(c.env.DB);
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
 
-  const animeRes = await mal.getAnime(animeId).catch(() => null);
-  const status = animeRes?.data?.status;
-  if (status && status !== 'Currently Airing') {
-    const eps = animeRes?.data?.episodes ?? 0;
-    return c.json({ aired: eps || null, total: eps || null });
-  }
+  // Legacy page callers pass MAL IDs. Never treat those as Hoshika IDs or
+  // fall back to MAL/Jikan; only a verified identity can bridge the request.
+  const identity = await findIdentityByLegacyMalId(db, animeId).catch(() => null);
+  if (identity?.verified !== 1) return c.json({ aired: null, total: null });
 
-  const airedInfo = await EpisodeAir.get(db, c.env, mal, animeId);
-  return c.json({ aired: airedInfo?.aired ?? null, total: airedInfo?.total ?? null });
+  const [anime, episodes] = await Promise.all([
+    getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY),
+    getHoshikaAnimeEpisodesById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY),
+  ]);
+  const total = anime?.episodes ?? episodes?.length ?? null;
+  const aired = episodes?.length ?? null;
+  return c.json({ aired, total });
 });
 
 // ── api/anime_episodes.php ──────────────────────────────────────────────────
-// Same-origin replacement for anime-tail.ts's client-side lazy loader, which
-// used to fetch api.jikan.moe directly from the browser. Routes through
-// MalAPI.getAnimeEpisodes -- own scraper first, Jikan as a fallback -- so the
-// browser never talks to either backend directly and picks up whichever is
-// actually working without a client-side redeploy.
+// Legacy detail pages still pass MAL IDs. Episode metadata now comes only
+// from Hoshika after an explicit verified mapping; there is no MAL/Jikan or
+// title-based fallback. Unmapped legacy IDs return an empty list so the page
+// can still render numbered stubs for videos already stored in D1.
 scraperRoutes.get('/api/anime_episodes.php', async (c) => {
   const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
   const page = parseInt(c.req.query('page') ?? '1', 10) || 1;
   if (!animeId) return c.json({ error: 'Missing anime' }, 400);
   const db = new Db(c.env.DB);
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-  const result = await mal.getAnimeEpisodes(animeId, page);
-  return c.json(result);
+  const identity = await findIdentityByLegacyMalId(db, animeId).catch(() => null);
+  if (identity?.verified !== 1) {
+    return c.json({ data: [], pagination: { last_visible_page: 1, has_next_page: false } });
+  }
+  const episodes = await getHoshikaAnimeEpisodesById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
+  const data = (episodes ?? []).map((episode) => ({
+    mal_id: episode.number,
+    title: episode.title,
+    title_japanese: null,
+    aired: episode.aired,
+    filler: episode.filler,
+    recap: episode.recap,
+    images: { jpg: { image_url: episode.thumbnail } },
+    thumbnail: episode.thumbnail,
+  }));
+  return c.json({
+    data: page > 1 ? [] : data,
+    pagination: { last_visible_page: 1, has_next_page: false },
+  });
 });
 
-// ── api/anime_characters.php ────────────────────────────────────────────────
-// Same reasoning as anime_episodes.php above, for the character grid tab.
-scraperRoutes.get('/api/anime_characters.php', async (c) => {
-  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
-  if (!animeId) return c.json({ error: 'Missing anime' }, 400);
-  const db = new Db(c.env.DB);
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-  const result = await mal.getAnimeCharacters(animeId);
-  return c.json(result);
-});
+// Hoshika's currently confirmed public API does not expose character, theme-song,
+// trailer, or picture-gallery endpoints. Return explicit unavailable states;
+// never substitute MAL/Jikan catalogue data.
+for (const [path, label] of [
+  ['/api/anime_characters.php', 'Character data'],
+  ['/api/anime_themes.php', 'Theme-song data'],
+  ['/api/anime_videos.php', 'Trailer data'],
+  ['/api/anime_pictures.php', 'Picture-gallery data'],
+] as const) {
+  scraperRoutes.get(path, (c) => {
+    const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  const hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
+    if (!animeId) return c.json({ error: 'Missing anime' }, 400);
+    return c.json({ data: [], unavailable: true, message: label + ' is not available from the confirmed Hoshika API.' }, 501);
+  });
+}
 
-// ── api/anime_themes.php, anime_videos.php, anime_pictures.php ─────────────
-// Same same-origin-proxy reasoning as the two routes above, for the new
-// trailer/theme-song/picture-gallery sections.
-scraperRoutes.get('/api/anime_themes.php', async (c) => {
-  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
-  if (!animeId) return c.json({ error: 'Missing anime' }, 400);
-  const db = new Db(c.env.DB);
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-  const result = await mal.getAnimeThemes(animeId);
-  return c.json(result);
-});
-
-scraperRoutes.get('/api/anime_videos.php', async (c) => {
-  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
-  if (!animeId) return c.json({ error: 'Missing anime' }, 400);
-  const db = new Db(c.env.DB);
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-  const result = await mal.getAnimeVideos(animeId);
-  return c.json(result);
-});
-
-scraperRoutes.get('/api/anime_pictures.php', async (c) => {
-  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
-  if (!animeId) return c.json({ error: 'Missing anime' }, 400);
-  const db = new Db(c.env.DB);
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-  const result = await mal.getAnimePictures(animeId);
-  return c.json(result);
-});

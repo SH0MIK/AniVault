@@ -1,35 +1,12 @@
-// Admin page for bulk-importing episode thumbnails AND metadata (title,
-// aired, filler/recap) straight into D1 -- episode_thumb_cache for
-// thumbnails (lib/episode-thumb.ts) and the same table's epinfo_all_* rows
-// for metadata (lib/episode-info.ts) -- from raw JSON, instead of waiting
-// on a live scraper lookup. Paste (or upload a .json file containing) the
-// exact shape the scraper's own GET /api/episode?malId=X returns:
-//
-//   { "malId": 1, "episodes": [ { "episode": 1, "title": "...",
-//     "aired": "...", "filler": false, "recap": false,
-//     "thumbnail": "https://…" }, … ] }
-//
-// The info half is only cached if EVERY pasted episode has both a title and
-// an aired date (same all-or-nothing rule the live fetch path uses) --
-// otherwise the info cache is left untouched so a later live fetch can fill
-// it in properly instead of baking in a partial import. The uploaded file isn't stored anywhere separately --
-// it's just read client-side and dropped into the same raw-JSON field the
-// paste box uses, so it goes through the exact same save path and the exact
-// same episode_thumb_cache table as a manual paste. Pick Finished/Ongoing
-// and it writes both cache shapes (the bulk `epthumbs_all_X` row and a
-// per-episode `epthumb_X_N` row for each one), both permanent -- see
-// importAnimeEpisodeThumbnails in lib/episode-thumb.ts for what Finished vs
-// Ongoing actually changes (whether the site ever checks for a new episode
-// past what was imported).
-// Every page that reads through getEpisodeThumbnail/getAnimeEpisodeThumbnails
-// (anime detail, watch, home, lists, embed) picks this up immediately.
+// Legacy episode-cache administration page retained for reference only.
+// During the Hoshika migration it is read-only: POST import/clear actions are
+// rejected, existing rows are left untouched, and user-facing Hoshika episode
+// flows do not read or repopulate the old scraper thumbnail cache.
 import { Hono } from 'hono';
 import type { Env } from '../../index';
 import { buildAdminCtx } from '../../lib/admin-ctx';
 import { icon } from '../../lib/icons';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
-import { importAnimeEpisodeThumbnails } from '../../lib/episode-thumb';
-import { importAnimeEpisodeInfo } from '../../lib/episode-info';
 
 export const adminEpisodeCacheImportRoutes = new Hono<{ Bindings: Env }>();
 
@@ -40,65 +17,15 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
   const { db, session, lifetime, isOwner, impersonating } = ctx;
 
   if (c.req.method === 'POST') {
-    const body: any = await c.req.json().catch(() => ({}));
-
-    // Clearing an already-cached anime's entries -- same table, just a
-    // delete instead of a write. Removes the bulk row plus every
-    // per-episode row for that malId.
-    if (body.action === 'clear') {
-      const malId = parseInt(body.malId ?? '0', 10) || 0;
-      if (!malId) {
-        await session.save(c, lifetime);
-        return c.json({ success: false, error: 'Missing malId.' });
-      }
-      try {
-        await db.query(
-          `DELETE FROM episode_thumb_cache WHERE cache_key = ? OR cache_key = ? OR cache_key LIKE ? ESCAPE '\\'`,
-          [`epthumbs_all_${malId}`, `epinfo_all_${malId}`, `epthumb\\_${malId}\\_%`]
-        );
-        await session.save(c, lifetime);
-        return c.json({ success: true, malId });
-      } catch (e: any) {
-        await session.save(c, lifetime);
-        return c.json({ success: false, error: e?.message ?? 'Clear failed.' });
-      }
-    }
-
-    // Default action: import.
-    const status = body.status === 'finished' ? 'finished' : 'ongoing';
-    const permanent = status === 'finished';
-
-    let raw: any;
-    try {
-      raw = typeof body.raw === 'string' ? JSON.parse(body.raw) : body.raw;
-    } catch {
-      await session.save(c, lifetime);
-      return c.json({ success: false, error: 'That\'s not valid JSON -- paste or upload the raw response as-is.' });
-    }
-
-    const malId = parseInt(body.malId ?? raw?.malId ?? '0', 10) || 0;
-    const episodes = Array.isArray(raw?.episodes) ? raw.episodes : null;
-
-    if (!malId) {
-      await session.save(c, lifetime);
-      return c.json({ success: false, error: 'Missing malId (either in the form field or the JSON\'s "malId" key).' });
-    }
-    if (!episodes) {
-      await session.save(c, lifetime);
-      return c.json({ success: false, error: 'JSON needs an "episodes" array -- use the scraper\'s full /api/episode response.' });
-    }
-
-    try {
-      const result = await importAnimeEpisodeThumbnails(db, malId, episodes, permanent);
-      const infoResult = await importAnimeEpisodeInfo(db, malId, episodes);
-      await session.save(c, lifetime);
-      return c.json({ success: true, ...result, infoCached: infoResult.cached, infoCount: infoResult.count });
-    } catch (e: any) {
-      await session.save(c, lifetime);
-      return c.json({ success: false, error: e?.message ?? 'Import failed.' });
-    }
+    // Cache import/clear is paused during the Hoshika-only migration. Do not
+    // mutate shared legacy cache rows until the cache schema is rebuilt from
+    // verified Hoshika responses.
+    await session.save(c, lifetime);
+    return c.json({
+      success: false,
+      error: 'Episode cache import and clearing are paused during the Hoshika migration. Existing cache rows were left untouched.',
+    }, 503);
   }
-
   // ── Cached anime list ──────────────────────────────────────────────────
   // Reads straight from the same episode_thumb_cache table -- every bulk
   // row is keyed `epthumbs_all_{malId}`, so that prefix alone gives us one
@@ -125,7 +52,7 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
   let html = renderAdminHeader({ siteUrl, pageTitle: 'Episode Cache Import', adminPage: 'episode_cache_import', isOwner, impersonating });
   html += `
 <div class="admin-header">
-  <div><h1>${icon('database', 'icon-medium')} Episode Cache Import</h1><p class="text-muted" style="font-size:.9rem;">Paste or upload the scraper's raw <code>/api/episode?malId=…</code> JSON to save it straight into the site's episode thumbnail cache -- no per-episode scraper calls needed after this.</p></div>
+  <div><h1>${icon('database', 'icon-medium')} Episode Cache Import</h1><p class="text-muted" style="font-size:.9rem;">Cache import and clearing are paused during the Hoshika-only migration. Existing cache rows are left untouched.</p></div>
 </div>
 
 <div class="card card-body mb-3" style="max-width:760px;">
@@ -145,7 +72,7 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
   <textarea id="eci-raw" class="form-control" rows="12" style="font-family:monospace;font-size:.82rem;" placeholder='{"malId": 1, "episodes": [{"episode": 1, "thumbnail": "https://..."}, ...]}'></textarea>
 
   <div style="margin-top:1rem;display:flex;gap:.6rem;align-items:center;">
-    <button class="btn btn-primary" id="eci-save">${icon('database', 'icon-small')} Save to Cache</button>
+    <button class="btn btn-primary" id="eci-save" disabled title="Paused during Hoshika migration">${icon('database', 'icon-small')} Cache Import Paused</button>
     <span id="eci-status" style="font-size:.85rem;color:var(--text-muted);"></span>
   </div>
 </div>
@@ -162,7 +89,7 @@ adminEpisodeCacheImportRoutes.on(['GET', 'POST'], '/admin/episode_cache_import.p
           ${a.permanent ? ' · Finished (permanent)' : a.checkedAt ? ` · Ongoing, last checked ${new Date(a.checkedAt).toLocaleString()}` : ' · Ongoing'}
         </div>
       </div>
-      <button class="btn btn-sm" style="color:#f87171;white-space:nowrap;" onclick="eciClear(${a.malId}, this)">${icon('x', 'icon-small')} Clear</button>
+      <span class="text-muted" style="font-size:.8rem;white-space:nowrap;">Read-only during migration</span>
     </div>`).join('')}
   </div>
 </div>

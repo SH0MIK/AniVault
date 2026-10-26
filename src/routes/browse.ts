@@ -3,12 +3,11 @@ import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
-import { MalAPI } from '../lib/mal-api';
+import { searchHoshikaAnime, getHoshikaCatalog, getHoshikaGenres } from '../lib/hoshika-api';
 import { Notification } from '../lib/notification';
 import { getUserAnimeStatuses } from '../lib/user-list';
 import { icon } from '../lib/icons';
 import { h } from '../lib/helpers';
-import { renderAnimeCard, buildCardMetaMap } from '../lib/anime-card';
 import { renderHeader, renderFooter } from '../render/layout';
 import { getBannerData } from '../lib/settings';
 
@@ -19,37 +18,132 @@ browseRoutes.get('/browse', async (c) => {
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const session = await Session.load(c, db, lifetime);
   const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
   const siteUrl = c.env.SITE_URL;
 
   const q = (c.req.query('q') ?? '').trim();
   const type = c.req.query('type') ?? '';
   const status = c.req.query('status') ?? '';
+  const sort = (c.req.query('sort') ?? 'trending').trim();
+  const year = Math.max(0, Number.parseInt(c.req.query('year') ?? '', 10) || 0);
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1);
+  const hoshikaGenres = await getHoshikaGenres(c.env.HOSHIKA_API_KEY);
+  const genreList: Array<{ mal_id: number; slug: string; name: string }> = hoshikaGenres.map((g, index) => ({ mal_id: index + 1, slug: g.slug, name: g.name }));
 
-  // genres[] query params, with BC support for old single ?genre=
-  let genres = c.req.queries('genres[]')?.map((g) => parseInt(g, 10)).filter((n) => !Number.isNaN(n)) ?? [];
-  if (genres.length === 0 && c.req.query('genre')) {
-    const g = parseInt(c.req.query('genre')!, 10);
-    if (!Number.isNaN(g)) genres = [g];
+  let genres = c.req.queries('genres[]')?.map((g) => parseInt(g, 10)).filter((n) => Number.isInteger(n) && n > 0) ?? [];
+  const singleGenre = (c.req.query('genre') ?? '').trim();
+  if (genres.length === 0 && singleGenre) {
+    const numericGenre = Number.parseInt(singleGenre, 10);
+    if (Number.isInteger(numericGenre) && String(numericGenre) === singleGenre) genres = [numericGenre];
+    else { const matched = genreList.find((g) => g.slug.toLowerCase() === singleGenre.toLowerCase()); if (matched) genres = [matched.mal_id]; }
   }
-
-  let result: { data: any[]; pagination: any };
+  const selectedGenre = genreList.find((g) => genres.includes(g.mal_id))?.slug ?? '';
+  let hoshikaSearchItems: Awaited<ReturnType<typeof searchHoshikaAnime>> = [];
+  let catalogResult: Awaited<ReturnType<typeof getHoshikaCatalog>> = { items: [], total: 0, totalPages: 1 };
   if (q) {
-    result = await mal.searchAnime(q, page, type, status);
-  } else if (genres.length > 0) {
-    result = await mal.getAnimeByGenres(genres, page);
-  } else {
-    result = await mal.getTopAnime('bypopularity', page);
+    const norm = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\\s+/g, ' ');
+    const hasFacets = !!(year || type || status || selectedGenre);
+    if (!hasFacets) {
+      hoshikaSearchItems = await searchHoshikaAnime(q, 50, c.env.HOSHIKA_API_KEY);
+      catalogResult = { items: hoshikaSearchItems, total: hoshikaSearchItems.length, totalPages: 1 };
+    } else {
+      // Hoshika search records often omit genre/year/status metadata. When
+      // filters accompany a query, search within the actual Hoshika-filtered
+      // catalog instead of silently filtering incomplete search records.
+      const firstPage = await getHoshikaCatalog({
+        genre: selectedGenre || undefined,
+        year: year || undefined,
+        sort,
+        page: 1,
+        type: type || undefined,
+        status: status || undefined,
+      }, c.env.HOSHIKA_API_KEY);
+      const catalogPages = [firstPage];
+      for (let p = 2; p <= Math.min(firstPage.totalPages, 10); p++) {
+        catalogPages.push(await getHoshikaCatalog({
+          genre: selectedGenre || undefined,
+          year: year || undefined,
+          sort,
+          page: p,
+          type: type || undefined,
+          status: status || undefined,
+        }, c.env.HOSHIKA_API_KEY));
+      }
+      const query = norm(q);
+      const matched = catalogPages.flatMap((result) => result.items).filter((item) => {
+        const titles = [item.title, item.titleEnglish, item.titleRomaji, item.titleJapanese, item.slug]
+          .map(norm).filter(Boolean);
+        return titles.some((title) => title.includes(query));
+      });
+      const unique = [...new Map(matched.map((item) => [item.shortId, item])).values()];
+      const pageSize = 24;
+      catalogResult = {
+        items: unique.slice((page - 1) * pageSize, page * pageSize),
+        total: unique.length,
+        totalPages: Math.max(1, Math.ceil(unique.length / pageSize)),
+      };
+      hoshikaSearchItems = catalogResult.items;
+    }
   }
-
-  const items = result.data ?? [];
-  // Browse posters/covers are Hoshika-only; clear any MAL/scraper art fallback.
-  await mal.prefetchHoshikaArtForCards(items);
-  const pagination = result.pagination ?? {};
-  const totalPages = pagination.last_visible_page ?? 1;
-  const cardMeta = await buildCardMetaMap(db, items);
-  const genreList = mal.getAnimeGenres().data;
+  else if (sort === 'trending' && !type && !status && !year && genres.length === 0) {
+    const trendingPayload: any = await fetch('https://hoshika.app/api/v1/browse?type=anime&sort=trending', { headers: { Accept: 'application/json', ...(c.env.HOSHIKA_API_KEY ? { 'X-Hoshika-Key': c.env.HOSHIKA_API_KEY } : {}) } }).then(async (r) => r.ok ? r.json() : null).catch(() => null);
+    const trendingRoot: any = trendingPayload?.data ?? trendingPayload?.result ?? trendingPayload ?? {};
+    const trendingRaw = Array.isArray(trendingRoot) ? trendingRoot : (trendingRoot.items ?? trendingRoot.results ?? trendingRoot.anime ?? trendingRoot.entries ?? trendingRoot.data ?? []);
+    const trendingItems = Array.isArray(trendingRaw) ? trendingRaw : [];
+    hoshikaSearchItems = trendingItems.map((item: any) => ({
+      id: String(item.id ?? item.shortId ?? item.short_id ?? ''),
+      shortId: String(item.shortId ?? item.short_id ?? item.id ?? ''),
+      slug: String(item.slug ?? ''),
+      title: String(item.titleLocalized ?? item.titleEnglish ?? item.title ?? item.titleRomaji ?? item.slug ?? 'Untitled anime'),
+      titleEnglish: String(item.titleEnglish ?? item.title_english ?? ''),
+      titleRomaji: String(item.titleRomaji ?? item.title_romaji ?? ''),
+      titleJapanese: String(item.titleJapanese ?? item.title_japanese ?? ''),
+      synopsis: String(item.synopsis ?? item.description ?? ''),
+      poster: String(item.poster ?? item.posterImage ?? item.coverImage ?? item.cover_image ?? item.image ?? ''),
+      cover: String(item.cover ?? item.bannerImage ?? item.banner_image ?? ''),
+      episodes: Number.isFinite(Number(item.episodes ?? item.episodeCount)) ? Number(item.episodes ?? item.episodeCount) : null,
+      score: Number.isFinite(Number(item.averageScore ?? item.score ?? item.rating)) ? Number(item.averageScore ?? item.score ?? item.rating) : null,
+      status: String(item.status ?? ''),
+      season: String(item.season ?? item.seasonName ?? item.season_name ?? ''),
+      type: String(item.type ?? item.format ?? 'TV'),
+      year: Number.isFinite(Number(item.year ?? item.seasonYear)) ? Number(item.year ?? item.seasonYear) : null,
+      genres: Array.isArray(item.genres) ? item.genres.map((g: any) => typeof g === 'string' ? g : String(g?.name ?? '')).filter(Boolean) : [],
+      raw: item,
+    })).filter((item: any) => item.shortId);
+    // Keep the Hoshika trending feed as the source for trending, then apply
+    // facets against its normalized fields. Do not switch to a different
+    // catalogue endpoint just because a facet is selected.
+    if (year) hoshikaSearchItems = hoshikaSearchItems.filter((item: any) => Number(item.year) === year);
+    if (type) {
+      const wanted = type.toLowerCase();
+      hoshikaSearchItems = hoshikaSearchItems.filter((item: any) => {
+        const actual = String(item.type ?? '').toLowerCase();
+        return actual === wanted || (wanted === 'tv' && (actual === 'tv series' || actual === 'television')) ||
+          (wanted === 'ona' && actual.includes('ona')) || (wanted === 'ova' && actual.includes('ova')) ||
+          (wanted === 'movie' && (actual.includes('movie') || actual.includes('film'))) ||
+          (wanted === 'special' && actual.includes('special')) || (wanted === 'music' && actual.includes('music'));
+      });
+    }
+    if (status) {
+      const wanted = status.toLowerCase();
+      hoshikaSearchItems = hoshikaSearchItems.filter((item: any) => {
+        const actual = String(item.status ?? '').toLowerCase();
+        if (wanted === 'airing') return actual.includes('airing') || actual.includes('ongoing');
+        if (wanted === 'complete') return actual.includes('complete') || actual.includes('finished');
+        if (wanted === 'upcoming') return actual.includes('upcoming') || actual.includes('not yet');
+        return actual === wanted;
+      });
+    }
+    if (genres.length) {
+      const wantedGenres = genres.map((id) => genreList.find((g) => g.mal_id === id)?.name.toLowerCase()).filter(Boolean);
+      hoshikaSearchItems = hoshikaSearchItems.filter((item: any) => wantedGenres.every((wanted) =>
+        (item.genres ?? []).some((g: string) => String(g).toLowerCase() === wanted)));
+    }
+    catalogResult = { items: hoshikaSearchItems, total: hoshikaSearchItems.length, totalPages: 1 };
+  } else catalogResult = await getHoshikaCatalog({ genre: selectedGenre, year: year || undefined, sort, page, type: type || undefined, status: status || undefined }, c.env.HOSHIKA_API_KEY);
+  const items = catalogResult.items;
+  const totalCount = catalogResult.total;
+  const totalPages = catalogResult.totalPages;
+  const cardMeta = new Map();
 
   const currentUser = auth.check() ? await auth.getCurrentUser() : null;
   const unreadCount = currentUser ? await Notification.unreadCount(db, currentUser.id) : 0;
@@ -64,10 +158,9 @@ browseRoutes.get('/browse', async (c) => {
     currentUser: layoutUser, unreadCount, requestUrl: c.req.url,
   });
 
-  const heading = q ? `🔍 Results for "${h(q)}"` : (genres.length > 0 ? '🏷️ Genre Browse' : '🌐 All Anime');
-  const totalCount = pagination.items?.total ?? items.length;
+  const heading = q ? `🔍 Results for \"${h(q)}\"` : (sort === 'trending' && !type && !status && !year && genres.length === 0 ? '🔥 Trending Series' : sort === 'popular' && !type && !status && !year && genres.length === 0 ? '🔥 Most Popular Series' : '🌐 Browse Anime');
 
-  const activeFilterCount = (type ? 1 : 0) + (status ? 1 : 0) + genres.length + (q ? 1 : 0);
+  const activeFilterCount = (type ? 1 : 0) + (status ? 1 : 0) + (sort !== 'trending' ? 1 : 0) + (year ? 1 : 0) + genres.length + (q ? 1 : 0);
   const hasAnyFilter = activeFilterCount > 0;
 
   // Each chip links to the same filter set minus that one filter, so a
@@ -77,6 +170,8 @@ browseRoutes.get('/browse', async (c) => {
     if (q && !opts.dropQ) qs.set('q', q);
     if (type && !opts.dropType) qs.set('type', type);
     if (status && !opts.dropStatus) qs.set('status', status);
+    if (sort !== 'trending') qs.set('sort', sort);
+    if (year) qs.set('year', String(year));
     for (const g of genres) if (g !== opts.dropGenre) qs.append('genres[]', String(g));
     const s = qs.toString();
     return `/browse${s ? `?${s}` : ''}`;
@@ -114,6 +209,20 @@ browseRoutes.get('/browse', async (c) => {
           </div>
         </div>
         <form method="GET" action="" id="browse-form">
+          <div class="filter-section">
+            <div class="filter-section-label">Sort</div>
+            <select class="form-control" name="sort">
+              <option value="popular" ${sort === "popular" ? "selected" : ""}>Popular</option>
+              <option value="trending" ${sort === "trending" || !sort ? "selected" : ""}>Trending</option>
+              <option value="recent" ${sort === "recent" ? "selected" : ""}>Recently Added</option>
+              <option value="top" ${sort === "top" ? "selected" : ""}>Top Rated</option>
+              <option value="revelation" ${sort === "revelation" ? "selected" : ""}>Revelation</option>
+            </select>
+          </div>
+          <div class="filter-section">
+            <div class="filter-section-label">Year</div>
+            <input class="form-control" type="number" name="year" min="1960" max="2100" value="${year || ""}" placeholder="Any year">
+          </div>
           <div class="filter-section">
             <div class="filter-section-label">Search</div>
             <div class="filter-search-wrap">
@@ -158,12 +267,12 @@ browseRoutes.get('/browse', async (c) => {
       ${items.length === 0 ? `
       <div class="flex-center" style="padding:4rem;flex-direction:column;gap:1rem;">
         <span style="font-size:3rem;">🔍</span>
-        <p class="text-muted">No results found. Try a different search.</p>
+        <p class="text-muted">${q ? 'No Hoshika results found. Try a different title.' : 'No anime matched these filters. Try another genre, year, or sort option.'}</p>
       </div>` : `
       <div class="anime-grid">
-        ${items.map((a) => renderAnimeCard(a, siteUrl, userStatuses[a.mal_id] ?? null, cardMeta.get(a.mal_id))).join('')}
+        ${items.map((a: any) => renderHoshikaSearchCard(a)).join('')}
       </div>
-      ${totalPages > 1 ? renderPagination(q, type, status, genres, page, totalPages) : ''}`}
+      ${totalPages > 1 ? renderPagination(q, type, status, genres, page, totalPages, sort, year) : ''}`}
     </div>
   </div>
 </div>
@@ -246,36 +355,51 @@ browseRoutes.get('/search', (c) => {
 
 // ── api/search_suggest.php — live search dropdown ─────────────────────────
 browseRoutes.get('/api/search_suggest.php', async (c) => {
-  const db = new Db(c.env.DB);
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
   const q = (c.req.query('q') ?? '').trim();
-
-  if (q.length < 2) {
-    return c.json([], 200, { 'Cache-Control': 'public, max-age=60' });
+  if (q.length < 1) {
+    return c.json([], 200, { 'Cache-Control': 'no-store' });
   }
 
   try {
-    const result = await mal.searchAnime(q, 1);
-    const items = (result.data ?? []).slice(0, 4);
+    // Search suggestions now come from Hoshika only. Hoshika shortId is
+    // returned separately so it cannot be mistaken for a legacy MAL ID.
+    const items = await searchHoshikaAnime(q, 4, c.env.HOSHIKA_API_KEY);
     const out = items.map((a) => ({
-      mal_id: a.mal_id,
-      title: a.title_english || a.title,
+      shortId: a.shortId,
+      title: a.title,
       type: a.type ?? '',
-      year: a.start_date ? a.start_date.substring(0, 4) : null,
-      score: a.score ? a.score.toFixed(1) : null,
-      image: a.images?.jpg?.image_url ?? '',
+      year: a.year ? String(a.year) : null,
+      score: a.score !== null ? a.score.toFixed(1) : null,
+      image: a.poster || a.cover || '',
+      source: 'hoshika',
     }));
-    return c.json(out, 200, { 'Cache-Control': 'public, max-age=60' });
+    return c.json(out, 200, { 'Cache-Control': 'no-store' });
   } catch {
-    return c.json([], 200, { 'Cache-Control': 'public, max-age=60' });
+    return c.json([], 200, { 'Cache-Control': 'no-store' });
   }
 });
 
-export function renderPagination(q: string, type: string, status: string, genres: number[], page: number, totalPages: number): string {
+function renderHoshikaSearchCard(a: any): string {
+  const id = encodeURIComponent(String(a.shortId ?? ''));
+  const title = h(a.title ?? 'Untitled anime');
+  const image = h(a.poster || a.cover || '');
+  const meta = [a.type, a.year, a.episodes ? String(a.episodes) + ' eps' : ''].filter(Boolean).map((v) => h(String(v))).join(' · ');
+  const score = a.score !== null && a.score !== undefined ? Number(a.score).toFixed(1) : '';
+  return `<a class="anime-card" href="/anime?id=${id}">
+    <div class="anime-card-poster">${image ? `<img src="${image}" alt="" loading="lazy">` : '<div class="anime-card-placeholder"></div>'}
+      ${score ? `<span class="anime-card-score">★ ${h(score)}</span>` : ''}
+    </div>
+    <div class="anime-card-info"><div class="anime-card-title">${title}</div>${meta ? `<div class="anime-card-meta">${meta}</div>` : ''}</div>
+  </a>`;
+}
+
+export function renderPagination(q: string, type: string, status: string, genres: number[], page: number, totalPages: number, sort = 'popular', year = 0): string {
   const qs = new URLSearchParams();
   if (q) qs.set('q', q);
   if (type) qs.set('type', type);
   if (status) qs.set('status', status);
+  if (sort !== 'trending') qs.set('sort', sort);
+  if (year) qs.set('year', String(year));
   let base = `/browse?${qs.toString()}`;
   for (const g of genres) base += `&genres[]=${g}`;
   const baseUrl = base + '&page=';

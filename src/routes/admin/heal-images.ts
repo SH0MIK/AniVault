@@ -105,7 +105,7 @@ adminHealImagesRoutes.on(['GET', 'POST'], '/admin/heal_images.php', async (c) =>
 @media (max-width:600px) { .heal-row { grid-template-columns:42px 1fr; } .heal-status, .heal-preview { grid-column:2; } }
 </style>
 
-<div class="admin-header"><div><h1>${icon('heal', 'icon-medium')} Heal Images</h1><p class="text-muted">Browser fetches missing anime images from Jikan, then the server saves them.</p></div></div>
+<div class="admin-header"><div><h1>${icon('heal', 'icon-medium')} Heal Images</h1><p class="text-muted">Browser fetches Hoshika artwork for verified legacy-ID mappings, then the server saves it.</p></div></div>
 
 <div class="heal-stats">
   <div class="heal-stat"><div class="heal-stat-val">${remaining.toLocaleString('en-US')}</div><div class="heal-stat-lbl">Missing Images</div></div>
@@ -149,34 +149,31 @@ async function saveImage(animeId, animeTitle, imageUrl) {
   });
   return res.json();
 }
-function bestImage(images) {
-  return images?.jpg?.large_image_url || images?.jpg?.image_url || images?.webp?.large_image_url || images?.webp?.image_url || '';
-}
-async function jikan(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(\`Jikan HTTP \${res.status}\`);
-  return res.json();
+async function hoshikaPosterForLegacyId(animeId) {
+  const identityResponse = await fetch('/api/hoshika/identity-by-legacy/' + encodeURIComponent(animeId), { cache: 'no-store' });
+  if (!identityResponse.ok) throw new Error('No verified Hoshika mapping for this legacy anime ID.');
+  const identity = await identityResponse.json();
+  const shortId = identity?.data?.shortId;
+  if (!identity?.ok || !shortId) throw new Error('No verified Hoshika mapping for this legacy anime ID.');
+  const detailResponse = await fetch('/api/hoshika/anime/' + encodeURIComponent(shortId), { cache: 'no-store' });
+  if (!detailResponse.ok) throw new Error('Hoshika anime details unavailable.');
+  const detail = await detailResponse.json();
+  const anime = detail?.data;
+  if (!detail?.ok || !anime) throw new Error('Hoshika anime details unavailable.');
+  return { imageUrl: anime.poster || anime.cover || '', title: anime.title || '' };
 }
 async function healRow(row) {
-  const animeId    = row.dataset.animeId;
+  const animeId = row.dataset.animeId;
   const animeTitle = row.dataset.animeTitle;
-  const status  = row.querySelector('.heal-status');
+  const status = row.querySelector('.heal-status');
   const preview = row.querySelector('.heal-preview');
-  status.textContent = 'Fetching…';
-  status.className   = 'heal-status';
-  let imageUrl = '';
-  try {
-    const data = await jikan(\`https://api.jikan.moe/v4/anime/\${animeId}/pictures\`);
-    imageUrl = bestImage(data?.data?.[0]);
-  } catch (_) {}
-  if (!imageUrl) {
-    status.textContent = 'Trying fallback…';
-    const data = await jikan(\`https://api.jikan.moe/v4/anime/\${animeId}\`);
-    imageUrl = bestImage(data?.data?.images);
-  }
-  if (!imageUrl) throw new Error('No image found');
+  status.textContent = 'Fetching Hoshika artwork…';
+  status.className = 'heal-status';
+  const result = await hoshikaPosterForLegacyId(animeId);
+  const imageUrl = result.imageUrl;
+  if (!imageUrl) throw new Error('Hoshika did not return poster artwork.');
   status.textContent = 'Saving…';
-  const saved = await saveImage(animeId, animeTitle, imageUrl);
+  const saved = await saveImage(animeId, result.title || animeTitle, imageUrl);
   if (!saved.success) throw new Error(saved.error || 'Save failed');
   status.textContent = '✓ Healed';
   status.classList.add('ok');

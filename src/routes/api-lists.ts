@@ -4,7 +4,6 @@ import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth, AUTO_SESSION_LIFETIME_SECONDS } from '../lib/auth';
-import { MalAPI } from '../lib/mal-api';
 import { AnimeTracker } from '../lib/tracker';
 import { pushListSync } from '../lib/list-sync';
 import { Notification } from '../lib/notification';
@@ -24,8 +23,6 @@ async function buildCtx(c: any) {
 // ── api/list.php ───────────────────────────────────────────────────────────
 apiListRoutes.on(['GET', 'POST'], '/api/list.php', async (c) => {
   const { db, session, lifetime, auth } = await buildCtx(c);
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-
   const body = c.req.method === 'POST' ? await c.req.parseBody() : {};
   const action = (body.action as string) ?? c.req.query('action') ?? '';
 
@@ -53,7 +50,7 @@ apiListRoutes.on(['GET', 'POST'], '/api/list.php', async (c) => {
   let result: any;
   switch (action) {
     case 'add': {
-      result = await AnimeTracker.addOrUpdate(db, mal, userId, body as Record<string, any>);
+      result = await AnimeTracker.addOrUpdate(db, userId, body as Record<string, any>, c.env.HOSHIKA_API_KEY);
       if (result.success) {
         const animeId = parseInt((body.anime_id as string) ?? '0', 10) || 0;
         const alreadyTracked = await db.fetchOne<{id:number}>('SELECT id FROM points_ledger WHERE user_id=? AND event_key=?', [userId, 'add_anime:' + animeId]);
@@ -267,13 +264,13 @@ apiListRoutes.post('/api/watch_history.php', async (c) => {
               [watchTime, watchedSeconds, now, userId, animeId, epNum]);
             const earnedToday = await db.count("SELECT COUNT(*) AS cnt FROM points_ledger WHERE user_id=? AND event_type='watch_episode' AND created_at >= date('now')", [userId]);
             if (pct >= 0.9 && watchedSeconds >= Math.floor(duration * 0.8) && earnedToday < 10) {
-              const awarded = await awardPoints(db, userId, 5, 'watch_episode', 'watch:' + animeId + ':' + epNum, 'Watched an episode');
+              const awarded = await awardPoints(db, userId!, 5, 'watch_episode', 'watch:' + animeId + ':' + epNum, 'Watched an episode');
               if (awarded) await db.query('UPDATE points_watch_sessions SET rewarded=1 WHERE user_id=? AND anime_id=? AND episode_num=?', [userId, animeId, epNum]);
             }
           }
         }
         const totalEpsParam = parseInt(body.total_eps ?? '0', 10) || 0;
-        await AnimeTracker.autoTrackProgress(db, userId, animeId, epNum, pct, totalEpsParam, animeTitle, animeImage);
+        await AnimeTracker.autoTrackProgress(db, userId!, animeId, epNum, pct, totalEpsParam, animeTitle, animeImage);
       }
     } else {
       const existing = await db.fetchOne<{ id: number }>(

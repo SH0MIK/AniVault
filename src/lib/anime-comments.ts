@@ -1,6 +1,7 @@
 import { Db } from './db';
 
 export interface AnimeCommentRow {
+  [key: string]: unknown;
   id:number; anime_id:number; episode_num:number; user_id:number; parent_id:number|null;
   body:string; is_deleted:number; created_at:string; updated_at:string;
   username:string; avatar_url:string|null; role:string; likes:number; dislikes:number; my_vote:number;

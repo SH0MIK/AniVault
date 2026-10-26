@@ -8,7 +8,6 @@ import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
 import { AnimeTracker, ITEMS_PER_PAGE } from '../lib/tracker';
-import { MalAPI } from '../lib/mal-api';
 import { Badge } from '../lib/badges';
 import { Follow } from '../lib/follow';
 import { Notification } from '../lib/notification';
@@ -16,8 +15,10 @@ import { h, timeAgo, statusBadge } from '../lib/helpers';
 import { icon } from '../lib/icons';
 import { renderAnimeCard, buildCardMetaMap } from '../lib/anime-card';
 import { renderHeader, renderFooter, CurrentUser } from '../render/layout';
+import { getHoshikaAnimeById } from '../lib/hoshika-api';
 import { getBannerData } from '../lib/settings';
 import { buildSocialLinks, platformColor } from '../lib/social';
+// Anime list IDs now store Hoshika numeric shortIds directly.
 
 export const userRoutes = new Hono<{ Bindings: Env }>();
 
@@ -103,18 +104,7 @@ userRoutes.get('/u/:username', async (c) => {
   ).catch(() => []);
   const wrappedScored = wrappedEntries.filter((entry:any) => entry.score !== null && entry.score !== undefined && entry.score !== '');
   const wrappedTopAnime = [...wrappedScored].sort((a:any,b:any) => Number(b.score)-Number(a.score)).slice(0,5);
-  // Resolve each Wrapped poster through the existing anime-art pipeline, which
-  // prioritizes the configured TMDB artwork and returns a direct TMDB image URL.
-  const wrappedMal = new MalAPI(c.env, c.env.API_CACHE, db);
-  await Promise.all(wrappedTopAnime.map(async (entry:any) => {
-    try {
-      const result = await wrappedMal.getAnime(Number(entry.anime_id), false, true);
-      const directTmdbPoster = result.data?.images?.jpg?.large_image_url || '';
-      if (/^https:\/\/image\.tmdb\.org\/t\/p\//i.test(directTmdbPoster)) {
-        entry.wrapped_tmdb_image = directTmdbPoster.replace(/\/t\/p\/w\d+\//, '/t/p/w342/');
-      }
-    } catch { /* Keep the saved image as a fallback if TMDB art is unavailable. */ }
-  }));
+  // Wrapped artwork is refreshed from Hoshika below; saved artwork is ignored.
   const wrappedAverage = wrappedScored.length ? (wrappedScored.reduce((sum:number,entry:any)=>sum+Number(entry.score||0),0)/wrappedScored.length).toFixed(1) : '—';
   const wrappedCompleted = wrappedEntries.filter((entry:any)=>entry.status==='completed').length;
   const wrappedMinutes = Number((stats as any).total_episodes || 0) * 21;
@@ -135,6 +125,41 @@ userRoutes.get('/u/:username', async (c) => {
   const favs = await AnimeTracker.getFavorites(db, profileId);
   const recentList = await AnimeTracker.getUserList(db, profileId, filterStatus, listPage);
   const currentlyWatching = await AnimeTracker.getUserList(db, profileId, 'watching', 1);
+  // Anime IDs in these user tables are Hoshika numeric shortIds now.
+  // Fetch the real coverImage URL from Hoshika: some covers include a versioned
+  // path segment, so constructing a URL from shortId alone is not reliable.
+  const profileAnimeIds = [...new Set([
+    ...wrappedTopAnime.map((item: any) => Number(item.anime_id)),
+    ...favs.map((item: any) => Number(item.anime_id)),
+    ...recentList.items.map((item: any) => Number(item.anime_id)),
+    ...currentlyWatching.items.map((item: any) => Number(item.anime_id)),
+  ].filter((id: number) => Number.isSafeInteger(id) && id > 0))];
+  const hoshikaImageById = new Map<number, string>();
+  await Promise.all(profileAnimeIds.map(async (shortId: number) => {
+    const cacheKey = `hoshika:cover-image:${shortId}`;
+    try {
+      const cached = await c.env.API_CACHE.get(cacheKey);
+      if (cached && /^https:\/\/cdn\.hoshika\.app\//i.test(cached)) {
+        hoshikaImageById.set(shortId, cached);
+        return;
+      }
+      const anime = await getHoshikaAnimeById(shortId, c.env.HOSHIKA_API_KEY);
+      const coverImage = String(anime?.raw?.coverImage ?? anime?.poster ?? '');
+      if (coverImage && /^https:\/\/cdn\.hoshika\.app\//i.test(coverImage)) {
+        hoshikaImageById.set(shortId, coverImage);
+        await c.env.API_CACHE.put(cacheKey, coverImage, { expirationTtl: 60 * 60 * 24 * 30 });
+      } else {
+        hoshikaImageById.set(shortId, '');
+      }
+    } catch {
+      hoshikaImageById.set(shortId, '');
+    }
+  }));
+  // Override only in-memory display values; user tracking data remains untouched.
+  for (const entry of [...wrappedEntries, ...favs, ...recentList.items, ...currentlyWatching.items]) {
+    const id = Number(entry.anime_id);
+    if (hoshikaImageById.has(id)) entry.anime_image = hoshikaImageById.get(id) || '';
+  }
   const watchRange = '7d';
   const watchHistory = await db.fetchAll<{activity_date:string;episodes_watched:number}>(
     "SELECT activity_date, episodes_watched FROM anime_watch_history WHERE user_id=? AND activity_date >= date('now','-6 days') AND activity_date <= date('now') ORDER BY activity_date ASC",
@@ -424,7 +449,7 @@ ${profileBackgroundKey === 'constellation' || profileBackgroundKey === 'constell
           <div class="profile-wrapped-tile"><div class="profile-wrapped-value">${wrappedTopGenres[0]?.[0] ? h(wrappedTopGenres[0][0]) : '—'}</div><div class="profile-wrapped-label">Top Genre</div></div>
         </div>
         <div class="profile-wrapped-lower">
-          <div class="profile-wrapped-section"><div class="profile-wrapped-section-title">Top Rated Anime</div>${wrappedTopAnime.length ? '<div class="profile-wrapped-covers">'+wrappedTopAnime.map((a:any)=>'<a class="profile-wrapped-cover" href="'+siteUrl+'/anime?id='+Number(a.anime_id)+'" title="'+h(a.anime_title||'Anime')+' · '+Number(a.score)+'/10">'+((a.wrapped_tmdb_image || (/^https:\/\/image\.tmdb\.org\/t\/p\//i.test(String(a.anime_image||'')) ? a.anime_image : ''))?'<img src="'+h(a.wrapped_tmdb_image || a.anime_image)+'" loading="lazy" alt="">':'<div style="aspect-ratio:2/3;background:var(--bg-hover);border-radius:7px"></div>')+'<div class="profile-wrapped-cover-name">'+h(a.anime_title||'Anime')+'</div></a>').join('')+'</div>' : '<p class="text-muted" style="font-size:.8rem">Rate anime to reveal your top picks.</p>'}</div>
+          <div class="profile-wrapped-section"><div class="profile-wrapped-section-title">Top Rated Anime</div>${wrappedTopAnime.length ? '<div class="profile-wrapped-covers">'+wrappedTopAnime.map((a:any)=>'<a class="profile-wrapped-cover" href="'+siteUrl+'/anime?id='+Number(a.anime_id)+'" title="'+h(a.anime_title||'Anime')+' · '+Number(a.score)+'/10">'+(a.anime_image?'<img src="'+h(a.anime_image)+'" loading="lazy" alt="">':'<div style="aspect-ratio:2/3;background:var(--bg-hover);border-radius:7px"></div>')+'<div class="profile-wrapped-cover-name">'+h(a.anime_title||'Anime')+'</div></a>').join('')+'</div>' : '<p class="text-muted" style="font-size:.8rem">Rate anime to reveal your top picks.</p>'}</div>
           <div class="profile-wrapped-section profile-wrapped-genres"><div class="profile-wrapped-section-title">Your Top Genres</div>${wrappedTopGenres.length ? '<div class="profile-wrapped-genre-list">'+wrappedTopGenres.map(([name,count],i)=>'<div class="profile-wrapped-genre-row'+(i===0?' is-top':'')+'"><div class="profile-wrapped-genre-meta">'+(i===0?'<span class="profile-wrapped-genre-rank">★</span>':'<span class="profile-wrapped-genre-rank">'+(i+1)+'</span>')+'<span class="profile-wrapped-genre-name">'+h(name)+'</span><strong class="profile-wrapped-genre-count">'+count+'</strong></div><div class="profile-wrapped-genre-track"><span style="width:'+Math.max(8,Math.round((count/wrappedTopGenres[0][1])*100))+'%"></span></div></div>').join('')+'</div>' : '<p class="text-muted" style="font-size:.8rem">Genre stats will appear as anime metadata becomes available.</p>'}</div>
         </div>
       </section>

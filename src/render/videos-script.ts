@@ -175,7 +175,7 @@ function renderEmbedPreview(code) {
   wrap.innerHTML=code;
 }
 
-/* ─── Anime search ───────────────────────────────────────────── */
+/* ─── Anime search (Hoshika; legacy stream rows require verified mapping) ── */
 const _animeCache = {};
 
 document.getElementById('vm-anime-search').addEventListener('input', function() {
@@ -183,7 +183,7 @@ document.getElementById('vm-anime-search').addEventListener('input', function() 
   var q = this.value.trim();
   if (!q) { hideDropdown(); return; }
   if (/^\\d+$/.test(q)) {
-    _searchTimer2 = setTimeout(function() { lookupById(parseInt(q,10)); }, 350);
+    _searchTimer2 = setTimeout(function() { lookupById(q); }, 350);
   } else if (q.length >= 2) {
     _searchTimer2 = setTimeout(function() { searchByName(q); }, 420);
   }
@@ -193,41 +193,52 @@ document.getElementById('vm-anime-search').addEventListener('blur', function() {
 async function lookupById(id) {
   var dd = document.getElementById('anime-search-dropdown');
   dd.style.display='block';
-  dd.innerHTML='<div style="padding:.5rem .75rem;color:var(--text-muted);font-size:.83rem;">Looking up ID ' + id + '\\u2026</div>';
+  dd.innerHTML='<div style="padding:.5rem .75rem;color:var(--text-muted);font-size:.83rem;">Looking up Hoshika ID ' + eh(id) + '\\u2026</div>';
   try {
-    var r = await fetch('https://api.jikan.moe/v4/anime/' + id);
+    var r = await fetch((window.__siteUrl || '') + '/api/hoshika/anime/' + encodeURIComponent(id), { cache: 'no-store' });
     if (!r.ok) throw new Error();
     var json = await r.json();
-    var a = json.data;
-    if (!a) throw new Error();
-    dd.innerHTML = renderResult(a);
-  } catch(e) { dd.innerHTML='<div style="padding:.5rem .75rem;color:var(--text-muted);">No anime found for ID ' + id + '</div>'; }
+    if (!json.data) throw new Error();
+    dd.innerHTML = await renderResult(json.data);
+  } catch(e) { dd.innerHTML='<div style="padding:.5rem .75rem;color:var(--text-muted);">No Hoshika anime found for ID ' + eh(id) + '</div>'; }
 }
 
 async function searchByName(q) {
   var dd = document.getElementById('anime-search-dropdown');
   dd.style.display='block';
-  dd.innerHTML='<div style="padding:.5rem .75rem;color:var(--text-muted);font-size:.83rem;">Searching\\u2026</div>';
+  dd.innerHTML='<div style="padding:.5rem .75rem;color:var(--text-muted);font-size:.83rem;">Searching Hoshika…</div>';
   try {
-    var r = await fetch('https://api.jikan.moe/v4/anime?q=' + encodeURIComponent(q) + '&limit=8&sfw=true');
+    var r = await fetch((window.__siteUrl || '') + '/api/hoshika/search?q=' + encodeURIComponent(q) + '&limit=8', { cache: 'no-store' });
+    if (!r.ok) throw new Error();
     var json = await r.json();
     var data = json.data;
-    if (!data || !data.length) { dd.innerHTML='<div style="padding:.5rem .75rem;color:var(--text-muted);">No results</div>'; return; }
-    dd.innerHTML = data.map(renderResult).join('');
-  } catch(e) { dd.innerHTML='<div style="padding:.5rem .75rem;color:var(--text-muted);">Search failed</div>'; }
+    if (!data || !data.length) { dd.innerHTML='<div style="padding:.5rem .75rem;color:var(--text-muted);">No Hoshika results</div>'; return; }
+    dd.innerHTML = (await Promise.all(data.map(renderResult))).join('');
+  } catch(e) { dd.innerHTML='<div style="padding:.5rem .75rem;color:var(--text-muted);">Hoshika search failed</div>'; }
 }
 
-function renderResult(a) {
-  var title = a.title || a.title_english || '';
-  var img   = (a.images && a.images.jpg && a.images.jpg.small_image_url) ? a.images.jpg.small_image_url : '';
-  _animeCache[a.mal_id] = { id: a.mal_id, title: title, img: img, synopsis: a.synopsis || '' };
-  return '<div class="anime-search-result" data-mal-id="' + a.mal_id + '" onclick="selectAnimeById(' + a.mal_id + ')">' +
-    '<img src="' + eh(img) + '" alt="" onerror="this.style.display=\\'none\\'">' +
-    '<div>' +
-      '<div style="font-weight:600;">' + eh(title) + '</div>' +
-      '<div style="font-size:.73rem;color:var(--text-muted);">' + eh(a.type||'') + ' &middot; ' + (a.episodes||'?') + ' eps &middot; ID: ' + a.mal_id + '</div>' +
-    '</div>' +
-  '</div>';
+async function renderResult(a) {
+  var shortId = String(a.shortId || '');
+  var title = a.title || a.titleEnglish || a.titleRomaji || '';
+  var img = a.poster || '';
+  if (!shortId) return '';
+  var identity = null;
+  try {
+    var response = await fetch((window.__siteUrl || '') + '/api/hoshika/identity/' + encodeURIComponent(shortId), { cache: 'no-store' });
+    if (response.ok) identity = await response.json();
+  } catch(e) {}
+  if (!identity || !identity.verified || !identity.legacyMalId) {
+    return '<div class="anime-search-result" style="opacity:.7;cursor:not-allowed;" title="Needs a verified legacy mapping">' +
+      (img ? '<img src="' + eh(img) + '" alt="" onerror="this.style.display=\\'none\\'">' : '') +
+      '<div><div style="font-weight:600;">' + eh(title) + '</div>' +
+      '<div style="font-size:.73rem;color:var(--text-muted);">Hoshika ID: ' + eh(shortId) + ' · No verified legacy mapping — cannot attach videos yet</div></div></div>';
+  }
+  var legacyId = Number(identity.legacyMalId);
+  _animeCache[legacyId] = { id: legacyId, shortId: shortId, title: title, img: img, synopsis: a.synopsis || '' };
+  return '<div class="anime-search-result" data-mal-id="' + legacyId + '" onclick="selectAnimeById(' + legacyId + ')">' +
+    (img ? '<img src="' + eh(img) + '" alt="" onerror="this.style.display=\\'none\\'">' : '') +
+    '<div><div style="font-weight:600;">' + eh(title) + '</div>' +
+    '<div style="font-size:.73rem;color:var(--text-muted);">' + eh(a.type||'') + ' · ' + (a.episodes||'?') + ' eps · Hoshika: ' + eh(shortId) + ' · Verified legacy ID: ' + legacyId + '</div></div></div>';
 }
 
 function selectAnimeById(id) {
@@ -237,10 +248,9 @@ function selectAnimeById(id) {
   document.getElementById('vm-anime-id').value     = a.id;
   document.getElementById('vm-anime-search').value = a.title;
   var sel = document.getElementById('vm-anime-selected');
-  sel.textContent = '\\u2713 ' + a.title + ' (ID: ' + a.id + ')';
+  sel.textContent = '\\u2713 ' + a.title + ' (verified legacy ID: ' + a.id + ')';
   sel.style.display = 'block';
   hideDropdown();
-  // Keep hidden fields in sync (title/description no longer shown to admin)
   document.getElementById('vm-title').value = a.title;
   if (!document.getElementById('vm-description').value.trim() && a.synopsis)
     document.getElementById('vm-description').value = a.synopsis.slice(0,500);

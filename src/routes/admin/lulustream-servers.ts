@@ -1,7 +1,8 @@
 import { Hono } from 'hono';
 import type { Env } from '../../index';
 import { buildAdminCtx } from '../../lib/admin-ctx';
-import { MalAPI } from '../../lib/mal-api';
+import { getHoshikaAnimeById } from '../../lib/hoshika-api';
+import { findIdentityByLegacyMalId } from '../../lib/anime-identity';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
 import { renderLuluStreamAdmin } from '../../render/admin-lulustream';
 import { resolveLuluStream } from '../../lib/lulustream-resolver';
@@ -86,13 +87,8 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
   const streamStats = { titles: seriesRows.length, episodes: seriesRows.reduce((n:any, r:any) => n + Number(r.episode_count || 0), 0), englishDub: 0, hindiDub: 0, otherDub: 0, subtitles: 0 };
   for (const row of statsRows) { try { const tracks = JSON.parse(String(row.audio_tracks || '[]')); if (Array.isArray(tracks)) for (const track of tracks) { const group = String(track?.group || '').toLowerCase(); if (group === 'dub') streamStats.englishDub++; else if (group === 'hindi') streamStats.hindiDub++; else if (group === 'multi') streamStats.otherDub++; else if (group === 'sub') streamStats.subtitles++; } } catch {} }
 
-  const mal = new MalAPI(c.env as any, c.env.API_CACHE, db);
-
-  // Keep page rendering inside Workers' per-invocation subrequest budget.
-  // Only the 15 most recently updated series need fresh MAL metadata for this
-  // view; remaining rows still render and remain fully editable using their
-  // saved database IDs. This route is read-only here; add/edit/delete handlers
-  // below are intentionally unchanged.
+  // Only resolve verified mappings. Legacy IDs remain the keys used by saved
+  // stream rows, so unresolved entries remain editable without guessed metadata.
   const metadataRows = seriesRows.slice(0, 15);
   if (selectedAnime && !metadataRows.some((row:any) => Number(row.anime_id) === selectedAnime)) {
     const selectedRow = seriesRows.find((row:any) => Number(row.anime_id) === selectedAnime);
@@ -101,19 +97,19 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
   const metadataById = new Map<number, any>();
   await Promise.all(metadataRows.map(async (row:any) => {
     try {
-      const result = await mal.getAnimeAdminSummary(Number(row.anime_id));
-      if (result.data) metadataById.set(Number(row.anime_id), result.data);
-    } catch {
-      // MAL metadata is decorative for this admin table; don't fail the page.
-    }
+      const identity = await findIdentityByLegacyMalId(db, Number(row.anime_id));
+      if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) return;
+      const a = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
+      if (a) metadataById.set(Number(row.anime_id), { ...a, title: a.title || identity.title, images: { jpg: { large_image_url: a.poster, image_url: a.poster } } });
+    } catch { /* decorative metadata; preserve stream administration */ }
   }));
 
   const series = seriesRows.map((row:any) => {
     const a = metadataById.get(Number(row.anime_id));
     return {
       ...row,
-      title: a?.title || `Anime #${row.anime_id}`,
-      image: a?.images?.jpg?.large_image_url || a?.images?.jpg?.image_url || '',
+      title: a?.title || `Anime #${row.anime_id} · mapping required`,
+      image: a?.poster || a?.images?.jpg?.large_image_url || a?.images?.jpg?.image_url || '',
       totalEps: Number(a?.episodes || 0),
       status: a?.status || '',
       type: a?.type || ''

@@ -1575,13 +1575,9 @@ document.addEventListener('DOMContentLoaded', () => {
   initAdminSidebar();
 });
 // ── Episode Card Thumbnails ───────────────────────
-// Was: a direct graphql.anilist.co call from the browser (fetchAniListThumbs)
-// plus loadEpCardThumbnails() to paint it onto .ep-card elements. Removed --
-// the grid on the anime detail page (anime-tail.ts) already paints from
-// our own scraper-backed D1 cache (getAnimeEpisodeThumbnails, which itself
-// tries TMDB -> Kitsu -> AniList server-side), so a second direct AniList
-// call from the client was pure duplicate work chasing a source the
-// scraper already covers.
+// Direct AniList episode-thumbnail fetching was removed. Hoshika-backed
+// episode pages now use Hoshika stills and explicit admin overrides; no legacy
+// provider chain or scraper thumbnail cache is used for the catalog flow.
 
 // ── Episode Modal ────────────────────────────────────────
 const _epCache = {};   // "malId-epNum" → { synopsis, thumb }
@@ -1605,22 +1601,6 @@ function getStreamingKey(url) {
     if (url.toLowerCase().includes(key)) return key;
   }
   return null;
-}
-
-const _animeInfoCache = {};
-
-async function getAnimeInfo(malId) {
-  if (_animeInfoCache[malId]) return _animeInfoCache[malId];
-  try {
-    const streaming = await fetch(`https://api.jikan.moe/v4/anime/${malId}/streaming`)
-      .then(r => r.ok ? r.json() : null);
-    const streamingLinks = (streaming?.data || [])
-      .filter(s => getStreamingKey(s.url))
-      .map(s => ({ service: getStreamingKey(s.url), url: s.url }));
-    const result = { streamingLinks };
-    _animeInfoCache[malId] = result;
-    return result;
-  } catch(e) { return { streamingLinks: [] }; }
 }
 
 document.addEventListener('click', async function(e) {
@@ -1673,27 +1653,22 @@ document.addEventListener('click', async function(e) {
   }
 
   try {
-    // Fetch streaming info + override/scraper-cached thumb + synopsis in parallel.
+    // Fetch the site's own override/scraper-cached thumbnail and saved synopsis.
     // episode_override.php now resolves the thumbnail itself (admin override,
     // else our scraper's D1 cache -- see api-episode-override.ts), so there's
     // no separate direct-to-AniList call needed here anymore.
-    const [animeInfo, overrideRes, jikanRes] = await Promise.all([
-      getAnimeInfo(animeId),
-      fetch(`/api/episode_override.php?anime_id=${animeId}&ep=${epNum}`).then(r => r.ok ? r.json() : null),
-      fetch(`https://api.jikan.moe/v4/anime/${animeId}/episodes/${epNum}`).then(r => r.ok ? r.json() : null),
-    ]);
+    const overrideRes = await fetch(`/api/episode_override.php?anime_id=${animeId}&ep=${epNum}`).then(r => r.ok ? r.json() : null);
 
     const override      = overrideRes?.override || null;
-    const jikanSynop    = jikanRes?.data?.synopsis || '';
     const overrideSynop = override?.synopsis || '';
-    const synopsis      = overrideSynop || jikanSynop;
+    const synopsis      = overrideSynop;
 
     // Thumbnail: admin override > scraper-cached (via episode_override.php) > cached > anime cover fallback
-    const thumb = override?.image_url || overrideRes?.thumbnail || _epCache[cacheKey]?.thumb || '';
+    const thumb = override?.image_url || overrideRes?.thumbnail || '';
 
-    // Watch links: override takes priority, then Jikan streaming
+    // Watch links: use only admin-configured local overrides
     const overrideLinks = override ? (JSON.parse(override.watch_links || '[]') || []) : [];
-    const streamLinks   = animeInfo?.streamingLinks || [];
+    const streamLinks   = [];
     const watchLinks    = overrideLinks.length ? overrideLinks : streamLinks;
 
     const cached = { synopsis, thumb, watchLinks };
@@ -1919,19 +1894,16 @@ async function epedSave() {
 
 // ── Search Suggestions ──────────────────────────────────────────────────────
 (function () {
-  let _cache = {};
   let _userCache = {};
   let _debounceTimer = null;
 
   async function fetchSuggestions(query) {
     const q = query.trim();
     if (!q || q.length < 1) return [];
-    if (_cache[q]) return _cache[q];
     try {
       const res = await fetch(`/api/search_suggest.php?q=${encodeURIComponent(q)}`);
       if (!res.ok) return [];
       const results = await res.json();
-      _cache[q] = results;
       return results;
     } catch (e) {
       return [];
@@ -1974,7 +1946,7 @@ async function epedSave() {
       html += `<div class="search-sugg-section-label">Anime</div>`;
       html += animeItems.map(a => {
         const meta = [a.type, a.year].filter(Boolean).join(' · ');
-        return `<a class="search-sugg-item" href="/pages/anime.php?id=${a.mal_id}">
+        return `<a class="search-sugg-item" href="/anime/hoshika?id=${encodeURIComponent(a.shortId)}">
           <img class="search-sugg-img" src="${a.image}" alt="" loading="lazy">
           <div class="search-sugg-info">
             <div class="search-sugg-title">${a.title}</div>

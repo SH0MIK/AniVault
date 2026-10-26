@@ -5,7 +5,6 @@ import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
-import { MalAPI } from '../lib/mal-api';
 import { AnimeTracker, ITEMS_PER_PAGE } from '../lib/tracker';
 import { Notification } from '../lib/notification';
 import { h, timeAgo, statusBadge } from '../lib/helpers';
@@ -14,7 +13,8 @@ import { renderAnimeCard, buildCardMetaMap, LANG_CODE } from '../lib/anime-card'
 import { renderHeader, renderFooter, CurrentUser } from '../render/layout';
 import { HISTORY_CSS } from '../render/history-css';
 import { getBannerData } from '../lib/settings';
-import { getEpisodeThumbnail } from '../lib/episode-thumb';
+import { getHoshikaAnimeById, getHoshikaAnimeEpisodesById } from '../lib/hoshika-api';
+import { findIdentityByLegacyMalId } from '../lib/anime-identity';
 
 export const listRoutes = new Hono<{ Bindings: Env }>();
 
@@ -142,9 +142,8 @@ listRoutes.on(['GET', 'POST'], '/mylist', async (c) => {
           const ji = JSON.stringify(item.anime_image ?? '');
           const meta = cardMeta.get(item.anime_id);
           const airedInfo = meta?.airedInfo;
-          // Prefer the Jikan-derived aired-so-far total when we have it
-          // cached — the stored anime_episodes snapshot can lag behind for
-          // airing shows, same issue as the card grids.
+          // Use the user's saved episode-count snapshot during migration;
+          // do not consult legacy Jikan/scraper aired-count caches.
           const eps = (airedInfo?.total ?? item.anime_episodes) ?? 0;
           const dubbed = meta?.dubbedLangs ?? [];
           const dubCodes = dubbed.map((l) => LANG_CODE[l] ?? l.slice(0, 2).toUpperCase());
@@ -298,7 +297,6 @@ listRoutes.get('/history', async (c) => {
   const siteUrl = c.env.SITE_URL;
   if (!ctx) return c.redirect(siteUrl + '/');
   const { db, session, lifetime, auth, userId } = ctx;
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
 
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1);
   const limit = 24;
@@ -312,11 +310,23 @@ listRoutes.get('/history', async (c) => {
   );
   const totalPages = total ? Math.ceil(total / limit) : 1;
 
-  // History thumbnails: an admin-saved override wins where one exists
-  // (episode_overrides.image_url, set via the Episode Thumbnails admin
-  // panel). Batch-lookup for this page, then live-fetch (via our scraper
-  // API, KV-cached) whatever's still missing -- capped at 24/page so this
-  // stays cheap. Cards fall back to a placeholder only if both miss.
+  // History cards need portrait posters from Hoshika. The legacy anime_image
+  // column can hold a landscape banner, so don't use it as a poster fallback.
+  const historyPosters: Record<number, string> = {};
+  await Promise.all(history.map(async (row: any) => {
+    try {
+      // New watch-history rows may already use Hoshika IDs, so try the
+      // current catalog ID directly before consulting the legacy-ID mapping.
+      let anime = await getHoshikaAnimeById(String(row.anime_id), c.env.HOSHIKA_API_KEY).catch(() => null);
+      if (!anime) {
+        const identity = await findIdentityByLegacyMalId(db, Number(row.anime_id));
+        if (identity?.hoshika_short_id) {
+          anime = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY).catch(() => null);
+        }
+      }
+      if (anime?.poster) historyPosters[Number(row.anime_id)] = anime.poster;
+    } catch { /* keep a neutral placeholder if Hoshika has no poster */ }
+  }));
   const episodeThumbOverrides: Record<string, string> = {};
   if (history.length > 0) {
     try {
@@ -331,26 +341,26 @@ listRoutes.get('/history', async (c) => {
       }
     } catch { /* best-effort -- cards fall back to scraper/placeholder */ }
 
-    const missing = history.filter((r: any) => !episodeThumbOverrides[`${r.anime_id}:${r.episode_num}`]);
-    if (missing.length > 0) {
-      // Same status-aware caching as home.ts/watch.ts: look up each distinct
-      // show's status (mal.getAnime is itself KV-cached, cheap on a warm
-      // cache) so a finished-airing show lands in the permanent cache tier.
-      const distinctIds = [...new Set(missing.map((r: any) => r.anime_id))];
-      const statusMap = new Map<number, string | undefined>();
-      await Promise.all(distinctIds.map(async (id) => {
-        const res = await mal.getAnime(id, true).catch(() => null);
-        statusMap.set(id, res?.data?.status);
-      }));
+    // Fill missing history-card art from Hoshika's actual episode endpoint.
+    // Admin overrides remain first priority; Hoshika episode stills are added
+    // only when no saved override exists for this exact episode.
+    await Promise.all(history.map(async (row: any) => {
+      const key = `${row.anime_id}:${row.episode_num}`;
+      if (episodeThumbOverrides[key]) return;
+      try {
+        let episodes = await getHoshikaAnimeEpisodesById(String(row.anime_id), c.env.HOSHIKA_API_KEY);
+        if (!episodes) {
+          const identity = await findIdentityByLegacyMalId(db, Number(row.anime_id));
+          if (identity?.hoshika_short_id) {
+            episodes = await getHoshikaAnimeEpisodesById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
+          }
+        }
+        const episode = episodes?.find((item) => item.number === Number(row.episode_num));
+        if (episode?.thumbnail) episodeThumbOverrides[key] = episode.thumbnail;
+      } catch { /* retain stored image/poster fallbacks */ }
+    }));
 
-      const scraped = await Promise.all(
-        missing.map((r: any) => getEpisodeThumbnail(c.env, db, r.anime_id, r.episode_num, statusMap.get(r.anime_id)))
-      );
-      missing.forEach((r: any, i: number) => {
-        const thumb = scraped[i];
-        if (thumb) episodeThumbOverrides[`${r.anime_id}:${r.episode_num}`] = thumb;
-      });
-    }
+    // Missing images stay blank rather than reading/repopulating legacy scraper caches.
   }
 
   const { unreadCount, layoutUser } = await commonLayoutData(db, auth);
@@ -369,7 +379,7 @@ listRoutes.get('/history', async (c) => {
       <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       <p>No watch history yet.</p>
       <a href="${siteUrl}/browse" style="color:var(--accent,#e00);font-weight:600;text-decoration:none;">Browse Anime →</a>
-    </div>` : history.map((hRow) => renderHistoryCard(hRow, siteUrl, episodeThumbOverrides)).join('')}
+    </div>` : history.map((hRow) => renderHistoryCard(hRow, siteUrl, episodeThumbOverrides, historyPosters[Number(hRow.anime_id)] || '')).join('')}
   </div>
 
   ${totalPages > 1 ? renderHistPagination(page, totalPages) : ''}
@@ -418,15 +428,15 @@ async function clearAll(btn) {
   return c.html(html);
 });
 
-export function renderHistoryCard(hRow: any, siteUrl: string, episodeThumbOverrides: Record<string, string> = {}): string {
+export function renderHistoryCard(hRow: any, siteUrl: string, episodeThumbOverrides: Record<string, string> = {}, animePoster = ''): string {
   const watchUrl = `${siteUrl}/watch?anime=${hRow.anime_id}&ep=${hRow.episode_num}`;
   const epNum = hRow.episode_num;
   const animeTitle = h(hRow.anime_title || `Anime #${hRow.anime_id}`);
   const epTitle = hRow.ep_title ? h(hRow.ep_title) : `Episode ${epNum}`;
-  // Only an admin-saved override shows here now -- the legacy ep_thumb
-  // column (populated by old client-side auto-fetch code) is ignored.
-  const thumb = episodeThumbOverrides[`${hRow.anime_id}:${epNum}`] || '';
-  const cover = hRow.anime_image ?? '';
+  // Prefer admin-saved episode art, then existing episode art, then the
+  // anime cover saved with the watch-history entry.
+  const thumb = episodeThumbOverrides[`${hRow.anime_id}:${epNum}`] || hRow.ep_thumb || '';
+  const cover = animePoster || hRow.anime_image || '';
   const date = hRow.watched_at ? new Date(hRow.watched_at.replace(' ', 'T') + 'Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'UTC' }) : '';
 
   const watchTime = hRow.watch_time ?? 0;

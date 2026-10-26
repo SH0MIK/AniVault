@@ -1,14 +1,11 @@
-// Ports pages/anime.php. Episodes, Characters, and Related/Recommendations
-// tabs are populated entirely client-side (fetching Jikan/AniList directly,
-// same as the PHP version) -- that whole 19KB tail of JS is carried over
-// verbatim in anime-tail.ts. This route only needs to server-render the
-// skeleton: poster, meta, genres, action buttons, and tab containers.
+// Original AniVault anime detail template, preserved verbatim for the Hoshika catalog.
 import { Hono } from 'hono';
 import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
-import { MalAPI } from '../lib/mal-api';
+import { getHoshikaAnimeById } from '../lib/hoshika-api';
+import { findIdentityByHoshikaId } from '../lib/anime-identity';
 import { AnimeTracker } from '../lib/tracker';
 import { Notification } from '../lib/notification';
 import { h, statusBadge } from '../lib/helpers';
@@ -16,9 +13,9 @@ import { icon } from '../lib/icons';
 import { renderHeader, renderFooter, CurrentUser } from '../render/layout';
 import { animeTailScript } from '../render/anime-tail';
 import { getBannerData } from '../lib/settings';
-import { rowNavScript } from '../render/home-js';
-import { EpisodeAir, AiredInfo } from '../lib/episode-air';
 import { DubStatus } from '../lib/dub-status';
+import { rowNavScript } from '../render/home-js';
+
 
 export const animeRoutes = new Hono<{ Bindings: Env }>();
 
@@ -29,22 +26,94 @@ animeRoutes.get('/anime', async (c) => {
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const session = await Session.load(c, db, lifetime);
   const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
   const siteUrl = c.env.SITE_URL;
 
-  const id = parseInt(c.req.query('id') ?? '0', 10) || 0;
-  if (!id) return c.redirect(siteUrl + '/');
-
-  // Detail pages use the current scraper/TMDB art; saved uploads remain stored untouched as fallbacks/admin data.
-  const result = await mal.getAnime(id, false, true);
-  const anime = result.data;
-  if (!anime) {
-    return c.html(`<script>location.replace(${JSON.stringify(siteUrl + '/')});</script>`);
-  }
+  // Public anime IDs are Hoshika shortIds. Never pass them to a legacy MAL-keyed table.
+  const id = (c.req.query('id') ?? '').trim();
+  if (!/^\d+$/.test(id)) return c.redirect(siteUrl + '/browse');
+  const [record, identity] = await Promise.all([
+    getHoshikaAnimeById(id, c.env.HOSHIKA_API_KEY),
+    findIdentityByHoshikaId(db, id).catch(() => null),
+  ]);
+  if (!record) return c.html(`<script>location.replace(${JSON.stringify(siteUrl + '/browse')});</script>`);
+  const legacyId = identity?.verified === 1 && identity.legacy_mal_id && identity.legacy_mal_id > 0
+    ? Number(identity.legacy_mal_id) : null;
+  const raw: any = record.raw ?? {};
+  const asText = (...values: any[]) => values.find((v) => typeof v === 'string' && v.trim()) ?? '';
+  const dateText = (value: any): string => {
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (typeof value === 'number' && Number.isFinite(value)) return String(value);
+    if (value && typeof value === 'object') {
+      if (typeof value.string === 'string' && value.string.trim()) return value.string.trim();
+      const year = value.year ?? value.y;
+      const month = value.month ?? value.m;
+      const day = value.day ?? value.d;
+      if (year != null) {
+        const y = String(year);
+        if (month == null) return y;
+        const m = String(month).padStart(2, '0');
+        if (day == null) return `${y}-${m}`;
+        return `${y}-${m}-${String(day).padStart(2, '0')}`;
+      }
+      return asText(value.date, value.iso, value.value, value.label);
+    }
+    return '';
+  };
+  const startDateText = dateText(raw.startDate ?? raw.start_date ?? raw.aired?.from ?? raw.aired?.start ?? raw.aired?.startDate);
+  const endDateText = dateText(raw.endDate ?? raw.end_date ?? raw.aired?.to ?? raw.aired?.end ?? raw.aired?.endDate);
+  const airedText = asText(
+    typeof raw.aired === 'string' ? raw.aired : '',
+    raw.airedString,
+    raw.aired?.string,
+    raw.aired?.text,
+    raw.aired?.label,
+  ) || (startDateText ? (endDateText ? `${startDateText} to ${endDateText}` : (seasonYearLabel(startDateText) || startDateText)) : (record.year ? (seasonYearLabel(`${record.year}-01-01`) || String(record.year)) : ''));
+  const statusRaw = String(raw.status ?? record.status ?? '');
+  const statusMap: Record<string, string> = {
+    FINISHED: 'Finished Airing', FINISHED_AIRING: 'Finished Airing', RELEASING: 'Currently Airing',
+    CURRENTLY_AIRING: 'Currently Airing', NOT_YET_AIRED: 'Not yet aired', UPCOMING: 'Not yet aired',
+    HIATUS: 'On Hiatus', CANCELLED: 'Cancelled',
+  };
+  const genreRows = Array.isArray(raw.genres) ? raw.genres : record.genres.map((name) => ({ name, slug: name.toLowerCase().replace(/[^a-z0-9]+/g, '-') }));
+  // Keep the anime page's Studio fields limited to the first studio in the Hoshika response.
+  const studioRows = (Array.isArray(raw.studios) ? raw.studios : Array.isArray(raw.producers) ? raw.producers : []).slice(0, 1);
+  const relationRows = Array.isArray(raw.relations) ? raw.relations : Array.isArray(raw.relatedAnime) ? raw.relatedAnime : record.raw?.watchOrder ?? [];
+  const anime: any = {
+    title: asText(raw.title, record.title, record.titleRomaji, record.titleEnglish),
+    title_english: asText(raw.titleEnglish, raw.title_english, record.titleEnglish),
+    title_japanese: asText(raw.titleJapanese, raw.title_japanese, record.titleJapanese),
+    synopsis: asText(raw.synopsis, raw.description, raw.overview, record.synopsis),
+    background: asText(raw.background),
+    images: { jpg: { large_image_url: record.poster || asText(raw.poster, raw.coverImage, raw.cover_image) } },
+    score: (raw.averageScore ?? raw.score ?? record.score) == null ? null : (Number.isFinite(Number(raw.averageScore ?? raw.score ?? record.score)) ? Number(raw.averageScore ?? raw.score ?? record.score) : null),
+    type: asText(raw.format, raw.type, record.type),
+    episodes: record.episodes ?? 0,
+    duration_mins: Number(raw.episodeDuration ?? raw.episode_duration ?? raw.durationMins ?? 0) || null,
+    duration: asText(raw.duration, raw.episodeDurationText, raw.episodeDurationLabel, raw.durationText, raw.duration_text) || (Number(raw.episodeDuration ?? raw.episode_duration ?? raw.durationMins ?? raw.duration_mins) > 0 ? `${Number(raw.episodeDuration ?? raw.episode_duration ?? raw.durationMins ?? raw.duration_mins)} min per episode` : ''),
+    start_date: startDateText || (record.year ? String(record.year) + '-01-01' : null),
+    status: statusMap[statusRaw.toUpperCase().replace(/\s+/g, '_')] ?? statusRaw,
+    genres: genreRows.map((g: any) => ({ name: typeof g === 'string' ? g : asText(g?.name, g?.title), slug: g?.slug ?? g?.name ?? '' })),
+    studios: studioRows.map((s: any) => typeof s === 'string' ? { name: s } : { name: asText(s?.name, s?.title) }),
+    source: asText(raw.source),
+    aired: { string: airedText },
+    rating: asText(raw.rating, raw.contentRating),
+    themes: Array.isArray(raw.themes) ? raw.themes.map((t: any) => typeof t === 'string' ? { name: t } : t) : [],
+    related_anime: relationRows.map((rel: any) => {
+      // Hoshika is the canonical catalog. Only use a numeric shortId for
+      // public anime links; Hoshika UUIDs must never be treated as page IDs.
+      const relatedId = String(rel?.shortId ?? rel?.short_id ?? rel?.anime?.shortId ?? rel?.relatedAnime?.shortId ?? (typeof rel?.id === 'number' || /^\d+$/.test(String(rel?.id ?? '')) ? rel.id : '') ?? '').trim();
+      return {
+        relation_type_formatted: asText(rel?.relationType, rel?.relation_type, rel?.type, rel?.current ? 'Current' : ''),
+        entry: { mal_id: /^\d+$/.test(relatedId) ? Number(relatedId) : 0, title: asText(rel?.title, rel?.name, rel?.anime?.title, rel?.relatedAnime?.title) },
+      };
+    }),
+    cover_image: record.cover || asText(raw.bannerImage, raw.banner_image, raw.banner),
+    logo_image: '',
+  };
 
   let videoEpRows: { episode_num: number; qualities: string | null }[] = [];
   try {
-    videoEpRows = await db.fetchAll('SELECT episode_num, qualities FROM episode_videos WHERE anime_id = ? AND is_active = 1', [id]);
+    if (legacyId) videoEpRows = await db.fetchAll('SELECT episode_num, qualities FROM episode_videos WHERE anime_id = ? AND is_active = 1', [legacyId]);
   } catch { /* table may not exist on fresh install */ }
 
   const videoEpSet: Record<number, { sub: boolean; dub: boolean }> = {};
@@ -58,7 +127,7 @@ animeRoutes.get('/anime', async (c) => {
 
   let animeDubConfirmed = false;
   try {
-    const dubRow = await db.fetchOne('SELECT has_dub FROM anime_dub_status WHERE anime_id = ? AND has_dub = 1', [id]);
+    const dubRow = legacyId ? await db.fetchOne('SELECT has_dub FROM anime_dub_status WHERE anime_id = ? AND has_dub = 1', [legacyId]) : null;
     animeDubConfirmed = !!dubRow;
     if (animeDubConfirmed) {
       for (const epNum of Object.keys(videoEpSet)) videoEpSet[Number(epNum)].dub = true;
@@ -82,16 +151,8 @@ animeRoutes.get('/anime', async (c) => {
   // call above — that's the "direct from MAL" number and it's already correct
   // for those two statuses, so there's nothing to cache or refresh.
   const isAiring = anime.status === 'Currently Airing';
-  let airedInfo: AiredInfo | null = null;
-  let airedInfoFresh = true;
-  if (isAiring) {
-    // This is the one page where the extra round trip on a cache miss is
-    // worth it (single anime, not a grid), so it's a live refresh-if-stale
-    // rather than a cache-only lookup.
-    ({ info: airedInfo, isFresh: airedInfoFresh } = await EpisodeAir.getCachedAny(db, id));
-  }
-  const totalEps = isAiring ? (airedInfo?.total ?? anime.episodes ?? 0) : (anime.episodes ?? 0);
-  const airedSoFar = isAiring ? (airedInfo?.aired ?? null) : null;
+  const totalEps = Number(anime.episodes ?? 0) || 0;
+  const airedSoFar = null;
   // Nothing cached (or nothing from MAL) to show at all -- render a
   // skeleton for the ep count and fill it in client-side once
   // /api/ep_count.php resolves, instead of blocking this page on the
@@ -100,8 +161,8 @@ animeRoutes.get('/anime', async (c) => {
   // airing shows ever need this refresh — finished/upcoming already have
   // their final number straight from MAL above.
   const epsUnknown = totalEps === 0;
-  const epsNeedsRefresh = isAiring && !airedInfoFresh;
-  const dubbedLangs = await DubStatus.getFor(db, id);
+  const epsNeedsRefresh = false;
+  const dubbedLangs = legacyId ? await DubStatus.getFor(db, legacyId) : [];
 
   // Logo + cover both come pre-resolved on `anime` itself -- getAnime()
   // already ran them through getAnimeArt() (scraper poster/cover/logo,
@@ -120,8 +181,10 @@ animeRoutes.get('/anime', async (c) => {
   let userEntry: any = null;
   let isFav = false;
   if (currentUser) {
-    userEntry = await AnimeTracker.getUserEntry(db, currentUser.id, id);
-    isFav = await AnimeTracker.isFavorite(db, currentUser.id, id);
+    if (legacyId) {
+      userEntry = await AnimeTracker.getUserEntry(db, currentUser.id, legacyId);
+      isFav = await AnimeTracker.isFavorite(db, currentUser.id, legacyId);
+    }
   }
   const unreadCount = currentUser ? await Notification.unreadCount(db, currentUser.id) : 0;
   const layoutUser: CurrentUser | null = currentUser
@@ -172,11 +235,11 @@ animeRoutes.get('/anime', async (c) => {
 
       ${(anime.genres?.length ?? 0) > 0 ? `
       <div class="ih-genres">
-        ${anime.genres.filter(Boolean).map((g) => `<a href="${siteUrl}/browse?genre=${g?.mal_id ?? ''}" class="ih-genre-tag">${h(g?.name ?? '')}</a>`).join('')}
+        ${anime.genres.filter(Boolean).map((g: any) => `<a href="${siteUrl}/browse?genre=${encodeURIComponent(g?.slug ?? g?.name ?? '')}" class="ih-genre-tag">${h(g?.name ?? '')}</a>`).join('')}
       </div>` : ''}
 
       <div class="ih-infoline">
-        <span>Studio: <strong>${h((anime.studios ?? []).filter(Boolean).map((s) => s?.name ?? '').filter(Boolean).join(', ') || '—')}</strong></span>
+        <span>Studio: <strong>${h((anime.studios ?? []).filter(Boolean).map((s: any) => s?.name ?? '').filter(Boolean).join(', ') || '—')}</strong></span>
         <span>Source: <strong>${h(anime.source || '—')}</strong></span>
       </div>
 
@@ -196,20 +259,20 @@ animeRoutes.get('/anime', async (c) => {
 
       <div id="anime-user-status" class="mt-2" data-total-eps="${totalEps}" data-eps-watched="${userEntry?.episodes_watched ?? 0}">
         ${userEntry ? `
-        <div class="flex gap-1" style="gap:8px;align-items:center;justify-content:center;">
+        <div class="flex gap-1" style="gap:8px;align-items:center;justify-content:flex-start;flex-wrap:wrap;">
           <span id="anime-status-badge">${statusBadge(userEntry.status)}</span>
           <span id="anime-score-badge" style="color:var(--gold);font-size:0.9rem;">${userEntry.score ? `⭐ ${userEntry.score}/10` : ''}</span>
           <span id="anime-eps-badge" class="text-muted" style="font-size:0.85rem;">${totalEps > 0 ? `${userEntry.episodes_watched}/${totalEps} eps` : ''}</span>
         </div>
-        <div id="anime-progress-wrap" class="progress-bar mt-1" style="max-width:400px;margin-left:auto;margin-right:auto;${totalEps > 0 && userEntry.episodes_watched ? '' : 'display:none'}">
+        <div id="anime-progress-wrap" class="progress-bar mt-1" style="max-width:400px;margin-left:0;margin-right:auto;${totalEps > 0 && userEntry.episodes_watched ? '' : 'display:none'}">
           <div id="anime-progress-fill" class="progress-fill" style="width:${totalEps > 0 ? Math.min(100, Math.round((userEntry.episodes_watched / totalEps) * 100)) : 0}%"></div>
         </div>` : `
-        <div class="flex gap-1" style="gap:8px;align-items:center;justify-content:center;">
+        <div class="flex gap-1" style="gap:8px;align-items:center;justify-content:flex-start;flex-wrap:wrap;">
           <span id="anime-status-badge"></span>
           <span id="anime-score-badge" style="color:var(--gold);font-size:0.9rem;"></span>
           <span id="anime-eps-badge" class="text-muted" style="font-size:0.85rem;"></span>
         </div>
-        <div id="anime-progress-wrap" class="progress-bar mt-1" style="max-width:400px;margin-left:auto;margin-right:auto;display:none;"><div id="anime-progress-fill" class="progress-fill" style="width:0%"></div></div>`}
+        <div id="anime-progress-wrap" class="progress-bar mt-1" style="max-width:400px;margin-left:0;margin-right:auto;display:none;"><div id="anime-progress-fill" class="progress-fill" style="width:0%"></div></div>`}
       </div>
     </div>
   </div>
@@ -232,8 +295,8 @@ animeRoutes.get('/anime', async (c) => {
           ${infoStatRow('Status', anime.status || '—')}
           ${infoStatRow('Aired', anime.aired?.string || '—')}
           ${infoStatRow('Duration', anime.duration || '—')}
-          ${infoStatRow('Rating', anime.rating || '—')}
-          ${infoStatRow('Studio', (anime.studios ?? []).filter(Boolean).map((s) => s?.name ?? '').filter(Boolean).join(', ') || '—')}
+          ${infoStatRow('Rating', anime.rating ? ratingInfoHtml(anime.rating) : '—', !!anime.rating)}
+          ${infoStatRow('Studio', (anime.studios ?? []).filter(Boolean).map((s: any) => s?.name ?? '').filter(Boolean).join(', ') || '—')}
           ${infoStatRow('Source', anime.source || '—')}
         </div>
       </div>
@@ -358,15 +421,23 @@ ${rowNavScript()}
 <script>window.__totalEps  = ${JSON.stringify(totalEps)};</script>
 <script>window.__animeCover = ${JSON.stringify(image)};</script>
 <script>window.__animeBanner = ${JSON.stringify(backdrop)};</script>
-<script>window.__tmdbKey    = ${JSON.stringify(c.env.TMDB_API_KEY ?? '')};</script>
+<script>window.__tmdbKey = '';</script>
+<script>window.__legacyAnimeId = ${JSON.stringify(legacyId)};</script>
 <script>window.__videoEps  = ${JSON.stringify(videoEpSet)};</script>
-${epsNeedsRefresh ? epsLiveScript(id) : ''}
+${epsNeedsRefresh ? epsLiveScript(legacyId ?? 0) : ''}
 ${animeTailScript(animeDubConfirmed)}`;
 
   html += renderFooter({ siteUrl, currentUser: layoutUser });
   await session.save(c, lifetime);
   return c.html(html);
 });
+
+function ratingInfoHtml(value: string): string {
+  const rating = value.trim();
+  const match = rating.match(/^(.*?)(\s*\([^)]*\)\s*)$/);
+  if (!match) return `<span class="info-rating-main" style="white-space:nowrap;font-size:1em;font-weight:600;color:var(--text-primary);">${h(rating)}</span>`;
+  return `<span class="info-rating-inline" style="display:inline-flex;align-items:baseline;gap:4px;white-space:nowrap;max-width:100%;"><span class="info-rating-main" style="font-size:1em;font-weight:600;color:var(--text-primary);white-space:nowrap;">${h(match[1].trim())}</span><span class="info-rating-notes" style="font-size:.78em;color:var(--text-muted);white-space:nowrap;">${h(match[2].trim())}</span></span>`;
+}
 
 function infoStatRow(label: string, value: string | number, rawHtml = false): string {
   return `<div class="info-stat-row"><span class="label">${h(label)}</span><span class="value">${rawHtml ? value : h(String(value))}</span></div>`;

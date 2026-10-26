@@ -1,13 +1,12 @@
 import { Db } from './db';
-import { MalAPI, type NormalisedAnime } from './mal-api';
 
 export const HOME_CACHE_KEYS = ['trending', 'popular', 'upcoming'] as const;
 export type HomeCacheKey = typeof HOME_CACHE_KEYS[number];
 
 export interface HomepageSnapshot {
-  trending: NormalisedAnime[];
-  popular: NormalisedAnime[];
-  upcoming: NormalisedAnime[];
+  trending: any[];
+  popular: any[];
+  upcoming: any[];
   updatedAt: number;
 }
 
@@ -27,75 +26,27 @@ export async function getHomepageRefreshMinutes(db: Db): Promise<number> {
   }
 }
 
-export async function getHomepageSnapshot(db: Db): Promise<HomepageSnapshot | null> {
-  try {
-    const rows = await db.fetchAll<{ cache_key: HomeCacheKey; payload: string; updated_at: number }>(
-      'SELECT cache_key, payload, updated_at FROM homepage_cache WHERE cache_key IN (?, ?, ?)',
-      ['trending', 'popular', 'upcoming']
-    );
-    if (rows.length !== 3) return null;
-
-    const byKey = new Map(rows.map((r) => [r.cache_key, r]));
-    const parse = (key: HomeCacheKey): NormalisedAnime[] => {
-      try {
-        const value = JSON.parse(byKey.get(key)!.payload);
-        return Array.isArray(value) ? value : [];
-      } catch {
-        return [];
-      }
-    };
-
-    const updatedAt = Math.min(...rows.map((r) => Number(r.updated_at) || 0));
-    return {
-      trending: parse('trending'),
-      popular: parse('popular'),
-      upcoming: parse('upcoming'),
-      updatedAt,
-    };
-  } catch {
-    return null;
-  }
+/**
+ * Legacy MAL/AniList homepage snapshots are intentionally not read during the
+ * Hoshika-only migration. We leave existing D1 rows untouched because this
+ * database may be shared with production; they are simply not trusted as
+ * current catalogue data.
+ */
+export async function getHomepageSnapshot(_db: Db): Promise<HomepageSnapshot | null> {
+  return null;
 }
 
-export async function refreshHomepageSnapshot(db: Db, mal: MalAPI): Promise<HomepageSnapshot | null> {
-  const [trending, popular, upcoming] = await Promise.all([
-    mal.getSeasonNow(1),
-    mal.getTopAnime('bypopularity', 1),
-    mal.getSeasonUpcoming(),
-  ]);
-
-  const lists = {
-    trending: (trending.data ?? []).slice(0, 12),
-    popular: (popular.data ?? []).slice(0, 12),
-    upcoming: (upcoming.data ?? []).slice(0, 8),
-  };
-
-  // Homepage snapshot keeps anime metadata in D1, but artwork is resolved
-  // live from TMDB when the homepage renders. Do not persist poster URLs here.
-
-
-  const updatedAt = Math.floor(Date.now() / 1000);
-  const statements = HOME_CACHE_KEYS.map((key) =>
-    db.prepare(
-      'INSERT INTO homepage_cache (cache_key, payload, updated_at) VALUES (?, ?, ?) ' +
-      'ON CONFLICT(cache_key) DO UPDATE SET payload = excluded.payload, updated_at = excluded.updated_at'
-    ).bind(key, JSON.stringify(lists[key]), updatedAt)
-  );
-  await db.batch(statements);
-
-  return { ...lists, updatedAt };
+/**
+ * Hoshika's confirmed public API does not currently expose popularity,
+ * seasonal, or upcoming listing endpoints. Do not fetch MAL/AniList or write
+ * fabricated/empty snapshots. Return null until a supported listing feed is
+ * available.
+ */
+export async function refreshHomepageSnapshot(_db: Db, _legacyCatalog?: unknown): Promise<HomepageSnapshot | null> {
+  return null;
 }
 
-function toHomepagePoster(url: string): string {
-  if (!url) return '';
-  // Only resize TMDB URLs. Custom/self-hosted artwork must remain untouched.
-  return url.replace('https://image.tmdb.org/t/p/w500/', 'https://image.tmdb.org/t/p/w185/')
-    .replace('https://image.tmdb.org/t/p/w342/', 'https://image.tmdb.org/t/p/w185/');
-}
-
-export async function refreshHomepageSnapshotIfDue(db: Db, mal: MalAPI): Promise<HomepageSnapshot | null> {
-  const existing = await getHomepageSnapshot(db);
-  const interval = await getHomepageRefreshMinutes(db);
-  if (existing && Date.now() / 1000 - existing.updatedAt < interval * 60) return existing;
-  return refreshHomepageSnapshot(db, mal);
+export async function refreshHomepageSnapshotIfDue(db: Db, _legacyCatalog?: unknown): Promise<HomepageSnapshot | null> {
+  await getHomepageRefreshMinutes(db);
+  return null;
 }

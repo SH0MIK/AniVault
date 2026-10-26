@@ -14,202 +14,122 @@ let _tpmSelected = null;
    Anime search (same pattern as videos.php)
 ═══════════════════════════════════════════════════════════════ */
 let _searchTimer = null;
+let _hoshikaId = '';
+
 document.getElementById('thumb-anime-search').addEventListener('input', function () {
     clearTimeout(_searchTimer);
     const q = this.value.trim();
     if (q.length < 2) { hideDD(); return; }
-    _searchTimer = setTimeout(() => jikanSearch(q), 350);
+    _searchTimer = setTimeout(() => hoshikaSearch(q), 350);
 });
 document.addEventListener('click', function (e) {
     if (!document.getElementById('thumb-anime-wrap').contains(e.target)) hideDD();
 });
 
-async function jikanSearch(q) {
+async function hoshikaSearch(q) {
     const dd = document.getElementById('thumb-anime-dropdown');
     dd.style.display = 'block';
-    dd.innerHTML = '<div style="padding:.5rem .75rem;color:var(--text-muted);font-size:.83rem;">Searching…</div>';
+    dd.innerHTML = '<div style="padding:.5rem .75rem;color:var(--text-muted);font-size:.83rem;">Searching Hoshika…</div>';
     try {
-        const r    = await fetch('https://api.jikan.moe/v4/anime?q=' + encodeURIComponent(q) + '&limit=8&sfw=true');
+        const r = await fetch('${siteUrl}/api/hoshika/search?q=' + encodeURIComponent(q) + '&limit=8', { cache: 'no-store' });
+        if (!r.ok) throw new Error('Hoshika search failed');
         const json = await r.json();
-        const data = json.data;
-        if (!data || !data.length) { dd.innerHTML = '<div style="padding:.5rem .75rem;color:var(--text-muted);">No results</div>'; return; }
-        dd.innerHTML = data.map(a => {
-            const title = a.title || a.title_english || '';
-            const img   = a.images?.jpg?.small_image_url || '';
-            _cache[a.mal_id] = { id: a.mal_id, title, img, episodes: a.episodes || 0 };
-            return \`<div class="ta-result" onclick="selectAnime(\${a.mal_id})">
-                      <img src="\${eh(img)}" alt="" onerror="this.style.display='none'">
-                      <div>
-                        <div style="font-weight:600;">\${eh(title)}</div>
-                        <div style="font-size:.73rem;color:var(--text-muted);">\${eh(a.type||'')} &middot; \${a.episodes||'?'} eps &middot; ID:\${a.mal_id}</div>
-                      </div>
-                    </div>\`;
-        }).join('');
-    } catch(e) {
-        dd.innerHTML = '<div style="padding:.5rem .75rem;color:var(--text-muted);">Search failed</div>';
+        const data = json.data || [];
+        if (!data.length) { dd.innerHTML = '<div style="padding:.5rem .75rem;color:var(--text-muted);">No Hoshika results</div>'; return; }
+        const rows = await Promise.all(data.map(async a => {
+            const shortId = String(a.shortId || '');
+            if (!shortId) return '';
+            let identity = null;
+            try {
+                const ir = await fetch('${siteUrl}/api/hoshika/identity/' + encodeURIComponent(shortId), { cache: 'no-store' });
+                if (ir.ok) identity = await ir.json();
+            } catch (_) {}
+            const title = a.title || a.titleEnglish || a.titleRomaji || '';
+            const img = a.poster || '';
+            if (!identity || identity.verified !== true || !identity.legacyMalId) {
+                return '<div class="ta-result" style="opacity:.65;cursor:not-allowed;" title="Needs a verified legacy mapping">' +
+                    (img ? '<img src="' + eh(img) + '" alt="" onerror="this.style.display=\'none\'">' : '') +
+                    '<div><div style="font-weight:600;">' + eh(title) + '</div><div style="font-size:.73rem;color:var(--text-muted);">Hoshika ID: ' + eh(shortId) + ' · No verified legacy mapping</div></div></div>';
+            }
+            const legacyId = Number(identity.legacyMalId);
+            _cache[legacyId] = { id: legacyId, shortId: shortId, title: title, img: img, episodes: Number(a.episodes || 0) };
+            return '<div class="ta-result" onclick="selectAnime(' + legacyId + ')">' +
+                (img ? '<img src="' + eh(img) + '" alt="" onerror="this.style.display=\'none\'">' : '') +
+                '<div><div style="font-weight:600;">' + eh(title) + '</div><div style="font-size:.73rem;color:var(--text-muted);">Hoshika ID: ' + eh(shortId) + ' · Verified legacy ID: ' + legacyId + ' · ' + (a.episodes || '?') + ' eps</div></div></div>';
+        }));
+        const visible = rows.filter(Boolean);
+        dd.innerHTML = visible.length ? visible.join('') : '<div style="padding:.5rem .75rem;color:var(--text-muted);">No verified Hoshika mappings found</div>';
+    } catch (e) {
+        dd.innerHTML = '<div style="padding:.5rem .75rem;color:var(--text-muted);">Hoshika search failed</div>';
     }
 }
 
 function selectAnime(id) {
     const a = _cache[id]; if (!a) return;
-    _animeId    = a.id;
+    _animeId = a.id;
+    _hoshikaId = a.shortId;
     _animeTitle = a.title;
-    document.getElementById('thumb-anime-id').value        = a.id;
+    document.getElementById('thumb-anime-id').value = a.id;
     document.getElementById('thumb-anime-title-val').value = a.title;
-    document.getElementById('thumb-anime-search').value    = a.title;
+    document.getElementById('thumb-anime-search').value = a.title;
     const sel = document.getElementById('thumb-anime-selected');
-    sel.textContent = '✓ ' + a.title + ' (ID: ' + a.id + ')';
+    sel.textContent = '✓ ' + a.title + ' (verified legacy ID: ' + a.id + ')';
     sel.style.display = 'block';
     hideDD();
-    document.getElementById('btn-load-eps').disabled       = false;
-    document.getElementById('btn-auto-search').disabled    = false;
-    document.getElementById('btn-debug').disabled          = false;
-    // Reset grid
+    document.getElementById('btn-load-eps').disabled = false;
+    document.getElementById('btn-auto-search').disabled = false;
+    document.getElementById('btn-debug').disabled = false;
     _episodes = [];
-    document.getElementById('ep-grid-wrap').style.display  = 'none';
-    document.getElementById('btn-save-all').style.display  = 'none';
-    document.getElementById('thumb-stats').textContent     = '';
+    document.getElementById('ep-grid-wrap').style.display = 'none';
+    document.getElementById('btn-save-all').style.display = 'none';
+    document.getElementById('thumb-stats').textContent = '';
 }
 
 function hideDD() { document.getElementById('thumb-anime-dropdown').style.display = 'none'; }
-function eh(s) { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function eh(s) { return String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
-/* ═══════════════════════════════════════════════════════════════
-   Load episodes (AniList + existing overrides)
-═══════════════════════════════════════════════════════════════ */
 async function loadEpisodes() {
-    if (!_animeId) return;
+    if (!_animeId || !_hoshikaId) return;
     const btn = document.getElementById('btn-load-eps');
     btn.disabled = true; btn.textContent = 'Loading…';
-
     try {
-        // 1. Fetch existing overrides from your own API
-        const overRes  = await fetch(\`${siteUrl}/api/episode_override.php?anime_id=\${_animeId}&all=1\`);
+        const overRes = await fetch('${siteUrl}/api/episode_override.php?anime_id=' + _animeId + '&all=1');
+        if (!overRes.ok) throw new Error('Could not load saved episode overrides');
         const overData = await overRes.json();
-        const overMap  = {};
-        (overData.overrides || []).forEach(r => { overMap[parseInt(r.episode_num)] = r.image_url || ''; });
-        let totalEps = overData.total_eps || 0;
+        const overMap = {};
+        (overData.overrides || []).forEach(r => { overMap[parseInt(r.episode_num, 10)] = r.image_url || ''; });
 
-        // 2. Fetch episode list from AniList (thumbnails + count fallback)
-        const { eps: aniListEps, count: aniListCount } = await fetchAniListEpisodes(_animeId);
-
-        // 3. Fallback: your own scraper API (episodeCount reflects what's
-        // actually indexed across streaming providers, so this is checked
-        // before falling further back to Jikan). Proxied through your own
-        // site so the private scraper base never touches the browser.
-        let scraperCount = 0;
-        if (!totalEps && !aniListCount) {
-            try {
-                const sr = await fetch(\`${siteUrl}/api/anime_info.php?malId=\${_animeId}\`);
-                if (sr.ok) {
-                    const sj = await sr.json();
-                    scraperCount = parseInt(sj?.episodeCount) || 0;
-                }
-            } catch(e) {}
-        }
-
-        // 4. Fallback: Jikan /anime/{id} for episode count
-        let jikanCount = 0;
-        if (!totalEps && !aniListCount && !scraperCount) {
-            try {
-                const jr = await fetch(\`https://api.jikan.moe/v4/anime/\${_animeId}\`);
-                if (jr.ok) {
-                    const jj = await jr.json();
-                    jikanCount = parseInt(jj?.data?.episodes) || 0;
-                }
-            } catch(e) {}
-        }
-
-        // 5. Fallback: Jikan episodes list — count how many pages exist
-        let jikanListCount = 0;
-        if (!totalEps && !aniListCount && !scraperCount && !jikanCount) {
-            try {
-                const jr = await fetch(\`https://api.jikan.moe/v4/anime/\${_animeId}/episodes\`);
-                if (jr.ok) {
-                    const jj = await jr.json();
-                    jikanListCount = jj?.pagination?.items?.total || (jj?.data?.length) || 0;
-                }
-            } catch(e) {}
-        }
-
-        // 6. Fallback: let admin enter manually
+        // Hoshika is the only episode metadata and thumbnail API. The legacy ID
+        // is used only after the identity endpoint confirms the mapping.
+        const epsRes = await fetch('${siteUrl}/api/hoshika/anime/' + encodeURIComponent(_hoshikaId) + '/episodes', { cache: 'no-store' });
+        if (!epsRes.ok) throw new Error('Hoshika episode data is unavailable');
+        const epsPayload = await epsRes.json();
+        const hoshikaEps = Array.isArray(epsPayload.data) ? epsPayload.data : [];
         const overMapMax = Object.keys(overMap).length ? Math.max(...Object.keys(overMap).map(Number)) : 0;
-        let count = Math.max(totalEps, aniListCount, aniListEps.length, scraperCount, jikanCount, jikanListCount, overMapMax);
-
-        if (count === 0) {
-            // Last resort: ask admin
-            const input = prompt(\`Could not auto-detect episode count for "\${_animeTitle}".\\nEnter the number of episodes manually:\`);
-            count = parseInt(input) || 0;
-            if (!count || count < 1) {
-                showToast('Episode count unknown — enter it manually.', 'error');
-                return;
-            }
+        const count = Math.max(hoshikaEps.length, Number(overData.total_eps || 0), overMapMax);
+        if (!count) {
+            showToast('Hoshika did not return an episode count for this title.', 'error');
+            return;
         }
-
         _episodes = [];
         for (let n = 1; n <= count; n++) {
-            const ali = aniListEps.find(e => e.num === n) || {};
+            const he = hoshikaEps.find(e => Number(e.number) === n) || {};
             _episodes.push({
-                num:            n,
-                title:          ali.title || '',
+                num: n,
+                title: he.title || '',
                 existing_thumb: overMap[n] || '',
-                anilist_thumb:  ali.thumb  || '',
-                found_thumb:    '',
-                status:         overMap[n] ? 'saved' : (ali.thumb ? 'anilist' : 'none'),
+                hoshika_thumb: he.thumbnail || '',
+                found_thumb: '',
+                status: overMap[n] ? 'saved' : (he.thumbnail ? 'hoshika' : 'none'),
             });
         }
-
         renderGrid();
         document.getElementById('ep-grid-wrap').style.display = 'block';
         updateStats();
     } catch(e) {
-        showToast('Error loading episodes: ' + e.message, 'error');
+        showToast('Error loading Hoshika episodes: ' + e.message, 'error');
     } finally {
         btn.disabled = false; btn.textContent = '📋 Load Episodes';
-    }
-}
-
-async function fetchAniListEpisodes(malId) {
-    // Returns { eps: [{num, title, thumb}], count: N }
-    // count = episodes field from AniList (reliable for finished anime)
-    const query = \`
-        query($malId:Int){
-          Media(idMal:$malId,type:ANIME){
-            id
-            episodes
-            nextAiringEpisode { episode }
-            streamingEpisodes { title thumbnail url site }
-          }
-        }\`;
-    try {
-        const r = await fetch('https://graphql.anilist.co', {
-            method: 'POST',
-            headers: {'Content-Type':'application/json','Accept':'application/json'},
-            body: JSON.stringify({ query, variables: { malId: parseInt(malId) } })
-        });
-        const j     = await r.json();
-        const media = j?.data?.Media;
-        if (!media) return { eps: [], count: 0 };
-
-        // Episode count: prefer declared total, fall back to nextAiring-1 (currently airing)
-        let count = parseInt(media.episodes) || 0;
-        if (!count && media.nextAiringEpisode?.episode) {
-            count = media.nextAiringEpisode.episode - 1; // episodes aired so far
-        }
-
-        const rawEps = media.streamingEpisodes || [];
-        const eps = rawEps.map(ep => {
-            // Titles like "Episode 1 - Some Title" or "Ep.1" or just "1"
-            const m = ep.title?.match(/(?:episode|ep\\.?)\\s*(\\d+)/i) || ep.title?.match(/^(\\d+)/);
-            return { num: m ? parseInt(m[1]) : null, title: ep.title || '', thumb: ep.thumbnail || '' };
-        }).filter(e => e.num !== null);
-
-        // Also infer count from streaming eps if still 0
-        if (!count && eps.length) count = Math.max(...eps.map(e => e.num));
-
-        return { eps, count };
-    } catch(e) {
-        return { eps: [], count: 0 };
     }
 }
 
@@ -223,20 +143,20 @@ function renderGrid() {
     heading.textContent = \`\${_animeTitle} — \${_episodes.length} Episodes\`;
 
     let shown = _episodes;
-    if (missingOnly) shown = shown.filter(e => !e.existing_thumb && !e.anilist_thumb && !e.found_thumb);
-    if (foundOnly)   shown = shown.filter(e => e.found_thumb || e.anilist_thumb);
+    if (missingOnly) shown = shown.filter(e => !e.existing_thumb && !e.hoshika_thumb && !e.found_thumb);
+    if (foundOnly)   shown = shown.filter(e => e.found_thumb || e.hoshika_thumb);
 
     const grid = document.getElementById('ep-grid');
     grid.innerHTML = shown.map((ep, rawIdx) => {
         const idx     = _episodes.indexOf(ep);
-        const thumb   = ep.found_thumb || ep.anilist_thumb || ep.existing_thumb;
+        const thumb   = ep.found_thumb || ep.hoshika_thumb || ep.existing_thumb;
         const hasSaved = !!ep.existing_thumb;
-        const hasFound = !hasSaved && !!(ep.found_thumb || ep.anilist_thumb);
+        const hasFound = !hasSaved && !!(ep.found_thumb || ep.hoshika_thumb);
         let statusLabel = '';
         let statusClass = '';
         if (hasSaved)          { statusLabel = '✓ Saved';  statusClass = 'saved'; }
         else if (ep.found_thumb){ statusLabel = '⬇ Found'; statusClass = 'found'; }
-        else if (ep.anilist_thumb){statusLabel='AL';       statusClass = 'found'; }
+        else if (ep.hoshika_thumb){statusLabel='H';       statusClass = 'found'; }
         else if (ep.status==='error'){ statusLabel='Error'; statusClass='error';}
         else if (ep.status==='searching'){ statusLabel='…';statusClass='none';}
 
@@ -252,7 +172,7 @@ function renderGrid() {
               <button class="btn btn-sm btn-secondary" onclick="openPickerForEp(\${idx})" style="font-size:.7rem;padding:2px 7px;">
                 🔍 Pick
               </button>
-              \${(ep.found_thumb || ep.anilist_thumb) && !hasSaved
+              \${(ep.found_thumb || ep.hoshika_thumb) && !hasSaved
                 ? \`<button class="btn btn-sm btn-primary" onclick="saveEpThumb(\${idx})" style="font-size:.7rem;padding:2px 7px;">💾</button>\`
                 : ''}
               \${hasSaved
@@ -269,7 +189,7 @@ function renderGrid() {
 function updateStats() {
     const total   = _episodes.length;
     const saved   = _episodes.filter(e => e.existing_thumb).length;
-    const found   = _episodes.filter(e => !e.existing_thumb && (e.found_thumb || e.anilist_thumb)).length;
+    const found   = _episodes.filter(e => !e.existing_thumb && (e.found_thumb || e.hoshika_thumb)).length;
     const missing = total - saved - found;
     document.getElementById('thumb-stats').textContent =
         \`\${saved} saved · \${found} found · \${missing} missing\`;
@@ -295,7 +215,7 @@ async function autoSearchAll() {
     btn.textContent = '⏹ Stop';
     btn.onclick = () => { _autoStop = true; btn.textContent = 'Stopping…'; btn.disabled = true; };
 
-    const missing = _episodes.filter(e => !e.existing_thumb && !e.anilist_thumb && !e.found_thumb);
+    const missing = _episodes.filter(e => !e.existing_thumb && !e.hoshika_thumb && !e.found_thumb);
     const pw = document.getElementById('progress-wrap');
     const pb = document.getElementById('progress-bar-fill');
     const pl = document.getElementById('progress-label');
@@ -337,78 +257,18 @@ async function autoSearchAll() {
 
 /* ── External thumbnail search: tries multiple free sources ── */
 // TMDB key — output from PHP so it's never exposed in source as a hardcoded string
-const TMDB_KEY = ${JSON.stringify(tmdbKey)};
-
-/* ── TMDB: called directly from browser (no CORS issues) ── */
-async function tmdbEpisodeStills(animeTitle, epNum, listMode = false) {
-    if (!TMDB_KEY) return [];
-    const thumbs = [];
-    try {
-        const sq = encodeURIComponent(animeTitle);
-        const sr = await fetch(\`https://api.themoviedb.org/3/search/tv?api_key=\${TMDB_KEY}&query=\${sq}&language=en-US\`);
-        if (!sr.ok) return [];
-        const sj      = await sr.json();
-        const results = sj.results || [];
-
-        for (const show of results.slice(0, 3)) {
-            for (const season of [1, 2]) {
-                try {
-                    const er = await fetch(\`https://api.themoviedb.org/3/tv/\${show.id}/season/\${season}/episode/\${epNum}?api_key=\${TMDB_KEY}\`);
-                    if (!er.ok) continue;
-                    const ej    = await er.json();
-                    const still = ej.still_path;
-                    if (still) {
-                        thumbs.push(\`https://image.tmdb.org/t/p/w780\${still}\`);
-                        if (listMode) thumbs.push(\`https://image.tmdb.org/t/p/original\${still}\`);
-                        return thumbs; // found — stop
-                    }
-                } catch(e) {}
-            }
-        }
-    } catch(e) {}
-    return thumbs;
-}
-
-/* ── Auto search (one best thumb per episode) ── */
+/* Hoshika-only thumbnail candidates; other metadata providers are intentionally disabled. */
 async function searchThumbsForEp(animeTitle, epNum) {
     const ep = _episodes.find(e => e.num === epNum);
-
-    // 1. TMDB from browser (works even when server can't reach it)
-    const tmdbThumbs = await tmdbEpisodeStills(animeTitle, epNum, false);
-    if (tmdbThumbs.length) return tmdbThumbs;
-
-    // 2. PHP proxy (Kitsu / AniList / Jikan)
-    try {
-        const url = \`${siteUrl}/api/thumb_search.php?mode=auto\`
-            + \`&anime=\${encodeURIComponent(animeTitle)}&ep=\${epNum}&mal_id=\${_animeId}\`;
-        const j = await fetch(url).then(r => r.json());
-        if (j.thumb) return [j.thumb];
-    } catch(e) {}
-
-    // 3. AniList thumb already loaded
-    return ep?.anilist_thumb ? [ep.anilist_thumb] : [];
+    return ep && ep.hoshika_thumb ? [ep.hoshika_thumb] : [];
 }
 
-/* ── Picker: multiple candidates ── */
 async function searchThumbsListForEp(animeTitle, epNum) {
-    const ep     = _episodes.find(e => e.num === epNum);
+    const ep = _episodes.find(e => e.num === epNum);
     const thumbs = [];
-    if (ep?.existing_thumb) thumbs.push(ep.existing_thumb);
-    if (ep?.found_thumb   && !thumbs.includes(ep.found_thumb))    thumbs.push(ep.found_thumb);
-    if (ep?.anilist_thumb && !thumbs.includes(ep.anilist_thumb))  thumbs.push(ep.anilist_thumb);
-
-    // TMDB from browser
-    const tmdbThumbs = await tmdbEpisodeStills(animeTitle, epNum, true);
-    for (const u of tmdbThumbs) if (!thumbs.includes(u)) thumbs.push(u);
-
-    // PHP proxy
-    try {
-        const url = \`${siteUrl}/api/thumb_search.php?mode=list\`
-            + \`&anime=\${encodeURIComponent(animeTitle)}&ep=\${epNum}&mal_id=\${_animeId}\`;
-        const j = await fetch(url).then(r => r.json());
-        for (const u of (j.thumbs || [])) if (!thumbs.includes(u)) thumbs.push(u);
-    } catch(e) {}
-
+    if (ep && ep.existing_thumb) thumbs.push(ep.existing_thumb);
+    if (ep && ep.found_thumb && !thumbs.includes(ep.found_thumb)) thumbs.push(ep.found_thumb);
+    if (ep && ep.hoshika_thumb && !thumbs.includes(ep.hoshika_thumb)) thumbs.push(ep.hoshika_thumb);
     return thumbs;
 }
 
@@ -433,7 +293,7 @@ async function openPickerForEp(idx) {
     document.getElementById('tpm-heading').textContent = \`Choose Thumbnail — Episode \${ep.num}\`;
     document.getElementById('tpm-loading').style.display = 'block';
     document.getElementById('tpm-grid').style.display    = 'none';
-    document.getElementById('tpm-custom-url').value      = ep.found_thumb || ep.anilist_thumb || ep.existing_thumb || '';
+    document.getElementById('tpm-custom-url').value      = ep.found_thumb || ep.hoshika_thumb || ep.existing_thumb || '';
     openModal('thumb-pick-modal');
 
     const thumbs = await searchThumbsListForEp(_animeTitle, ep.num);
@@ -496,7 +356,7 @@ async function tpmSave() {
 ═══════════════════════════════════════════════════════════════ */
 async function saveEpThumb(idx) {
     const ep  = _episodes[idx];
-    const url = ep.found_thumb || ep.anilist_thumb;
+    const url = ep.found_thumb || ep.hoshika_thumb;
     if (!url) return;
     try {
         await saveThumbToServer(_animeId, ep.num, url);
@@ -528,7 +388,7 @@ async function clearEpThumb(idx) {
    Save all found in one go
 ═══════════════════════════════════════════════════════════════ */
 async function saveAllFound() {
-    const toSave = _episodes.filter(e => !e.existing_thumb && (e.found_thumb || e.anilist_thumb));
+    const toSave = _episodes.filter(e => !e.existing_thumb && (e.found_thumb || e.hoshika_thumb));
     if (!toSave.length) return;
     if (!confirm(\`Save thumbnails for \${toSave.length} episodes?\`)) return;
 
@@ -545,7 +405,7 @@ async function saveAllFound() {
     let saved = 0, failed = 0;
     for (let i = 0; i < toSave.length; i++) {
         const ep  = toSave[i];
-        const url = ep.found_thumb || ep.anilist_thumb;
+        const url = ep.found_thumb || ep.hoshika_thumb;
         pl.textContent = \`Saving episode \${ep.num}… (\${i + 1}/\${toSave.length})\`;
         pb.style.width = Math.round(((i + 1) / toSave.length) * 100) + '%';
         try {
@@ -568,24 +428,16 @@ async function saveAllFound() {
     showToast(msg, failed > 0 ? 'error' : 'success');
 }
 
-/* ═══════════════════════════════════════════════════════════════
-   Debug — calls ?mode=debug and shows full server log
-═══════════════════════════════════════════════════════════════ */
+/* Debug reports only the selected Hoshika record and loaded episode data. */
 async function runDebug() {
     const out = document.getElementById('debug-out');
     out.style.display = 'block';
-    out.textContent   = 'Running debug for episode 1…';
-    try {
-        const url = \`${siteUrl}/api/thumb_search.php?mode=debug\`
-            + \`&anime=\${encodeURIComponent(_animeTitle)}\`
-            + \`&ep=1\`
-            + \`&mal_id=\${_animeId}\`;
-        const r = await fetch(url);
-        const j = await r.json();
-        out.textContent = JSON.stringify(j, null, 2);
-    } catch(e) {
-        out.textContent = 'Debug request failed: ' + e.message;
-    }
+    out.textContent = JSON.stringify({
+        hoshikaId: _hoshikaId || null,
+        verifiedLegacyId: _animeId || null,
+        loadedEpisodes: _episodes.length,
+        episodesWithHoshikaThumbnails: _episodes.filter(e => !!e.hoshika_thumb).length
+    }, null, 2);
 }
 
 async function saveThumbToServer(animeId, epNum, imageUrl) {

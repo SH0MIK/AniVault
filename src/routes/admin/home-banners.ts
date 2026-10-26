@@ -26,7 +26,9 @@ import type { Env } from '../../index';
 import { buildAdminCtx } from '../../lib/admin-ctx';
 import { h } from '../../lib/helpers';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
-import { MalAPI } from '../../lib/mal-api';
+import { getHoshikaAnimeById } from '../../lib/hoshika-api';
+import { findIdentityByLegacyMalId } from '../../lib/anime-identity';
+import { Db } from '../../lib/db';
 
 export const adminHomeBannersRoutes = new Hono<{ Bindings: Env }>();
 
@@ -38,7 +40,7 @@ function isValidUrl(u: string): boolean {
   try { const parsed = new URL(u); return parsed.protocol === 'http:' || parsed.protocol === 'https:'; } catch { return false; }
 }
 
-async function nextDisplayOrder(db: any): Promise<number> {
+async function nextDisplayOrder(db: Db): Promise<number> {
   const row = await db.fetchOne<{ mx: number | null }>('SELECT MAX(display_order) as mx FROM home_hero_banners');
   return (row?.mx ?? 0) + 1;
 }
@@ -88,9 +90,8 @@ adminHomeBannersRoutes.on(['GET', 'POST'], '/admin/home_banners.php', async (c) 
         // Step 1: add the anime to the carousel, no image required yet —
         // it lands at the bottom of the order with placeholder slots for
         // Banner/Logo to be filled in on the row itself. Title and logo
-        // are auto-filled if left blank: title from the MAL API, logo from
-        // getAnimeArt() (scraper clear-logo, same source home.ts's auto
-        // pool uses).
+        // are auto-filled if left blank: title from Hoshika via a verified
+        // legacy-ID mapping. Hoshika has no logo endpoint, so logo stays blank.
         const animeId = parseInt((formData.get('anime_id') as string) ?? '0', 10) || 0;
         let title = ((formData.get('anime_title') as string) ?? '').trim();
         if (!animeId) throw new Error('Enter a valid Anime ID.');
@@ -98,37 +99,40 @@ adminHomeBannersRoutes.on(['GET', 'POST'], '/admin/home_banners.php', async (c) 
         const existing = await db.fetchOne<any>('SELECT id FROM home_hero_banners WHERE anime_id=?', [animeId]);
         if (existing) throw new Error('That anime is already in the hero carousel.');
 
-        const mal = new MalAPI(c.env, c.env.API_CACHE, db);
-        const fetched = await mal.getAnime(animeId);
-        if (!fetched.data) throw new Error(`No anime found for ID ${animeId}.`);
-        if (!title) title = fetched.data.title_english || fetched.data.title || '';
-        const logoUrl = fetched.data.logo_image || '';
+        const identity = await findIdentityByLegacyMalId(db, animeId);
+        if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) throw new Error('This legacy ID has no verified Hoshika mapping yet. Search for the title in Browse and map it before adding a hero slide.');
+        const fetched = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
+        if (!fetched) throw new Error(`Hoshika details are unavailable for ID ${animeId}.`);
+        if (!title) title = fetched.titleEnglish || fetched.title || identity.title || '';
+        const logoUrl = '';
 
         const order = await nextDisplayOrder(db);
         await db.query(
           `INSERT INTO home_hero_banners (anime_id, anime_title, logo_image_url, metadata_json, display_order, source) VALUES (?,?,?,?,?,?)`,
-          [animeId, title || null, logoUrl || null, JSON.stringify(fetched.data), order, 'url']
+          [animeId, title || null, logoUrl || null, JSON.stringify(fetched), order, 'url']
         );
-        session.setFlash('success', 'Anime added — now add its banner below (logo auto-filled from TMDB if available).');
+        session.setFlash('success', 'Anime added — now add its banner below. Logo remains blank until the separate artwork phase.');
       } else if (action === 'sync_metadata') {
         const rows = await db.fetchAll<any>(
           'SELECT id, anime_id FROM home_hero_banners WHERE metadata_json IS NULL OR metadata_json = ?',
           ['']
         );
         if (rows.length > 0) {
-          const mal = new MalAPI(c.env, c.env.API_CACHE, db);
           let synced = 0;
+          let skipped = 0;
           for (const row of rows) {
-            const fetched = await mal.getAnime(Number(row.anime_id));
-            if (!fetched.data) continue;
-            const title = fetched.data.title_english || fetched.data.title || null;
+            const identity = await findIdentityByLegacyMalId(db, Number(row.anime_id));
+            if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) { skipped++; continue; }
+            const fetched = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
+            if (!fetched) { skipped++; continue; }
+            const title = fetched.titleEnglish || fetched.title || identity.title || null;
             await db.query(
               "UPDATE home_hero_banners SET anime_title = COALESCE(anime_title, ?), metadata_json = ?, updated_at=datetime('now') WHERE id = ?",
-              [title, JSON.stringify(fetched.data), row.id]
+              [title, JSON.stringify(fetched), row.id]
             );
             synced++;
           }
-          session.setFlash('success', synced ? `Hero metadata synced for ${synced} slide(s).` : 'No hero metadata could be synced.');
+          session.setFlash('success', `Hero metadata synced for ${synced} slide(s); ${skipped} unmapped/unavailable slide(s) left unchanged.`);
         } else {
           session.setFlash('success', 'All hero slides already have metadata.');
         }

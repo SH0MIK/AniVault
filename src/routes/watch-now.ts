@@ -6,12 +6,14 @@ import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
 import { Auth } from '../lib/auth';
-import { MalAPI } from '../lib/mal-api';
+import type { NormalisedAnime } from '../lib/mal-api';
+import { getHoshikaAnimeById } from '../lib/hoshika-api';
+import { findIdentityByLegacyMalId } from '../lib/anime-identity';
 import { Notification } from '../lib/notification';
 import { getBannerData } from '../lib/settings';
 import { getUserAnimeStatuses } from '../lib/user-list';
 import { icon } from '../lib/icons';
-import { renderAnimeCard, buildCardMetaMap } from '../lib/anime-card';
+import { renderAnimeCard } from '../lib/anime-card';
 import { renderHeader, renderFooter, CurrentUser } from '../render/layout';
 
 export const watchNowRoutes = new Hono<{ Bindings: Env }>();
@@ -21,23 +23,42 @@ watchNowRoutes.get('/watch-now', async (c) => {
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const session = await Session.load(c, db, lifetime);
   const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
-  const mal = new MalAPI(c.env, c.env.API_CACHE, db);
   const siteUrl = c.env.SITE_URL;
 
   const perPage = 24;
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1);
   const offset = (page - 1) * perPage;
 
-  const total = await db.count('SELECT COUNT(DISTINCT anime_id) as cnt FROM episode_videos WHERE is_active = 1');
+  const total = await db.count('SELECT COUNT(DISTINCT ev.anime_id) as cnt FROM episode_videos ev JOIN anime_identity_map im ON im.legacy_mal_id = ev.anime_id AND im.verified = 1 WHERE ev.is_active = 1');
   const totalPages = total > 0 ? Math.ceil(total / perPage) : 1;
 
   const rows = await db.fetchAll<{ anime_id: number }>(
-    'SELECT DISTINCT anime_id FROM episode_videos WHERE is_active = 1 ORDER BY updated_at DESC LIMIT ? OFFSET ?',
+    'SELECT ev.anime_id FROM episode_videos ev JOIN anime_identity_map im ON im.legacy_mal_id = ev.anime_id AND im.verified = 1 WHERE ev.is_active = 1 GROUP BY ev.anime_id ORDER BY MAX(ev.updated_at) DESC LIMIT ? OFFSET ?',
     [perPage, offset]
   );
-  const results = await Promise.all(rows.map((r) => mal.getAnime(r.anime_id, true)));
-  const animeList = results.map((r) => r.data).filter(Boolean) as any[];
-  const cardMeta = await buildCardMetaMap(db, animeList);
+  const animeList = (await Promise.all(rows.map(async (row): Promise<NormalisedAnime | null> => {
+    const identity = await findIdentityByLegacyMalId(db, row.anime_id).catch(() => null);
+    if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) return null;
+    const anime = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
+    if (!anime) return null;
+    const poster = anime.poster || '';
+    return {
+      mal_id: row.anime_id,
+      hoshika_short_id: identity.hoshika_short_id,
+      title: anime.title || identity.title || 'Unknown anime',
+      title_english: anime.titleEnglish || '',
+      title_japanese: anime.titleJapanese || '',
+      images: { jpg: { image_url: poster, large_image_url: poster } },
+      synopsis: anime.synopsis || '', background: '', score: anime.score,
+      scored_by: null, rank: null, popularity: null, episodes: anime.episodes ?? 0,
+      status: anime.status || 'Unknown', type: anime.type || '', rating: '', source: '',
+      duration: null, aired: { string: null }, start_date: null,
+      genres: anime.genres.map((name, index) => ({ mal_id: -(index + 1), name })),
+      studios: [], related_anime: [], recommendations: [], trailer: [], themes: [],
+      members: 0, broadcast: { day: null, time: null }, duration_mins: null,
+    } as NormalisedAnime;
+  }))).filter((anime): anime is NormalisedAnime => anime !== null);
+  const cardMeta = new Map();
 
   const currentUser = auth.check() ? await auth.getCurrentUser() : null;
   const unreadCount = currentUser ? await Notification.unreadCount(db, currentUser.id) : 0;

@@ -372,7 +372,7 @@ adminTurbovidRoutes.get('/admin/turbovid_resolve.php', async (c) => {
     m3u8: result.m3u8,
     videoUrl: result.videoUrl,
     videoProxyUrl: result.videoUrl ? proxiedHlsUrl(hlsProxyBase, result.videoUrl, result.referer) : null,
-    hlsProxyUrl: proxiedHlsUrl(hlsProxyBase, result.m3u8, result.referer),
+    hlsProxyUrl: result.m3u8 ? proxiedHlsUrl(hlsProxyBase, result.m3u8, result.referer) : null,
     subtitles: result.subtitles.map((s) => ({ lang: s.lang, url: proxiedHlsUrl(subProxyBase, s.url, result.referer) })),
     poster: result.poster,
     title: result.title,

@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../../index';
 import { buildAdminCtx } from '../../lib/admin-ctx';
+import { Db } from '../../lib/db';
 import { awardPoints } from '../../lib/points';
 import { Notification } from '../../lib/notification';
 import { Logger } from '../../lib/logger';
@@ -9,7 +10,7 @@ import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout'
 
 export const adminPointsRoutes = new Hono<{ Bindings: Env }>();
 
-async function eligibleCounts(db: any) {
+async function eligibleCounts(db: Db) {
   const queries = [
     `WITH ranked AS (
        SELECT a.id,a.user_id,ROW_NUMBER() OVER(PARTITION BY a.user_id ORDER BY COALESCE(a.created_at,''),a.id) rn
