@@ -17,9 +17,9 @@ import { renderHeader, renderFooter } from '../render/layout';
 import { CONTINUE_WATCHING_CSS } from '../render/home-css';
 import { continueWatchingScript, heroSliderScript, rowNavScript } from '../render/home-js';
 import type { NormalisedAnime } from '../lib/mal-api';
-import { getBannerData } from '../lib/settings';
 import { getHoshikaAnimeById, searchHoshikaAnime, getHoshikaAnimeEpisodesById, getHoshikaHomeSections, getHoshikaGenres, type HoshikaCatalogAnime } from '../lib/hoshika-api';
 import { findIdentityByLegacyMalId, findIdentityByHoshikaId } from '../lib/anime-identity';
+import { HOMEPAGE_BANNERS } from '../data/homepage-banners';
 
 export const homeRoutes = new Hono<{ Bindings: Env }>();
 
@@ -215,28 +215,15 @@ homeRoutes.get('/', async (c) => {
   const unreadCount = currentUser ? await Notification.unreadCount(db, currentUser.id) : 0;
   const userStatuses = currentUser ? await getUserAnimeStatuses(db, currentUser.id) : {};
 
-  // Curated homepage banners are legacy-ID keyed. Resolve only verified mappings;
-  // never hydrate catalog details from the old metadata_json snapshot or MAL caches.
-  const curatedRows = await db
-    .fetchAll<any>('SELECT anime_id, anime_title, banner_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
-    .catch(() => []);
-  const curatedHeroRows = (await Promise.all(curatedRows.map(async (row) => {
-    const legacyId = Number(row.anime_id);
-    const identity = await findIdentityByLegacyMalId(db, legacyId).catch(() => null);
-    if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) return null;
-    const hoshika = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
-    const anime = toHoshikaNormalisedAnime(hoshika, legacyId);
-    return anime ? { row, anime } : null;
-  }))).filter((item): item is { row: any; anime: NormalisedAnime } => item !== null);
+  // Hero content is defined in source code; independent of admin/D1 banner settings.
   // Avoid stale Jikan/MAL aired-count and dub caches for Hoshika catalog cards.
   const cardMeta = new Map<number, AnimeCardMeta>();
   const layoutUser = currentUser
     ? { id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url, role: currentUser.role }
     : null;
 
-  const __banner = await getBannerData(db);
   let html = renderHeader({
-    ...__banner,    siteUrl,
+    siteUrl,
     siteName: c.env.SITE_NAME,
     pageTitle: 'Home',
     pageDescription: 'Watch all anime subbed & dubbed Ad-free on Anivault!',
@@ -246,28 +233,18 @@ homeRoutes.get('/', async (c) => {
     requestUrl: c.req.url,
   });
 
-  // Hero slides use verified Hoshika metadata plus the admin-supplied banner art.
-  let heroPool: NormalisedAnime[] = [];
-  let heroBanners: string[] = [];
-  let heroLogos: string[] = [];
-  let heroCovers: string[] = [];
-  for (const item of curatedHeroRows) {
-    heroPool.push(item.anime);
-    heroBanners.push(item.row.banner_image_url || '');
-    heroLogos.push(''); // Hoshika has no title-logo endpoint.
-    heroCovers.push(item.anime.images?.jpg?.large_image_url || '');
-  }
-  // When no admin-curated legacy banner has a verified Hoshika mapping, keep
-  // the original hero carousel UI alive using Hoshika's own trending feed.
-  if (heroPool.length === 0) {
-    for (const [index, anime] of (hoshikaHome.trending.length ? hoshikaHome.trending : hoshikaHome.top).slice(0, 6).entries()) {
-      const mapped = toHoshikaHomeAnime(anime, index);
-      heroPool.push(mapped);
-      heroBanners.push(anime.cover || '');
-      heroLogos.push('');
-      heroCovers.push(anime.poster || '');
-    }
-  }
+  // Homepage hero banners are fully hardcoded; no admin-saved rows or live catalog feed is used.
+  const heroPool: NormalisedAnime[] = HOMEPAGE_BANNERS.map((banner) => Object.assign({
+    mal_id: -Number(banner.animeId), title: banner.title, title_english: banner.title,
+    title_japanese: '', images: { jpg: { image_url: banner.coverImage || banner.bannerImage, large_image_url: banner.coverImage || banner.bannerImage } },
+    synopsis: banner.description, background: '', score: 0, scored_by: null, rank: null, popularity: null,
+    episodes: 0, status: '', type: '', rating: '', source: '', duration: null, aired: { string: null },
+    start_date: null, genres: [], studios: [], related_anime: [], recommendations: [], trailer: [], themes: [],
+    members: 0, broadcast: { day: null, time: null }, duration_mins: null,
+  } as NormalisedAnime, { hoshika_short_id: banner.animeId }));
+  const heroBanners = HOMEPAGE_BANNERS.map((banner) => banner.bannerImage);
+  const heroLogos = HOMEPAGE_BANNERS.map((banner) => banner.logoImage || '');
+  const heroCovers = HOMEPAGE_BANNERS.map((banner) => banner.coverImage || banner.bannerImage);
   // Preload slide 0's LCP image so it starts downloading during <head> parsing.
   if (heroPool.length > 0) {
     const p0 = heroPool[0];
