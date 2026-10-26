@@ -89,7 +89,7 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
 
   // Only resolve verified mappings. Legacy IDs remain the keys used by saved
   // stream rows, so unresolved entries remain editable without guessed metadata.
-  const metadataRows = seriesRows.slice(0, 15);
+  const metadataRows = seriesRows;
   if (selectedAnime && !metadataRows.some((row:any) => Number(row.anime_id) === selectedAnime)) {
     const selectedRow = seriesRows.find((row:any) => Number(row.anime_id) === selectedAnime);
     if (selectedRow) metadataRows.push(selectedRow);
