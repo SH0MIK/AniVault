@@ -427,7 +427,7 @@ function renderContinueWatchingCard(hRow: WatchHistoryRow, siteUrl: string, epis
 <a class="cw-card" id="whcard-${hRow.anime_id}" href="${resumeUrl}">
   <div class="cw-thumb">
     ${!hasThumb ? `<div class="cw-placeholder" id="${phId}"><svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.15)" stroke-width="1.5"><polygon points="5 3 19 12 5 21 5 3"/></svg></div>` : ''}
-    <img src="${h(thumbSrc)}" alt="${epTitle}" loading="lazy" data-anime-id="${hRow.anime_id}" data-ep="${epNum}" data-anime-title="${animeTitle}" data-ph-id="${phId}" class="wh-ep-thumb" style="${!hasThumb ? 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;' : ''}">
+    <img src="${h(thumbSrc)}" alt="${epTitle}" loading="lazy" data-anime-id="${hRow.anime_id}" data-ep="${epNum}" data-anime-title="${animeTitle}" data-fallback="${h(animePoster)}" onerror="if(this.dataset.fallback && this.src!==this.dataset.fallback){this.src=this.dataset.fallback;return;}this.style.display='none';" data-ph-id="${phId}" class="wh-ep-thumb" style="${!hasThumb ? 'position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none;' : ''}">
     <div class="cw-play"><div class="cw-play-circle"><svg viewBox="0 0 24 24"><polygon points="5 3 19 12 5 21 5 3"/></svg></div></div>
     <div class="cw-ep-badge">Ep ${epNum}</div>
     ${timeLeft ? `<span class="cw-time-left">${h(timeLeft)}</span>` : ''}
