@@ -95,11 +95,6 @@ homeRoutes.get('/', async (c) => {
   const db = new Db(c.env.DB);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const hasSession = /(?:^|;\s*)av_session=/.test(c.req.header('cookie') ?? '') || !!c.req.header('authorization');
-  const homepageCacheKey = new Request(c.req.url, { method: 'GET' });
-  if (!hasSession) {
-    const cached = await caches.default.match(homepageCacheKey);
-    if (cached) return cached;
-  }
   const session = await Session.load(c, db, lifetime);
   const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
   const siteUrl = c.env.SITE_URL;
@@ -235,19 +230,42 @@ homeRoutes.get('/', async (c) => {
     requestUrl: c.req.url,
   });
 
-  // Homepage hero banners are fully hardcoded; no admin-saved rows or live catalog feed is used.
-  const heroPool: NormalisedAnime[] = HOMEPAGE_BANNERS.map((banner) => ({
-    mal_id: Number(banner.animeId), title: banner.title, title_english: banner.title,
-    hoshika_short_id: banner.hoshikaShortId ? String(banner.hoshikaShortId) : undefined,
-    title_japanese: '', images: { jpg: { image_url: banner.coverImage || banner.bannerImage, large_image_url: banner.coverImage || banner.bannerImage } },
-    synopsis: banner.description, background: '', score: banner.score, scored_by: null, rank: null, popularity: null,
-    episodes: banner.episodes, status: '', type: banner.format, rating: '', source: '', duration: null, aired: { string: null },
-    start_date: null, genres: banner.genres.map((name, index) => ({ mal_id: -(index + 1), name })), studios: [], related_anime: [], recommendations: [], trailer: [], themes: [],
-    members: 0, broadcast: { day: null, time: null }, duration_mins: null,
-  } as NormalisedAnime));
-  const heroBanners = HOMEPAGE_BANNERS.map((banner) => banner.bannerImage);
-  const heroLogos = HOMEPAGE_BANNERS.map((banner) => banner.logoImage || '');
-  const heroCovers = HOMEPAGE_BANNERS.map((banner) => banner.coverImage || banner.bannerImage);
+  // Keep the featured anime selection static, but fetch its metadata fresh from Hoshika on every request.
+  // No D1/KV/CDN cache is used for hero metadata or the anonymous homepage HTML.
+  const heroResults = await Promise.all(HOMEPAGE_BANNERS.map(async (banner, index) => {
+    const hoshikaId = banner.hoshikaShortId;
+    const live = hoshikaId ? await getHoshikaAnimeById(hoshikaId, c.env.HOSHIKA_API_KEY) : null;
+    const animeTitle = live?.titleEnglish || live?.titleRomaji || live?.title || banner.title;
+    const poster = live?.poster || banner.coverImage || banner.bannerImage;
+    const background = live?.cover || banner.bannerImage || poster;
+    const normalized = live ? toHoshikaNormalisedAnime(live, -Number(hoshikaId || index + 1)) : null;
+    const anime = (normalized || {
+      mal_id: Number(banner.animeId), title: animeTitle, title_english: animeTitle,
+      title_japanese: '', images: { jpg: { image_url: poster, large_image_url: poster } },
+      synopsis: banner.description, background: '', score: banner.score, scored_by: null, rank: null, popularity: null,
+      episodes: banner.episodes, status: '', type: banner.format, rating: '', source: '', duration: null, aired: { string: null },
+      start_date: null, genres: banner.genres.map((name, genreIndex) => ({ mal_id: -(genreIndex + 1), name })), studios: [], related_anime: [], recommendations: [], trailer: [], themes: [],
+      members: 0, broadcast: { day: null, time: null }, duration_mins: null,
+    }) as NormalisedAnime & { hoshika_short_id?: string; banner_image?: string };
+    Object.assign(anime, {
+      hoshika_short_id: hoshikaId ? String(hoshikaId) : undefined,
+      title: animeTitle,
+      title_english: live?.titleEnglish || animeTitle,
+      synopsis: live?.synopsis || banner.description,
+      score: live?.score ?? banner.score,
+      episodes: live?.episodes ?? banner.episodes,
+      status: live?.status || '',
+      type: live?.type || banner.format,
+      genres: (live?.genres?.length ? live.genres : banner.genres).map((name, genreIndex) => ({ mal_id: -(genreIndex + 1), name })),
+      images: { jpg: { image_url: poster, large_image_url: poster } },
+      banner_image: background,
+    });
+    return { anime, banner: background, cover: poster, logo: banner.logoImage || '' };
+  }));
+  const heroPool: NormalisedAnime[] = heroResults.map((result) => result.anime);
+  const heroBanners = heroResults.map((result) => result.banner);
+  const heroLogos = heroResults.map((result) => result.logo);
+  const heroCovers = heroResults.map((result) => result.cover);
   // Preload slide 0's LCP image so it starts downloading during <head> parsing.
   if (heroPool.length > 0) {
     const p0 = heroPool[0];
@@ -383,12 +401,9 @@ ${heroSliderScript(heroPool.length)}
   html += renderFooter({ siteUrl, currentUser: layoutUser });
 
   const response = c.html(html);
-  if (!hasSession) {
-    response.headers.set('Cache-Control', 'public, max-age=30');
-    c.executionCtx.waitUntil(caches.default.put(homepageCacheKey, response.clone()));
-    return response;
-  }
-  await session.save(c, lifetime);
+  response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
+  response.headers.set('CDN-Cache-Control', 'no-store');
+  if (hasSession) await session.save(c, lifetime);
   return response;
 });
 
