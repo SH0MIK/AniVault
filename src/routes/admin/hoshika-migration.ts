@@ -105,7 +105,7 @@ adminHoshikaMigrationRoutes.on(['GET', 'POST'], '/admin/hoshika_migration.php', 
       return c.json({
         ok: true,
         message: 'Batch complete. Verified mappings were saved; missing IDs were left untouched.',
-        totalIds: uniqueIds.length,
+        totalIds,
         pending: candidates.length,
         batchSize: batch.length,
         mapped,
@@ -150,16 +150,16 @@ adminHoshikaMigrationRoutes.on(['GET', 'POST'], '/admin/hoshika_migration.php', 
 </div>
 <div class="hm-panel">
  <h2>Bulk map from Hoshika</h2>
- <p class="hm-muted">Uses your server-side X-Hoshika-Key and POST /api/v1/ids with source=mal, type=anime. Processes up to 1,000 IDs per click. You can repeat it until no unmapped IDs remain.</p>
+ <p class="hm-muted">Uses your server-side X-Hoshika-Key and POST /api/v1/ids with source=mal, type=anime. Processes up to 100 IDs per click. You can repeat it until no unmapped IDs remain.</p>
  <p class="hm-muted">MAL IDs are read from anime_list, watch_history, favorites, and LuluStream server records. Hoshika's missing IDs are reported but never deleted.</p>
- <button class="btn btn-primary" id="hm-run">Map next batch (up to 1,000 IDs)</button>
+ <button class="btn btn-primary" id="hm-run">Map next batch (up to 100 IDs)</button>
  <div id="hm-status" class="hm-muted" style="margin-top:12px" aria-live="polite"></div>
 </div>
 <script>
 (function(){
  const button=document.getElementById('hm-run'), status=document.getElementById('hm-status');
  button.addEventListener('click',async()=>{
-   if(!confirm('Ask Hoshika to map the next batch of up to 1,000 existing MAL anime IDs and save verified mappings?'))return;
+   if(!confirm('Ask Hoshika to map the next batch of up to 100 existing MAL anime IDs and save verified mappings?'))return;
    button.disabled=true;status.textContent='Requesting mappings from Hoshika…';
    try{
      const response=await fetch(location.pathname,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify({action:'bulk_map'})});
