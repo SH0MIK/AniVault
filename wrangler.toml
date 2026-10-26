@@ -14,7 +14,7 @@ directory = "./public"
 [[d1_databases]]
 binding = "DB"
 database_name = "anivault"
-database_id = "d81c4c7f-74c1-413f-ac90-30ac305415b6"
+database_id = "90e65283-30bd-4d4b-b4ce-dbfb976b9c92"
 
 [[kv_namespaces]]
 binding = "API_CACHE"
@@ -27,7 +27,7 @@ bucket_name = "anivault"
 # Background refresh jobs and cron triggers have been removed to prevent automated KV writes.
 [vars]
 SITE_NAME = "AniVault"
-SITE_URL = "https://www.anivault.co"
+SITE_URL = "https://anivault.getmomin322.workers.dev"
 SESSION_LIFETIME_SECONDS = "86400"
 GOOGLE_REDIRECT_URI = "https://www.anivault.co/pages/oauth_google.php"
 DISCORD_REDIRECT_URI = "https://www.anivault.co/pages/oauth_discord.php"
