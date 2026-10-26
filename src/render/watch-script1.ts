@@ -442,7 +442,7 @@ function switchToDesidub(providerName, realType) {
         return;
     }
 
-    fetch(\`${siteUrl}/api/desidub_stream.php?anime=${animeId}&ep=${epNum}&audio=\${realType}&server=\${encodeURIComponent(providerName)}\`)
+    fetch(\`${siteUrl}/api/desidub_stream.php?anime=${animeId}&ep=${epNum}&audio=\${realType}&hoshikaId=\${encodeURIComponent(HOSHIKA_ID)}&server=\${encodeURIComponent(providerName)}\`)
         .then(r => r.json())
         .then(applyDesidubResult)
         .catch(() => fail('Could not reach stream server.'));
@@ -498,6 +498,7 @@ const STREAM_ENDPOINT = {
     animenosub: 'animenosub_stream.php',
     aniwaves: 'aniwaves_stream.php',
     anizone: 'anizone_stream.php',
+    animesalt: 'animesalt_stream.php',
     watchanimeworld: 'watchanimeworld_stream.php',
 };
 function switchToGenericSource(source, providerName, realType, langKey) {
@@ -580,11 +581,18 @@ function switchToGenericSource(source, providerName, realType, langKey) {
         // and feeds the player's built-in quality menu (buildQual/qualList
         // in player-pro-script.ts) straight from hls.js's parsed levels, so
         // there's no separate quality row to maintain for these sources.
-        const DEMUXED_AUDIO_SOURCES = ['reanime', 'anizone', 'watchanimeworld'];
+        const DEMUXED_AUDIO_SOURCES = ['reanime', 'anizone', 'animesalt', 'watchanimeworld'];
         if (DEMUXED_AUDIO_SOURCES.indexOf(source) !== -1) {
             clearDynQualityRow();
-            if (!d.m3u8) { fail('No stream URL returned.'); return; }
-            loadUrl(d.m3u8, false, subs);
+            if (d.m3u8) {
+                loadUrl(d.m3u8, false, subs);
+                return;
+            }
+            if (d.mp4) {
+                loadUrl(d.mp4, true, subs);
+                return;
+            }
+            fail('No stream URL returned.');
             return;
         }
 
@@ -621,7 +629,7 @@ function switchToGenericSource(source, providerName, realType, langKey) {
     }
 
     const endpoint = STREAM_ENDPOINT[source];
-    let url = \`${siteUrl}/api/\${endpoint}?anime=${animeId}&ep=${epNum}&audio=\${realType}&server=\${encodeURIComponent(providerName)}\`;
+    let url = \`${siteUrl}/api/\${endpoint}?anime=${animeId}&ep=${epNum}&audio=\${realType}&hoshikaId=\${encodeURIComponent(HOSHIKA_ID)}&server=\${encodeURIComponent(providerName)}\`;
     if (langKey) url += \`&lang=\${encodeURIComponent(langKey)}\`;
     fetch(url)
         .then(r => r.json())
@@ -915,11 +923,11 @@ function switchToServer(serverName, audio = currentAudio, displayKey, luluTrackK
         return;
     }
 
-    // ── ReAnime / AnimeNoSub / AniWaves / AniZone / WatchAnimeWorld ────────
+    // ── ReAnime / AnimeNoSub / AniWaves / AniZone / AnimeSalt / WatchAnimeWorld ────────
     // Key shape: "<source>:<sub|dub>:<langKey>:<provider name>" — langKey is
     // empty for sub and for the 3 English-only-dub sources, and the actual
-    // language (e.g. "hin", "tam", "spa") for AniZone/WatchAnimeWorld dub.
-    const GENERIC_SOURCES = ['reanime', 'animenosub', 'aniwaves', 'anizone', 'watchanimeworld'];
+    // language (e.g. "hin", "tam", "spa") for AniZone/AnimeSalt/WatchAnimeWorld dub.
+    const GENERIC_SOURCES = ['reanime', 'animenosub', 'aniwaves', 'anizone', 'animesalt', 'watchanimeworld'];
     for (let i = 0; i < GENERIC_SOURCES.length; i++) {
         const src = GENERIC_SOURCES[i];
         if (serverName.startsWith(src + ':')) {
@@ -1095,9 +1103,9 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     const EP    = ${epNum};
 
 
-    const MULTI_LANG_SOURCES = ['anizone', 'watchanimeworld'];
-    const MULTI_PRIORITY = ['anizone', 'watchanimeworld'];
-    const SOURCE_LABELS = { reanime: 'ReAnime', animenosub: 'NoSub', aniwaves: 'Waves', anizone: 'Zone', watchanimeworld: 'World', anikoto: 'Anikoto', animeheaven: 'AnimeHeaven', desidub: 'DesiDub' };
+    const MULTI_LANG_SOURCES = ['anizone', 'animesalt'];
+    const MULTI_PRIORITY = ['anizone', 'animesalt'];
+    const SOURCE_LABELS = { reanime: 'ReAnime', animenosub: 'NoSub', aniwaves: 'Waves', anizone: 'Zone', animesalt: 'Salt', watchanimeworld: 'World', anikoto: 'Anikoto', animeheaven: 'AnimeHeaven', desidub: 'DesiDub' };
 
     function priorityOf(list, source) {
         const i = list.indexOf(source);
@@ -1334,13 +1342,13 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                     return ok ? (\`desidub:dub:\${providerName}\`) : null;
                 }).catch(e => {  return null; });
         }
-        // Generic (ReAnime / AniWaves / WatchAnimeWorld / AnimeNoSub) —
-        // WatchAnimeWorld's English/Hindi providers are literally named
+        // Generic (ReAnime / AniWaves / AnimeSalt / AnimeNoSub) —
+        // AnimeSalt / WatchAnimeWorld's English/Hindi providers are literally named
         // that ("English", "Hindi"), so pass the name as lang too; the
         // scraper only uses it to disambiguate providers that share an
         // identical display name across languages, and ignores it
         // harmlessly otherwise.
-        const lang = (def.source === 'watchanimeworld' && audio === 'dub') ? String(def.provider || '').toLowerCase() : '';
+        const lang = ((def.source === 'watchanimeworld' || def.source === 'animesalt') && audio === 'dub') ? String(def.provider || '').toLowerCase() : '';
         return checkSourceProvider(def.source, def.provider, audio, lang)
             .then(ok => ok ? (\`\${def.source}:\${audio}:\${lang}:\${String(def.provider || '').toLowerCase().trim()}\`) : null);
     }
@@ -1505,7 +1513,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
 
                 const b = langBucket(s.lang);
                 if (b === 'en') return false;
-                if (b === 'hindi' && source === 'watchanimeworld') return false;
+                if (b === 'hindi' && (source === 'watchanimeworld' || source === 'animesalt')) return false;
                 return true;
             });
 

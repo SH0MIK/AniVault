@@ -387,6 +387,8 @@ export const WATCH_CSS = `/* ═════════════════
 .server-btn[data-server^="aniwaves:"].active          { background:rgba(244,114,182,.14); border-color:rgba(244,114,182,.55); color:#f472b6; box-shadow:0 0 16px rgba(244,114,182,.2),inset 0 1px 0 rgba(244,114,182,.12); }
 .server-btn[data-server^="anizone:"]::before          { background:#818cf8; box-shadow:0 0 5px rgba(129,140,248,.6); }
 .server-btn[data-server^="anizone:"].active           { background:rgba(129,140,248,.14); border-color:rgba(129,140,248,.55); color:#818cf8; box-shadow:0 0 16px rgba(129,140,248,.2),inset 0 1px 0 rgba(129,140,248,.12); }
+.server-btn[data-server^="animesalt:"]::before        { background:#2dd4bf; box-shadow:0 0 5px rgba(45,212,191,.6); }
+.server-btn[data-server^="animesalt:"].active         { background:rgba(45,212,191,.14); border-color:rgba(45,212,191,.55); color:#2dd4bf; box-shadow:0 0 16px rgba(45,212,191,.2),inset 0 1px 0 rgba(45,212,191,.12); }
 .server-btn[data-server^="watchanimeworld:"]::before  { background:#2dd4bf; box-shadow:0 0 5px rgba(45,212,191,.6); }
 .server-btn[data-server^="watchanimeworld:"].active   { background:rgba(45,212,191,.14); border-color:rgba(45,212,191,.55); color:#2dd4bf; box-shadow:0 0 16px rgba(45,212,191,.2),inset 0 1px 0 rgba(45,212,191,.12); }
 
@@ -398,6 +400,8 @@ export const WATCH_CSS = `/* ═════════════════
    entirely once same-group fallback kicks in). */
 .server-btn[data-fixed-key="anizone"]::before          { background:#818cf8; box-shadow:0 0 5px rgba(129,140,248,.6); }
 .server-btn[data-fixed-key="anizone"].active           { background:rgba(129,140,248,.14); border-color:rgba(129,140,248,.55); color:#818cf8; box-shadow:0 0 16px rgba(129,140,248,.2),inset 0 1px 0 rgba(129,140,248,.12); }
+.server-btn[data-fixed-key="animesalt"]::before        { background:#2dd4bf; box-shadow:0 0 5px rgba(45,212,191,.6); }
+.server-btn[data-fixed-key="animesalt"].active         { background:rgba(45,212,191,.14); border-color:rgba(45,212,191,.55); color:#2dd4bf; box-shadow:0 0 16px rgba(45,212,191,.2),inset 0 1px 0 rgba(45,212,191,.12); }
 .server-btn[data-fixed-key="anikoto"]::before          { background:#c084fc; box-shadow:0 0 5px rgba(192,132,252,.6); }
 .server-btn[data-fixed-key="anikoto"].active           { background:rgba(192,132,252,.14); border-color:rgba(192,132,252,.55); color:#c084fc; box-shadow:0 0 16px rgba(192,132,252,.2),inset 0 1px 0 rgba(192,132,252,.12); }
 .server-btn[data-fixed-key="animeheaven"]::before      { background:#22c55e; box-shadow:0 0 5px rgba(34,197,94,.6); }

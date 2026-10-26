@@ -29,7 +29,7 @@ export const SUB_PROVIDERS: FixedProviderDef[] = [
   { source: 'anizone', provider: 'Japanese', label: 'Japanese (Zone)' },
   { source: 'aniwaves', provider: 'Vidplay', label: 'Vidplay' },
   { source: 'aniwaves', provider: 'BYFMS', label: 'BYFMS' },
-  { source: 'watchanimeworld', provider: 'Japanese', label: 'Japanese' },
+  { source: 'animesalt', provider: 'Japanese', label: 'Japanese' },
   { source: 'animenosub', provider: 'Sub - Moon', label: 'Moon' },
   { source: 'animenosub', provider: 'Sub - Omega', label: 'Omega' },
   { source: 'animenosub', provider: 'Sub - Nova', label: 'Nova' },
@@ -45,7 +45,7 @@ export const DUB_PROVIDERS: FixedProviderDef[] = [
   { source: 'anizone', provider: 'English', label: 'English (Zone)' },
   { source: 'aniwaves', provider: 'Vidplay', label: 'Vidplay' },
   { source: 'aniwaves', provider: 'BYFMS', label: 'BYFMS' },
-  { source: 'watchanimeworld', provider: 'English', label: 'English' },
+  { source: 'animesalt', provider: 'English', label: 'English' },
   { source: 'animenosub', provider: 'Dub - Moon', label: 'Moon' },
   { source: 'animenosub', provider: 'Dub - Omega', label: 'Omega' },
   { source: 'animenosub', provider: 'Dub - Nova', label: 'Nova' },
@@ -55,7 +55,7 @@ export const DUB_PROVIDERS: FixedProviderDef[] = [
 // Hindi Dub group — its own separate fallback pool, independent of the
 // English Dub group above.
 export const HINDI_PROVIDERS: FixedProviderDef[] = [
-  { source: 'watchanimeworld', provider: 'Hindi', label: 'Hindi' },
+  { source: 'animesalt', provider: 'Hindi', label: 'Hindi' },
   { source: 'desidub', provider: 'Abyssdub', label: 'Abyss' },
   { source: 'desidub', provider: 'VMolydub', label: 'VMoly' },
   { source: 'desidub', provider: 'Mirrordub', label: 'Mirror' },
@@ -67,11 +67,11 @@ export const HINDI_PROVIDERS: FixedProviderDef[] = [
   { source: 'desidub', provider: 'PlayerXdub', label: 'PlayerX' },
 ];
 
-// AniZone + WatchAnimeWorld also carry OTHER languages (Tamil, Telugu,
-// Spanish, ...) beyond English/Hindi — those stay fully dynamic (Multi
+// AniZone + AnimeSalt also carry OTHER languages (Tamil, Telugu,
+// Kannada, Malayalam, Spanish, ...) beyond English/Hindi — those stay fully dynamic (Multi
 // Dub group, built per-anime, no fixed buttons, no fallback), per the
 // explicit call not to combine/fallback multi-dub languages.
-export const MULTI_LANG_SOURCES = ['anizone', 'watchanimeworld'];
+export const MULTI_LANG_SOURCES = ['anizone', 'animesalt'];
 
 function h(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
