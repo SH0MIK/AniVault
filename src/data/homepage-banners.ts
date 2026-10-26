@@ -21,6 +21,7 @@ export interface HomepageBanner {
 export const HOMEPAGE_BANNERS: HomepageBanner[] = [
   {
     animeId: '58090',
+    hoshikaShortId: 58090,
     title: 'One Piece',
     description: 'After surviving a deadly whirlpool at sea by hiding inside a barrel, the carefree Monkey D. Luffy finds himself on a ship that is being attacked by fearsome pirates. Although he looks like a naive teenager, Luffy should not be underestimated. He is an unmatched fighter and a pirate himself, determined to obtain the coveted One Piece treasure and claim the title of King of the Pirates. Before his death, the former King of the Pirates, Gol D. Roger, shook the world by revealing the location of his vast riches and daring anyone to claim them. Since then, countless powerful pirates have sailed dangerous seas in search of the One Piece, only to never return. Luffy may lack a crew and a proper ship, but he possesses a superhuman ability and an unbreakable spirit that make him both a formidable opponent and an inspiration to many. With a big smile on his face, Luffy faces numerous challenges and gathers one-of-a-kind companions to join his ambitious quest. Together, they embrace perils and wonders on a once-in-a-lifetime adventure.',
     genres: ['Action', 'Adventure', 'Fantasy'],
