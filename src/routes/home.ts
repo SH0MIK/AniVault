@@ -268,7 +268,7 @@ homeRoutes.get('/', async (c) => {
 
   // Only admin-selected hero rows are displayed; no static list or Trending fallback.
   const curatedRows = await db
-    .fetchAll<any>('SELECT anime_id, anime_title, banner_image_url, logo_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
+    .fetchAll<any>('SELECT anime_id, anime_title, banner_image_url, logo_image_url, cover_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
     .catch(() => []);
   const curatedHeroRows = (await Promise.all(curatedRows.map(async (row) => {
     // New homepage hero rows store Hoshika's canonical numeric shortId directly in anime_id.
@@ -287,7 +287,7 @@ homeRoutes.get('/', async (c) => {
     heroPool.push(item.anime);
     heroBanners.push(item.row.banner_image_url || '');
     heroLogos.push(item.row.logo_image_url || ''); // Optional logo override from admin.
-    heroCovers.push(item.anime.images?.jpg?.large_image_url || '');
+    heroCovers.push(item.row.cover_image_url || item.anime.images?.jpg?.large_image_url || '');
   }
   // Preload slide 0's LCP image so it starts downloading during <head> parsing.
   if (heroPool.length > 0) {
