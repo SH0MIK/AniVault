@@ -344,6 +344,48 @@ scraperRoutes.get('/api/anizone_stream.php', async (c) => {
   return c.json({ error: 'No stream URL in response' });
 });
 
+// ── api/animesalt_stream.php ─────────────────────────────────────────────
+// Multi-dub-language source (Japanese, English, Hindi, Tamil, Telugu, Kannada, Malayalam...).
+// Same shape and reasoning as anizone_stream.php above.
+scraperRoutes.get('/api/animesalt_stream.php', async (c) => {
+  let hoshikaId = (c.req.query('hoshikaId') ?? '').trim();
+  const animeId = parseInt(c.req.query('anime') ?? '0', 10) || 0;
+  if (!hoshikaId && animeId > 0) {
+    const ident = await findIdentityByLegacyMalId(new Db(c.env.DB), animeId).catch(() => null);
+    if (ident?.hoshika_short_id) hoshikaId = ident.hoshika_short_id;
+  }
+  const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
+  const audio = ['sub', 'dub', 'raw'].includes(c.req.query('audio') ?? '') ? c.req.query('audio')! : 'sub';
+  const server = (c.req.query('server') ?? '').trim();
+  const lang = (c.req.query('lang') ?? '').trim();
+  if (!hoshikaId || !epNum) return c.json({ error: 'Missing Hoshika ID or episode' }, 400);
+  const base = getScraperBase(c.env);
+  if (!base) return c.json({ error: 'Scraper API not configured' }, 500);
+
+  if (server === '') {
+    const listUrl = `${base}/api/servers?hoshikaId=${encodeURIComponent(hoshikaId)}&ep=${epNum}&type=${audio}&source=animesalt`;
+    const { ok, code, data } = await fetchJson(listUrl, 28000, c.env.SCRAPER_API_KEY || '');
+    if (!ok) return c.json({ error: data?.error ?? `AnimeSalt list failed HTTP ${code}` });
+    const servers = (data?.servers ?? []).map((s: any) => ({ name: s.name, type: s.type, lang: String(s.lang ?? '').toLowerCase() }));
+    return c.json({ servers });
+  }
+
+  let watchUrl = `${base}/api/watch/animesalt/${scraperHoshikaId(hoshikaId)}/${epNum}/${audio}?server=${encodeURIComponent(server)}`;
+  if (lang !== '') watchUrl += `&lang=${encodeURIComponent(lang)}`;
+
+  const { ok, code, data } = await fetchJson(watchUrl, 23000, c.env.SCRAPER_API_KEY || '');
+  if (!ok) return c.json({ error: data?.error ?? `AnimeSalt fetch failed HTTP ${code}` });
+
+  if (data?.iframeOnly) return c.json({ embedUrl: data.embedUrl ?? '', iframeOnly: true, server: data.server ?? server });
+  const m3u8 = data?.hlsProxyUrl ?? data?.m3u8 ?? null;
+  const mp4 = data?.mp4ProxyUrl ?? data?.mp4 ?? null;
+  const qualities = Array.isArray(data?.qualities) ? data.qualities : [];
+
+  if (m3u8) return c.json({ m3u8, server: data.server ?? server, subtitles: data.subtitles ?? [], qualities });
+  if (mp4) return c.json({ mp4, server: data.server ?? server, qualities });
+  return c.json({ error: 'No stream URL in response' });
+});
+
 // ── api/watchanimeworld_stream.php ───────────────────────────────────────
 // Multi-dub-language source (English, Hindi, Tamil, Telugu...). Same shape
 // and reasoning as anizone_stream.php above.
