@@ -2,7 +2,7 @@ import { Hono } from 'hono';
 import type { Env } from '../../index';
 import { buildAdminCtx } from '../../lib/admin-ctx';
 import { getHoshikaAnimeById } from '../../lib/hoshika-api';
-import { findIdentityByLegacyMalId } from '../../lib/anime-identity';
+import { findIdentityByLegacyMalId, findIdentityByHoshikaId } from '../../lib/anime-identity';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
 import { renderLuluStreamAdmin } from '../../render/admin-lulustream';
 import { resolveLuluStream } from '../../lib/lulustream-resolver';
@@ -97,7 +97,13 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
   const metadataById = new Map<number, any>();
   await Promise.all(metadataRows.map(async (row:any) => {
     try {
-      const identity = await findIdentityByLegacyMalId(db, Number(row.anime_id));
+      // LuluStream rows can contain either a legacy MAL ID or a Hoshika shortId.
+      // Resolve the legacy mapping first, then accept a verified direct Hoshika-ID mapping.
+      const legacyId = Number(row.anime_id);
+      const legacyIdentity = await findIdentityByLegacyMalId(db, legacyId);
+      const identity = legacyIdentity?.verified === 1 && legacyIdentity.hoshika_short_id
+        ? legacyIdentity
+        : await findIdentityByHoshikaId(db, legacyId);
       if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) return;
       // A verified mapping remains valid even when Hoshika metadata is unavailable.
       const fallback = {
