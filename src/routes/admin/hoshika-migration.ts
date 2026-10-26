@@ -23,29 +23,42 @@ adminHoshikaMigrationRoutes.on(['GET', 'POST'], '/admin/hoshika_migration.php', 
       if (!c.env.HOSHIKA_API_KEY) throw new Error('HOSHIKA_API_KEY is not configured.');
 
       // Gather distinct positive legacy IDs from existing user/catalog references.
-      const rows = await db.fetchAll<{ anime_id: number | string }>(`
-        SELECT anime_id FROM anime_list
-        UNION SELECT anime_id FROM watch_history
-        UNION SELECT anime_id FROM favorites
-        UNION SELECT anime_id FROM lulustream_servers
-        ORDER BY anime_id
+      // Find pending IDs in one D1 query. Per-ID lookups can exceed Cloudflare's
+      // D1 API-request limit when the catalog contains thousands of legacy IDs.
+      const candidatesRows = await db.fetchAll<{ anime_id: number | string }>(`
+        SELECT ids.anime_id
+        FROM (
+          SELECT anime_id FROM anime_list
+          UNION SELECT anime_id FROM watch_history
+          UNION SELECT anime_id FROM favorites
+          UNION SELECT anime_id FROM lulustream_servers
+        ) ids
+        WHERE CAST(ids.anime_id AS INTEGER) > 0
+          AND NOT EXISTS (
+            SELECT 1 FROM anime_identity_map m
+            WHERE CAST(m.legacy_mal_id AS TEXT) = CAST(ids.anime_id AS TEXT)
+               OR m.hoshika_short_id = CAST(ids.anime_id AS TEXT)
+          )
+        ORDER BY CAST(ids.anime_id AS INTEGER)
       `);
-      const uniqueIds = [...new Set(rows.map(r => Number(r.anime_id)).filter(id => Number.isSafeInteger(id) && id > 0))];
+      const candidates = candidatesRows
+        .map(r => Number(r.anime_id))
+        .filter(id => Number.isSafeInteger(id) && id > 0);
+      const totalIds = await db.count(`
+        SELECT COUNT(*) AS cnt FROM (
+          SELECT anime_id FROM anime_list
+          UNION SELECT anime_id FROM watch_history
+          UNION SELECT anime_id FROM favorites
+          UNION SELECT anime_id FROM lulustream_servers
+        )
+      `);
 
-      // Only submit IDs that are not already known as either side of an identity mapping.
-      const candidates: number[] = [];
-      for (const id of uniqueIds) {
-        const mapped = await db.fetchOne<any>(
-          'SELECT hoshika_short_id FROM anime_identity_map WHERE CAST(legacy_mal_id AS TEXT)=? OR hoshika_short_id=? LIMIT 1',
-          [String(id), String(id)]
-        );
-        if (!mapped) candidates.push(id);
-      }
-
-      const batch = candidates.slice(0, 1000);
+      // Keep batches small because each verified mapping currently performs
+      // several safety checks/writes against D1.
+      const batch = candidates.slice(0, 100);
       if (!batch.length) {
         await session.save(c, lifetime);
-        return c.json({ ok: true, message: 'No unmapped MAL IDs found. Everything in the current ID set is already mapped or there is nothing to map.', totalIds: uniqueIds.length, pending: 0, mapped: 0, missing: 0, conflicts: 0, remaining: 0 });
+        return c.json({ ok: true, message: 'No unmapped MAL IDs found. Everything in the current ID set is already mapped or there is nothing to map.', totalIds, pending: 0, mapped: 0, missing: 0, conflicts: 0, remaining: 0 });
       }
 
       const response = await fetch('https://hoshika.app/api/v1/ids', {
