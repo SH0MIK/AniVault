@@ -215,8 +215,8 @@ homeRoutes.get('/', async (c) => {
   const unreadCount = currentUser ? await Notification.unreadCount(db, currentUser.id) : 0;
   const userStatuses = currentUser ? await getUserAnimeStatuses(db, currentUser.id) : {};
 
-  // Hero content is defined in source code; independent of admin/D1 banner settings.
-  // Avoid stale Jikan/MAL aired-count and dub caches for Hoshika catalog cards.
+  // Hero metadata is refreshed from Hoshika and cached in D1 for six hours.
+  // The admin-managed home_hero_banners table remains the only source of hero selection/artwork.
   const cardMeta = new Map<number, AnimeCardMeta>();
   const layoutUser = currentUser
     ? { id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url, role: currentUser.role }
@@ -234,37 +234,49 @@ homeRoutes.get('/', async (c) => {
     requestUrl: c.req.url,
   });
 
-  // Curated homepage banners are legacy-ID keyed. Resolve only verified mappings;
-  // never hydrate catalog details from the old metadata_json snapshot or MAL caches.
+  async function getCachedHeroAnime(shortId: string, legacyId: number): Promise<NormalisedAnime | null> {
+    const cacheKey = `hero_metadata:${shortId}`;
+    const now = Math.floor(Date.now() / 1000);
+    let cached: { payload: string; updated_at: number } | null = null;
+    try {
+      cached = await db.fetchOne<{ payload: string; updated_at: number }>(
+        'SELECT payload, updated_at FROM homepage_cache WHERE cache_key = ?', [cacheKey]
+      );
+    } catch { /* migration may not have run yet; fetch live without caching */ }
+    if (cached?.payload) {
+      try {
+        const parsed = JSON.parse(cached.payload);
+        if (now - Number(cached.updated_at) < 21600) return toHoshikaNormalisedAnime(parsed, legacyId);
+      } catch { /* corrupt cache: refresh from Hoshika */ }
+    }
+    const fresh = await getHoshikaAnimeById(shortId, c.env.HOSHIKA_API_KEY).catch(() => null);
+    if (fresh) {
+      try {
+        await db.query(
+          'INSERT INTO homepage_cache (cache_key, payload, updated_at) VALUES (?, ?, ?) ON CONFLICT(cache_key) DO UPDATE SET payload=excluded.payload, updated_at=excluded.updated_at',
+          [cacheKey, JSON.stringify(fresh), now]
+        );
+      } catch { /* preserve homepage availability if cache writes fail */ }
+      return toHoshikaNormalisedAnime(fresh, legacyId);
+    }
+    // Stale-if-error: keep the last known metadata if Hoshika is unavailable.
+    if (cached?.payload) {
+      try { return toHoshikaNormalisedAnime(JSON.parse(cached.payload), legacyId); } catch { /* ignore invalid stale data */ }
+    }
+    return null;
+  }
+
+  // Only admin-selected hero rows are displayed; no static list or Trending fallback.
   const curatedRows = await db
-    .fetchAll<any>('SELECT anime_id, anime_title, banner_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
+    .fetchAll<any>('SELECT anime_id, anime_title, banner_image_url, logo_image_url FROM home_hero_banners ORDER BY display_order ASC LIMIT 8')
     .catch(() => []);
   const curatedHeroRows = (await Promise.all(curatedRows.map(async (row) => {
     const legacyId = Number(row.anime_id);
     const identity = await findIdentityByLegacyMalId(db, legacyId).catch(() => null);
     if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) return null;
-    const hoshika = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
-    const anime = toHoshikaNormalisedAnime(hoshika, legacyId);
+    const anime = await getCachedHeroAnime(identity.hoshika_short_id, legacyId);
     return anime ? { row, anime } : null;
   }))).filter((item): item is { row: any; anime: NormalisedAnime } => item !== null);
-  // Avoid stale Jikan/MAL aired-count and dub caches for Hoshika catalog cards.
-  const cardMeta = new Map<number, AnimeCardMeta>();
-  const layoutUser = currentUser
-    ? { id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url, role: currentUser.role }
-    : null;
-
-  const __banner = await getBannerData(db);
-  let html = renderHeader({
-    ...__banner,    siteUrl,
-    siteName: c.env.SITE_NAME,
-    pageTitle: 'Home',
-    pageDescription: 'Watch all anime subbed & dubbed Ad-free on Anivault!',
-    currentPage: 'index',
-    currentUser: layoutUser,
-    unreadCount,
-    requestUrl: c.req.url,
-  });
-
   // Hero slides use verified Hoshika metadata plus the admin-supplied banner art.
   let heroPool: NormalisedAnime[] = [];
   let heroBanners: string[] = [];
