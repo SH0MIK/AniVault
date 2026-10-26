@@ -253,14 +253,20 @@ watchRoutes.get('/watch', async (c) => {
   // actively airing, so there's nothing for the cache to correct.
   const hoshikaEpisodes = await getHoshikaAnimeEpisodesById(mapped.shortId, c.env.HOSHIKA_API_KEY);
   const totalEps = Math.max(anime.episodes ?? 0, hoshikaEpisodes?.length ?? 0);
+  // Self Host / TurboVid rows may have been saved under either the legacy
+  // MAL key or the canonical Hoshika shortId during the catalog migration.
+  // Query both keys so existing episode servers remain visible on the watch page.
+  const hoshikaNumericId = Number(mapped.shortId) || 0;
+  const animeLookupIds = Array.from(new Set([animeId, hoshikaNumericId].filter((id) => id > 0)));
+  const animeLookupSql = animeLookupIds.length > 1 ? 'IN (?, ?)' : '= ?';
   const dubbedLangs = await DubStatus.getFor(db, animeId);
 
   let epDurationSec = parseDurationSeconds(anime.duration);
   if (epDurationSec <= 0) epDurationSec = 1380;
 
   const video = await db.fetchOne<EpisodeVideoRow>(
-    'SELECT * FROM episode_videos WHERE anime_id=? AND episode_num=? AND is_active=1',
-    [animeId, epNum]
+    `SELECT * FROM episode_videos WHERE anime_id ${animeLookupSql} AND episode_num=? AND is_active=1 ORDER BY CASE WHEN anime_id=? THEN 0 ELSE 1 END LIMIT 1`,
+    [...animeLookupIds, epNum, animeId]
   );
 
   const resumeT = Math.max(0, parseInt(c.req.query('t') ?? '0', 10) || 0);
@@ -268,15 +274,15 @@ watchRoutes.get('/watch', async (c) => {
   const hasMegaplayFallback = !video;
   const turboVidEnabled = (await new Settings(db).get('turbovid_enabled', '1')) === '1';
   const turbovidServers = turboVidEnabled
-    ? await db.fetchAll<TurboVidServerRow>('SELECT id,anime_id,episode_num,audio_group,language,label,embed_url,is_active FROM turbovid_servers WHERE anime_id=? AND episode_num=? AND is_active=1 ORDER BY audio_group, language, id',[animeId,epNum])
+    ? await db.fetchAll<TurboVidServerRow>(`SELECT id,anime_id,episode_num,audio_group,language,label,embed_url,is_active FROM turbovid_servers WHERE anime_id ${animeLookupSql} AND episode_num=? AND is_active=1 ORDER BY audio_group, language, id`,[...animeLookupIds,epNum])
     : [];
-  const lulustreamServers = await db.fetchAll<LuluStreamServerRow>('SELECT id,anime_id,episode_num,label,embed_url,audio_tracks,is_active FROM lulustream_servers WHERE anime_id=? AND episode_num=? AND is_active=1 ORDER BY id',[animeId,epNum]);
+  const lulustreamServers = await db.fetchAll<LuluStreamServerRow>(`SELECT id,anime_id,episode_num,label,embed_url,audio_tracks,is_active FROM lulustream_servers WHERE anime_id ${animeLookupSql} AND episode_num=? AND is_active=1 ORDER BY id`,[...animeLookupIds,epNum]);
 
   const anilistId = 0;
 
   const allVideos = await db.fetchAll<{ episode_num: number; title: string | null }>(
-    'SELECT episode_num, title FROM episode_videos WHERE anime_id=? AND is_active=1 ORDER BY episode_num ASC',
-    [animeId]
+    `SELECT episode_num, title FROM episode_videos WHERE anime_id ${animeLookupSql} AND is_active=1 ORDER BY episode_num ASC`,
+    [...animeLookupIds]
   );
   // Episode navigation and titles are sourced only from Hoshika. Character
   // data is not available in the confirmed public Hoshika API.
