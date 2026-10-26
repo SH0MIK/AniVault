@@ -203,7 +203,8 @@ function buildEpCard(ep, animeId, cover, thumbMap, banner) {
   const thumb = (thumbMap && thumbMap[parseInt(epNum)]) || ep.thumbnail || banner || cover;
 
   const div = document.createElement('a');
-  const playbackId = window.__legacyAnimeId || animeId;
+  // Keep the public watch URL on Hoshika's canonical shortId; /watch resolves legacy IDs internally.
+    const playbackId = animeId;
   div.href      = (window.__siteUrl || '') + '/watch?anime=' + playbackId + '&ep=' + epNum;
   div.className = 'ep-card' + (hasVid ? ' has-video-ep' : '');
   div.dataset.title    = epTitle;
