@@ -1,7 +1,7 @@
 import { Hono } from 'hono';
 import type { Env } from '../../index';
 import { buildAdminCtx } from '../../lib/admin-ctx';
-import { getHoshikaAnimeById } from '../../lib/hoshika-api';
+import { getHoshikaAnimeById, searchHoshikaAnime } from '../../lib/hoshika-api';
 import { findIdentityByLegacyMalId, findIdentityByHoshikaId } from '../../lib/anime-identity';
 import { renderAdminHeader, renderAdminFooter } from '../../render/admin-layout';
 import { renderLuluStreamAdmin } from '../../render/admin-lulustream';
@@ -109,6 +109,7 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
       const fallback = {
         title: identity.title || `Anime #${row.anime_id}`,
         poster: '',
+        hoshikaShortId: identity.hoshika_short_id,
         images: { jpg: { large_image_url: '', image_url: '' } },
         episodes: 0,
         status: '',
@@ -126,6 +127,7 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
     return {
       ...row,
       title: a?.title || `Anime #${row.anime_id} · mapping required`,
+      hoshikaShortId: String(a?.hoshikaShortId || a?.shortId || metadataById.get(Number(row.anime_id))?.hoshikaShortId || row.anime_id),
       image: a?.poster || a?.images?.jpg?.large_image_url || a?.images?.jpg?.image_url || '',
       totalEps: Number(a?.episodes || 0),
       status: a?.status || '',
@@ -187,6 +189,12 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
 adminLuluStreamServerRoutes.post('/admin/lulustream_servers.php', async (c) => {
   const ctx=await buildAdminCtx(c); if(!ctx)return c.json({error:'Forbidden'},403);
   const body:any=(c.req.header('content-type')||'').includes('application/json') ? await c.req.json().catch(()=>null) : await c.req.parseBody().catch(()=>null);
+  if (body?.action === 'search-hoshika') {
+    const query = String(body?.query || '').trim();
+    if (!query) return c.json({ success: false, error: 'Enter an anime title to search Hoshika.' }, 400);
+    const results = await searchHoshikaAnime(query, 12, c.env.HOSHIKA_API_KEY);
+    return c.json({ success: true, results: results.map(a => ({ shortId: a.shortId, title: a.title, titleEnglish: a.titleEnglish, titleRomaji: a.titleRomaji, poster: a.poster, type: a.type })) });
+  }
   if (body?.action === 'refresh-series') {
     const animeId = Number(body?.anime_id || 0);
     if (!animeId) return c.json({ error: 'Missing anime ID' }, 400);
