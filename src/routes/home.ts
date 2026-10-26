@@ -17,6 +17,7 @@ import { renderHeader, renderFooter } from '../render/layout';
 import { CONTINUE_WATCHING_CSS } from '../render/home-css';
 import { continueWatchingScript, heroSliderScript, rowNavScript } from '../render/home-js';
 import type { NormalisedAnime } from '../lib/mal-api';
+import { getBannerData } from '../lib/settings';
 import { getHoshikaAnimeById, searchHoshikaAnime, getHoshikaAnimeEpisodesById, getHoshikaHomeSections, getHoshikaGenres, type HoshikaCatalogAnime } from '../lib/hoshika-api';
 import { findIdentityByLegacyMalId, findIdentityByHoshikaId } from '../lib/anime-identity';
 import { HOMEPAGE_BANNERS } from '../data/homepage-banners';
@@ -222,8 +223,9 @@ homeRoutes.get('/', async (c) => {
     ? { id: currentUser.id, username: currentUser.username, avatar_url: currentUser.avatar_url, role: currentUser.role }
     : null;
 
+  const __banner = await getBannerData(db);
   let html = renderHeader({
-    siteUrl,
+    ...__banner, siteUrl,
     siteName: c.env.SITE_NAME,
     pageTitle: 'Home',
     pageDescription: 'Watch all anime subbed & dubbed Ad-free on Anivault!',
