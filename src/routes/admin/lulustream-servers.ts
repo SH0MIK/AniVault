@@ -99,8 +99,19 @@ adminLuluStreamServerRoutes.get('/admin/lulustream_servers.php', async (c) => {
     try {
       const identity = await findIdentityByLegacyMalId(db, Number(row.anime_id));
       if (!identity || identity.verified !== 1 || !identity.hoshika_short_id) return;
+      // A verified mapping remains valid even when Hoshika metadata is unavailable.
+      const fallback = {
+        title: identity.title || `Anime #${row.anime_id}`,
+        poster: '',
+        images: { jpg: { large_image_url: '', image_url: '' } },
+        episodes: 0,
+        status: '',
+        type: '',
+      };
       const a = await getHoshikaAnimeById(identity.hoshika_short_id, c.env.HOSHIKA_API_KEY);
-      if (a) metadataById.set(Number(row.anime_id), { ...a, title: a.title || identity.title, images: { jpg: { large_image_url: a.poster, image_url: a.poster } } });
+      metadataById.set(Number(row.anime_id), a
+        ? { ...fallback, ...a, title: a.title || identity.title || fallback.title, images: { jpg: { large_image_url: a.poster || '', image_url: a.poster || '' } } }
+        : fallback);
     } catch { /* decorative metadata; preserve stream administration */ }
   }));
 
