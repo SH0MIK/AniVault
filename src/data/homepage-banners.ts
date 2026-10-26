@@ -32,7 +32,7 @@ export const HOMEPAGE_BANNERS: HomepageBanner[] = [
     coverImage: '',
   },
   {
-    animeId: '153',
+    animeId: '34572',
     hoshikaShortId: 89408,
     title: 'Black Clover',
     description: 'Asta and Yuno were abandoned together at a church and grew up as rivals with one shared dream: to become the Wizard King. While Yuno is a gifted mage, Asta is born without magic in a world where magic defines almost everything. Refusing to give up, Asta gains an unusual anti-magic power and joins the Black Bulls, beginning a journey filled with fierce battles, powerful rivals, and an unshakable determination to prove that anyone can rise to the top.',
