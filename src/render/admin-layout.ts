@@ -51,7 +51,7 @@ ${o.impersonating ? `
     <a href="activity.php" class="${active('activity')}">${icon('activity', 'icon-small')} Activity Log</a>
     <a href="analytics.php" class="${active('analytics')}">${icon('chart-bar', 'icon-small')} Analytics</a>
     <a href="watch_stats.php" class="${active('watch_stats')}">${icon('tv', 'icon-small')} Watch Stats</a>
-    <a href="lulustream_servers.php" class="${active('lulustream_servers')}">${icon('play', 'icon-small')} Self Host</a>
+    <a href="self-host.php" class="${active('self-host')}">${icon('play', 'icon-small')} Self Host</a>
 
     <div class="nav-group">Users</div>
     <a href="users.php" class="${o.adminPage === 'users' && o.queryRole !== 'admin' ? 'active' : ''}">${icon('users', 'icon-small')} All Users</a>
