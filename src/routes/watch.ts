@@ -184,9 +184,12 @@ watchRoutes.get('/watch', async (c) => {
     identity = await findIdentityByLegacyMalId(db, requestedNumericId).catch(() => null);
     if (identity?.verified === 1) hoshikaId = identity.hoshika_short_id;
   }
+  // Watch-history and episode-source tables need a stable numeric key. Prefer the
+  // verified legacy MAL key when one exists; otherwise use the Hoshika shortId.
+  // Falling back to 0 makes Continue Watching link to anime=0 and breaks poster lookup.
   const animeId = identity?.verified === 1 && identity.legacy_mal_id
     ? identity.legacy_mal_id
-    : 0;
+    : (requestedNumericId || (Number( hoshikaId ) || 0));
 
   const ua = c.req.header('user-agent') ?? '';
   if (PREVIEW_BOT_RE.test(ua)) {
