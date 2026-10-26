@@ -238,6 +238,7 @@ homeRoutes.get('/', async (c) => {
   // Homepage hero banners are fully hardcoded; no admin-saved rows or live catalog feed is used.
   const heroPool: NormalisedAnime[] = HOMEPAGE_BANNERS.map((banner) => ({
     mal_id: Number(banner.animeId), title: banner.title, title_english: banner.title,
+    hoshika_short_id: banner.hoshikaShortId ? String(banner.hoshikaShortId) : undefined,
     title_japanese: '', images: { jpg: { image_url: banner.coverImage || banner.bannerImage, large_image_url: banner.coverImage || banner.bannerImage } },
     synopsis: banner.description, background: '', score: banner.score, scored_by: null, rank: null, popularity: null,
     episodes: banner.episodes, status: '', type: banner.format, rating: '', source: '', duration: null, aired: { string: null },
