@@ -273,7 +273,7 @@ homeRoutes.get('/', async (c) => {
   const curatedHeroRows = (await Promise.all(curatedRows.map(async (row) => {
     // New homepage hero rows store Hoshika's canonical numeric shortId directly in anime_id.
     const hoshikaId = String(row.anime_id);
-    if (!/^\\d+$/.test(hoshikaId) || Number(hoshikaId) <= 0) return null;
+    if (!/^\d+$/.test(hoshikaId) || Number(hoshikaId) <= 0) return null;
     const anime = await getCachedHeroAnime(hoshikaId, Number(hoshikaId));
     if (anime) Object.assign(anime, { hoshika_short_id: hoshikaId });
     return anime ? { row, anime } : null;
