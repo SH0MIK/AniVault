@@ -569,7 +569,7 @@ function switchToGenericSource(source, providerName, realType, langKey) {
             vid.addEventListener('playing', onMp4Playing, { once: true });
             vid.addEventListener('error', onMp4Error, { once: true });
             const mp4StartupTimer = setTimeout(() => {
-                if (mp4Settled || vid.readyState > 0) return;
+                if (mp4Settled) return;
                 clearMp4StartupTimer();
                 if (spinEl) spinEl.classList.add('hide');
                 fail('MP4 server did not send video data in time. Try another server.');
