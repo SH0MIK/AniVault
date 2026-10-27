@@ -1122,25 +1122,8 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
 
     let playbackStarted = false;
 
-    // AniVault Sub is the fastest/most deterministic startup path. Instead
-    // of bypassing the normal server-button handler, trigger the actual AV
-    // Sub button so the exact same code path runs as a real user click.
-    // This is important for LuluStream because the button carries the saved
-    // audio-track key (for example the Japanese/sub track); calling
-    // switchToServer() directly would bypass that button metadata.
-    //
-    // Do this immediately, before any third-party probing starts. The click
-    // handler marks the selection as manual, so later probe results cannot
-    // replace the startup source.
-    const initialAvSub = document.querySelector(
-        '#tab-panel-sub .turbovid-server-btn, ' +
-        '#tab-panel-sub .lulustream-server-btn'
-    );
-    if (initialAvSub) {
-        playbackStarted = true;
-
-        initialAvSub.click();
-    }
+    // Start probing providers before selecting a server. The first playable
+    // resolution wins; no server is preselected just because it appears first.
 
     // Plain fetch() has no timeout: if the scraper backend hangs on one
     // particular source instead of erroring, that fetch's promise never
@@ -1390,14 +1373,12 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
                     setBtnDead(group, id);
                 }
 
-                // Keep priority order for autoplay: after each completion,
-                // activate the highest-priority working provider whose earlier
-                // providers have all settled (including earlier failures).
-                if (group === 'sub' && !playbackStarted && !window._manualServerSelection) {
-                    const candidate = defs.findIndex((_, j) =>
-                        !!resolvedMap[ids[j]] && defs.slice(0, j).every((__, k) => completed.has(k))
-                    );
-                    if (candidate >= 0) activateFixedButton(group, ids[candidate], audio);
+                // Race startup: the first provider that resolves a usable
+                // stream starts playback immediately, regardless of its position
+                // in the priority list or whether it is Sub, English Dub, or Hindi.
+                // A real user selection always takes precedence.
+                if (realKey && !playbackStarted && !window._manualServerSelection) {
+                    activateFixedButton(group, id, audio);
                 }
             }
         }
@@ -1428,32 +1409,16 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     // Sub provider must not block Dub watchers from seeing their servers.
     // Each lane still probes one provider at a time to avoid a request burst.
     // Hindi waits for English Dub to finish, keeping total concurrency bounded.
+    // Probe all audio groups concurrently. Each group keeps its own small
+    // worker pool, but whichever provider resolves first can start playback.
     const subMapPromise = resolveGroupUI('sub', SUB_PROVIDERS, 'sub');
     const dubMapPromise = resolveGroupUI('dub', DUB_PROVIDERS, 'dub');
-    const hindiMapPromise = dubMapPromise.then(() => resolveGroupUI('hindi', HINDI_PROVIDERS, 'dub'));
+    const hindiMapPromise = resolveGroupUI('hindi', HINDI_PROVIDERS, 'dub');
 
-    // Autoplay priority: Sub first; if Sub has nothing at all for this
-    // episode, fall to English Dub; if that's also empty, fall to Hindi
-    // Dub as a last resort. Every group still resolves and updates its
-    // own buttons in the background regardless of this chain.
-    subMapPromise.then(subMap => {
-        const pick = firstPlayable(SUB_PROVIDERS, subMap);
-        if (pick) {
-            if (!playbackStarted && !window._manualServerSelection) activateFixedButton('sub', pick, 'sub');
-            return;
-        }
-        return dubMapPromise.then(dubMap => {
-            const dpick = firstPlayable(DUB_PROVIDERS, dubMap);
-            if (dpick) {
-                if (!playbackStarted && !window._manualServerSelection) activateFixedButton('dub', dpick, 'dub');
-                return;
-            }
-            return hindiMapPromise.then(hindiMap => {
-                const hpick = firstPlayable(HINDI_PROVIDERS, hindiMap);
-                if (hpick && !playbackStarted && !window._manualServerSelection) activateFixedButton('hindi', hpick, 'dub');
-                else if (!hpick && !playbackStarted && !window._manualServerSelection) showNoServersAtAll();
-            });
-        });
+    // Only show the terminal error after every group has finished and none
+    // could start playback. Manual selections are never overwritten.
+    Promise.all([subMapPromise, dubMapPromise, hindiMapPromise]).then(() => {
+        if (!playbackStarted && !window._manualServerSelection) showNoServersAtAll();
     });
 
     // ── Multi Dub (Tamil/Telugu/Spanish/German/... everything that isn't
