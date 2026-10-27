@@ -77,12 +77,6 @@ const makeExtraPlayPause = (className, iconSize) => {
   });
   return button;
 };
-const centerPauseButton = videoArea ? makeExtraPlayPause('vh-extra-center-playpause', 34) : null;
-if (centerPauseButton) {
-  centerPauseButton.style.cssText += 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:76px;height:76px;border-radius:50%;background:rgba(0,0,0,.58);';
-  centerPauseButton.addEventListener('click', resetInactivity);
-  videoArea.appendChild(centerPauseButton);
-}
 const volumePauseButton = btnVol?.parentElement ? makeExtraPlayPause('vh-extra-volume-playpause', 18) : null;
 if (volumePauseButton) {
   volumePauseButton.style.cssText += 'width:38px;height:38px;border-radius:8px;background:transparent;flex:0 0 auto;';
@@ -90,7 +84,7 @@ if (volumePauseButton) {
 }
 function syncExtraPlayPauseButtons() {
   const paused = !!vid?.paused;
-  [centerPauseButton, volumePauseButton].forEach(button => {
+  [volumePauseButton].forEach(button => {
     if (!button) return;
     const play = button.querySelector('.vh-extra-play');
     const pause = button.querySelector('.vh-extra-pause');
@@ -290,17 +284,6 @@ root.addEventListener('touchstart', e => {
   }
   resetInactivity();
 }, { passive: true });
-// Keep the custom center play/pause control in sync with the player's
-// normal auto-hide behavior so it disappears with the other controls.
-if (centerPauseButton) {
-  const style = document.createElement('style');
-  style.textContent = `
-    #sp-video-area.vh-ui-hidden .vh-extra-center-playpause { opacity: 0; pointer-events: none; }
-    #sp-video-area:not(.vh-ui-hidden) .vh-extra-center-playpause { opacity: 1; pointer-events: auto; }
-    .vh-extra-center-playpause { transition: opacity .18s ease; }
-  `;
-  document.head.appendChild(style);
-}
 
 root.addEventListener('mouseleave', () => {
   if (!vid.paused && sheetBackdrop?.style.display === 'none' && !isScrubbing) {
