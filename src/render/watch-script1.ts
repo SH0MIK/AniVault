@@ -213,7 +213,10 @@ function switchToAnimeHeaven(audio) {
             } else {
                 fail('AnimeHeaven: video stalled and did not recover. Try another server.');
             }
-            cleanup();
+            // Keep the playing listener alive: some proxied MP4s emit an early
+            // transient error before playback actually begins. If playback
+            // subsequently starts, onPlaying will clear the overlay.
+            vid.removeEventListener('error', onError);
         };
         // Once playback genuinely starts, a 'waiting'/'stalled' event that
         // never resolves (no 'playing' or 'timeupdate' within 10s) means
@@ -226,7 +229,7 @@ function switchToAnimeHeaven(audio) {
             stallTimer = setTimeout(() => {
 
                 fail('AnimeHeaven: video stalled and did not recover. Try another server.');
-                cleanup();
+                vid.removeEventListener('error', onError);
             }, 10000);
         };
         function spinEl_hide() {
@@ -241,7 +244,7 @@ function switchToAnimeHeaven(audio) {
         vid.addEventListener('playing', clearStallTimer);
         setTimeout(() => {
 
-            if (!settled && vid.readyState === 0) onError();
+            if (!settled && vid.readyState === 0 && switchToken === (window._playerSwitchToken || 0)) onError();
         }, 12000);
 
 
