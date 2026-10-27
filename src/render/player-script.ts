@@ -1513,6 +1513,11 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
       backBufferLength: 90,
       capLevelToPlayerSize: false,
       autoStartLoad: true,
+      // Fetch the first media fragment as soon as the playlist exposes it,
+      // instead of waiting for the full startup sequence to settle. This
+      // reduces time-to-first-frame on ordinary HLS sources without changing
+      // the custom TurboVid fragment unwrapping or subtitle handling.
+      startFragPrefetch: true,
     };
     // TurboVid needs its custom fragment unwrap loader; normal HLS sources
     // (including LuluStream) must use hls.js's native fragment loader.
