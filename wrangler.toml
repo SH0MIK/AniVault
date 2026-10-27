@@ -14,12 +14,20 @@ directory = "./public"
 [[d1_databases]]
 binding = "DB"
 database_name = "anivault"
-database_id = "90e65283-30bd-4d4b-b4ce-dbfb976b9c92"
+database_id = "d81c4c7f-74c1-413f-ac90-30ac305415b6"
+
+[[kv_namespaces]]
+binding = "API_CACHE"
+id = "a8cfab6673614ae0a2fa243529787ba4"
+
+[[r2_buckets]]
+binding = "AVATARS"
+bucket_name = "anivault"
 
 # Background refresh jobs and cron triggers have been removed to prevent automated KV writes.
 [vars]
 SITE_NAME = "AniVault"
-SITE_URL = "https://anivault.getmomin322.workers.dev"
+SITE_URL = "https://www.anivault.co"
 SESSION_LIFETIME_SECONDS = "86400"
 GOOGLE_REDIRECT_URI = "https://www.anivault.co/pages/oauth_google.php"
 DISCORD_REDIRECT_URI = "https://www.anivault.co/pages/oauth_discord.php"
