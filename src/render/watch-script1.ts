@@ -544,6 +544,36 @@ function switchToGenericSource(source, providerName, realType, langKey) {
             if (window._setSenshiLastSource) window._setSenshiLastSource(url, subs || []);
             const vid = document.getElementById('sp-video');
             if (!vid) { fail('Player element missing (sp-video not found).'); return; }
+            // Keep the spinner tied to this MP4 attempt. Some providers return
+            // a valid-looking URL whose host never sends media bytes; without
+            // an error/startup deadline that leaves the player spinning forever.
+            let mp4Settled = false;
+            const clearMp4StartupTimer = () => {
+                if (mp4StartupTimer) clearTimeout(mp4StartupTimer);
+                vid.removeEventListener('playing', onMp4Playing);
+                vid.removeEventListener('error', onMp4Error);
+            };
+            const onMp4Playing = () => {
+                mp4Settled = true;
+                clearMp4StartupTimer();
+                if (spinEl) spinEl.classList.add('hide');
+                if (errEl) errEl.classList.remove('show');
+            };
+            const onMp4Error = () => {
+                if (mp4Settled) return;
+                clearMp4StartupTimer();
+                if (spinEl) spinEl.classList.add('hide');
+                const code = vid.error ? vid.error.code : 0;
+                fail('MP4 stream failed to start (media error ' + code + '). Try another server.');
+            };
+            vid.addEventListener('playing', onMp4Playing, { once: true });
+            vid.addEventListener('error', onMp4Error, { once: true });
+            const mp4StartupTimer = setTimeout(() => {
+                if (mp4Settled || vid.readyState > 0) return;
+                clearMp4StartupTimer();
+                if (spinEl) spinEl.classList.add('hide');
+                fail('MP4 server did not send video data in time. Try another server.');
+            }, 20000);
             vid.src = url;
             vid.load();
             vid.play().catch(err => {
