@@ -22,12 +22,12 @@ export interface FixedProviderDef {
 
 // Sub tab.
 export const SUB_PROVIDERS: FixedProviderDef[] = [
-  { source: 'animeheaven', provider: null, label: 'AnimeHeaven' },
   { source: 'anikoto', provider: 'Hd-1', label: 'Hd-1' },
   { source: 'anikoto', provider: 'Vidstream-2', label: 'Vidstream-2' },
   { source: 'reanime', provider: 'Hd-2', label: 'Hd-2' },
   { source: 'aniwaves', provider: 'Vidplay', label: 'Vidplay' },
   { source: 'aniwaves', provider: 'BYFMS', label: 'BYFMS' },
+  { source: 'animeheaven', provider: null, label: 'AnimeHeaven' },
   { source: 'anizone', provider: 'Japanese', label: 'Japanese (Zone)' },
   { source: 'animesalt', provider: 'Japanese', label: 'Japanese' },
   { source: 'animenosub', provider: 'Sub - Moon', label: 'Moon' },
