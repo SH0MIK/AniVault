@@ -134,6 +134,8 @@ function switchToAnimeHeaven(audio) {
     const pw = document.getElementById('watch-player-wrap');
     if (!pw) return;
 
+    const switchToken = window._playerSwitchToken || 0;
+
     // Stop whatever's currently playing FIRST so its audio doesn't keep
     // running underneath the loading spinner / error state below.
     stopCurrentVideo();
@@ -156,7 +158,9 @@ function switchToAnimeHeaven(audio) {
     function applyAnimeHeavenResult(d) {
 
         function fail(msg) {
-
+            // Ignore delayed events from an older server after the user has
+            // switched. They must never cover a different, working stream.
+            if (switchToken !== (window._playerSwitchToken || 0)) return;
             const errMsg = document.getElementById('sp-err-msg');
             if (errMsg) errMsg.textContent = msg;
             const errEl = document.getElementById('sp-error');
@@ -191,14 +195,18 @@ function switchToAnimeHeaven(audio) {
             vid.removeEventListener('playing', clearStallTimer);
         }
         const onPlaying = () => {
-
-            settled = true; spinEl_hide(); cleanupErrorOnly();
+            if (switchToken !== (window._playerSwitchToken || 0)) return;
+            settled = true;
+            spinEl_hide();
+            cleanupErrorOnly();
+            const errEl = document.getElementById('sp-error');
+            if (errEl) errEl.classList.remove('show');
             const preplayEl = document.getElementById('sp-preplay');
             if (preplayEl) preplayEl.classList.add('hide');
         };
         function cleanupErrorOnly() { vid.removeEventListener('error', onError); }
         const onError = () => {
-
+            if (switchToken !== (window._playerSwitchToken || 0)) return;
             if (!settled) {
                 const code = vid.error ? vid.error.code : 0;
                 fail('AnimeHeaven: video failed to load (code ' + code + '). The proxy link may be dead/expired or blocked by CORS — try another server.');
@@ -863,6 +871,8 @@ function ensureInitialAvPlayback() {
 }
 
 function switchToServer(serverName, audio = currentAudio, displayKey, luluTrackKey) {
+    // Invalidate callbacks from previous server attempts when switching.
+    window._playerSwitchToken = (window._playerSwitchToken || 0) + 1;
     const pw = document.getElementById('watch-player-wrap');
     if (!pw) return;
     const dKey = displayKey || serverName;
