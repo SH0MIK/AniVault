@@ -59,14 +59,28 @@ const makeExtraPlayPause = (className, iconSize) => {
   button.className = className;
   button.setAttribute('aria-label', 'Pause');
   button.title = 'Pause';
-  button.style.cssText = 'display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;border:0;z-index:30;';
+  button.style.cssText = 'display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;border:0;z-index:100;pointer-events:auto;';
   button.innerHTML = '<svg class="vh-extra-play" viewBox="0 0 24 24" width="'+iconSize+'" height="'+iconSize+'" fill="currentColor" style="display:none"><path d="M8 5v14l11-7z"/></svg><svg class="vh-extra-pause" viewBox="0 0 24 24" width="'+iconSize+'" height="'+iconSize+'" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
-  button.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); togglePlay(); });
+  button.addEventListener('pointerdown', e => { e.stopPropagation(); });
+  button.addEventListener('click', e => {
+    e.preventDefault();
+    e.stopPropagation();
+    // The player has a unified surface click handler; route this control
+    // directly to the native video state so the tap cannot be consumed by it.
+    if (vid.paused) {
+      const result = vid.play();
+      if (result && typeof result.catch === 'function') result.catch(() => {});
+    } else {
+      vid.pause();
+    }
+    resetInactivity();
+  });
   return button;
 };
 const centerPauseButton = videoArea ? makeExtraPlayPause('vh-extra-center-playpause', 34) : null;
 if (centerPauseButton) {
   centerPauseButton.style.cssText += 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:76px;height:76px;border-radius:50%;background:rgba(0,0,0,.58);';
+  centerPauseButton.addEventListener('click', resetInactivity);
   videoArea.appendChild(centerPauseButton);
 }
 const volumePauseButton = btnVol?.parentElement ? makeExtraPlayPause('vh-extra-volume-playpause', 18) : null;
@@ -276,6 +290,18 @@ root.addEventListener('touchstart', e => {
   }
   resetInactivity();
 }, { passive: true });
+// Keep the custom center play/pause control in sync with the player's
+// normal auto-hide behavior so it disappears with the other controls.
+if (centerPauseButton) {
+  const style = document.createElement('style');
+  style.textContent = `
+    #sp-video-area.vh-ui-hidden .vh-extra-center-playpause { opacity: 0; pointer-events: none; }
+    #sp-video-area:not(.vh-ui-hidden) .vh-extra-center-playpause { opacity: 1; pointer-events: auto; }
+    .vh-extra-center-playpause { transition: opacity .18s ease; }
+  `;
+  document.head.appendChild(style);
+}
+
 root.addEventListener('mouseleave', () => {
   if (!vid.paused && sheetBackdrop?.style.display === 'none' && !isScrubbing) {
     root.classList.add('vh-ui-hidden');
