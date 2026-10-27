@@ -50,6 +50,45 @@ const miniOutro      = document.getElementById('vh-mini-outro');
 
 /* Bottom Controls */
 const btnVol         = document.getElementById('vh-btn-vol');
+
+// Extra play/pause controls for large displays and beside the volume button.
+const videoArea = document.getElementById('sp-video-area');
+const makeExtraPlayPause = (className, iconSize) => {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.className = className;
+  button.setAttribute('aria-label', 'Pause');
+  button.title = 'Pause';
+  button.style.cssText = 'display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;border:0;z-index:30;';
+  button.innerHTML = '<svg class="vh-extra-play" viewBox="0 0 24 24" width="'+iconSize+'" height="'+iconSize+'" fill="currentColor" style="display:none"><path d="M8 5v14l11-7z"/></svg><svg class="vh-extra-pause" viewBox="0 0 24 24" width="'+iconSize+'" height="'+iconSize+'" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+  button.addEventListener('click', e => { e.preventDefault(); e.stopPropagation(); togglePlay(); });
+  return button;
+};
+const centerPauseButton = videoArea ? makeExtraPlayPause('vh-extra-center-playpause', 34) : null;
+if (centerPauseButton) {
+  centerPauseButton.style.cssText += 'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:76px;height:76px;border-radius:50%;background:rgba(0,0,0,.58);';
+  videoArea.appendChild(centerPauseButton);
+}
+const volumePauseButton = btnVol?.parentElement ? makeExtraPlayPause('vh-extra-volume-playpause', 18) : null;
+if (volumePauseButton) {
+  volumePauseButton.style.cssText += 'width:38px;height:38px;border-radius:8px;background:transparent;flex:0 0 auto;';
+  btnVol.parentElement.insertBefore(volumePauseButton, btnVol.nextSibling);
+}
+function syncExtraPlayPauseButtons() {
+  const paused = !!vid?.paused;
+  [centerPauseButton, volumePauseButton].forEach(button => {
+    if (!button) return;
+    const play = button.querySelector('.vh-extra-play');
+    const pause = button.querySelector('.vh-extra-pause');
+    if (play) play.style.display = paused ? 'block' : 'none';
+    if (pause) pause.style.display = paused ? 'none' : 'block';
+    button.setAttribute('aria-label', paused ? 'Play' : 'Pause');
+    button.title = paused ? 'Play' : 'Pause';
+  });
+}
+vid?.addEventListener('play', syncExtraPlayPauseButtons);
+vid?.addEventListener('pause', syncExtraPlayPauseButtons);
+syncExtraPlayPauseButtons();
 const volHighIcon    = btnVol?.querySelector('.vh-vol-high');
 const volMuteIcon    = btnVol?.querySelector('.vh-vol-mute');
 const volSlider      = document.getElementById('vh-vol-slider');
