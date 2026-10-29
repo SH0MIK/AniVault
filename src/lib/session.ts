@@ -28,13 +28,19 @@ export class Session {
   data: SessionData;
   private db: Db;
   private isNew: boolean;
+  private persistedDataJson: string;
+  private persistedUserId: number | null;
+  private expiresAt: number;
 
-  private constructor(db: Db, id: string, user_id: number | null, data: SessionData, isNew: boolean) {
+  private constructor(db: Db, id: string, user_id: number | null, data: SessionData, isNew: boolean, expiresAt = 0) {
     this.db = db;
     this.id = id;
     this.user_id = user_id;
     this.data = data;
     this.isNew = isNew;
+    this.persistedDataJson = JSON.stringify(data);
+    this.persistedUserId = user_id;
+    this.expiresAt = expiresAt;
   }
 
   private fromBearer = false;
@@ -59,7 +65,7 @@ export class Session {
       if (row && row.expires_at > Math.floor(Date.now() / 1000)) {
         let parsed: SessionData = {};
         try { parsed = JSON.parse(row.data || '{}'); } catch { /* ignore malformed */ }
-        const session = new Session(db, row.id, row.user_id, parsed, false);
+        const session = new Session(db, row.id, row.user_id, parsed, false, row.expires_at);
         session.fromBearer = !!bearerId;
         return session;
       }
@@ -71,35 +77,52 @@ export class Session {
   }
 
   async save(c: Context, lifetimeSeconds: number): Promise<void> {
-    await this.persist(lifetimeSeconds);
+    const cookieMaxAge = await this.persist(lifetimeSeconds);
     if (!this.fromBearer) {
       setCookie(c, COOKIE_NAME, this.id, {
         path: '/',
         httpOnly: true,
         secure: true,
         sameSite: 'Lax',
-        maxAge: lifetimeSeconds,
+        maxAge: cookieMaxAge,
       });
     }
   }
 
-  async persist(lifetimeSeconds: number): Promise<void> {
+  async persist(lifetimeSeconds: number): Promise<number> {
     const now = Math.floor(Date.now() / 1000);
-    const expiresAt = now + lifetimeSeconds;
+    const nextExpiresAt = now + lifetimeSeconds;
     const json = JSON.stringify(this.data);
 
     if (this.isNew) {
       await this.db.query(
         'INSERT INTO sessions (id, user_id, data, expires_at, created_at) VALUES (?, ?, ?, ?, ?)',
-        [this.id, this.user_id, json, expiresAt, now]
+        [this.id, this.user_id, json, nextExpiresAt, now]
       );
       this.isNew = false;
-    } else {
-      await this.db.query(
-        'UPDATE sessions SET user_id = ?, data = ?, expires_at = ? WHERE id = ?',
-        [this.user_id, json, expiresAt, this.id]
-      );
+      this.expiresAt = nextExpiresAt;
+      this.persistedDataJson = json;
+      this.persistedUserId = this.user_id;
+      return lifetimeSeconds;
     }
+
+    // Session expiry is sliding, but ordinary page/API reads shouldn't rewrite
+    // the D1 row every time. Persist changes immediately and refresh unchanged
+    // sessions only once the stored expiry is halfway through its lifetime.
+    const changed = json !== this.persistedDataJson || this.user_id !== this.persistedUserId;
+    const remaining = this.expiresAt - now;
+    if (!changed && remaining > Math.floor(lifetimeSeconds / 2)) {
+      return Math.max(1, remaining);
+    }
+
+    await this.db.query(
+      'UPDATE sessions SET user_id = ?, data = ?, expires_at = ? WHERE id = ?',
+      [this.user_id, json, nextExpiresAt, this.id]
+    );
+    this.expiresAt = nextExpiresAt;
+    this.persistedDataJson = json;
+    this.persistedUserId = this.user_id;
+    return lifetimeSeconds;
   }
 
   async destroy(c: Context): Promise<void> {
