@@ -21,7 +21,7 @@
 // ══════════════════════════════════════════════════════════════
 
 const WatchProgress = (() => {
-  const SAVE_INTERVAL  = 5000;  // save every 5 seconds
+  const SAVE_INTERVAL  = 30000; // save every 30 seconds
   const RESUME_THRESH  = 30;    // don't resume if < 30 s into the episode
   const COMPLETE_RATIO = 0.92;  // mark as "complete" when 92 % watched
 
@@ -31,6 +31,7 @@ const WatchProgress = (() => {
   let _saveTimer   = null;
   let _pollTimer   = null;
   let _resumed     = false;
+  let _lastSavedTime = 0;
 
   // ── Format seconds as "22m left" / "1h 4m left" ──────────
   function fmtLeft(secondsLeft) {
@@ -51,8 +52,12 @@ const WatchProgress = (() => {
   }
 
   // ── Persist progress to server ────────────────────────────
-  async function save() {
+  async function save(force = false) {
     if (!_cfg || !window.__loggedIn) return;
+    const currentTime = Math.floor(_watchTime);
+    // Avoid duplicate/near-identical progress writes (e.g. visibility + unload).
+    if (!force && currentTime < 5) return;
+    if (!force && Math.abs(currentTime - _lastSavedTime) < 25) return;
     try {
       await fetch((window.__siteUrl || '') + '/api/watch_history.php', {
         method:  'POST',
@@ -61,7 +66,7 @@ const WatchProgress = (() => {
           action:           'save_progress',
           anime_id:         _cfg.animeId,
           episode_num:      _cfg.episodeNum,
-          watch_time:       Math.floor(_watchTime),
+          watch_time:       currentTime,
           episode_duration: Math.floor(_duration),
           anime_title:      _cfg.animeTitle || '',
           anime_image:      _cfg.animeImage || '',
@@ -69,6 +74,7 @@ const WatchProgress = (() => {
           ep_thumb:         _cfg.epThumb    || '',
         }),
       });
+      _lastSavedTime = currentTime;
     } catch (e) { /* silent — don't disrupt playback */ }
   }
 
@@ -183,10 +189,12 @@ const WatchProgress = (() => {
     _watchTime = 0;
     _duration  = 0;
     _resumed   = false;
+    _lastSavedTime = 0;
 
     // Load saved position before starting
     const saved = await loadSaved();
     _cfg._savedTime = saved.watch_time || 0;
+    _lastSavedTime = _cfg._savedTime;
     if (saved.episode_duration) _duration = saved.episode_duration;
 
     // Start auto-save
@@ -194,9 +202,9 @@ const WatchProgress = (() => {
     _saveTimer = setInterval(save, SAVE_INTERVAL);
 
     // Save on tab close / navigate away
-    window.addEventListener('beforeunload', save);
+    window.addEventListener('beforeunload', () => save(true));
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') save();
+      if (document.visibilityState === 'hidden') save(true);
     });
 
     // Start polling the player iframe
