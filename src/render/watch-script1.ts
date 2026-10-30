@@ -1007,20 +1007,6 @@ window.retryCurrentServer = function() {
     }
 };
 
-// Gate buttons — sign in / join popup
-['wg-play','wg-play2'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.addEventListener('click', function() { requireLogin('login'); });
-});
-['wg-signin','wg-signin2'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.addEventListener('click', function() { requireLogin('login'); });
-});
-['wg-signup','wg-signup2'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.addEventListener('click', function() { requireLogin('signup'); });
-});
-
 // ── HLS / Embed source switching ──────────────────────────────────────────
 function setSourceType(audio, type) {
     const panel = document.getElementById('tab-panel-' + audio);
