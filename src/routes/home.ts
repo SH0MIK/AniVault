@@ -17,7 +17,7 @@ import { renderHeader, renderFooter } from '../render/layout';
 import { CONTINUE_WATCHING_CSS } from '../render/home-css';
 import { continueWatchingScript, heroSliderScript, rowNavScript } from '../render/home-js';
 import type { NormalisedAnime } from '../lib/mal-api';
-import { getBannerData } from '../lib/settings';
+import { getBannerData, Settings } from '../lib/settings';
 import { getHoshikaAnimeById, searchHoshikaAnime, getHoshikaAnimeEpisodesById, getHoshikaHomeSections, getHoshikaGenres, type HoshikaCatalogAnime } from '../lib/hoshika-api';
 import { findIdentityByLegacyMalId, findIdentityByHoshikaId } from '../lib/anime-identity';
 
@@ -104,7 +104,8 @@ homeRoutes.get('/', async (c) => {
   const siteUrl = c.env.SITE_URL;
 
   // Homepage feeds come directly from Hoshika. No MAL/Jikan/AniList fallback.
-  const hoshikaHome = await getHoshikaHomeSections(c.env.HOSHIKA_API_KEY);
+  const hoshikaCacheEnabled = await new Settings(db).isApiCacheEnabled(c.env.API_CACHE_ENABLED === '1');
+  const hoshikaHome = await getHoshikaHomeSections(c.env.HOSHIKA_API_KEY, c.env.API_CACHE, hoshikaCacheEnabled);
   const topList: NormalisedAnime[] = (hoshikaHome.trending.length ? hoshikaHome.trending : hoshikaHome.top).map(toHoshikaHomeAnime);
   const upcomingList: NormalisedAnime[] = hoshikaHome.seasonal.map(toHoshikaHomeAnime);
   const recentList: NormalisedAnime[] = hoshikaHome.recent.map(toHoshikaHomeAnime);
