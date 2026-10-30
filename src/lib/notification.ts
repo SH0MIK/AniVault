@@ -26,7 +26,6 @@ export const NOTIFICATION_TYPES: Record<string, { icon: string; color: string; l
   chat_mention: { icon: '💬', color: 'accent', label: 'mentioned you in chat' },
   chat_reply: { icon: '↩️', color: 'accent', label: 'replied to your message' },
   comment_reply: { icon: '↩️', color: 'accent', label: 'replied to your comment' },
-  auto_account: { icon: '🔑', color: 'gold', label: 'account created for you' },
   bug_report: { icon: icon('alert','icon-small'), color: 'gold', label: 'submitted a bug report' },
   bug_report_solved: { icon: icon('check','icon-small'), color: 'teal', label: 'marked your bug report as solved' },
   points_gift: { icon: '🎁', color: 'gold', label: 'gifted you points' },
@@ -119,12 +118,6 @@ export const Notification = {
       case 'bug_report_solved': return `Your bug report <strong>${meta}</strong> was marked as solved`;
       case 'points_gift': return `<strong>${actor}</strong> gifted you points${meta ? `: <em>${meta}</em>` : ''}`;
       case 'reward_gift': return `<strong>${actor}</strong> gifted you a reward${meta ? `: <em>${meta}</em>` : ''}`;
-      case 'auto_account': {
-        let creds: { username?: string; password?: string } = {};
-        try { creds = JSON.parse(n.entity_meta ?? '{}'); } catch { /* malformed -- show generic text */ }
-        if (!creds.username) return `We made you a free account — tap to secure it`;
-        return `We made you a free account: <strong>${h(creds.username)}</strong> / <strong>${h(creds.password ?? '')}</strong><br><span style="opacity:.75">Tap to set your own username, password, or connect Google/Discord</span>`;
-      }
       default: return `<strong>${actor}</strong> did something`;
     }
   },
@@ -141,7 +134,6 @@ export const Notification = {
       case 'bug_report_solved': return `${siteUrl}/bug-reports`;
       case 'points_gift': return `${siteUrl}/points`;
       case 'reward_gift': return `${siteUrl}/points`;
-      case 'auto_account': return `${siteUrl}/profile`;
       default: return `${siteUrl}/feed`;
     }
   },

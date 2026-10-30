@@ -490,22 +490,18 @@ export function renderWatchBody(p: WatchBodyParams): string {
 
   let playerHtml: string;
   if (hasRealVideo) {
-    playerHtml = isLoggedIn
-      ? `<div class="wp-player-shell" id="watch-player-wrap">${qSub.length > 0 ? qSub[0].embed : `<iframe id="main-player-iframe" src="${h(video!.video_url ?? '')}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen loading="lazy"></iframe>`}</div><div class="wp-player-accent-line"></div>`
-      : renderSignInGate(image, 'wg-play', 'wg-signin', 'wg-signup');
+    playerHtml = `<div class="wp-player-shell" id="watch-player-wrap">${qSub.length > 0 ? qSub[0].embed : `<iframe id="main-player-iframe" src="${h(video!.video_url ?? '')}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen loading="lazy"></iframe>`}</div><div class="wp-player-accent-line"></div>`;
   } else if (hasMegaplayFallback || hasTurboVid || hasLuluStream) {
     // Keep the player shell present whenever a saved TurboVid source exists.
     // The old "Finding the best server" gate could remain visible while the
     // AV source was already playing because watchScript1 ran before the
     // hidden Senshi player DOM was emitted.
-    playerHtml = isLoggedIn
-      ? `<div class="wp-player-shell" id="watch-player-wrap"><div class="wp-player-loading" id="wp-player-loading"><div class="wp-player-loading-ring"></div><span>Loading player...</span></div></div><div class="wp-player-accent-line"></div>`
-      : renderSignInGate(image, 'wg-play2', 'wg-signin2', 'wg-signup2');
+    playerHtml = `<div class="wp-player-shell" id="watch-player-wrap"><div class="wp-player-loading" id="wp-player-loading"><div class="wp-player-loading-ring"></div><span>Loading player...</span></div></div><div class="wp-player-accent-line"></div>`;
   } else {
     playerHtml = `<div class="wp-no-video"><div class="nv-icon">🎬</div><p>No video available yet.<br>Check back later or explore other episodes.</p><a href="${animePage}" class="btn btn-ghost btn-sm" style="margin-top:.25rem">← Back to Anime</a></div>`;
   }
 
-  const serverControlsHtml = (isLoggedIn && (video || hasMegaplayFallback || hasTurboVid || hasLuluStream)) ? `
+  const serverControlsHtml = ((video || hasMegaplayFallback || hasTurboVid || hasLuluStream)) ? `
         <div class="wp-controls">
           ${qSub.length > 0 ? `
           <div class="wp-quality-row">
@@ -855,20 +851,3 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
 
 }
 
-function renderSignInGate(image: string, playId: string, signinId: string, signupId: string): string {
-  return `<div class="wp-player-shell" id="watch-player-wrap">
-              <div class="wp-gate">
-                <div class="wp-gate-bg" style="background-image:url('${h(image)}')"></div>
-                <div class="wp-gate-vignette"></div>
-                <div class="wp-gate-inner">
-                  <div class="wp-gate-ring" id="${playId}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
-                  <div><div class="wp-gate-title">Sign in to watch</div><div class="wp-gate-sub">Free account · No credit card needed</div></div>
-                  <div class="wp-gate-btns">
-                    <button class="wp-gate-cta" id="${signinId}">Sign In</button>
-                    <button class="wp-gate-ghost" id="${signupId}">Join Free</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="wp-player-accent-line"></div>`;
-}

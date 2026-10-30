@@ -12,7 +12,6 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
-import { Auth } from '../lib/auth';
 import { h } from '../lib/helpers';
 import { findIdentityByHoshikaId, findIdentityByLegacyMalId } from '../lib/anime-identity';
 import { getHoshikaAnimeById, getHoshikaAnimeEpisodesById } from '../lib/hoshika-api';
@@ -454,9 +453,6 @@ scraperRoutes.get('/api/server_check.php', async (c) => {
   const db = new Db(c.env.DB);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const session = await Session.load(c, db, lifetime);
-  const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
-  if (!auth.check()) { await session.save(c, lifetime); return c.json({ error: 'Unauthorized' }, 401); }
-
   const malId = parseInt(c.req.query('mal') ?? '0', 10) || 0;
   const anilistId = parseInt(c.req.query('anilist') ?? '0', 10) || 0;
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
@@ -484,8 +480,6 @@ scraperRoutes.get('/api/server_check_stream.php', async (c) => {
   const db = new Db(c.env.DB);
   const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
   const session = await Session.load(c, db, lifetime);
-  const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
-
   const malId = parseInt(c.req.query('mal') ?? '0', 10) || 0;
   const anilistId = parseInt(c.req.query('anilist') ?? '0', 10) || 0;
   const epNum = parseInt(c.req.query('ep') ?? '0', 10) || 0;
@@ -497,7 +491,6 @@ scraperRoutes.get('/api/server_check_stream.php', async (c) => {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
 
-      if (!auth.check()) { send('error', { message: 'Unauthorized' }); controller.close(); return; }
       if (!malId || !anilistId || !epNum) { send('error', { message: 'Missing mal, anilist, or ep' }); controller.close(); return; }
       const base = getScraperBase(c.env);
       if (!base) { send('error', { message: 'Scraper API not configured' }); controller.close(); return; }

@@ -1007,20 +1007,6 @@ window.retryCurrentServer = function() {
     }
 };
 
-// Gate buttons — sign in / join popup
-['wg-play','wg-play2'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.addEventListener('click', function() { requireLogin('login'); });
-});
-['wg-signin','wg-signin2'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.addEventListener('click', function() { requireLogin('login'); });
-});
-['wg-signup','wg-signup2'].forEach(function(id) {
-    var el = document.getElementById(id);
-    if (el) el.addEventListener('click', function() { requireLogin('signup'); });
-});
-
 // ── HLS / Embed source switching ──────────────────────────────────────────
 function setSourceType(audio, type) {
     const panel = document.getElementById('tab-panel-' + audio);
@@ -1134,10 +1120,8 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
 // provider listing) so broken/404 servers never show up as clickable.
 (function probeAndRenderServers() {
   function startServerProbe() {
-    // The server tab panels only exist for logged-in users with a video
-    // (see the Auth::check() && ($video || $megaplayEmbed) guard above).
-    // For everyone else #watch-player-wrap holds the sign-in gate — don't
-    // touch it, and don't bother hitting the (auth-gated) stream endpoints.
+    // Server panels are rendered for guests too; watching is public.
+    // Only account-specific actions (history/list/progress) require login.
     if (!document.getElementById('tab-panel-sub') && !document.getElementById('tab-panel-dub')) return;
 
   try {
