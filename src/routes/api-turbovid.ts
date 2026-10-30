@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
-import { Auth } from '../lib/auth';
 import { resolveTurbovidCF } from '../lib/turbovid-resolver-cf';
 import { Settings } from '../lib/settings';
 
@@ -12,8 +11,6 @@ turbovidApiRoutes.get('/api/turbovid_stream.php', async (c) => {
   const db=new Db(c.env.DB);
   const lifetime=Number(c.env.SESSION_LIFETIME_SECONDS||86400);
   const session=await Session.load(c,db,lifetime);
-  const auth=new Auth(db,session,c.env as any,c.req.header('cf-connecting-ip')||'unknown');
-  if(!auth.check()){await session.save(c,lifetime);return c.json({error:'Unauthorized'},401);}
   const turboVidEnabled = (await new Settings(db).get('turbovid_enabled', '1')) === '1';
   if(!turboVidEnabled){await session.save(c,lifetime);return c.json({error:'TurboVid is temporarily disabled'},503);}
   const id=Number(c.req.query('id')||0);
