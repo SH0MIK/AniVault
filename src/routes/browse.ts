@@ -9,7 +9,7 @@ import { getUserAnimeStatuses } from '../lib/user-list';
 import { icon } from '../lib/icons';
 import { h } from '../lib/helpers';
 import { renderHeader, renderFooter } from '../render/layout';
-import { getBannerData } from '../lib/settings';
+import { getBannerData, Settings } from '../lib/settings';
 
 export const browseRoutes = new Hono<{ Bindings: Env }>();
 
@@ -19,6 +19,7 @@ browseRoutes.get('/browse', async (c) => {
   const session = await Session.load(c, db, lifetime);
   const auth = new Auth(db, session, c.env as any, c.req.header('cf-connecting-ip') ?? 'unknown');
   const siteUrl = c.env.SITE_URL;
+  const hoshikaCacheEnabled = await new Settings(db).isApiCacheEnabled(c.env.API_CACHE_ENABLED === '1');
 
   const q = (c.req.query('q') ?? '').trim();
   const type = c.req.query('type') ?? '';
@@ -26,7 +27,7 @@ browseRoutes.get('/browse', async (c) => {
   const sort = (c.req.query('sort') ?? 'trending').trim();
   const year = Math.max(0, Number.parseInt(c.req.query('year') ?? '', 10) || 0);
   const page = Math.max(1, parseInt(c.req.query('page') ?? '1', 10) || 1);
-  const hoshikaGenres = await getHoshikaGenres(c.env.HOSHIKA_API_KEY);
+  const hoshikaGenres = await getHoshikaGenres(c.env.HOSHIKA_API_KEY, c.env.API_CACHE, hoshikaCacheEnabled);
   const genreList: Array<{ mal_id: number; slug: string; name: string }> = hoshikaGenres.map((g, index) => ({ mal_id: index + 1, slug: g.slug, name: g.name }));
 
   let genres = c.req.queries('genres[]')?.map((g) => parseInt(g, 10)).filter((n) => Number.isInteger(n) && n > 0) ?? [];
@@ -43,7 +44,7 @@ browseRoutes.get('/browse', async (c) => {
     const norm = (value: unknown) => String(value ?? '').trim().toLowerCase().replace(/[_-]+/g, ' ').replace(/\\s+/g, ' ');
     const hasFacets = !!(year || type || status || selectedGenre);
     if (!hasFacets) {
-      hoshikaSearchItems = await searchHoshikaAnime(q, 50, c.env.HOSHIKA_API_KEY);
+      hoshikaSearchItems = await searchHoshikaAnime(q, 50, c.env.HOSHIKA_API_KEY, c.env.API_CACHE, hoshikaCacheEnabled);
       catalogResult = { items: hoshikaSearchItems, total: hoshikaSearchItems.length, totalPages: 1 };
     } else {
       // Hoshika search records often omit genre/year/status metadata. When
@@ -56,7 +57,7 @@ browseRoutes.get('/browse', async (c) => {
         page: 1,
         type: type || undefined,
         status: status || undefined,
-      }, c.env.HOSHIKA_API_KEY);
+      }, c.env.HOSHIKA_API_KEY, c.env.API_CACHE, hoshikaCacheEnabled);
       const catalogPages = [firstPage];
       for (let p = 2; p <= Math.min(firstPage.totalPages, 10); p++) {
         catalogPages.push(await getHoshikaCatalog({
@@ -66,7 +67,7 @@ browseRoutes.get('/browse', async (c) => {
           page: p,
           type: type || undefined,
           status: status || undefined,
-        }, c.env.HOSHIKA_API_KEY));
+        }, c.env.HOSHIKA_API_KEY, c.env.API_CACHE, hoshikaCacheEnabled));
       }
       const query = norm(q);
       const matched = catalogPages.flatMap((result) => result.items).filter((item) => {
@@ -139,7 +140,7 @@ browseRoutes.get('/browse', async (c) => {
         (item.genres ?? []).some((g: string) => String(g).toLowerCase() === wanted)));
     }
     catalogResult = { items: hoshikaSearchItems, total: hoshikaSearchItems.length, totalPages: 1 };
-  } else catalogResult = await getHoshikaCatalog({ genre: selectedGenre, year: year || undefined, sort, page, type: type || undefined, status: status || undefined }, c.env.HOSHIKA_API_KEY);
+  } else catalogResult = await getHoshikaCatalog({ genre: selectedGenre, year: year || undefined, sort, page, type: type || undefined, status: status || undefined }, c.env.HOSHIKA_API_KEY, c.env.API_CACHE, hoshikaCacheEnabled);
   const items = catalogResult.items;
   const totalCount = catalogResult.total;
   const totalPages = catalogResult.totalPages;
@@ -355,6 +356,8 @@ browseRoutes.get('/search', (c) => {
 
 // ── api/search_suggest.php — live search dropdown ─────────────────────────
 browseRoutes.get('/api/search_suggest.php', async (c) => {
+  const db = new Db(c.env.DB);
+  const hoshikaCacheEnabled = await new Settings(db).isApiCacheEnabled(c.env.API_CACHE_ENABLED === '1');
   const q = (c.req.query('q') ?? '').trim();
   if (q.length < 1) {
     return c.json([], 200, { 'Cache-Control': 'no-store' });
@@ -363,7 +366,7 @@ browseRoutes.get('/api/search_suggest.php', async (c) => {
   try {
     // Search suggestions now come from Hoshika only. Hoshika shortId is
     // returned separately so it cannot be mistaken for a legacy MAL ID.
-    const items = await searchHoshikaAnime(q, 4, c.env.HOSHIKA_API_KEY);
+    const items = await searchHoshikaAnime(q, 4, c.env.HOSHIKA_API_KEY, c.env.API_CACHE, hoshikaCacheEnabled);
     const out = items.map((a) => ({
       shortId: a.shortId,
       title: a.title,
