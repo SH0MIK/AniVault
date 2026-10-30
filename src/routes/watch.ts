@@ -11,7 +11,7 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
-import { Auth, AUTO_SESSION_LIFETIME_SECONDS } from '../lib/auth';
+import { Auth } from '../lib/auth';
 import type { NormalisedAnime } from '../lib/mal-api';
 import { getHoshikaAnimeById, getHoshikaAnimeEpisodesById } from '../lib/hoshika-api';
 import { findIdentityByHoshikaId, findIdentityByLegacyMalId } from '../lib/anime-identity';
@@ -224,17 +224,8 @@ watchRoutes.get('/watch', async (c) => {
   if (!mapped) return c.text('Anime not found in Hoshika. Please check the Hoshika ID.', 404);
   const anime = mapped.anime;
 
-  // No more login wall on the watch page: a signed-out visitor gets a real
-  // account (random username/password) created transparently right here, so
-  // the player just plays. renderSignInGate() below is kept only as a
-  // fallback for the rare case autoRegister() itself fails (e.g. a DB hiccup).
-  let justAutoCreated: { username: string; password: string } | null = null;
-  if (!auth.check()) {
-    const reg = await auth.autoRegister();
-    if (reg.success && reg.username && reg.password) {
-      justAutoCreated = { username: reg.username, password: reg.password };
-    }
-  }
+  // Watching remains public. Signed-out visitors do not receive an account;
+  // account-specific progress and list actions are gated in the API.
 
   const title = getAnimeTitle(anime);
   const image = anime.images?.jpg?.large_image_url ?? '';
@@ -446,15 +437,10 @@ watchRoutes.get('/watch', async (c) => {
   if (auth.check()) {
     html += watchScript2(animeId, epNum, siteUrl, epDurationSec, totalEps);
   }
-
-  if (justAutoCreated) {
-    html += `<script>window.__autoAccountInfo=${JSON.stringify(justAutoCreated)};</script>`;
-  }
-
   html += renderFooter({ siteUrl, currentUser: layoutUser });
 
 
-  await session.save(c, session.data.auto_created ? AUTO_SESSION_LIFETIME_SECONDS : lifetime);
+  await session.save(c, lifetime);
   return c.html(html);
 });
 
