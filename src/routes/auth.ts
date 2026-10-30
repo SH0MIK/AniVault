@@ -6,7 +6,7 @@
 import { Hono } from 'hono';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
-import { Auth, OWNER_USER_ID, AUTO_SESSION_LIFETIME_SECONDS } from '../lib/auth';
+import { Auth, OWNER_USER_ID } from '../lib/auth';
 import type { Env } from '../index';
 
 export const authRoutes = new Hono<{ Bindings: Env }>();
@@ -52,16 +52,12 @@ authRoutes.post('/api/auth_ajax.php', async (c) => {
   return c.json(result);
 });
 
+// Automatic/guest account creation is disabled. Keep the legacy route for
+// old clients, but never create an account for anonymous visitors.
 authRoutes.post('/api/auto_auth.php', async (c) => {
-  const { auth, session } = await buildAuth(c);
-  const lifetime = Number(c.env.SESSION_LIFETIME_SECONDS ?? 86400);
-  if (auth.check()) {
-    await session.save(c, lifetime);
-    return c.json({ success: true, alreadyLoggedIn: true });
-  }
-  const result = await auth.autoRegister();
-  await session.save(c, result.success ? AUTO_SESSION_LIFETIME_SECONDS : lifetime);
-  return c.json(result);
+  const { auth } = await buildAuth(c);
+  if (auth.check()) return c.json({ success: true, alreadyLoggedIn: true });
+  return c.json({ success: false, message: 'Please log in to your existing AniVault account to continue.' }, 401);
 });
 
 authRoutes.get('/api/auth_google_url.php', async (c) => {

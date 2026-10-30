@@ -11,13 +11,6 @@ import { DiscordNotifier, DiscordEnv } from './discord';
 
 export const OWNER_USER_ID = 2;
 
-// How long a *silently auto-created* account's session should stick around.
-// Regular logins still use SESSION_LIFETIME_SECONDS (default 24h) — this is
-// deliberately much longer (1 year) so a visitor who never sees a password
-// prompt doesn't get logged out and orphaned from the account/watchlist we
-// made for them.
-export const AUTO_SESSION_LIFETIME_SECONDS = 60 * 60 * 24 * 365;
-
 export interface AuthEnv extends DiscordEnv {
   SITE_URL: string;
   AVATARS: R2Bucket;
@@ -168,71 +161,6 @@ export class Auth {
   }
 
   // ----------------------------------------------------------
-  // Silent/auto registration — creates a real, fully-functional account with
-  // a generated username + password and logs the visitor straight in, with
-  // no popup and no email required. Used for actions that shouldn't be
-  // blocked by a login wall (watching an episode, adding to a list,
-  // favoriting) — see the /api/auto_auth.php route and its callers.
-  // Mirrors register()'s side effects (uid, logging, Discord relay,
-  // auto-follow of the owner account) so an auto-created account behaves
-  // identically to a manually registered one from that point on.
-  // ----------------------------------------------------------
-  async autoRegister(): Promise<AuthResult & { username?: string; password?: string }> {
-    // e.g. "SwiftRonin82" — reads like a real handle instead of an obvious
-    // "Guest4821" placeholder. generateUsername() below still de-dupes with
-    // a "_2" suffix on the rare collision.
-    const username = await this.generateUsername(generateFriendlyUsernameBase());
-    const password = this.generateRandomPassword();
-    const hash = await bcrypt.hash(password, 12);
-
-    // A blank '' would satisfy the NOT NULL constraint, but if `email` also
-    // has a unique index we don't know about (not visible in a plain
-    // CREATE TABLE dump), every 2nd guest account would fail to insert.
-    // Deriving the placeholder from the (already unique) username sidesteps
-    // that regardless of whether such an index exists.
-    const placeholderEmail = `${username.toLowerCase()}@guest.invalid`;
-
-    const id = await this.db.insert(
-      'INSERT INTO users (username, email, password_hash) VALUES (?, ?, ?)',
-      [username, placeholderEmail, hash]
-    );
-    await this.assignUid(id);
-    const user = await this.db.fetchOne<UserRow>('SELECT * FROM users WHERE id = ?', [id]);
-    if (!user) return { success: false, message: 'Could not create an account.' };
-
-    this.setSession(user);
-    this.session.data.auto_created = true;
-    // Intentionally NOT logged to activity_log, and NOT notified to the
-    // owner (Discord or in-app) — these accounts are created silently in
-    // the background on nearly every anonymous action (watching,
-    // list-adding, favoriting), so logging/notifying on every one was
-    // flooding the activity log and spamming the owner. Real
-    // logins/registrations (email/Google/Discord) still log and notify.
-
-    if (id !== OWNER_USER_ID) {
-      await this.db.query('INSERT OR IGNORE INTO follows (follower_id, following_id) VALUES (?, ?)', [id, OWNER_USER_ID]);
-    }
-
-    // Self-notification carrying the generated credentials, so the user can
-    // find them again later in the bell dropdown even after the one-time
-    // on-screen toast is gone. This goes straight through db.insert (not
-    // Notification.create) because that helper skips self-notifications.
-    await this.db.insert(
-      'INSERT INTO notifications (user_id, actor_id, type, entity_meta) VALUES (?, ?, ?, ?)',
-      [id, id, 'auto_account', JSON.stringify({ username, password })]
-    );
-
-    return { success: true, username, password };
-  }
-
-  private generateRandomPassword(length = 12): string {
-    const chars = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-    const bytes = new Uint8Array(length);
-    crypto.getRandomValues(bytes);
-    return Array.from(bytes, (b) => chars[b % chars.length]).join('');
-  }
-
-  // ----------------------------------------------------------
   // Google OAuth
   // ----------------------------------------------------------
   getGoogleAuthUrl(): string {
@@ -288,24 +216,10 @@ export class Auth {
     }
 
     if (!user) {
-      const username = await this.generateUsername(name ?? 'user');
-      const id = await this.db.insert(
-        'INSERT INTO users (username, email, google_id, avatar_url, password_hash) VALUES (?, ?, ?, ?, ?)',
-        [username, email ?? `${username.toLowerCase()}@google.invalid`, googleId, avatar, '']
-      );
-      await this.assignUid(id);
-      user = await this.db.fetchOne<UserRow>('SELECT * FROM users WHERE id = ?', [id]);
-      if (!user) return { success: false, message: 'Registration failed.' };
-      await Logger.log(this.db, id, 'register', 'Registered via Google', this.ip);
-      await DiscordNotifier.newUser(this.env, this.db, user, 'google');
-      if (id !== OWNER_USER_ID) {
-        await this.db.query('INSERT OR IGNORE INTO follows (follower_id, following_id) VALUES (?, ?)', [id, OWNER_USER_ID]);
-        await this.db.insert('INSERT INTO notifications (user_id, actor_id, type) VALUES (?, ?, ?)', [OWNER_USER_ID, id, 'follow']);
-      }
-      this.session.data.username_setup = true;
+      return { success: false, message: 'No existing AniVault account is linked to this Google account. Log in with your existing account first, then connect Google from your profile.' };
     }
 
-    if (!user || !user.is_active) return { success: false, message: 'Account is disabled.' };
+    if (!user.is_active) return { success: false, message: 'Account is disabled.' };
 
     // Skip if avatar_url is already ours (e.g. a manual upload) or there's
     // nothing new from Google to mirror.
@@ -381,24 +295,10 @@ export class Auth {
     }
 
     if (!user) {
-      const uname = await this.generateUsername(username ?? 'user');
-      const id = await this.db.insert(
-        'INSERT INTO users (username, email, discord_id, avatar_url, password_hash) VALUES (?, ?, ?, ?, ?)',
-        [uname, email ?? `${uname.toLowerCase()}@discord.invalid`, discordId, avatar, '']
-      );
-      await this.assignUid(id);
-      user = await this.db.fetchOne<UserRow>('SELECT * FROM users WHERE id = ?', [id]);
-      if (!user) return { success: false, message: 'Registration failed.' };
-      await Logger.log(this.db, id, 'register', 'Registered via Discord', this.ip);
-      await DiscordNotifier.newUser(this.env, this.db, user, 'discord');
-      if (id !== OWNER_USER_ID) {
-        await this.db.query('INSERT OR IGNORE INTO follows (follower_id, following_id) VALUES (?, ?)', [id, OWNER_USER_ID]);
-        await this.db.insert('INSERT INTO notifications (user_id, actor_id, type) VALUES (?, ?, ?)', [OWNER_USER_ID, id, 'follow']);
-      }
-      this.session.data.username_setup = true;
+      return { success: false, message: 'No existing AniVault account is linked to this Discord account. Log in with your existing account first, then connect Discord from your profile.' };
     }
 
-    if (!user || !user.is_active) return { success: false, message: 'Account is disabled.' };
+    if (!user.is_active) return { success: false, message: 'Account is disabled.' };
 
     // Skip if avatar_url is already ours (e.g. a manual upload) or there's
     // nothing new from Discord to mirror.
