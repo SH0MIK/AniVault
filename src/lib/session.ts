@@ -77,6 +77,12 @@ export class Session {
   }
 
   async save(c: Context, lifetimeSeconds: number): Promise<void> {
+    // Public pages do not need a durable session for signed-out visitors.
+    // Avoid creating a D1 row (and cookie) for an untouched anonymous session.
+    // Keep persistence for guests with actual state (OAuth/CSRF/flash) and for
+    // authenticated users; this does not affect existing account sessions.
+    if (this.user_id === null && Object.keys(this.data).length === 0) return;
+
     const cookieMaxAge = await this.persist(lifetimeSeconds);
     if (!this.fromBearer) {
       setCookie(c, COOKIE_NAME, this.id, {
