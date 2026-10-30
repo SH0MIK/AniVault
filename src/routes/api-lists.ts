@@ -3,7 +3,7 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
-import { Auth, AUTO_SESSION_LIFETIME_SECONDS } from '../lib/auth';
+import { Auth } from '../lib/auth';
 import { AnimeTracker } from '../lib/tracker';
 import { pushListSync } from '../lib/list-sync';
 import { Notification } from '../lib/notification';
@@ -26,24 +26,9 @@ apiListRoutes.on(['GET', 'POST'], '/api/list.php', async (c) => {
   const body = c.req.method === 'POST' ? await c.req.parseBody() : {};
   const action = (body.action as string) ?? c.req.query('action') ?? '';
 
-  // 'add' and 'favorite' are allowed to silently create an account for a
-  // signed-out visitor (mirrors the client's ensureAccount() call in app.js
-  // — this is just the server-side backstop in case that call didn't fire).
-  // 'remove'/'get' stay gated: there's nothing to remove/fetch for someone
-  // who's never had an account.
-  let autoAccount: { username: string; password: string } | undefined;
   if (!auth.check()) {
-    if (action === 'add' || action === 'favorite') {
-      const reg = await auth.autoRegister();
-      if (!reg.success) {
-        await session.save(c, lifetime);
-        return c.json({ success: false, message: reg.message ?? 'Could not create an account.' }, 500);
-      }
-      autoAccount = { username: reg.username!, password: reg.password! };
-    } else {
-      await session.save(c, lifetime);
-      return c.json({ success: false, message: 'Not logged in' }, 401);
-    }
+    await session.save(c, lifetime);
+    return c.json({ success: false, message: 'Please log in to use your AniVault list.' }, 401);
   }
   const userId = session.user_id!;
 
@@ -87,8 +72,7 @@ apiListRoutes.on(['GET', 'POST'], '/api/list.php', async (c) => {
       await session.save(c, lifetime);
       return c.json({ success: false, message: 'Unknown action' }, 400);
   }
-  if (autoAccount) result = { ...result, auto_account: autoAccount };
-  await session.save(c, autoAccount ? AUTO_SESSION_LIFETIME_SECONDS : lifetime);
+  await session.save(c, lifetime);
   return c.json(result);
 });
 
