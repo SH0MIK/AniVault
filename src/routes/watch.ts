@@ -25,13 +25,12 @@ import { watchScript2 } from '../render/watch-script2';
 import { PLAYER_CSS } from '../render/player-css';
 import { playerScript } from '../render/player-script';
 import { playerBody } from '../render/player-body';
-import { getBannerData, Settings } from '../lib/settings';
+import { getBannerData } from '../lib/settings';
 import { AnimeTracker } from '../lib/tracker';
 import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
 import { SUB_PROVIDERS, DUB_PROVIDERS, HINDI_PROVIDERS, fixedServerBtn } from '../lib/stream-sources';
 import { renderWatchComments } from '../render/watch-comments';
 
-interface TurboVidServerRow { [key: string]: unknown; id:number; anime_id:number; episode_num:number; audio_group:string; language:string; label:string; embed_url:string; is_active:number; }
 interface LuluStreamServerRow { [key: string]: unknown; id:number; anime_id:number; episode_num:number; label:string; embed_url:string; audio_tracks:string; is_active:number; }
 
 export const watchRoutes = new Hono<{ Bindings: Env }>();
@@ -64,10 +63,6 @@ function renderLuluTrackButtons(servers: LuluStreamServerRow[], group: string, s
     '<button class="server-btn lulustream-server-btn av-server" data-server="lulustream:' + v.id + '" data-lulustream-id="' + v.id + '" data-lulu-track-key="' + h(t.key || '') + '"><img class="av-server-logo" src="' + siteUrl + '/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">' + h(t.label || (group === 'hindi' ? 'Hindi' : 'Audio')) + '</span></button>'
   )).join('');
 }
-function renderTurboTrackButtons(servers: TurboVidServerRow[], group: string, siteUrl: string): string {
-  return servers.filter(v => v.audio_group === group).map(v => '<button class="server-btn turbovid-server-btn av-server" data-server="turbovid:' + v.id + '" data-turbovid-id="' + v.id + '" title="AniVault ' + (group === 'hindi' ? 'Hindi' : group === 'multi' ? 'Multi' : 'Sub') + '"><img class="av-server-logo" src="' + siteUrl + '/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">' + (group === 'multi' ? h(v.language || 'dub') : (group === 'hindi' ? 'Hindi' : 'Sub')) + '</span></button>').join('');
-}
-function hasTurboGroup(servers: TurboVidServerRow[], group: string): boolean { return servers.some(v => v.audio_group === group); }
 interface EpisodeVideoRow {
   [key: string]: unknown;
   id: number;
@@ -244,9 +239,6 @@ watchRoutes.get('/watch', async (c) => {
   // actively airing, so there's nothing for the cache to correct.
   const hoshikaEpisodes = await getHoshikaAnimeEpisodesById(mapped.shortId, c.env.HOSHIKA_API_KEY);
   const totalEps = Math.max(anime.episodes ?? 0, hoshikaEpisodes?.length ?? 0);
-  // Self Host / TurboVid rows may have been saved under either the legacy
-  // MAL key or the canonical Hoshika shortId during the catalog migration.
-  // Query both keys so existing episode servers remain visible on the watch page.
   const hoshikaNumericId = Number(mapped.shortId) || 0;
   const animeLookupIds = Array.from(new Set([animeId, hoshikaNumericId].filter((id) => id > 0)));
   const animeLookupSql = animeLookupIds.length > 1 ? 'IN (?, ?)' : '= ?';
@@ -263,10 +255,6 @@ watchRoutes.get('/watch', async (c) => {
   const resumeT = Math.max(0, parseInt(c.req.query('t') ?? '0', 10) || 0);
   const resumeParam = resumeT >= 30 ? resumeT : 0;
   const hasMegaplayFallback = !video;
-  const turboVidEnabled = (await new Settings(db).get('turbovid_enabled', '1')) === '1';
-  const turbovidServers = turboVidEnabled
-    ? await db.fetchAll<TurboVidServerRow>(`SELECT id,anime_id,episode_num,audio_group,language,label,embed_url,is_active FROM turbovid_servers WHERE anime_id ${animeLookupSql} AND episode_num=? AND is_active=1 ORDER BY audio_group, language, id`,[...animeLookupIds,epNum])
-    : [];
   const lulustreamServers = await db.fetchAll<LuluStreamServerRow>(`SELECT id,anime_id,episode_num,label,embed_url,audio_tracks,is_active FROM lulustream_servers WHERE anime_id ${animeLookupSql} AND episode_num=? AND is_active=1 ORDER BY id`,[...animeLookupIds,epNum]);
 
   const anilistId = 0;
@@ -385,7 +373,7 @@ watchRoutes.get('/watch', async (c) => {
   html += renderWatchBody({
     anime, image, coverSm, title, animeId, hoshikaId: mapped.shortId, epNum, totalEps, video, qSub, hasMegaplayFallback,
     isLoggedIn: auth.check(), prevEp, nextEp, currentEpInfo, chars, allEps, allVideos,
-    videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched, dubbedLangs, turbovidServers, lulustreamServers,
+    videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched, dubbedLangs, lulustreamServers,
   });
 
   // Senshi player is emitted before the startup scripts so the player DOM
@@ -469,14 +457,13 @@ interface WatchBodyParams {
   siteUrl: string;
   episodesWatched: number;
   dubbedLangs: string[];
-  turbovidServers: TurboVidServerRow[];
   lulustreamServers: LuluStreamServerRow[];
 }
 
 export function renderWatchBody(p: WatchBodyParams): string {
   const { anime, image, coverSm, title, animeId, hoshikaId, epNum, totalEps, video, qSub, hasMegaplayFallback,
     isLoggedIn, prevEp, nextEp, currentEpInfo, chars, allEps, allVideos, videoEpNumSet, resumeT, layoutUser, siteUrl,
-    episodesWatched, dubbedLangs, turbovidServers, lulustreamServers } = p;
+    episodesWatched, dubbedLangs, lulustreamServers } = p;
 
   const genres = (anime.genres ?? []).slice(0, 6);
   const score = anime.score;
@@ -485,14 +472,13 @@ export function renderWatchBody(p: WatchBodyParams): string {
   const animePage = `${siteUrl}/anime?id=${encodeURIComponent(hoshikaId)}`;
 
   const hasRealVideo = !!video && (qSub.length > 0 || !!video.video_url);
-  const hasTurboVid = turbovidServers.length > 0;
   const hasLuluStream = lulustreamServers.length > 0;
 
   let playerHtml: string;
   if (hasRealVideo) {
     playerHtml = `<div class="wp-player-shell" id="watch-player-wrap">${qSub.length > 0 ? qSub[0].embed : `<iframe id="main-player-iframe" src="${h(video!.video_url ?? '')}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen loading="lazy"></iframe>`}</div><div class="wp-player-accent-line"></div>`;
-  } else if (hasMegaplayFallback || hasTurboVid || hasLuluStream) {
-    // Keep the player shell present whenever a saved TurboVid source exists.
+  } else if (hasMegaplayFallback || hasLuluStream) {
+    // Keep the player shell present whenever a local or LuluStream source exists.
     // The old "Finding the best server" gate could remain visible while the
     // AV source was already playing because watchScript1 ran before the
     // hidden Senshi player DOM was emitted.
@@ -501,7 +487,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
     playerHtml = `<div class="wp-no-video"><div class="nv-icon">🎬</div><p>No video available yet.<br>Check back later or explore other episodes.</p><a href="${animePage}" class="btn btn-ghost btn-sm" style="margin-top:.25rem">← Back to Anime</a></div>`;
   }
 
-  const serverControlsHtml = ((video || hasMegaplayFallback || hasTurboVid || hasLuluStream)) ? `
+  const serverControlsHtml = ((video || hasMegaplayFallback || hasLuluStream)) ? `
         <div class="wp-controls">
           ${qSub.length > 0 ? `
           <div class="wp-quality-row">
@@ -522,7 +508,6 @@ export function renderWatchBody(p: WatchBodyParams): string {
                   </div>
                   <div class="server-btn-row" id="servers-sub-body">
 ${renderLuluTrackButtons(lulustreamServers, 'sub', siteUrl)}
-                    ${renderTurboTrackButtons(turbovidServers, 'sub', siteUrl)}
                     ${SUB_PROVIDERS.map(p => fixedServerBtn('sub', p.source, p.provider, p.label)).join('')}
                   </div>
                 </div>
@@ -553,15 +538,13 @@ ${renderLuluTrackButtons(lulustreamServers, 'dub', siteUrl)}
                     <div class="server-group-label">Hindi Dub</div>
                     <div class="server-group-body" id="servers-dub-hindi-body">
 ${renderLuluTrackButtons(lulustreamServers, 'hindi', siteUrl)}
-                      ${renderTurboTrackButtons(turbovidServers, 'hindi', siteUrl)}
                       ${HINDI_PROVIDERS.map(p => fixedServerBtn('hindi', p.source, p.provider, p.label)).join('')}
                     </div>
                   </div>
-                  <div class="server-group" id="dub-multi-group" style="${hasTurboGroup(turbovidServers, 'multi') || lulustreamServers.some(v=>parseLuluTracks(v).some(t=>t.group==='multi')) ? '' : 'display:none'}">
+                  <div class="server-group" id="dub-multi-group" style="${lulustreamServers.some(v=>parseLuluTracks(v).some(t=>t.group==='multi')) ? '' : 'display:none'}">
                     <div class="server-group-label">Multi Dub</div>
                     <div class="server-group-body" id="servers-dub-multi-body">
 ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
-                      ${renderTurboTrackButtons(turbovidServers, 'multi', siteUrl)}
                       <div class="server-skel-group" id="servers-dub-multi-loading">
                         <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:64px"></span></span>
                         <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:50px"></span></span>
