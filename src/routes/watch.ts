@@ -851,20 +851,3 @@ ${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
 
 }
 
-function renderSignInGate(image: string, playId: string, signinId: string, signupId: string): string {
-  return `<div class="wp-player-shell" id="watch-player-wrap">
-              <div class="wp-gate">
-                <div class="wp-gate-bg" style="background-image:url('${h(image)}')"></div>
-                <div class="wp-gate-vignette"></div>
-                <div class="wp-gate-inner">
-                  <div class="wp-gate-ring" id="${playId}"><svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg></div>
-                  <div><div class="wp-gate-title">Sign in to watch</div><div class="wp-gate-sub">Free account · No credit card needed</div></div>
-                  <div class="wp-gate-btns">
-                    <button class="wp-gate-cta" id="${signinId}">Sign In</button>
-                    <button class="wp-gate-ghost" id="${signupId}">Join Free</button>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div class="wp-player-accent-line"></div>`;
-}
