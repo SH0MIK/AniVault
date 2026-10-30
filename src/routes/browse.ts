@@ -356,6 +356,8 @@ browseRoutes.get('/search', (c) => {
 
 // ── api/search_suggest.php — live search dropdown ─────────────────────────
 browseRoutes.get('/api/search_suggest.php', async (c) => {
+  const db = new Db(c.env.DB);
+  const hoshikaCacheEnabled = await new Settings(db).isApiCacheEnabled(c.env.API_CACHE_ENABLED === '1');
   const q = (c.req.query('q') ?? '').trim();
   if (q.length < 1) {
     return c.json([], 200, { 'Cache-Control': 'no-store' });
