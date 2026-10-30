@@ -539,7 +539,9 @@ async function fetchHoshikaJson(
   cacheEnabled = true,
   ttlSeconds = 600,
 ): Promise<any | null> {
-  const cacheKey = `hoshika_v1_${path}`;
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(path));
+  const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  const cacheKey = `hoshika_v1_${hash}`;
   const staleKey = `${cacheKey}:stale`;
   if (kv && cacheEnabled) {
     try {
