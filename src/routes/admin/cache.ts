@@ -19,9 +19,9 @@ import { EpisodeAir } from '../../lib/episode-air';
 
 export const adminCacheRoutes = new Hono<{ Bindings: Env }>();
 
-async function listCacheKeys(kv: KVNamespace): Promise<string[]> {
+async function listCacheKeys(kv: KVNamespace, includeHoshika = true): Promise<string[]> {
   const keys: string[] = [];
-  for (const prefix of ['mal_', 'jikan_', 'tmdb_images_', 'tmdb_logo_', 'hoshika_v1_']) {
+  for (const prefix of ['mal_', 'jikan_', 'tmdb_images_', 'tmdb_logo_', ...(includeHoshika ? ['hoshika_v1_'] : [])]) {
     let cursor: string | undefined;
     do {
       const res = await kv.list({ prefix, cursor, limit: 1000 });
@@ -32,8 +32,8 @@ async function listCacheKeys(kv: KVNamespace): Promise<string[]> {
   return keys;
 }
 
-async function clearApiCache(kv: KVNamespace): Promise<number> {
-  const keys = await listCacheKeys(kv);
+async function clearApiCache(kv: KVNamespace, includeHoshika = true): Promise<number> {
+  const keys = await listCacheKeys(kv, includeHoshika);
   await Promise.all(keys.map((k) => kv.delete(k)));
   return keys.length;
 }
@@ -115,7 +115,7 @@ ${message ? `<div class="alert alert-success mb-2">${h(message)}</div>` : ''}
 
 <div class="grid-2" style="gap:1.5rem;margin-bottom:1.5rem;">
   <div class="card card-body">
-    <h2 class="mb-2">🌐 API Cache (MAL/Jikan)</h2>
+    <h2 class="mb-2">🌐 API Cache (Hoshika + legacy)</h2>
     <p class="text-muted mb-2" style="font-size:0.9rem;">
       API cache is currently ${apiCacheEnabled ? 'enabled' : 'disabled'}. ${apiCacheEnabled ? `Responses are cached for ${(Number(c.env.API_CACHE_TIME ?? 3600) / 60).toFixed(0)} minutes.` : 'Requests fetch fresh data without writing cache entries.'}
       <br><span class="text-muted" style="font-size:0.78rem;">Cache byte-size isn't tracked on this platform (Workers KV doesn't expose it without extra reads) — entry count is shown instead.</span>
@@ -125,7 +125,7 @@ ${message ? `<div class="alert alert-success mb-2">${h(message)}</div>` : ''}
       <input type="hidden" name="action" value="save_cache_mode">
       <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
         <div class="toggle-wrap"><input type="checkbox" name="api_cache_disabled" ${apiCacheDisabled ? 'checked' : ''}><span class="toggle-slider"></span></div>
-        <span><strong>Completely disable API cache</strong><br><span class="text-muted" style="font-size:0.82rem;">When enabled, MAL/Jikan data is fetched fresh and no API cache entries are stored.</span></span>
+        <span><strong>Completely disable API cache</strong><br><span class="text-muted" style="font-size:0.82rem;">When enabled, Hoshika and legacy API data is fetched fresh and no API cache entries are stored.</span></span>
       </label>
       <button type="submit" class="btn btn-primary btn-sm mt-2">Save Cache Mode</button>
     </form>
@@ -366,13 +366,13 @@ adminCacheRoutes.on(['GET', 'POST'], '/admin/api_cache.php', async (c) => {
   const action = c.req.query('action') ?? 'stats';
 
   if (action === 'stats') {
-    const keys = await listCacheKeys(c.env.API_CACHE);
+    const keys = await listCacheKeys(c.env.API_CACHE, false);
     const cacheOn = await settings.isApiCacheEnabled(c.env.API_CACHE_ENABLED === '1');
     const enabled = cacheOn && (await settings.get('auto_cache_enabled', '0')) === '1';
     const threshold = parseInt((await settings.get('auto_cache_threshold', '10')) ?? '10', 10);
     let deleted = 0;
     if (enabled && keys.length >= threshold) {
-      deleted = await clearApiCache(c.env.API_CACHE);
+      deleted = await clearApiCache(c.env.API_CACHE, false);
       await Logger.log(db, session.user_id ?? 0, 'auto_cache_delete', `Auto-deleted ${deleted} cache entries (threshold: ${threshold})`);
     }
     await session.save(c, lifetime);
