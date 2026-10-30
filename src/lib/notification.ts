@@ -118,7 +118,6 @@ export const Notification = {
       case 'bug_report_solved': return `Your bug report <strong>${meta}</strong> was marked as solved`;
       case 'points_gift': return `<strong>${actor}</strong> gifted you points${meta ? `: <em>${meta}</em>` : ''}`;
       case 'reward_gift': return `<strong>${actor}</strong> gifted you a reward${meta ? `: <em>${meta}</em>` : ''}`;
-      case 'auto_account': return 'Automatic account creation is disabled. No new credentials are generated.';
       default: return `<strong>${actor}</strong> did something`;
     }
   },
