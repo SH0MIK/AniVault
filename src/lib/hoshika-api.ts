@@ -443,7 +443,7 @@ function normaliseHoshikaAnime(item: any): HoshikaCatalogAnime | null {
   };
 }
 
-/** Search only Hoshika. No MAL/Jikan/AniList fallback and no KV cache. */
+/** Search only Hoshika. No MAL/Jikan/AniList fallback; optional shared KV caching. */
 export async function searchHoshikaAnime(query: string, limit = 20, apiKey?: string, kv?: KVNamespace, cacheEnabled = true): Promise<HoshikaCatalogAnime[]> {
   const q = query.trim();
   if (!q) return [];
