@@ -81,7 +81,7 @@ export class Session {
     // Avoid creating a D1 row (and cookie) for an untouched anonymous session.
     // Keep persistence for guests with actual state (OAuth/CSRF/flash) and for
     // authenticated users; this does not affect existing account sessions.
-    if (this.user_id === null && Object.keys(this.data).length === 0) return;
+    if (this.isNew && this.user_id === null && Object.keys(this.data).length === 0) return;
 
     const cookieMaxAge = await this.persist(lifetimeSeconds);
     if (!this.fromBearer) {
