@@ -2,7 +2,6 @@ import { Hono } from 'hono';
 import type { Env } from '../index';
 import { Db } from '../lib/db';
 import { Session } from '../lib/session';
-import { Auth } from '../lib/auth';
 import { resolveLuluStream } from '../lib/lulustream-resolver';
 
 export const luluStreamApiRoutes = new Hono<{ Bindings: Env }>();
@@ -15,8 +14,6 @@ luluStreamApiRoutes.get('/api/lulustream_stream.php', async (c) => {
   const db=new Db(c.env.DB);
   const lifetime=Number(c.env.SESSION_LIFETIME_SECONDS||86400);
   const session=await Session.load(c,db,lifetime);
-  const auth=new Auth(db,session,c.env as any,c.req.header('cf-connecting-ip')||'unknown');
-  if(!auth.check()){await session.save(c,lifetime);return c.json({error:'Unauthorized'},401);}
   const id=Number(c.req.query('id')||0);
   if(!id){await session.save(c,lifetime);return c.json({error:'Missing id'},400);}
   const row=await db.fetchOne<any>('SELECT * FROM lulustream_servers WHERE id=? AND is_active=1',[id]);
