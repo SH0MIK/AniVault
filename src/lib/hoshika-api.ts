@@ -555,7 +555,7 @@ async function fetchHoshikaJson(
     }
   }
   try {
-    const response = await fetch('https://hoshika.app/api/v1/' + path.replace(/^\\/+/, ''), {
+    const response = await fetch('https://hoshika.app/api/v1/' + path.replace(/^\/+/, ''), {
       headers: { Accept: 'application/json', ...(apiKey ? { 'X-Hoshika-Key': apiKey } : {}) },
     });
     if (!response.ok) throw new Error(`Hoshika returned HTTP ${response.status}`);
@@ -591,14 +591,14 @@ function normalizeCatalogArray(items: any[]): HoshikaCatalogAnime[] {
 }
 
 /** Load the public Hoshika homepage feeds; deliberately no third-party fallback. */
-export async function getHoshikaHomeSections(apiKey?: string): Promise<HoshikaHomeSections> {
+export async function getHoshikaHomeSections(apiKey?: string, kv?: KVNamespace, cacheEnabled = true): Promise<HoshikaHomeSections> {
   // The homepage's main feed is explicitly driven by Hoshika's trending
   // browse endpoint, rather than the separate /home aggregate response.
   const [trendingPayload, recentPayload, topPayload, seasonPayload] = await Promise.all([
-    fetchHoshikaJson('browse?type=anime&sort=trending', apiKey),
-    fetchHoshikaJson('browse?type=anime&sort=recent', apiKey),
-    fetchHoshikaJson('browse?type=anime&sort=top', apiKey),
-    fetchHoshikaJson('season?locale=en', apiKey),
+    fetchHoshikaJson('browse?type=anime&sort=trending', apiKey, kv, cacheEnabled, 300),
+    fetchHoshikaJson('browse?type=anime&sort=recent', apiKey, kv, cacheEnabled, 300),
+    fetchHoshikaJson('browse?type=anime&sort=top', apiKey, kv, cacheEnabled, 900),
+    fetchHoshikaJson('season?locale=en', apiKey, kv, cacheEnabled, 1800),
   ]);
 
   const trending = normalizeCatalogArray(resultsFrom(trendingPayload ?? {}));
