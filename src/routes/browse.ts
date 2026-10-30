@@ -67,7 +67,7 @@ browseRoutes.get('/browse', async (c) => {
           page: p,
           type: type || undefined,
           status: status || undefined,
-        }, c.env.HOSHIKA_API_KEY));
+        }, c.env.HOSHIKA_API_KEY, c.env.API_CACHE, hoshikaCacheEnabled));
       }
       const query = norm(q);
       const matched = catalogPages.flatMap((result) => result.items).filter((item) => {
@@ -140,7 +140,7 @@ browseRoutes.get('/browse', async (c) => {
         (item.genres ?? []).some((g: string) => String(g).toLowerCase() === wanted)));
     }
     catalogResult = { items: hoshikaSearchItems, total: hoshikaSearchItems.length, totalPages: 1 };
-  } else catalogResult = await getHoshikaCatalog({ genre: selectedGenre, year: year || undefined, sort, page, type: type || undefined, status: status || undefined }, c.env.HOSHIKA_API_KEY);
+  } else catalogResult = await getHoshikaCatalog({ genre: selectedGenre, year: year || undefined, sort, page, type: type || undefined, status: status || undefined }, c.env.HOSHIKA_API_KEY, c.env.API_CACHE, hoshikaCacheEnabled);
   const items = catalogResult.items;
   const totalCount = catalogResult.total;
   const totalPages = catalogResult.totalPages;
@@ -364,7 +364,7 @@ browseRoutes.get('/api/search_suggest.php', async (c) => {
   try {
     // Search suggestions now come from Hoshika only. Hoshika shortId is
     // returned separately so it cannot be mistaken for a legacy MAL ID.
-    const items = await searchHoshikaAnime(q, 4, c.env.HOSHIKA_API_KEY);
+    const items = await searchHoshikaAnime(q, 4, c.env.HOSHIKA_API_KEY, c.env.API_CACHE, hoshikaCacheEnabled);
     const out = items.map((a) => ({
       shortId: a.shortId,
       title: a.title,
