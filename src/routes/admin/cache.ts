@@ -21,7 +21,7 @@ export const adminCacheRoutes = new Hono<{ Bindings: Env }>();
 
 async function listCacheKeys(kv: KVNamespace): Promise<string[]> {
   const keys: string[] = [];
-  for (const prefix of ['mal_', 'jikan_', 'tmdb_images_', 'tmdb_logo_']) {
+  for (const prefix of ['mal_', 'jikan_', 'tmdb_images_', 'tmdb_logo_', 'hoshika_v1_']) {
     let cursor: string | undefined;
     do {
       const res = await kv.list({ prefix, cursor, limit: 1000 });
