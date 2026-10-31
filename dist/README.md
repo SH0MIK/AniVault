@@ -1,0 +1,1 @@
+This folder contains the built output assets for the worker "anivault" generated at 2026-10-30T19:37:48.725Z.
