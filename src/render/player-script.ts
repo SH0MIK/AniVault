@@ -138,6 +138,10 @@ if (vid) {
   vid.addEventListener('stalled', () => {
     if (!vid.paused) showMediaLoader();
   });
+  vid.addEventListener('seeking', () => {
+    if (!vid.paused) showMediaLoader();
+  });
+  vid.addEventListener('seeked', hideMediaLoader);
   vid.addEventListener('playing', hideMediaLoader);
 }
 
@@ -438,7 +442,6 @@ seekContainer?.addEventListener('pointerdown', e => {
   try { seekContainer.setPointerCapture(e.pointerId); } catch(err) {}
   const pct = getSeekPercent(e);
   updateSeekUi(pct);
-  if (vid.duration) vid.currentTime = (pct / 100) * vid.duration;
 });
 
 seekContainer?.addEventListener('pointermove', e => {
@@ -446,7 +449,6 @@ seekContainer?.addEventListener('pointermove', e => {
   if (isScrubbing) {
     e.stopPropagation();
     updateSeekUi(pct);
-    if (vid.duration) vid.currentTime = (pct / 100) * vid.duration;
   }
   if (seekTooltip && vid.duration) {
     const time = (pct / 100) * vid.duration;
@@ -461,6 +463,9 @@ function finishScrub(e) {
     isScrubbing = false;
     seekContainer.classList.remove('is-scrubbing');
     try { seekContainer.releasePointerCapture(e.pointerId); } catch(err) {}
+    const pct = getSeekPercent(e);
+    updateSeekUi(pct);
+    if (vid.duration) vid.currentTime = (pct / 100) * vid.duration;
     resetInactivity();
   }
 }
@@ -612,8 +617,40 @@ function parseVtt(text) {
 }
 
 let lastRenderedSubText = null;
+let activeCuePointer = 0;
+
+function findActiveCue(cues, t) {
+  if (!cues || !cues.length) return null;
+  if (activeCuePointer < cues.length) {
+    const cur = cues[activeCuePointer];
+    if (t >= cur.start && t <= cur.end) return cur;
+    if (activeCuePointer + 1 < cues.length) {
+      const next = cues[activeCuePointer + 1];
+      if (t >= next.start && t <= next.end) {
+        activeCuePointer++;
+        return next;
+      }
+    }
+  }
+  let low = 0, high = cues.length - 1;
+  while (low <= high) {
+    const mid = (low + high) >> 1;
+    const c = cues[mid];
+    if (t >= c.start && t <= c.end) {
+      activeCuePointer = mid;
+      return c;
+    }
+    if (t < c.start) high = mid - 1;
+    else low = mid + 1;
+  }
+  return null;
+}
 
 function renderCurrentSubtitle(time) {
+  if (luluSubtitleActive && activeSubIdx >= 0 && (!parsedCues.length || (subTracks[activeSubIdx] && !subTracks[activeSubIdx].cues.length))) {
+    syncLuluSubtitleCues(activeSubIdx);
+  }
+
   if (!settings.captionsEnabled || activeSubIdx === -1 || !parsedCues.length) {
     if (lastRenderedSubText !== '') {
       if (subText) subText.innerHTML = '';
@@ -622,11 +659,9 @@ function renderCurrentSubtitle(time) {
     return;
   }
 
-  if (luluSubtitleActive && activeSubIdx >= 0) syncLuluSubtitleCues(activeSubIdx);
-
   const offset = settings.subSyncEnabled ? (settings.subSyncOffset || 0) : 0;
   const adjTime = time + offset;
-  const active = parsedCues.find(c => adjTime >= c.start && adjTime <= c.end);
+  const active = findActiveCue(parsedCues, adjTime);
   const nextText = active ? active.text : '';
 
   if (nextText !== lastRenderedSubText) {
@@ -637,6 +672,7 @@ function renderCurrentSubtitle(time) {
 
 function setSubTrack(idx) {
   activeSubIdx = idx;
+  activeCuePointer = 0;
   lastRenderedSubText = null;
   if (luluSubtitleActive) {
     try {
@@ -1449,37 +1485,65 @@ function luluTrackCues(track) {
 function syncLuluSubtitleCues(index) {
   if (!luluSubtitleActive || index < 0) return;
   const track = Array.from(vid?.textTracks || [])[index];
-  if (!track) return;
+  if (!track || !track.cues) return;
+  const count = track.cues.length;
+  if (!count) return;
+  if (track.__lastParsedCount === count && subTracks[index] && subTracks[index].cues && subTracks[index].cues.length) {
+    if (activeSubIdx === index && parsedCues !== subTracks[index].cues) {
+      parsedCues = subTracks[index].cues;
+      activeCuePointer = 0;
+    }
+    return;
+  }
+  track.__lastParsedCount = count;
   const cues = luluTrackCues(track);
   if (!subTracks[index]) subTracks[index] = { label: track.label || track.language || ('Track ' + (index + 1)), lang: track.language || '', cues: [] };
   subTracks[index].cues = cues;
-  if (activeSubIdx === index) parsedCues = cues;
+  if (activeSubIdx === index) {
+    parsedCues = cues;
+    activeCuePointer = 0;
+  }
 }
 function setupLuluSubtitleBridge() {
   if (!luluSubtitleActive || !hls) return;
   const tracks = Array.isArray(hls.subtitleTracks) ? hls.subtitleTracks : [];
   if (!tracks.length) return;
   subTracks = tracks.map((t, i) => ({ label: t.name || t.lang || ('Track ' + (i + 1)), lang: t.lang || '', cues: [] }));
-  let defaultIndex = tracks.findIndex(t => t.default);
-  if (defaultIndex < 0) defaultIndex = 0;
-  luluSubtitleTrackIndex = defaultIndex;
-  try { hls.subtitleTrack = defaultIndex; } catch (e) {}
+  let targetIndex = activeSubIdx >= 0 ? activeSubIdx : tracks.findIndex(t => /full/i.test(t.name || t.lang || ''));
+  if (targetIndex < 0) targetIndex = tracks.findIndex(t => t.default);
+  if (targetIndex < 0) targetIndex = 0;
+  luluSubtitleTrackIndex = targetIndex;
+  try { if (activeSubIdx >= 0 || settings.captionsEnabled) hls.subtitleTrack = targetIndex; } catch (e) {}
   const bindTextTracks = () => {
     const browserTracks = Array.from(vid?.textTracks || []);
     browserTracks.forEach((track, i) => {
       if (track.kind !== 'subtitles' && track.kind !== 'captions') return;
-      track.mode = i === luluSubtitleTrackIndex ? 'hidden' : 'disabled';
+      track.mode = (i === luluSubtitleTrackIndex && settings.captionsEnabled) ? 'hidden' : 'disabled';
       if (!track.__anivaultLuluBound) {
         track.__anivaultLuluBound = true;
         track.addEventListener('cuechange', () => syncLuluSubtitleCues(i));
       }
       syncLuluSubtitleCues(i);
     });
-    if (activeSubIdx < 0 && settings.captionsEnabled) setSubTrack(defaultIndex);
+    if (activeSubIdx < 0 && settings.captionsEnabled) setSubTrack(targetIndex);
     else if (activeSubIdx >= 0) syncLuluSubtitleCues(activeSubIdx);
     buildCaptionsMenu();
   };
   bindTextTracks();
+  if (vid && vid.textTracks && !vid.__anivaultTextTracksHooked) {
+    vid.__anivaultTextTracksHooked = true;
+    const hideNative = () => {
+      try {
+        Array.from(vid.textTracks).forEach(t => {
+          if ((t.kind === 'subtitles' || t.kind === 'captions') && t.mode === 'showing') {
+            t.mode = 'hidden';
+          }
+        });
+      } catch (e) {}
+    };
+    vid.textTracks.addEventListener('change', hideNative);
+    vid.textTracks.addEventListener('addtrack', hideNative);
+  }
   setTimeout(bindTextTracks, 100);
   setTimeout(bindTextTracks, 400);
   setTimeout(bindTextTracks, 1000);
@@ -1506,17 +1570,25 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
   }
 
   if (window.Hls && window.Hls.isSupported()) {
-    const isLuluStream = /lulustream_proxy\\.php/i.test(m3u8Url);
+    const isLuluStream = /lulustream_proxy\\.php/i.test(m3u8Url) || /cdn\\.anivault\\.co\\/stream\\//i.test(m3u8Url);
     const hlsConfig = {
       enableWorker: true,
       lowLatencyMode: false,
-      backBufferLength: 90,
+      renderTextTracksNatively: false,
+      backBufferLength: 30,
+      maxBufferLength: 30,
+      maxMaxBufferLength: 60,
+      maxBufferSize: 60 * 1000 * 1000,
+      maxBufferHole: 0.8,
+      highBufferWatchdogPeriod: 3,
+      nudgeOffset: 0.1,
+      nudgeMaxRetry: 5,
+      nudgeOnVideoHole: false,
+      maxAudioFramesDrift: 5,
+      fragLoadingMaxRetry: 4,
+      fragLoadingRetryDelay: 500,
       capLevelToPlayerSize: false,
       autoStartLoad: true,
-      // Fetch the first media fragment as soon as the playlist exposes it,
-      // instead of waiting for the full startup sequence to settle. This
-      // reduces time-to-first-frame on ordinary HLS sources without changing
-      // the custom TurboVid fragment unwrapping or subtitle handling.
       startFragPrefetch: true,
     };
     // TurboVid needs its custom fragment unwrap loader; normal HLS sources
@@ -1567,6 +1639,35 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
           return true;
         }
       }
+      if (wantedLang) {
+        for (let i = 0; i < hls.audioTracks.length; i++) {
+          const t = hls.audioTracks[i] || {};
+          const lang = String(t.lang || '').trim().toLowerCase();
+          if (lang === wantedLang) {
+            luluPreferredIndex = i;
+            hls.audioTrack = i;
+            return true;
+          }
+        }
+      }
+      if (wantedGroup) {
+        for (let i = 0; i < hls.audioTracks.length; i++) {
+          const t = hls.audioTracks[i] || {};
+          const label = String(t.name || t.lang || '').trim().toLowerCase();
+          const lang = String(t.lang || '').trim().toLowerCase();
+          const groupText = label + ' ' + lang;
+          let group = 'multi';
+          if (/^hi$|^hin$|hindi|हिन्दी|हिंदी/.test(groupText)) group = 'hindi';
+          else if (/^en$|^eng$|english/.test(groupText)) group = 'dub';
+          else if (/^ja$|^jpn$|japanese|日本語|\b(sub|subtitle|original)\b/.test(groupText)) group = 'sub';
+          else if (t.default) group = 'sub';
+          if (group === wantedGroup) {
+            luluPreferredIndex = i;
+            hls.audioTrack = i;
+            return true;
+          }
+        }
+      }
       return false;
     };
 
@@ -1588,8 +1689,10 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
       } catch (e) {}
 
       if (isLuluStream) {
-        luluSubtitleActive = true;
-        setupLuluSubtitleBridge();
+        if (!subTracks.length) {
+          luluSubtitleActive = true;
+          setupLuluSubtitleBridge();
+        }
         buildQualityMenu();
         startLuluPlayback();
         return;
@@ -1603,8 +1706,16 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
     });
 
     if (isLuluStream) {
-      hls.on(window.Hls.Events.SUBTITLE_TRACKS_UPDATED, () => setupLuluSubtitleBridge());
-      hls.on(window.Hls.Events.SUBTITLE_TRACK_LOADED, () => setupLuluSubtitleBridge());
+      const hideNative = () => {
+        try {
+          Array.from(vid?.textTracks || []).forEach(t => {
+            if ((t.kind === 'subtitles' || t.kind === 'captions') && t.mode === 'showing') t.mode = 'hidden';
+          });
+        } catch (e) {}
+      };
+      hls.on(window.Hls.Events.SUBTITLE_TRACKS_UPDATED, () => { if (luluSubtitleActive) setupLuluSubtitleBridge(); hideNative(); });
+      hls.on(window.Hls.Events.SUBTITLE_TRACK_LOADED, () => { if (luluSubtitleActive) setupLuluSubtitleBridge(); hideNative(); });
+      hls.on(window.Hls.Events.SUBTITLE_TRACK_SWITCH, hideNative);
     }
 
     hls.on(window.Hls.Events.LEVEL_SWITCHED, (evt, data) => {
@@ -1627,6 +1738,7 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
           default:
             hls.destroy();
             if (errBox) errBox.classList.add('show');
+            try { window.dispatchEvent(new CustomEvent('senshi:player-error', { detail: data })); } catch(e) {}
             break;
         }
       }
@@ -1710,37 +1822,39 @@ window.SenshiPlayer = {
     parsedCues = [];
     if (subText) subText.innerHTML = '';
 
-    luluSubtitleActive = /lulustream_proxy\\.php/i.test(url);
+    const hasExplicitSubs = Array.isArray(subs) && subs.length > 0 && subs.some(s => !!(s && (s.url || s.file)));
+    luluSubtitleActive = !hasExplicitSubs && (/lulustream_proxy\\.php/i.test(url) || /cdn\\.anivault\\.co\\/stream\\//i.test(url));
     luluSubtitleTrackIndex = -1;
     if (luluSubtitleActive) {
       subTracks = [];
       saveSettings();
-    } else if (Array.isArray(subs) && subs.length > 0) {
+    } else if (hasExplicitSubs) {
       settings.captionsEnabled = true;
       saveSettings();
 
       let pending = subs.length;
       subs.forEach((track, i) => {
-        if (!track || !track.url) {
+        const subUrl = track && (track.url || track.file);
+        if (!subUrl) {
           pending--;
           return;
         }
-        fetch(track.url, { cache: 'no-store', credentials: 'same-origin' })
+        fetch(subUrl, { cache: 'no-store' })
           .then(r => {
             if (!r.ok) throw new Error('Subtitle HTTP ' + r.status);
             return r.text();
           })
           .then(txt => {
-            const isSubtitlePlaylist = /#EXTM3U|#EXTINF:/i.test(txt) || /\\.m3u8(?:[?#]|$)/i.test(track.url);
+            const isSubtitlePlaylist = /#EXTM3U|#EXTINF:/i.test(txt) || /\\.m3u8(?:[?#]|$)/i.test(subUrl);
             if (isSubtitlePlaylist) {
               // HLS subtitle tracks are often playlists rather than a single VTT.
               // Fetch the first subtitle media segment and parse that VTT.
-              const base = new URL(track.url, location.href);
+              const base = new URL(subUrl, location.href);
               const lines = txt.split(/\\r?\\n/).map(x => x.trim()).filter(Boolean);
               const segment = lines.find(x => x && !x.startsWith('#'));
               if (!segment) throw new Error('Subtitle playlist has no media segment');
               const segmentUrl = new URL(segment, base).toString();
-              return fetch(segmentUrl, { cache: 'no-store', credentials: 'same-origin' })
+              return fetch(segmentUrl, { cache: 'no-store' })
                 .then(sr => {
                   if (!sr.ok) throw new Error('Subtitle segment HTTP ' + sr.status);
                   return sr.text();
@@ -1753,11 +1867,12 @@ window.SenshiPlayer = {
             subTracks[i] = {
               label: track.label || track.name || track.lang || ('Track ' + (i + 1)),
               lang: track.lang || '',
+              default: !!track.default,
               cues
             };
           })
           .catch(err => {
-            console.warn('[AniVault player] subtitle load failed', track.url, err);
+            console.warn('[AniVault player] subtitle load failed', subUrl, err);
           })
           .finally(() => {
             pending--;
@@ -1765,7 +1880,10 @@ window.SenshiPlayer = {
               subTracks = subTracks.filter(Boolean);
               buildCaptionsMenu();
               if (settings.captionsEnabled && subTracks.length > 0) {
-                setSubTrack(0);
+                let defaultSubIdx = subTracks.findIndex(t => /full/i.test(t.label));
+                if (defaultSubIdx < 0) defaultSubIdx = subTracks.findIndex(t => t.default);
+                if (defaultSubIdx < 0) defaultSubIdx = 0;
+                setSubTrack(defaultSubIdx);
               }
             }
           });

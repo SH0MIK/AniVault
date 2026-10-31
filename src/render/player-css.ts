@@ -174,6 +174,32 @@ export const PLAYER_CSS = `
   height: 100%;
   object-fit: contain;
   background: #000;
+  transform: translateZ(0);
+  will-change: transform;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+/* Hide native browser cues so only AniVault custom styled subtitles display */
+#sp-video::cue,
+video::cue {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  color: transparent !important;
+  background: transparent !important;
+}
+#sp-video::-webkit-media-text-track-container,
+video::-webkit-media-text-track-container {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+}
+#sp-video::-webkit-media-text-track-display,
+video::-webkit-media-text-track-display {
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 /* Scrim Gradients - bottom controls shadow only when UI active */

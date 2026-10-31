@@ -96,12 +96,18 @@ function stopCurrentVideo() {
     }
 }
 
-function updateActiveServerButton(serverName, audio) {
+function updateActiveServerButton(serverName, audio, trackKey) {
     document.querySelectorAll('.server-btn').forEach(b => b.classList.remove('active'));
     // Only activate buttons inside the matching tab panel
     const panel = document.getElementById('tab-panel-' + audio);
     if (!panel) return;
-    const btn = panel.querySelector(\`.server-btn[data-server="\${serverName}"]\`);
+    let btn = null;
+    if (trackKey) {
+        btn = panel.querySelector(\`.server-btn[data-server="\${serverName}"][data-vdo-track-key="\${trackKey}"], .server-btn[data-server="\${serverName}"][data-lulu-track-key="\${trackKey}"]\`);
+    }
+    if (!btn) {
+        btn = panel.querySelector(\`.server-btn[data-server="\${serverName}"]\`);
+    }
     if (btn) btn.classList.add('active');
 }
 
@@ -704,6 +710,9 @@ function luluGroup(track) {
 }
 function findLuluTrackIndex(tracks, wantedKey) {
     if (!wantedKey || !Array.isArray(tracks)) return -1;
+    const parts = String(wantedKey).split('|');
+    const wantedLang = (parts[1] || '').trim().toLowerCase();
+    const wantedGroup = (parts[2] || '').trim().toLowerCase();
     const seen = {};
     for (let i = 0; i < tracks.length; i++) {
         const group = luluGroup(tracks[i]);
@@ -712,6 +721,17 @@ function findLuluTrackIndex(tracks, wantedKey) {
         const base = [label, lang, group].join('|');
         const occurrence = seen[base] || 0; seen[base] = occurrence + 1;
         if (luluTrackKey(tracks[i], group, occurrence) === wantedKey) return i;
+    }
+    if (wantedLang) {
+        for (let i = 0; i < tracks.length; i++) {
+            const lang = String((tracks[i] && tracks[i].lang) || '').trim().toLowerCase();
+            if (lang === wantedLang) return i;
+        }
+    }
+    if (wantedGroup) {
+        for (let i = 0; i < tracks.length; i++) {
+            if (luluGroup(tracks[i]) === wantedGroup) return i;
+        }
     }
     return -1;
 }
@@ -768,6 +788,82 @@ function switchToLuluStream(id, audio, trackKey) {
       .catch(e => {
         const msg = document.getElementById('sp-err-msg');
         if (msg) msg.textContent = 'LuluStream: ' + (e.message || 'Resolve failed');
+        if (errEl) errEl.classList.add('show');
+        if (spinEl) spinEl.classList.add('hide');
+      });
+}
+function switchToVdoHide(id, audio, trackKey, isRetry) {
+    const pw = document.getElementById('watch-player-wrap');
+    if (!pw) return;
+    stopCurrentVideo();
+    clearDynQualityRow();
+    preparePlayerShell();
+    if (window.SenshiPlayer) window.SenshiPlayer.destroy();
+    const spinEl = document.getElementById('sp-spinner');
+    const errEl = document.getElementById('sp-error');
+    const preplay = document.getElementById('sp-preplay');
+    if (preplay) preplay.classList.add('hide');
+    if (spinEl) spinEl.classList.remove('hide');
+    if (errEl) errEl.classList.remove('show');
+
+    if (window.SenshiPlayer && window.SenshiPlayer.setPreferredAudioTrack) {
+        window.SenshiPlayer.setPreferredAudioTrack(trackKey || '');
+    }
+
+    const endpoint = isRetry
+        ? (SITE_URL + '/api/vdohide_refresh.php?id=' + encodeURIComponent(id))
+        : (SITE_URL + '/api/vdohide_stream.php?id=' + encodeURIComponent(id));
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+    const reqOpts = isRetry
+        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: Number(id) }), signal: controller.signal }
+        : { signal: controller.signal };
+
+    fetch(endpoint, reqOpts)
+      .then(r => r.json())
+      .then(d => {
+        clearTimeout(timeoutId);
+        if (d.error) throw new Error(d.error);
+        if (!d.m3u8) throw new Error('VdoHide did not return a playable HLS stream.');
+
+        const badge = document.getElementById('sp-hls-badge');
+        if (badge) badge.textContent = 'HLS · VdoHide';
+
+        const subs = (d.subtitles || []).map(function(s) {
+          return { kind: 'subtitles', label: s.label || s.lang, srclang: s.lang, url: s.url, file: s.url, default: !!s.default };
+        });
+
+        if (window.SenshiPlayer && window.SenshiPlayer.loadWithSubs) {
+          window.SenshiPlayer.loadWithSubs(d.m3u8, subs, null, null, trackKey || '');
+        } else if (window.SenshiPlayer) {
+          window.SenshiPlayer.load(d.m3u8);
+        } else {
+          const vid = document.getElementById('sp-video');
+          if (vid) { vid.src = d.m3u8; vid.load(); vid.play().catch(()=>{}); }
+        }
+
+        ensureInitialAvPlayback();
+
+        if (!isRetry) {
+          const onFatalError = function() {
+            window.removeEventListener('senshi:player-error', onFatalError);
+            console.warn('[VdoHide] Playback error detected, attempting auto-retry refresh...');
+            switchToVdoHide(id, audio, trackKey, true);
+          };
+          window.addEventListener('senshi:player-error', onFatalError, { once: true });
+        }
+
+        if (trackKey) selectLuluAudioAfterLoad(trackKey);
+      })
+      .catch(e => {
+        clearTimeout(timeoutId);
+        if (!isRetry) {
+          console.warn('[VdoHide] Initial stream fetch failed, retrying with refresh endpoint...', e);
+          switchToVdoHide(id, audio, trackKey, true);
+          return;
+        }
+        const msg = document.getElementById('sp-err-msg');
+        if (msg) msg.textContent = 'VdoHide: ' + (e.message || 'Resolve failed');
         if (errEl) errEl.classList.add('show');
         if (spinEl) spinEl.classList.add('hide');
       });
@@ -840,7 +936,16 @@ function switchToServer(serverName, audio = currentAudio, displayKey, luluTrackK
         currentServer = serverName;
         currentDisplayServer = dKey;
         currentAudio = audio;
-        updateActiveServerButton(dKey, audio);
+        updateActiveServerButton(dKey, audio, luluTrackKey);
+        return;
+    }
+
+    if (serverName.startsWith('vdohide:')) {
+        switchToVdoHide(serverName.slice('vdohide:'.length), audio, luluTrackKey);
+        currentServer = serverName;
+        currentDisplayServer = dKey;
+        currentAudio = audio;
+        updateActiveServerButton(dKey, audio, luluTrackKey);
         return;
     }
 
@@ -1025,7 +1130,7 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         const displayKey = btn.dataset.server;
         const realKey = btn.dataset.realServer || displayKey;
         const audio = panel.dataset.audio;
-        const luluTrackKey = btn.classList.contains('lulustream-server-btn') ? (btn.dataset.luluTrackKey || '') : '';
+        const luluTrackKey = btn.classList.contains('lulustream-server-btn') ? (btn.dataset.luluTrackKey || '') : (btn.classList.contains('vdohide-server-btn') ? (btn.dataset.vdoTrackKey || '') : '');
         switchToServer(realKey, audio, displayKey, luluTrackKey);
     });
 });
@@ -1063,6 +1168,20 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     }
 
     let playbackStarted = false;
+
+    // Fast-start: if there is no primary AV video, immediately activate
+    // the first available VdoHide or LuluStream server button rather than
+    // waiting for external scraper probes to settle or time out.
+    const hasPrimaryVideo = !!document.getElementById('main-player-iframe') || !!document.querySelector('#watch-player-wrap iframe');
+    if (!hasPrimaryVideo && !playbackStarted && !window._manualServerSelection) {
+      const activePanel = document.querySelector('.server-tab-panel.active') || document.querySelector('.server-tab-panel');
+      const firstBtn = (activePanel && (activePanel.querySelector('.vdohide-server-btn') || activePanel.querySelector('.lulustream-server-btn')))
+                    || document.querySelector('.vdohide-server-btn, .lulustream-server-btn');
+      if (firstBtn) {
+        playbackStarted = true;
+        firstBtn.click();
+      }
+    }
 
     // Start probing providers before selecting a server. The first playable
     // resolution wins; no server is preselected just because it appears first.
@@ -1394,7 +1513,8 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     function finishMultiUI() {
         const loading = document.getElementById('servers-dub-multi-loading');
         const luluHasAny = !!document.querySelector('#servers-dub-multi-body .lulustream-server-btn');
-        if (multiHasAny || luluHasAny) {
+        const vdoHasAny = !!document.querySelector('#servers-dub-multi-body .vdohide-server-btn');
+        if (multiHasAny || luluHasAny || vdoHasAny) {
             if (loading) loading.remove();
         } else {
             const grp = document.getElementById('dub-multi-group');
