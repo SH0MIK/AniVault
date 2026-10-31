@@ -51,7 +51,6 @@ ${o.impersonating ? `
     <a href="activity.php" class="${active('activity')}">${icon('activity', 'icon-small')} Activity Log</a>
     <a href="analytics.php" class="${active('analytics')}">${icon('chart-bar', 'icon-small')} Analytics</a>
     <a href="watch_stats.php" class="${active('watch_stats')}">${icon('tv', 'icon-small')} Watch Stats</a>
-    <a href="self-host.php" class="${active('self-host')}">${icon('play', 'icon-small')} Self Host</a>
     <a href="vdohide.php" class="${active('vdohide')}">${icon('play', 'icon-small')} VdoHide</a>
 
     <div class="nav-group">Users</div>

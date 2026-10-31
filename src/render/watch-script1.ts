@@ -103,7 +103,7 @@ function updateActiveServerButton(serverName, audio, trackKey) {
     if (!panel) return;
     let btn = null;
     if (trackKey) {
-        btn = panel.querySelector(\`.server-btn[data-server="\${serverName}"][data-vdo-track-key="\${trackKey}"], .server-btn[data-server="\${serverName}"][data-lulu-track-key="\${trackKey}"]\`);
+        btn = panel.querySelector(`.server-btn[data-server="${serverName}"][data-vdo-track-key="${trackKey}"]`);
     }
     if (!btn) {
         btn = panel.querySelector(\`.server-btn[data-server="\${serverName}"]\`);
@@ -695,12 +695,12 @@ function switchToGenericSource(source, providerName, realType, langKey) {
 // behavior when displayKey isn't passed, so nothing else calling this
 // needs to change.
 let currentDisplayServer = 'fixed:animeheaven';
-function luluTrackKey(track, group, occurrence) {
+function vdoTrackKey(track, group, occurrence) {
     const label = String((track && (track.name || track.label || '')) || '').trim().toLowerCase();
     const lang = String((track && track.lang) || '').trim().toLowerCase();
     return [label, lang, group, occurrence].join('|');
 }
-function luluGroup(track) {
+function vdoTrackGroup(track) {
     const label = String((track && (track.name || track.label || '')) || '').trim().toLowerCase();
     const lang = String((track && track.lang) || '').trim().toLowerCase();
     if (/^hi$|^hin$|hindi|हिन्दी|हिंदी/.test(lang + ' ' + label)) return 'hindi';
@@ -708,19 +708,19 @@ function luluGroup(track) {
     if (/^ja$|^jpn$|japanese|日本語|\\b(sub|subtitle|original)\\b/.test(lang + ' ' + label)) return 'sub';
     return track && track.default ? 'sub' : 'multi';
 }
-function findLuluTrackIndex(tracks, wantedKey) {
+function findVdoTrackIndex(tracks, wantedKey) {
     if (!wantedKey || !Array.isArray(tracks)) return -1;
     const parts = String(wantedKey).split('|');
     const wantedLang = (parts[1] || '').trim().toLowerCase();
     const wantedGroup = (parts[2] || '').trim().toLowerCase();
     const seen = {};
     for (let i = 0; i < tracks.length; i++) {
-        const group = luluGroup(tracks[i]);
+        const group = vdoTrackGroup(tracks[i]);
         const label = String((tracks[i] && (tracks[i].name || tracks[i].label || '')) || '').trim().toLowerCase();
         const lang = String((tracks[i] && tracks[i].lang) || '').trim().toLowerCase();
         const base = [label, lang, group].join('|');
         const occurrence = seen[base] || 0; seen[base] = occurrence + 1;
-        if (luluTrackKey(tracks[i], group, occurrence) === wantedKey) return i;
+        if (vdoTrackKey(tracks[i], group, occurrence) === wantedKey) return i;
     }
     if (wantedLang) {
         for (let i = 0; i < tracks.length; i++) {
@@ -730,67 +730,24 @@ function findLuluTrackIndex(tracks, wantedKey) {
     }
     if (wantedGroup) {
         for (let i = 0; i < tracks.length; i++) {
-            if (luluGroup(tracks[i]) === wantedGroup) return i;
+            if (vdoTrackGroup(tracks[i]) === wantedGroup) return i;
         }
     }
     return -1;
 }
-function selectLuluAudioAfterLoad(wantedKey) {
+function selectVdoHideAudioAfterLoad(wantedKey) {
     if (!wantedKey) return;
     let applied = false;
     const apply = () => {
         if (applied || !window.SenshiPlayer || !window.SenshiPlayer.getAudioTracks || !window.SenshiPlayer.setAudioTrack) return;
         const actual = window.SenshiPlayer.getAudioTracks() || [];
-        const index = findLuluTrackIndex(actual, wantedKey);
+        const index = findVdoTrackIndex(actual, wantedKey);
         if (index < 0) return;
         applied = !!window.SenshiPlayer.setAudioTrack(index);
     };
     apply();
     window.addEventListener('anivault:audio-tracks-ready', apply, { once: true });
     [100, 300, 800, 1500].forEach(ms => setTimeout(apply, ms));
-}
-function switchToLuluStream(id, audio, trackKey) {
-    const pw = document.getElementById('watch-player-wrap');
-    if (!pw) return;
-    stopCurrentVideo();
-    clearDynQualityRow();
-    preparePlayerShell();
-    if (window.SenshiPlayer) window.SenshiPlayer.destroy();
-    const spinEl = document.getElementById('sp-spinner');
-    const errEl = document.getElementById('sp-error');
-    if (spinEl) spinEl.classList.remove('hide');
-    if (errEl) errEl.classList.remove('show');
-
-    // Set the requested track before the HLS manifest is loaded.
-    if (window.SenshiPlayer && window.SenshiPlayer.setPreferredAudioTrack) {
-        window.SenshiPlayer.setPreferredAudioTrack(trackKey || '');
-    }
-
-    fetch(SITE_URL + '/api/lulustream_stream.php?id=' + encodeURIComponent(id))
-      .then(r => r.json())
-      .then(d => {
-        if (d.error) throw new Error(d.error);
-        if (!d.m3u8) throw new Error('LuluStream did not return a playable HLS stream.');
-
-        const trackIndex = trackKey ? findLuluTrackIndex(Array.isArray(d.audios) ? d.audios : [], trackKey) : -1;
-        const badge = document.getElementById('sp-hls-badge');
-        if (badge) badge.textContent = 'HLS · LuluStream';
-        if (window.SenshiPlayer && window.SenshiPlayer.loadWithSubs) {
-          window.SenshiPlayer.loadWithSubs(d.m3u8, [], null, null, trackKey || '');
-        } else if (window.SenshiPlayer) {
-          window.SenshiPlayer.load(d.m3u8);
-        } else {
-          const vid = document.getElementById('sp-video');
-          if (vid) { vid.src = d.m3u8; vid.load(); vid.play().catch(()=>{}); }
-        }
-        if (trackKey) selectLuluAudioAfterLoad(trackKey);
-      })
-      .catch(e => {
-        const msg = document.getElementById('sp-err-msg');
-        if (msg) msg.textContent = 'LuluStream: ' + (e.message || 'Resolve failed');
-        if (errEl) errEl.classList.add('show');
-        if (spinEl) spinEl.classList.add('hide');
-      });
 }
 function switchToVdoHide(id, audio, trackKey, isRetry) {
     const pw = document.getElementById('watch-player-wrap');
@@ -853,7 +810,7 @@ function switchToVdoHide(id, audio, trackKey, isRetry) {
           window.addEventListener('senshi:player-error', onFatalError, { once: true });
         }
 
-        if (trackKey) selectLuluAudioAfterLoad(trackKey);
+        if (trackKey) selectVdoHideAudioAfterLoad(trackKey);
       })
       .catch(e => {
         clearTimeout(timeoutId);
@@ -924,28 +881,20 @@ function ensureInitialAvPlayback() {
     attempt();
 }
 
-function switchToServer(serverName, audio = currentAudio, displayKey, luluTrackKey) {
+function switchToServer(serverName, audio = currentAudio, displayKey, vdoTrackKey) {
     // Invalidate callbacks from previous server attempts when switching.
     window._playerSwitchToken = (window._playerSwitchToken || 0) + 1;
     const pw = document.getElementById('watch-player-wrap');
     if (!pw) return;
     const dKey = displayKey || serverName;
 
-    if (serverName.startsWith('lulustream:')) {
-        switchToLuluStream(serverName.slice('lulustream:'.length), audio, luluTrackKey);
-        currentServer = serverName;
-        currentDisplayServer = dKey;
-        currentAudio = audio;
-        updateActiveServerButton(dKey, audio, luluTrackKey);
-        return;
-    }
 
     if (serverName.startsWith('vdohide:')) {
-        switchToVdoHide(serverName.slice('vdohide:'.length), audio, luluTrackKey);
+        switchToVdoHide(serverName.slice('vdohide:'.length), audio, vdoTrackKey);
         currentServer = serverName;
         currentDisplayServer = dKey;
         currentAudio = audio;
-        updateActiveServerButton(dKey, audio, luluTrackKey);
+        updateActiveServerButton(dKey, audio, vdoTrackKey);
         return;
     }
 
@@ -1130,8 +1079,8 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
         const displayKey = btn.dataset.server;
         const realKey = btn.dataset.realServer || displayKey;
         const audio = panel.dataset.audio;
-        const luluTrackKey = btn.classList.contains('lulustream-server-btn') ? (btn.dataset.luluTrackKey || '') : (btn.classList.contains('vdohide-server-btn') ? (btn.dataset.vdoTrackKey || '') : '');
-        switchToServer(realKey, audio, displayKey, luluTrackKey);
+        const vdoTrackKey = btn.classList.contains('vdohide-server-btn') ? (btn.dataset.vdoTrackKey || '') : '';
+        switchToServer(realKey, audio, displayKey, vdoTrackKey);
     });
 });
 
@@ -1170,13 +1119,13 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     let playbackStarted = false;
 
     // Fast-start: if there is no primary AV video, immediately activate
-    // the first available VdoHide or LuluStream server button rather than
+    // the first available VdoHide server button rather than
     // waiting for external scraper probes to settle or time out.
     const hasPrimaryVideo = !!document.getElementById('main-player-iframe') || !!document.querySelector('#watch-player-wrap iframe');
     if (!hasPrimaryVideo && !playbackStarted && !window._manualServerSelection) {
       const activePanel = document.querySelector('.server-tab-panel.active') || document.querySelector('.server-tab-panel');
-      const firstBtn = (activePanel && (activePanel.querySelector('.vdohide-server-btn') || activePanel.querySelector('.lulustream-server-btn')))
-                    || document.querySelector('.vdohide-server-btn, .lulustream-server-btn');
+      const firstBtn = (activePanel && activePanel.querySelector('.vdohide-server-btn'))
+                    || document.querySelector('.vdohide-server-btn');
       if (firstBtn) {
         playbackStarted = true;
         firstBtn.click();
@@ -1512,9 +1461,8 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
     let multiPending = 0, multiHasAny = false;
     function finishMultiUI() {
         const loading = document.getElementById('servers-dub-multi-loading');
-        const luluHasAny = !!document.querySelector('#servers-dub-multi-body .lulustream-server-btn');
         const vdoHasAny = !!document.querySelector('#servers-dub-multi-body .vdohide-server-btn');
-        if (multiHasAny || luluHasAny || vdoHasAny) {
+        if (multiHasAny || vdoHasAny) {
             if (loading) loading.remove();
         } else {
             const grp = document.getElementById('dub-multi-group');

@@ -31,11 +31,10 @@ import { DubStatus, DUB_LANGUAGES } from '../lib/dub-status';
 import { SUB_PROVIDERS, DUB_PROVIDERS, HINDI_PROVIDERS, fixedServerBtn } from '../lib/stream-sources';
 import { renderWatchComments } from '../render/watch-comments';
 
-interface LuluStreamServerRow { [key: string]: unknown; id:number; anime_id:number; episode_num:number; label:string; embed_url:string; audio_tracks:string; is_active:number; }
 interface VdoHideServerRow { [key: string]: unknown; id:number; anime_id:number; episode_num:number; label:string; embed_url:string; audio_tracks:string; is_active:number; }
 
 export const watchRoutes = new Hono<{ Bindings: Env }>();
-function luluTrackGroup(track: any): 'sub'|'dub'|'hindi'|'multi' {
+function vdoTrackGroup(track: any): 'sub'|'dub'|'hindi'|'multi' {
   const label = String(track?.label || track?.name || '').trim().toLowerCase();
   const lang = String(track?.lang || '').trim().toLowerCase();
   const text = (label + ' ' + lang).trim();
@@ -63,13 +62,13 @@ function prettyVdoTrackLabel(t: any, group: string): string {
   }
   return raw || (group === 'hindi' ? 'Hindi' : 'VdoHide');
 }
-function parseLuluTracks(row: LuluStreamServerRow): any[] {
+function parseVdoTracks(row: VdoHideServerRow): any[] {
   try {
     const v=JSON.parse(row.audio_tracks||'[]');
     if (!Array.isArray(v)) return [];
     const seen: Record<string,number> = {};
     return v.map((t:any) => {
-      const group=luluTrackGroup(t);
+      const group=vdoTrackGroup(t);
       const label=String(t?.label || t?.name || '').trim().toLowerCase();
       const lang=String(t?.lang || '').trim().toLowerCase();
       const base=[label,lang,group].join('|');
@@ -78,14 +77,9 @@ function parseLuluTracks(row: LuluStreamServerRow): any[] {
     });
   } catch { return []; }
 }
-function renderLuluTrackButtons(servers: LuluStreamServerRow[], group: string, siteUrl: string): string {
-  return servers.flatMap(v => parseLuluTracks(v).filter(t => t.group === group).map(t =>
-    '<button class="server-btn lulustream-server-btn av-server" data-server="lulustream:' + v.id + '" data-lulustream-id="' + v.id + '" data-lulu-track-key="' + h(t.key || '') + '"><img class="av-server-logo" src="' + siteUrl + '/assets/img/site-img/icon.png" alt="" aria-hidden="true"><span class="av-server-label" style="margin-left:4px;">' + h(t.label || (group === 'hindi' ? 'Hindi' : 'Audio')) + '</span></button>'
-  )).join('');
-}
 function renderVdoTrackButtons(servers: VdoHideServerRow[], group: string, siteUrl: string): string {
   return servers.flatMap(v => {
-    const tracks = parseLuluTracks(v as any);
+    const tracks = parseVdoTracks(v as any);
     const matching = tracks.filter(t => t.group === group);
     if (matching.length > 0) {
       return matching.map(t =>
@@ -290,7 +284,6 @@ watchRoutes.get('/watch', async (c) => {
   const resumeT = Math.max(0, parseInt(c.req.query('t') ?? '0', 10) || 0);
   const resumeParam = resumeT >= 30 ? resumeT : 0;
   const hasMegaplayFallback = !video;
-  const lulustreamServers = await db.fetchAll<LuluStreamServerRow>(`SELECT id,anime_id,episode_num,label,embed_url,audio_tracks,is_active FROM lulustream_servers WHERE anime_id ${animeLookupSql} AND episode_num=? AND is_active=1 ORDER BY id`,[...animeLookupIds,epNum]);
   const vdohideServers = await db.fetchAll<VdoHideServerRow>(`SELECT id,anime_id,episode_num,label,embed_url,audio_tracks,is_active FROM vdohide_servers WHERE anime_id ${animeLookupSql} AND episode_num=? AND is_active=1 ORDER BY id`,[...animeLookupIds,epNum]);
 
   const anilistId = 0;
@@ -409,7 +402,7 @@ watchRoutes.get('/watch', async (c) => {
   html += renderWatchBody({
     anime, image, coverSm, title, animeId, hoshikaId: mapped.shortId, epNum, totalEps, video, qSub, hasMegaplayFallback,
     isLoggedIn: auth.check(), prevEp, nextEp, currentEpInfo, chars, allEps, allVideos,
-    videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched, dubbedLangs, lulustreamServers, vdohideServers,
+    videoEpNumSet, resumeT, layoutUser, siteUrl, episodesWatched, dubbedLangs, vdohideServers,
   });
 
   // Senshi player is emitted before the startup scripts so the player DOM
@@ -493,14 +486,13 @@ interface WatchBodyParams {
   siteUrl: string;
   episodesWatched: number;
   dubbedLangs: string[];
-  lulustreamServers: LuluStreamServerRow[];
   vdohideServers: VdoHideServerRow[];
 }
 
 export function renderWatchBody(p: WatchBodyParams): string {
   const { anime, image, coverSm, title, animeId, hoshikaId, epNum, totalEps, video, qSub, hasMegaplayFallback,
     isLoggedIn, prevEp, nextEp, currentEpInfo, chars, allEps, allVideos, videoEpNumSet, resumeT, layoutUser, siteUrl,
-    episodesWatched, dubbedLangs, lulustreamServers, vdohideServers } = p;
+    episodesWatched, dubbedLangs, vdohideServers } = p;
 
   const genres = (anime.genres ?? []).slice(0, 6);
   const score = anime.score;
@@ -509,14 +501,13 @@ export function renderWatchBody(p: WatchBodyParams): string {
   const animePage = `${siteUrl}/anime?id=${encodeURIComponent(hoshikaId)}`;
 
   const hasRealVideo = !!video && (qSub.length > 0 || !!video.video_url);
-  const hasLuluStream = lulustreamServers.length > 0;
   const hasVdoHide = vdohideServers.length > 0;
 
   let playerHtml: string;
   if (hasRealVideo) {
     playerHtml = `<div class="wp-player-shell" id="watch-player-wrap">${qSub.length > 0 ? qSub[0].embed : `<iframe id="main-player-iframe" src="${h(video!.video_url ?? '')}" allow="accelerometer;autoplay;clipboard-write;encrypted-media;gyroscope;picture-in-picture;web-share" allowfullscreen loading="lazy"></iframe>`}</div><div class="wp-player-accent-line"></div>`;
-  } else if (hasMegaplayFallback || hasLuluStream || hasVdoHide) {
-    // Keep the player shell present whenever a local, LuluStream or VdoHide source exists.
+  } else if (hasMegaplayFallback || hasVdoHide) {
+    // Keep the player shell present whenever a local or VdoHide source exists.
     // The old "Finding the best server" gate could remain visible while the
     // AV source was already playing because watchScript1 ran before the
     // hidden Senshi player DOM was emitted.
@@ -525,7 +516,7 @@ export function renderWatchBody(p: WatchBodyParams): string {
     playerHtml = `<div class="wp-no-video"><div class="nv-icon">🎬</div><p>No video available yet.<br>Check back later or explore other episodes.</p><a href="${animePage}" class="btn btn-ghost btn-sm" style="margin-top:.25rem">← Back to Anime</a></div>`;
   }
 
-  const serverControlsHtml = ((video || hasMegaplayFallback || hasLuluStream || hasVdoHide)) ? `
+  const serverControlsHtml = ((video || hasMegaplayFallback || hasVdoHide)) ? `
         <div class="wp-controls">
           ${qSub.length > 0 ? `
           <div class="wp-quality-row">
@@ -545,7 +536,6 @@ export function renderWatchBody(p: WatchBodyParams): string {
                     <span>HLS</span>
                   </div>
                   <div class="server-btn-row" id="servers-sub-body">
-${renderLuluTrackButtons(lulustreamServers, 'sub', siteUrl)}
 ${renderVdoTrackButtons(vdohideServers, 'sub', siteUrl)}
                     ${SUB_PROVIDERS.map(p => fixedServerBtn('sub', p.source, p.provider, p.label)).join('')}
                   </div>
@@ -570,22 +560,19 @@ ${renderVdoTrackButtons(vdohideServers, 'sub', siteUrl)}
                     <span>HLS</span>
                   </div>
                   <div class="server-btn-row" id="servers-dub-body">
-${renderLuluTrackButtons(lulustreamServers, 'dub', siteUrl)}
 ${renderVdoTrackButtons(vdohideServers, 'dub', siteUrl)}
                     ${DUB_PROVIDERS.map(p => fixedServerBtn('dub', p.source, p.provider, p.label)).join('')}
                   </div>
                   <div class="server-group" id="dub-hindi-group">
                     <div class="server-group-label">Hindi Dub</div>
                     <div class="server-group-body" id="servers-dub-hindi-body">
-${renderLuluTrackButtons(lulustreamServers, 'hindi', siteUrl)}
 ${renderVdoTrackButtons(vdohideServers, 'hindi', siteUrl)}
                       ${HINDI_PROVIDERS.map(p => fixedServerBtn('hindi', p.source, p.provider, p.label)).join('')}
                     </div>
                   </div>
-                  <div class="server-group" id="dub-multi-group" style="${(lulustreamServers.some(v=>parseLuluTracks(v).some(t=>t.group==='multi')) || vdohideServers.some(v=>parseLuluTracks(v as any).some(t=>t.group==='multi'))) ? '' : 'display:none'}">
+                  <div class="server-group" id="dub-multi-group" style="${(vdohideServers.some(v=>parseVdoTracks(v as any).some(t=>t.group==='multi'))) ? '' : 'display:none'}">
                     <div class="server-group-label">Multi Dub</div>
                     <div class="server-group-body" id="servers-dub-multi-body">
-${renderLuluTrackButtons(lulustreamServers, 'multi', siteUrl)}
 ${renderVdoTrackButtons(vdohideServers, 'multi', siteUrl)}
                       <div class="server-skel-group" id="servers-dub-multi-loading">
                         <span class="server-skel"><span class="server-skel-dot"></span><span class="server-skel-bar" style="width:64px"></span></span>

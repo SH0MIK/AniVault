@@ -31,7 +31,6 @@ adminHoshikaMigrationRoutes.on(['GET', 'POST'], '/admin/hoshika_migration.php', 
           SELECT anime_id FROM anime_list
           UNION SELECT anime_id FROM watch_history
           UNION SELECT anime_id FROM favorites
-          UNION SELECT anime_id FROM lulustream_servers
         ) ids
         WHERE CAST(ids.anime_id AS INTEGER) > 0
           AND NOT EXISTS (
@@ -49,7 +48,6 @@ adminHoshikaMigrationRoutes.on(['GET', 'POST'], '/admin/hoshika_migration.php', 
           SELECT anime_id FROM anime_list
           UNION SELECT anime_id FROM watch_history
           UNION SELECT anime_id FROM favorites
-          UNION SELECT anime_id FROM lulustream_servers
         )
       `);
 
@@ -123,12 +121,12 @@ adminHoshikaMigrationRoutes.on(['GET', 'POST'], '/admin/hoshika_migration.php', 
     SELECT
       (SELECT COUNT(*) FROM (
         SELECT anime_id FROM anime_list UNION SELECT anime_id FROM watch_history
-        UNION SELECT anime_id FROM favorites UNION SELECT anime_id FROM lulustream_servers
+        UNION SELECT anime_id FROM favorites
       )) AS total_ids,
       (SELECT COUNT(*) FROM anime_identity_map WHERE verified=1 AND legacy_mal_id IS NOT NULL) AS verified_mappings,
       (SELECT COUNT(*) FROM (
         SELECT anime_id FROM anime_list UNION SELECT anime_id FROM watch_history
-        UNION SELECT anime_id FROM favorites UNION SELECT anime_id FROM lulustream_servers
+        UNION SELECT anime_id FROM favorites
       ) ids WHERE NOT EXISTS (
         SELECT 1 FROM anime_identity_map m
         WHERE CAST(m.legacy_mal_id AS TEXT)=CAST(ids.anime_id AS TEXT)
@@ -151,7 +149,7 @@ adminHoshikaMigrationRoutes.on(['GET', 'POST'], '/admin/hoshika_migration.php', 
 <div class="hm-panel">
  <h2>Bulk map from Hoshika</h2>
  <p class="hm-muted">Uses your server-side X-Hoshika-Key and POST /api/v1/ids with source=mal, type=anime. Processes up to 100 IDs per click. You can repeat it until no unmapped IDs remain.</p>
- <p class="hm-muted">MAL IDs are read from anime_list, watch_history, favorites, and LuluStream server records. Hoshika's missing IDs are reported but never deleted.</p>
+ <p class="hm-muted">MAL IDs are read from anime_list, watch_history, and favorites. Hoshika's missing IDs are reported but never deleted.</p>
  <button class="btn btn-primary" id="hm-run">Map next batch (up to 100 IDs)</button>
  <div id="hm-status" class="hm-muted" style="margin-top:12px" aria-live="polite"></div>
 </div>

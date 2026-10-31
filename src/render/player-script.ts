@@ -242,8 +242,8 @@ let outroBand = null;
 let subTracks = [];
 let activeSubIdx = -1;
 let parsedCues = [];
-let luluSubtitleActive = false;
-let luluSubtitleTrackIndex = -1;
+let vdoHideSubtitleActive = false;
+let vdoHideSubtitleTrackIndex = -1;
 let isScrubbing = false;
 let idleTimer = null;
 let sleepTimer = null;
@@ -647,8 +647,8 @@ function findActiveCue(cues, t) {
 }
 
 function renderCurrentSubtitle(time) {
-  if (luluSubtitleActive && activeSubIdx >= 0 && (!parsedCues.length || (subTracks[activeSubIdx] && !subTracks[activeSubIdx].cues.length))) {
-    syncLuluSubtitleCues(activeSubIdx);
+  if (vdoHideSubtitleActive && activeSubIdx >= 0 && (!parsedCues.length || (subTracks[activeSubIdx] && !subTracks[activeSubIdx].cues.length))) {
+    syncVdoHideSubtitleCues(activeSubIdx);
   }
 
   if (!settings.captionsEnabled || activeSubIdx === -1 || !parsedCues.length) {
@@ -674,7 +674,7 @@ function setSubTrack(idx) {
   activeSubIdx = idx;
   activeCuePointer = 0;
   lastRenderedSubText = null;
-  if (luluSubtitleActive) {
+  if (vdoHideSubtitleActive) {
     try {
       const browserTracks = Array.from(vid?.textTracks || []);
       if (idx === -1) {
@@ -683,7 +683,7 @@ function setSubTrack(idx) {
       } else {
         if (hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = idx;
         browserTracks.forEach((track, i) => { track.mode = i === idx ? 'hidden' : 'disabled'; });
-        syncLuluSubtitleCues(idx);
+        syncVdoHideSubtitleCues(idx);
       }
     } catch (e) {}
   }
@@ -1459,31 +1459,31 @@ class TurboVidFragmentLoader {
   destroy() {}
 }
 
-/* LuluStream HLS subtitle bridge */
-function clearLuluSubtitleBridge() {
-  luluSubtitleActive = false;
-  luluSubtitleTrackIndex = -1;
+/* VdoHide HLS subtitle bridge */
+function clearVdoHideSubtitleBridge() {
+  vdoHideSubtitleActive = false;
+  vdoHideSubtitleTrackIndex = -1;
   subTracks = [];
   activeSubIdx = -1;
   parsedCues = [];
   if (subText) subText.innerHTML = '';
 }
-function luluTrackCues(track) {
+function vdoHideTrackCues(track) {
   if (!track || !track.cues) return [];
   const cues = [];
   try {
     for (let i = 0; i < track.cues.length; i++) {
       const cue = track.cues[i];
       const text = String(cue?.text || '').replace(/\\r\\n/g, '<br>').replace(/\\n/g, '<br>');
-      // Some LuluStream subtitle tracks use "_" / "-" / "—" as an empty
+      // Some VdoHide subtitle tracks use "_" / "-" / "—" as an empty
       // dialogue cue. Do not render those as visible subtitles.
       if (text) cues.push({ start: Number(cue.startTime) || 0, end: Number(cue.endTime) || 0, text });
     }
   } catch (e) {}
   return cues;
 }
-function syncLuluSubtitleCues(index) {
-  if (!luluSubtitleActive || index < 0) return;
+function syncVdoHideSubtitleCues(index) {
+  if (!vdoHideSubtitleActive || index < 0) return;
   const track = Array.from(vid?.textTracks || [])[index];
   if (!track || !track.cues) return;
   const count = track.cues.length;
@@ -1496,7 +1496,7 @@ function syncLuluSubtitleCues(index) {
     return;
   }
   track.__lastParsedCount = count;
-  const cues = luluTrackCues(track);
+  const cues = vdoHideTrackCues(track);
   if (!subTracks[index]) subTracks[index] = { label: track.label || track.language || ('Track ' + (index + 1)), lang: track.language || '', cues: [] };
   subTracks[index].cues = cues;
   if (activeSubIdx === index) {
@@ -1504,29 +1504,29 @@ function syncLuluSubtitleCues(index) {
     activeCuePointer = 0;
   }
 }
-function setupLuluSubtitleBridge() {
-  if (!luluSubtitleActive || !hls) return;
+function setupVdoHideSubtitleBridge() {
+  if (!vdoHideSubtitleActive || !hls) return;
   const tracks = Array.isArray(hls.subtitleTracks) ? hls.subtitleTracks : [];
   if (!tracks.length) return;
   subTracks = tracks.map((t, i) => ({ label: t.name || t.lang || ('Track ' + (i + 1)), lang: t.lang || '', cues: [] }));
   let targetIndex = activeSubIdx >= 0 ? activeSubIdx : tracks.findIndex(t => /full/i.test(t.name || t.lang || ''));
   if (targetIndex < 0) targetIndex = tracks.findIndex(t => t.default);
   if (targetIndex < 0) targetIndex = 0;
-  luluSubtitleTrackIndex = targetIndex;
+  vdoHideSubtitleTrackIndex = targetIndex;
   try { if (activeSubIdx >= 0 || settings.captionsEnabled) hls.subtitleTrack = targetIndex; } catch (e) {}
   const bindTextTracks = () => {
     const browserTracks = Array.from(vid?.textTracks || []);
     browserTracks.forEach((track, i) => {
       if (track.kind !== 'subtitles' && track.kind !== 'captions') return;
-      track.mode = (i === luluSubtitleTrackIndex && settings.captionsEnabled) ? 'hidden' : 'disabled';
-      if (!track.__anivaultLuluBound) {
-        track.__anivaultLuluBound = true;
-        track.addEventListener('cuechange', () => syncLuluSubtitleCues(i));
+      track.mode = (i === vdoHideSubtitleTrackIndex && settings.captionsEnabled) ? 'hidden' : 'disabled';
+      if (!track.__anivaultVdoHideBound) {
+        track.__anivaultVdoHideBound = true;
+        track.addEventListener('cuechange', () => syncVdoHideSubtitleCues(i));
       }
-      syncLuluSubtitleCues(i);
+      syncVdoHideSubtitleCues(i);
     });
     if (activeSubIdx < 0 && settings.captionsEnabled) setSubTrack(targetIndex);
-    else if (activeSubIdx >= 0) syncLuluSubtitleCues(activeSubIdx);
+    else if (activeSubIdx >= 0) syncVdoHideSubtitleCues(activeSubIdx);
     buildCaptionsMenu();
   };
   bindTextTracks();
@@ -1570,7 +1570,7 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
   }
 
   if (window.Hls && window.Hls.isSupported()) {
-    const isLuluStream = /lulustream_proxy\\.php/i.test(m3u8Url) || /cdn\\.anivault\\.co\\/stream\\//i.test(m3u8Url);
+    const isVdoHideStream = /cdn\\.anivault\\.co\\/stream\\//i.test(m3u8Url);
     const hlsConfig = {
       enableWorker: true,
       lowLatencyMode: false,
@@ -1592,27 +1592,27 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
       startFragPrefetch: true,
     };
     // TurboVid needs its custom fragment unwrap loader; normal HLS sources
-    // (including LuluStream) must use hls.js's native fragment loader.
-    if (!isLuluStream) hlsConfig.fLoader = TurboVidFragmentLoader;
+    // (including VdoHide) must use hls.js's native fragment loader.
+    if (!isVdoHideStream) hlsConfig.fLoader = TurboVidFragmentLoader;
     hls = new window.Hls(hlsConfig);
 
     hls.loadSource(m3u8Url);
     hls.attachMedia(vid);
 
-    let luluPreferredIndex = -1;
-    let luluPlayStarted = false;
+    let vdoHidePreferredIndex = -1;
+    let vdoHidePlayStarted = false;
 
 
-    const startLuluPlayback = () => {
-      if (!isLuluStream || luluPlayStarted) return;
-      luluPlayStarted = true;
+    const startVdoHidePlayback = () => {
+      if (!isVdoHideStream || vdoHidePlayStarted) return;
+      vdoHidePlayStarted = true;
       if (settings.autoplay) {
         vid.play().catch(() => { applyVolume(vid.volume, true, true); vid.play().catch(() => {}); });
       }
     };
 
-    const selectLuluTrack = () => {
-      if (!isLuluStream || !window._senshiPreferredAudioTrack || !hls.audioTracks || !hls.audioTracks.length) return false;
+    const selectVdoHideTrack = () => {
+      if (!isVdoHideStream || !window._senshiPreferredAudioTrack || !hls.audioTracks || !hls.audioTracks.length) return false;
       const wanted = String(window._senshiPreferredAudioTrack);
       const parts = wanted.split('|');
       const wantedLabel = (parts[0] || '').trim().toLowerCase();
@@ -1634,7 +1634,7 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
         const occurrence = seen[base] || 0;
         seen[base] = occurrence + 1;
         if (label === wantedLabel && lang === wantedLang && group === wantedGroup && occurrence === wantedOccurrence) {
-          luluPreferredIndex = i;
+          vdoHidePreferredIndex = i;
           hls.audioTrack = i;
           return true;
         }
@@ -1644,7 +1644,7 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
           const t = hls.audioTracks[i] || {};
           const lang = String(t.lang || '').trim().toLowerCase();
           if (lang === wantedLang) {
-            luluPreferredIndex = i;
+            vdoHidePreferredIndex = i;
             hls.audioTrack = i;
             return true;
           }
@@ -1662,7 +1662,7 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
           else if (/^ja$|^jpn$|japanese|日本語|\b(sub|subtitle|original)\b/.test(groupText)) group = 'sub';
           else if (t.default) group = 'sub';
           if (group === wantedGroup) {
-            luluPreferredIndex = i;
+            vdoHidePreferredIndex = i;
             hls.audioTrack = i;
             return true;
           }
@@ -1682,19 +1682,19 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
           default: !!track.default,
           forced: !!track.forced,
         }));
-        if (isLuluStream) selectLuluTrack();
+        if (isVdoHideStream) selectVdoHideTrack();
         window.dispatchEvent(new CustomEvent('anivault:audio-tracks-ready', {
           detail: { tracks: window._senshiAudioTracks.slice() }
         }));
       } catch (e) {}
 
-      if (isLuluStream) {
+      if (isVdoHideStream) {
         if (!subTracks.length) {
-          luluSubtitleActive = true;
-          setupLuluSubtitleBridge();
+          vdoHideSubtitleActive = true;
+          setupVdoHideSubtitleBridge();
         }
         buildQualityMenu();
-        startLuluPlayback();
+        startVdoHidePlayback();
         return;
       }
 
@@ -1705,7 +1705,7 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
       }
     });
 
-    if (isLuluStream) {
+    if (isVdoHideStream) {
       const hideNative = () => {
         try {
           Array.from(vid?.textTracks || []).forEach(t => {
@@ -1713,8 +1713,8 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
           });
         } catch (e) {}
       };
-      hls.on(window.Hls.Events.SUBTITLE_TRACKS_UPDATED, () => { if (luluSubtitleActive) setupLuluSubtitleBridge(); hideNative(); });
-      hls.on(window.Hls.Events.SUBTITLE_TRACK_LOADED, () => { if (luluSubtitleActive) setupLuluSubtitleBridge(); hideNative(); });
+      hls.on(window.Hls.Events.SUBTITLE_TRACKS_UPDATED, () => { if (vdoHideSubtitleActive) setupVdoHideSubtitleBridge(); hideNative(); });
+      hls.on(window.Hls.Events.SUBTITLE_TRACK_LOADED, () => { if (vdoHideSubtitleActive) setupVdoHideSubtitleBridge(); hideNative(); });
       hls.on(window.Hls.Events.SUBTITLE_TRACK_SWITCH, hideNative);
     }
 
@@ -1823,9 +1823,9 @@ window.SenshiPlayer = {
     if (subText) subText.innerHTML = '';
 
     const hasExplicitSubs = Array.isArray(subs) && subs.length > 0 && subs.some(s => !!(s && (s.url || s.file)));
-    luluSubtitleActive = !hasExplicitSubs && (/lulustream_proxy\\.php/i.test(url) || /cdn\\.anivault\\.co\\/stream\\//i.test(url));
-    luluSubtitleTrackIndex = -1;
-    if (luluSubtitleActive) {
+    vdoHideSubtitleActive = !hasExplicitSubs && (/cdn\\.anivault\\.co\\/stream\\//i.test(url));
+    vdoHideSubtitleTrackIndex = -1;
+    if (vdoHideSubtitleActive) {
       subTracks = [];
       saveSettings();
     } else if (hasExplicitSubs) {
