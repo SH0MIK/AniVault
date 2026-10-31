@@ -103,7 +103,7 @@ function updateActiveServerButton(serverName, audio, trackKey) {
     if (!panel) return;
     let btn = null;
     if (trackKey) {
-        btn = panel.querySelector(`.server-btn[data-server="${serverName}"][data-vdo-track-key="${trackKey}"]`);
+        btn = panel.querySelector(\`.server-btn[data-server="\${serverName}"][data-vdo-track-key="\${trackKey}"]\`);
     }
     if (!btn) {
         btn = panel.querySelector(\`.server-btn[data-server="\${serverName}"]\`);
