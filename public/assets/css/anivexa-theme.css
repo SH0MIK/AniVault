@@ -9,9 +9,9 @@
 
 :root {
   --bg-base:       #000000;
-  --bg-surface:    #050505;
-  --bg-card:       #080808;
-  --bg-hover:      #1a1a1a;
+  --bg-surface:    #000000;
+  --bg-card:       #000000;
+  --bg-hover:      #080808;
   --accent:        #7c3aed;
   --accent-2:      #9d6ef8;
   --accent-dim:    #5b21b6;
@@ -25,7 +25,7 @@
   --text-muted:    #4a4a5c;
   --border:        rgba(255,255,255,0.07);
   --border-accent: rgba(124,58,237,0.5);
-  --glass-bg:      rgba(0,0,0,0.85);
+  --glass-bg:      rgba(0,0,0,0.92);
   --glass-border:  rgba(255,255,255,0.06);
   --radius-sm:     6px;
   --radius-md:     10px;
@@ -472,3 +472,135 @@ body { font-family: var(--font-body); }
   .layout-sidebar > aside .sidebar { border-radius: 0; height: 100%; position: static; top: 0; }
 }
 
+
+
+/* ==========================================================================
+   AniVault global pure-black canvas + shared anime-card system.
+   This is intentionally global: every page using .anime-card gets the same
+   treatment, including homepage, browse, search, lists, profiles and watch order.
+   ========================================================================== */
+:root {
+  color-scheme: dark;
+  --bg-base: #000000;
+  --bg-surface: #000000;
+  --bg-card: #000000;
+  --bg-hover: #080808;
+  --glass-bg: rgba(0,0,0,.92);
+}
+html, body {
+  background: #000000 !important;
+  background-color: #000000 !important;
+}
+body, #app, #root, main, .page-content, .main-content, .content-wrapper {
+  background-color: #000000;
+}
+#av-page-loader { background: #000000 !important; }
+.card, .anime-card, .ep-card {
+  background: #000000;
+}
+.anime-card {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid rgba(255,255,255,.075);
+  border-radius: 14px;
+  background: #000;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(0,0,0,.42);
+  transition: transform .28s ease, box-shadow .28s ease, border-color .28s ease;
+}
+.anime-card:hover {
+  transform: translateY(-5px);
+  border-color: rgba(124,58,237,.48);
+  box-shadow: 0 13px 30px rgba(124,58,237,.2);
+}
+.anime-card-poster {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  background: #000;
+}
+.anime-card-poster img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .45s ease;
+}
+.anime-card:hover .anime-card-poster img { transform: scale(1.055); }
+.anime-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  min-height: 88px;
+  padding: 11px 13px 13px;
+  background: #000;
+}
+.anime-card-meta {
+  order: 1;
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 7px;
+  color: #9292a2;
+  font-size: .68rem;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.anime-card-title {
+  order: 2;
+  min-height: 2.5em;
+  margin: 0;
+  color: #f2f2f5;
+  font-size: .91rem;
+  font-weight: 750;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  transition: color .2s ease;
+}
+.anime-card:hover .anime-card-title { color: #a78bfa; }
+.anime-card-score {
+  top: 10px;
+  left: 10px;
+  right: auto;
+  padding: 4px 9px;
+  border-radius: 999px;
+  color: #ffca28;
+  background: rgba(0,0,0,.68);
+  border: 1px solid rgba(255,255,255,.18);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+  font-size: .72rem;
+  font-weight: 800;
+}
+.anime-card-user-status {
+  top: auto;
+  bottom: 10px;
+  left: 10px;
+  max-width: calc(100% - 20px);
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(0,0,0,.68);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+.anime-card-overlay {
+  background: linear-gradient(180deg, transparent 35%, rgba(0,0,0,.9) 100%);
+}
+.ep-card {
+  background: #000;
+  border-color: rgba(255,255,255,.075);
+  border-radius: 14px;
+}
+.ep-info { background: #000; }
+@media (max-width: 640px) {
+  .anime-card-info { min-height: 80px; padding: 9px 10px 11px; }
+  .anime-card-title { font-size: .82rem; }
+  .anime-card-meta { font-size: .61rem; gap: 5px; }
+}
