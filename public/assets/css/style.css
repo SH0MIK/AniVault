@@ -110,10 +110,10 @@
 
 
 :root {
-  --bg-base:       #0a0b0e;
-  --bg-surface:    #111318;
-  --bg-card:       #161a22;
-  --bg-hover:      #1d2230;
+  --bg-base:       #000000;
+  --bg-surface:    #000000;
+  --bg-card:       #000000;
+  --bg-hover:      #080808;
   --accent:        #a78bfa;
   --accent-dim:    #7c5ac7;
   --accent-glow:   rgba(124,58,237,0.25);
