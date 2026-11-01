@@ -30,8 +30,3 @@ CREATE INDEX IF NOT EXISTS idx_vdohide_active_anime_updated
   ON vdohide_servers(anime_id, updated_at DESC)
   WHERE is_active = 1;
 
--- Audio-track lookup only reads active servers. Keep this partial index only
--- if EXPLAIN QUERY PLAN confirms it improves that endpoint on the real schema.
-CREATE INDEX IF NOT EXISTS idx_vdohide_active_audio_tracks
-  ON vdohide_servers(audio_tracks)
-  WHERE is_active = 1;
