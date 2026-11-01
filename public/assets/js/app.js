@@ -880,6 +880,7 @@ let __chatLoadedOnce  = false;
 let __chatPolling     = null;
 let __chatLastTypingPing = 0;
 let __chatLastCountCheck = 0;
+let __chatLastPresenceCheck = 0;
 let __mentionMatches = [];
 let __mentionIndex   = -1;
 let __mentionStart   = -1; // index of the "@" the current suggestions are for
@@ -1073,6 +1074,11 @@ async function chatPollTick() {
 }
 
 async function updateChatPresence() {
+  // Presence is informational, not message delivery. Throttle it separately
+  // from the 4-second message poll so online/typing queries run at most every 15s.
+  const now = Date.now();
+  if (now - __chatLastPresenceCheck < 15000) return;
+  __chatLastPresenceCheck = now;
   try {
     const res  = await fetch('/api/chat?action=presence');
     const data = await res.json();
