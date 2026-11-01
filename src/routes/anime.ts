@@ -82,6 +82,18 @@ animeRoutes.get('/anime', async (c) => {
     findIdentityByHoshikaId(db, id).catch(() => null),
   ]);
   if (!record) return c.html(`<script>location.replace(${JSON.stringify(siteUrl + '/browse')});</script>`);
+  // Hoshika's extras endpoint provides the canonical watch order for this anime.
+  // Keep the partner key server-side and gracefully hide the section if unavailable.
+  const watchOrder: any[] = await (async () => {
+    try {
+      const response = await fetch(`https://hoshika.app/api/v1/anime/${encodeURIComponent(id)}/extras?locale=en`, {
+        headers: { Accept: 'application/json', ...(c.env.HOSHIKA_API_KEY ? { 'X-Hoshika-Key': c.env.HOSHIKA_API_KEY } : {}) },
+      });
+      if (!response.ok) return [];
+      const payload: any = await response.json();
+      return Array.isArray(payload?.watchOrder) ? payload.watchOrder : Array.isArray(payload?.data?.watchOrder) ? payload.data.watchOrder : [];
+    } catch { return []; }
+  })();
   const legacyId = identity?.verified === 1 && identity.legacy_mal_id && identity.legacy_mal_id > 0
     ? Number(identity.legacy_mal_id) : null;
   const raw: any = record.raw ?? {};
@@ -289,6 +301,31 @@ animeRoutes.get('/anime', async (c) => {
         <span>Studio: <strong>${h((anime.studios ?? []).filter(Boolean).map((s: any) => s?.name ?? '').filter(Boolean).join(', ') || '—')}</strong></span>
         <span>Source: <strong>${h(anime.source || '—')}</strong></span>
       </div>
+
+      ${watchOrder.length > 1 ? `
+      <section class="ih-watch-order" aria-labelledby="ih-watch-order-title">
+        <div class="ih-watch-order-heading">
+          <div><h2 id="ih-watch-order-title">Watch Order</h2><p>Recommended order to watch this series</p></div>
+          <span class="ih-watch-order-count">${watchOrder.length} entries</span>
+        </div>
+        <div class="ih-watch-order-list">
+          ${watchOrder.map((entry: any, index: number) => {
+            const entryId = String(entry?.shortId ?? '').trim();
+            if (!/^\\d+$/.test(entryId)) return '';
+            const entryTitle = String(entry?.title ?? 'Untitled anime');
+            const entryImage = typeof entry?.coverImage === 'string' && /^https:\\/\\//i.test(entry.coverImage) ? entry.coverImage : '';
+            const isCurrent = entry.current === true || entryId === id;
+            const meta = [entry?.year, entry?.format].filter(Boolean).join(' · ');
+            return `<a class="ih-watch-order-item${isCurrent ? ' is-current' : ''}" href="${siteUrl}/anime?id=${encodeURIComponent(entryId)}"${isCurrent ? ' aria-current="page"' : ''}>
+              <span class="ih-watch-order-number">${index + 1}</span>
+              ${entryImage ? `<img class="ih-watch-order-cover" src="${h(entryImage)}" alt="" loading="lazy" decoding="async">` : '<span class="ih-watch-order-cover ih-watch-order-cover-empty"></span>'}
+              <span class="ih-watch-order-info"><strong>${h(entryTitle)}</strong><span>${h(meta || 'Anime')}${isCurrent ? ' · Current page' : ''}</span></span>
+              <span class="ih-watch-order-arrow" aria-hidden="true">›</span>
+            </a>`;
+          }).join('')}
+        </div>
+      </section>
+      ` : ''}
 
       <div class="ih-cta">
         <a href="#episodes-section" class="ih-btn-play" onclick="var s=document.getElementById('episodes-section'); if(s) s.scrollIntoView({behavior:'smooth'});">
