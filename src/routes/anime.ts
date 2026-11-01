@@ -313,7 +313,7 @@ animeRoutes.get('/anime', async (c) => {
             const entryId = String(entry?.shortId ?? '').trim();
             if (!/^\d+$/.test(entryId)) return '';
             const entryTitle = String(entry?.title ?? 'Untitled anime');
-            const entryImage = typeof entry?.coverImage === 'string' && /^https:\/\/\//i.test(entry.coverImage) ? entry.coverImage : '';
+            const entryImage = typeof entry?.coverImage === 'string' && entry.coverImage.startsWith('https://') ? entry.coverImage : '';
             const isCurrent = entry.current === true || entryId === id;
             const meta = [entry?.year, entry?.format].filter(Boolean).join(' · ');
             return `<a class="ih-watch-order-item${isCurrent ? ' is-current' : ''}" href="${siteUrl}/anime?id=${encodeURIComponent(entryId)}"${isCurrent ? ' aria-current="page"' : ''}>
