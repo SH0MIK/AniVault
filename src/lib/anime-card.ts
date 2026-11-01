@@ -112,7 +112,6 @@ export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus:
       ${epsLabel ? `<span class="anime-card-meta-item">${icon('list', 'icon-inline')} ${h(epsLabel)}</span>` : ''}
       ${audioItem}
     </div>
-
   </div>
 </div>`;
 }

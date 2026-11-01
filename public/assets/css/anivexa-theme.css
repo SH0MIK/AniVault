@@ -8,10 +8,10 @@
 
 
 :root {
-  --bg-base:       #000000;
-  --bg-surface:    #000000;
-  --bg-card:       #000000;
-  --bg-hover:      #080808;
+  --bg-base:       #080808;
+  --bg-surface:    #0d0d0d;
+  --bg-card:       #0f0f0f;
+  --bg-hover:      #1a1a1a;
   --accent:        #7c3aed;
   --accent-2:      #9d6ef8;
   --accent-dim:    #5b21b6;
@@ -25,7 +25,7 @@
   --text-muted:    #4a4a5c;
   --border:        rgba(255,255,255,0.07);
   --border-accent: rgba(124,58,237,0.5);
-  --glass-bg:      rgba(0,0,0,0.92);
+  --glass-bg:      rgba(8,8,8,0.85);
   --glass-border:  rgba(255,255,255,0.06);
   --radius-sm:     6px;
   --radius-md:     10px;
@@ -43,7 +43,6 @@
   --header-h:      64px;
 }
 
-html, body { background-color: #000 !important; }
 body { font-family: var(--font-body); }
 
 /* ---- buttons / cards get the Anivexa treatment site-wide ---- */
@@ -472,43 +471,3 @@ body { font-family: var(--font-body); }
   .layout-sidebar > aside .sidebar { border-radius: 0; height: 100%; position: static; top: 0; }
 }
 
-
-
-/* ==========================================================================
-   Pure-black page canvas. Keep hero artwork intact; remove only decorative
-   blurred backdrops behind anime/watch content.
-   ========================================================================== */
-:root {
-  color-scheme: dark;
-  --bg-base: #000;
-  --bg-surface: #000;
-  --bg-card: #000;
-  --bg-hover: #080808;
-}
-html, body {
-  min-height: 100%;
-  background: #000 !important;
-  background-color: #000 !important;
-}
-body, main, main.page-content, .page-content,
-.main-content, .content-wrapper, .page-container,
-.browse-page, .browse-layout, .anime-page,
-.watch-page, .watch-container, .watch-content {
-  background-color: #000 !important;
-}
-#av-page-loader { background: #000 !important; }
-
-/* Anime detail used a blurred banner backdrop behind the detail panel.
-   The requested design is a continuous black canvas instead. */
-.ih-bg {
-  background: #000 !important;
-  background-image: none !important;
-  opacity: 0 !important;
-}
-.ih-bg-scrim { background: #000 !important; opacity: 1 !important; }
-
-/* Watch page ambient artwork is decorative; keep the player/content on black. */
-.av-ambient, .av-ambient-img, .av-ambient-overlay {
-  background: #000 !important;
-  background-image: none !important;
-}
