@@ -8,9 +8,9 @@
 
 
 :root {
-  --bg-base:       #080808;
-  --bg-surface:    #0d0d0d;
-  --bg-card:       #0f0f0f;
+  --bg-base:       #000000;
+  --bg-surface:    #050505;
+  --bg-card:       #080808;
   --bg-hover:      #1a1a1a;
   --accent:        #7c3aed;
   --accent-2:      #9d6ef8;
@@ -25,7 +25,7 @@
   --text-muted:    #4a4a5c;
   --border:        rgba(255,255,255,0.07);
   --border-accent: rgba(124,58,237,0.5);
-  --glass-bg:      rgba(8,8,8,0.85);
+  --glass-bg:      rgba(0,0,0,0.85);
   --glass-border:  rgba(255,255,255,0.06);
   --radius-sm:     6px;
   --radius-md:     10px;
@@ -43,6 +43,7 @@
   --header-h:      64px;
 }
 
+html, body { background-color: #000 !important; }
 body { font-family: var(--font-body); }
 
 /* ---- buttons / cards get the Anivexa treatment site-wide ---- */
