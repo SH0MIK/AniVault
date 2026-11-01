@@ -227,8 +227,11 @@ watchRoutes.get('/watch', async (c) => {
     const title = getAnimeTitle(anime);
     const previewEpisodes = await getHoshikaAnimeEpisodesById(mapped.shortId, c.env.HOSHIKA_API_KEY);
     const episodeThumbnail = previewEpisodes?.find((ep) => ep.number === epNum)?.thumbnail || '';
-    const bannerFallback = anime.cover_image || '';
-    const image = await getEpisodeOgImage(db, animeId, epNum, episodeThumbnail || bannerFallback);
+    const bannerFallback = anime.cover_image || anime.images?.jpg?.large_image_url || '';
+    // For social embeds, the selected episode's Hoshika still must win over
+    // any legacy/admin override; use the saved override and then anime banner
+    // only when Hoshika has no thumbnail for this episode.
+    const image = episodeThumbnail || await getEpisodeOgImage(db, animeId, epNum, bannerFallback);
     const __banner = await getBannerData(db);
     const html = renderHeader({
       ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: `Ep ${epNum} — ${title}`, currentPage: 'watch',
