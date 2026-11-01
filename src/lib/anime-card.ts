@@ -112,6 +112,7 @@ export function renderAnimeCard(a: NormalisedAnime, siteUrl: string, userStatus:
       ${epsLabel ? `<span class="anime-card-meta-item">${icon('list', 'icon-inline')} ${h(epsLabel)}</span>` : ''}
       ${audioItem}
     </div>
+    ${a.genres?.length ? `<div class="anime-card-genres">${a.genres.slice(0, 3).map((genre) => `<span class="anime-card-genre">${h(genre.name)}</span>`).join('')}</div>` : ''}
   </div>
 </div>`;
 }
