@@ -229,7 +229,9 @@ watchRoutes.get('/watch', async (c) => {
     const previewEpisode = previewEpisodes?.find((ep) => ep.number === epNum);
     const episodeTitle = previewEpisode?.title?.trim() || '';
     const bannerFallback = anime.cover_image || anime.images?.jpg?.large_image_url || '';
-    const image = await getEpisodeOgImage(db, animeId, epNum, bannerFallback);
+    // Discord/social embeds should use Hoshika's episode still when available.
+    // Keep the anime banner as a fallback; the actual watch page remains unchanged.
+    const image = previewEpisode?.thumbnail?.trim() || await getEpisodeOgImage(db, animeId, epNum, bannerFallback);
     const __banner = await getBannerData(db);
     const html = renderHeader({
       ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: `Ep ${epNum} — ${episodeTitle || title}`, currentPage: 'watch',
