@@ -381,12 +381,23 @@ animeRoutes.get('/anime', async (c) => {
       </div>
       <div class="scroll-row" id="watch-order-grid-js">
         ${watchOrder.map((entry: any, index: number) => {
-          const entryId = String(entry?.shortId ?? '').trim();
+          const animeData = entry?.anime ?? entry?.relatedAnime ?? entry?.item ?? entry;
+          const entryId = String(
+            entry?.shortId ?? entry?.short_id ??
+            animeData?.shortId ?? animeData?.short_id ??
+            entry?.animeShortId ?? entry?.anime_short_id ??
+            (typeof entry?.id === 'number' || /^\d+$/.test(String(entry?.id ?? '')) ? entry.id : '') ??
+            ''
+          ).trim();
           if (!/^\d+$/.test(entryId)) return '';
-          const entryTitle = String(entry?.title ?? 'Untitled anime');
-          const entryImage = typeof entry?.coverImage === 'string' && entry.coverImage.startsWith('https://') ? entry.coverImage : '';
-          const isCurrent = entry.current === true || entryId === id;
-          const meta = [entry?.year, entry?.format].filter(Boolean).join(' · ');
+          const entryTitle = String(entry?.title ?? animeData?.title ?? animeData?.titleEnglish ?? animeData?.titleRomaji ?? 'Untitled anime');
+          const entryImage = [entry?.coverImage, animeData?.coverImage, animeData?.poster]
+            .find((value: any) => typeof value === 'string' && value.startsWith('https://')) ?? '';
+          const currentId = String(id).trim();
+          const isCurrent = entryId === currentId ||
+            [entry?.current, entry?.isCurrent, entry?.is_current, animeData?.current, animeData?.isCurrent, animeData?.is_current].some((value) => value === true) ||
+            String(entry?.id ?? '') === currentId || String(animeData?.id ?? '') === currentId;
+          const meta = [entry?.year ?? animeData?.year, entry?.format ?? animeData?.format].filter(Boolean).join(' · ');
           return `<a class="anime-card ih-watch-order-card${isCurrent ? ' is-current' : ''}" href="${siteUrl}/anime?id=${encodeURIComponent(entryId)}"${isCurrent ? ' aria-current="page"' : ''} style="flex-shrink:0;width:160px;text-decoration:none;">
             <div class="anime-card-poster">
               ${entryImage ? `<img src="${h(entryImage)}" alt="${h(entryTitle)}" loading="lazy" decoding="async">` : ''}
