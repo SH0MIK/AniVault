@@ -302,31 +302,6 @@ animeRoutes.get('/anime', async (c) => {
         <span>Source: <strong>${h(anime.source || '—')}</strong></span>
       </div>
 
-      ${watchOrder.length > 1 ? `
-      <section class="ih-watch-order" aria-labelledby="ih-watch-order-title">
-        <div class="ih-watch-order-heading">
-          <div><h2 id="ih-watch-order-title">Watch Order</h2><p>Recommended order to watch this series</p></div>
-          <span class="ih-watch-order-count">${watchOrder.length} entries</span>
-        </div>
-        <div class="ih-watch-order-list">
-          ${watchOrder.map((entry: any, index: number) => {
-            const entryId = String(entry?.shortId ?? '').trim();
-            if (!/^\d+$/.test(entryId)) return '';
-            const entryTitle = String(entry?.title ?? 'Untitled anime');
-            const entryImage = typeof entry?.coverImage === 'string' && entry.coverImage.startsWith('https://') ? entry.coverImage : '';
-            const isCurrent = entry.current === true || entryId === id;
-            const meta = [entry?.year, entry?.format].filter(Boolean).join(' · ');
-            return `<a class="ih-watch-order-item${isCurrent ? ' is-current' : ''}" href="${siteUrl}/anime?id=${encodeURIComponent(entryId)}"${isCurrent ? ' aria-current="page"' : ''}>
-              <span class="ih-watch-order-number">${index + 1}</span>
-              ${entryImage ? `<img class="ih-watch-order-cover" src="${h(entryImage)}" alt="" loading="lazy" decoding="async">` : '<span class="ih-watch-order-cover ih-watch-order-cover-empty"></span>'}
-              <span class="ih-watch-order-info"><strong>${h(entryTitle)}</strong><span>${h(meta || 'Anime')}${isCurrent ? ' · Current page' : ''}</span></span>
-              <span class="ih-watch-order-arrow" aria-hidden="true">›</span>
-            </a>`;
-          }).join('')}
-        </div>
-      </section>
-      ` : ''}
-
       <div class="ih-cta">
         <a href="#episodes-section" class="ih-btn-play" onclick="var s=document.getElementById('episodes-section'); if(s) s.scrollIntoView({behavior:'smooth'});">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="5,3 19,12 5,21"/></svg>
@@ -395,6 +370,30 @@ animeRoutes.get('/anime', async (c) => {
 
   <div class="info-section" id="episodes-section">
     <h2 class="info-section-title" id="ep-tab-btn">Episodes <span id="ep-tab-count"${epsUnknown ? ' class="eps-skel"' : ''}>${epsUnknown ? '' : `(${totalEps})`}</span></h2>
+    ${watchOrder.length > 1 ? `
+      <section class="ih-watch-order" aria-labelledby="ih-watch-order-title">
+        <div class="ih-watch-order-heading">
+          <div><h2 id="ih-watch-order-title">Watch Order</h2><p>Recommended order to watch this series</p></div>
+          <span class="ih-watch-order-count">${watchOrder.length} entries</span>
+        </div>
+        <div class="ih-watch-order-list">
+          ${watchOrder.map((entry: any, index: number) => {
+            const entryId = String(entry?.shortId ?? '').trim();
+            if (!/^\d+$/.test(entryId)) return '';
+            const entryTitle = String(entry?.title ?? 'Untitled anime');
+            const entryImage = typeof entry?.coverImage === 'string' && entry.coverImage.startsWith('https://') ? entry.coverImage : '';
+            const isCurrent = entry.current === true || entryId === id;
+            const meta = [entry?.year, entry?.format].filter(Boolean).join(' · ');
+            return `<a class="ih-watch-order-item${isCurrent ? ' is-current' : ''}" href="${siteUrl}/anime?id=${encodeURIComponent(entryId)}"${isCurrent ? ' aria-current="page"' : ''}>
+              <span class="ih-watch-order-number">${index + 1}</span>
+              ${entryImage ? `<img class="ih-watch-order-cover" src="${h(entryImage)}" alt="" loading="lazy" decoding="async">` : '<span class="ih-watch-order-cover ih-watch-order-cover-empty"></span>'}
+              <span class="ih-watch-order-info"><strong>${h(entryTitle)}</strong><span>${h(meta || 'Anime')}${isCurrent ? ' · Current page' : ''}</span></span>
+              <span class="ih-watch-order-arrow" aria-hidden="true">›</span>
+            </a>`;
+          }).join('')}
+        </div>
+      </section>
+      ` : ''}
     <div id="ep-range-wrap" style="display:none;margin-bottom:.9rem;"></div>
     <div class="ep-grid" id="ep-grid-loading" aria-hidden="true">${Array.from({ length: 6 }).map(() => `
       <div class="ep-card-skel">
