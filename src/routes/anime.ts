@@ -311,9 +311,9 @@ animeRoutes.get('/anime', async (c) => {
         <div class="ih-watch-order-list">
           ${watchOrder.map((entry: any, index: number) => {
             const entryId = String(entry?.shortId ?? '').trim();
-            if (!/^\\d+$/.test(entryId)) return '';
+            if (!/^\d+$/.test(entryId)) return '';
             const entryTitle = String(entry?.title ?? 'Untitled anime');
-            const entryImage = typeof entry?.coverImage === 'string' && /^https:\\/\\//i.test(entry.coverImage) ? entry.coverImage : '';
+            const entryImage = typeof entry?.coverImage === 'string' && /^https:\/\/\//i.test(entry.coverImage) ? entry.coverImage : '';
             const isCurrent = entry.current === true || entryId === id;
             const meta = [entry?.year, entry?.format].filter(Boolean).join(' · ');
             return `<a class="ih-watch-order-item${isCurrent ? ' is-current' : ''}" href="${siteUrl}/anime?id=${encodeURIComponent(entryId)}"${isCurrent ? ' aria-current="page"' : ''}>
