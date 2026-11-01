@@ -226,18 +226,16 @@ watchRoutes.get('/watch', async (c) => {
     const anime = mapped.anime;
     const title = getAnimeTitle(anime);
     const previewEpisodes = await getHoshikaAnimeEpisodesById(mapped.shortId, c.env.HOSHIKA_API_KEY);
-    const episodeThumbnail = previewEpisodes?.find((ep) => ep.number === epNum)?.thumbnail || '';
+    const previewEpisode = previewEpisodes?.find((ep) => ep.number === epNum);
+    const episodeTitle = previewEpisode?.title?.trim() || '';
     const bannerFallback = anime.cover_image || anime.images?.jpg?.large_image_url || '';
-    // For social embeds, the selected episode's Hoshika still must win over
-    // any legacy/admin override; use the saved override and then anime banner
-    // only when Hoshika has no thumbnail for this episode.
-    const image = episodeThumbnail || await getEpisodeOgImage(db, animeId, epNum, bannerFallback);
+    const image = await getEpisodeOgImage(db, animeId, epNum, bannerFallback);
     const __banner = await getBannerData(db);
     const html = renderHeader({
-      ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: `Ep ${epNum} — ${title}`, currentPage: 'watch',
+      ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: `Ep ${epNum} — ${episodeTitle || title}`, currentPage: 'watch',
       currentUser: null, unreadCount: 0, requestUrl: c.req.url,
       ogData: {
-        title: `Ep ${epNum} — ${title} | AniVault`,
+        title: `Ep ${epNum} — ${episodeTitle || title} | AniVault`,
         description: `Watch ${title} Episode ${epNum} on AniVault`,
         image, image_width: 1280, image_height: 720,
         url: `${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${epNum}`,
@@ -261,10 +259,7 @@ watchRoutes.get('/watch', async (c) => {
   const title = getAnimeTitle(anime);
   const bannerFallback = anime.cover_image || anime.images?.jpg?.large_image_url || '';
   const hoshikaEpisodes = await getHoshikaAnimeEpisodesById(mapped.shortId, c.env.HOSHIKA_API_KEY);
-  const episodeThumbnail = hoshikaEpisodes?.find((ep) => ep.number === epNum)?.thumbnail || '';
-  // The selected episode still is the watch-page image; use the wide Hoshika
-  // banner only when that episode has no thumbnail.
-  const image = episodeThumbnail || bannerFallback;
+  const image = bannerFallback;
   const coverSm = bannerFallback;
   // Same correction as the anime detail page — MAL's own episode count
   // lags for airing shows, and this total also drives which episode
