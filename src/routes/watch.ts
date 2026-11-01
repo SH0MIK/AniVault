@@ -236,7 +236,7 @@ watchRoutes.get('/watch', async (c) => {
       currentUser: null, unreadCount: 0, requestUrl: c.req.url,
       ogData: {
         title: `Ep ${epNum} — ${episodeTitle || title} | AniVault`,
-        description: `Watch ${title} Episode ${epNum} on AniVault`,
+        description: title,
         image, image_width: 1280, image_height: 720,
         url: `${siteUrl}/watch?anime=${encodeURIComponent(hoshikaId)}&ep=${epNum}`,
         type: 'video.episode',
