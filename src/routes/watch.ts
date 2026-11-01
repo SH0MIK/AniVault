@@ -152,8 +152,10 @@ async function getMappedWatchAnime(db: Db, requestedId: string | number, apiKey?
   const shortId = identity?.hoshika_short_id ?? hoshikaLookupId;
   const hoshika = await getHoshikaAnimeById(shortId, apiKey).catch(() => null);
   if (!hoshika) return null;
-  const poster = hoshika.poster || hoshika.cover || '';
-  const banner = hoshika.cover || hoshika.poster || '';
+  // Match the anime detail page: Hoshika poster/coverImage is the primary
+  // thumbnail; use the wide banner only when no poster is available.
+  const poster = hoshika.poster || '';
+  const banner = hoshika.cover || '';
   const status = /airing|ongoing|currently/i.test(hoshika.status) ? 'Currently Airing'
     : /upcoming|not.?yet/i.test(hoshika.status) ? 'Not yet aired'
     : hoshika.status ? hoshika.status : 'Unknown';
