@@ -27,78 +27,106 @@
 /* ── Episode Grid ──────────────────────────────────────── */
 .ep-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
   gap: 1rem;
 }
 .ep-card {
-  background: var(--bg-card);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
+  min-width: 0;
+  background: #050505;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 14px;
   overflow: hidden;
   cursor: pointer;
-  transition: border-color 0.2s, transform 0.2s;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(0,0,0,.38);
+  transition: transform .28s ease, box-shadow .28s ease, border-color .28s ease;
 }
 .ep-card:hover {
-  border-color: var(--border-accent);
-  transform: translateY(-2px);
+  transform: translateY(-5px);
+  border-color: rgba(124,58,237,.48);
+  box-shadow: 0 13px 30px rgba(124,58,237,.2);
 }
 .ep-thumb {
   position: relative;
+  width: 100%;
   aspect-ratio: 16/9;
-  background: var(--bg-base);
+  background: #090909;
   overflow: hidden;
+  isolation: isolate;
+}
+.ep-thumb::after {
+  content: "";
+  position: absolute;
+  inset: 35% 0 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(180deg, transparent, rgba(0,0,0,.62));
 }
 .ep-thumb img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
-  transition: transform 0.3s;
+  transition: transform .45s ease;
 }
-.ep-card:hover .ep-thumb img { transform: scale(1.04); }
+.ep-card:hover .ep-thumb img { transform: scale(1.055); }
 .ep-thumb-placeholder {
   width: 100%;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.8rem;
-  color: rgba(255,255,255,0.7);
-  font-weight: 700;
-  background: rgba(0,0,0,0.45);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  font-size: 2rem;
+  color: rgba(255,255,255,.7);
+  font-weight: 800;
+  background: radial-gradient(circle at 50% 35%, #24202e, #080808 72%);
 }
 .ep-badge {
   position: absolute;
-  top: 6px;
-  left: 6px;
-  font-size: 0.7rem;
-  font-weight: 600;
-  padding: 2px 7px;
-  border-radius: 4px;
+  top: 9px;
+  left: 9px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: .68rem;
+  font-weight: 800;
+  letter-spacing: .025em;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  color: #fff;
+  background: rgba(0,0,0,.68);
+  border: 1px solid rgba(255,255,255,.18);
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
 }
-.ep-badge-filler { background: rgba(124,58,237,0.85); color: #fff; }
-.ep-badge-recap  { background: rgba(90,98,120,0.85); color: #fff; }
+.ep-badge-filler { background: rgba(124,58,237,.78); border-color: rgba(190,160,255,.35); }
+.ep-badge-recap { background: rgba(70,78,96,.78); }
 .ep-info {
-  padding: 0.6rem 0.75rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 11px 13px 14px;
+  min-height: 92px;
 }
 .ep-title {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--text-primary);
-  line-height: 1.4;
+  font-size: .9rem;
+  font-weight: 750;
+  color: #f4f4f7;
+  line-height: 1.35;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
+  transition: color .2s ease;
 }
+.ep-card:hover .ep-title { color: #a78bfa; }
 .ep-meta {
-  font-size: 0.76rem;
-  color: var(--text-muted);
-  margin-top: 3px;
+  font-size: .73rem;
+  color: #9292a2;
+  font-weight: 600;
+  margin-top: auto;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -198,50 +226,21 @@
   animation: epsSkelShimmer 1.5s ease-in-out infinite;
 }
 
-/* Responsive */
+/* Responsive episode cards keep the same visual treatment on touch screens. */
 @media (max-width: 768px) {
-  .ep-grid { grid-template-columns: 1fr; gap: 0; }
-  .ep-card-skel {
-    display: flex;
-    flex-direction: row;
-    border-radius: 0;
-    border-left: none;
-    border-right: none;
-    border-top: none;
-    border-bottom: 1px solid var(--border);
-  }
-  .ep-skel-thumb { width: 140px; min-width: 140px; aspect-ratio: 16/9; border-radius: 0; }
-  .ep-skel-info { flex: 1; justify-content: center; padding: 0.5rem 0.75rem; }
-  .ep-card {
-    display: flex;
-    flex-direction: row;
-    border-radius: 0;
-    border-left: none;
-    border-right: none;
-    border-top: none;
-    border-bottom: 1px solid var(--border);
-  }
-  .ep-card:hover { transform: none; }
-  .ep-thumb {
-    width: 140px;
-    min-width: 140px;
-    aspect-ratio: 16/9;
-    border-radius: 0;
-  }
-  .ep-info {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    padding: 0.5rem 0.75rem;
-  }
-  .ep-title { font-size: 0.83rem; -webkit-line-clamp: 3; }
-  .ep-meta  { white-space: normal; }
+  .ep-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; }
+  .ep-card-skel { border-radius: 12px; }
+  .ep-skel-thumb { aspect-ratio: 16/9; }
+  .ep-skel-info { padding: .65rem .75rem .8rem; }
+  .ep-info { min-height: 88px; padding: 9px 10px 11px; }
+  .ep-title { font-size: .82rem; -webkit-line-clamp: 2; }
+  .ep-meta { font-size: .68rem; }
   #ep-modal-thumb-wrap { aspect-ratio: 16/9; }
 }
-@media (max-width: 480px) {
-  .ep-thumb { width: 110px; min-width: 110px; }
-  .ep-skel-thumb { width: 110px; min-width: 110px; }
+@media (max-width: 380px) {
+  .ep-grid { gap: .55rem; }
+  .ep-info { padding: 8px 9px 10px; }
+  .ep-title { font-size: .77rem; }
 }
 
 /* ── Episode Modal: Watch On ───────────────────────────── */
