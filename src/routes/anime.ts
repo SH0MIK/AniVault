@@ -369,7 +369,6 @@ animeRoutes.get('/anime', async (c) => {
   </div>` : ''}
 
   <div class="info-section" id="episodes-section">
-    <h2 class="info-section-title" id="ep-tab-btn">Episodes <span id="ep-tab-count"${epsUnknown ? ' class="eps-skel"' : ''}>${epsUnknown ? '' : `(${totalEps})`}</span></h2>
     ${watchOrder.length > 1 ? `
     <div class="info-section ih-watch-order-section" style="padding:0;margin:0 0 1.25rem;">
       <div class="section-header">
@@ -413,6 +412,7 @@ animeRoutes.get('/anime', async (c) => {
       </div>
     </div>
     ` : ''}
+    <h2 class="info-section-title" id="ep-tab-btn">Episodes <span id="ep-tab-count"${epsUnknown ? ' class="eps-skel"' : ''}>${epsUnknown ? '' : `(${totalEps})`}</span></h2>
     <div id="ep-range-wrap" style="display:none;margin-bottom:.9rem;"></div>
     <div class="ep-grid" id="ep-grid-loading" aria-hidden="true">${Array.from({ length: 6 }).map(() => `
       <div class="ep-card-skel">
