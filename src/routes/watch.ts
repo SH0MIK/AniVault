@@ -225,8 +225,10 @@ watchRoutes.get('/watch', async (c) => {
     if (!mapped) return c.text('Anime not found in Hoshika. Please check the Hoshika ID.', 404);
     const anime = mapped.anime;
     const title = getAnimeTitle(anime);
-    const coverFallback = anime.images?.jpg?.large_image_url ?? '';
-    const image = await getEpisodeOgImage(db, animeId, epNum, coverFallback);
+    const previewEpisodes = await getHoshikaAnimeEpisodesById(mapped.shortId, c.env.HOSHIKA_API_KEY);
+    const episodeThumbnail = previewEpisodes?.find((ep) => ep.number === epNum)?.thumbnail || '';
+    const bannerFallback = anime.cover_image || '';
+    const image = await getEpisodeOgImage(db, animeId, epNum, episodeThumbnail || bannerFallback);
     const __banner = await getBannerData(db);
     const html = renderHeader({
       ...__banner, siteUrl, siteName: c.env.SITE_NAME, pageTitle: `Ep ${epNum} — ${title}`, currentPage: 'watch',
@@ -254,8 +256,13 @@ watchRoutes.get('/watch', async (c) => {
   // account-specific progress and list actions are gated in the API.
 
   const title = getAnimeTitle(anime);
-  const image = anime.images?.jpg?.large_image_url ?? '';
-  const coverSm = anime.images?.jpg?.image_url ?? image;
+  const bannerFallback = anime.cover_image || anime.images?.jpg?.large_image_url || '';
+  const hoshikaEpisodes = await getHoshikaAnimeEpisodesById(mapped.shortId, c.env.HOSHIKA_API_KEY);
+  const episodeThumbnail = hoshikaEpisodes?.find((ep) => ep.number === epNum)?.thumbnail || '';
+  // The selected episode still is the watch-page image; use the wide Hoshika
+  // banner only when that episode has no thumbnail.
+  const image = episodeThumbnail || bannerFallback;
+  const coverSm = bannerFallback;
   // Same correction as the anime detail page — MAL's own episode count
   // lags for airing shows, and this total also drives which episode
   // numbers get nav chips below (missing/wrong = viewers can't reach an
@@ -268,7 +275,6 @@ watchRoutes.get('/watch', async (c) => {
   // Finished and not-yet-aired shows skip all of that and use anime.episodes
   // straight from MAL — that field is already accurate once a show isn't
   // actively airing, so there's nothing for the cache to correct.
-  const hoshikaEpisodes = await getHoshikaAnimeEpisodesById(mapped.shortId, c.env.HOSHIKA_API_KEY);
   const totalEps = Math.max(anime.episodes ?? 0, hoshikaEpisodes?.length ?? 0);
   const hoshikaNumericId = Number(mapped.shortId) || 0;
   const animeLookupIds = Array.from(new Set([animeId, hoshikaNumericId].filter((id) => id > 0)));
