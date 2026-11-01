@@ -371,29 +371,37 @@ animeRoutes.get('/anime', async (c) => {
   <div class="info-section" id="episodes-section">
     <h2 class="info-section-title" id="ep-tab-btn">Episodes <span id="ep-tab-count"${epsUnknown ? ' class="eps-skel"' : ''}>${epsUnknown ? '' : `(${totalEps})`}</span></h2>
     ${watchOrder.length > 1 ? `
-      <section class="ih-watch-order" aria-labelledby="ih-watch-order-title">
-        <div class="ih-watch-order-heading">
-          <div><h2 id="ih-watch-order-title">Watch Order</h2><p>Recommended order to watch this series</p></div>
-          <span class="ih-watch-order-count">${watchOrder.length} entries</span>
+    <div class="info-section ih-watch-order-section" style="padding:0;margin:0 0 1.25rem;">
+      <div class="section-header">
+        <h2 class="info-section-title" style="margin-bottom:0;">Watch Order</h2>
+        <div style="display:flex;align-items:center;gap:12px;">
+          <button class="btn btn-ghost btn-sm btn-icon row-nav-btn" data-target="watch-order-grid-js" data-dir="prev" aria-label="Previous watch order entries">${icon('chevron-left', 'icon-small')}</button>
+          <button class="btn btn-ghost btn-sm btn-icon row-nav-btn" data-target="watch-order-grid-js" data-dir="next" aria-label="Next watch order entries">${icon('chevron-right', 'icon-small')}</button>
         </div>
-        <div class="ih-watch-order-list">
-          ${watchOrder.map((entry: any, index: number) => {
-            const entryId = String(entry?.shortId ?? '').trim();
-            if (!/^\d+$/.test(entryId)) return '';
-            const entryTitle = String(entry?.title ?? 'Untitled anime');
-            const entryImage = typeof entry?.coverImage === 'string' && entry.coverImage.startsWith('https://') ? entry.coverImage : '';
-            const isCurrent = entry.current === true || entryId === id;
-            const meta = [entry?.year, entry?.format].filter(Boolean).join(' · ');
-            return `<a class="ih-watch-order-item${isCurrent ? ' is-current' : ''}" href="${siteUrl}/anime?id=${encodeURIComponent(entryId)}"${isCurrent ? ' aria-current="page"' : ''}>
-              <span class="ih-watch-order-number">${index + 1}</span>
-              ${entryImage ? `<img class="ih-watch-order-cover" src="${h(entryImage)}" alt="" loading="lazy" decoding="async">` : '<span class="ih-watch-order-cover ih-watch-order-cover-empty"></span>'}
-              <span class="ih-watch-order-info"><strong>${h(entryTitle)}</strong><span>${h(meta || 'Anime')}${isCurrent ? ' · Current page' : ''}</span></span>
-              <span class="ih-watch-order-arrow" aria-hidden="true">›</span>
-            </a>`;
-          }).join('')}
-        </div>
-      </section>
-      ` : ''}
+      </div>
+      <div class="scroll-row" id="watch-order-grid-js">
+        ${watchOrder.map((entry: any, index: number) => {
+          const entryId = String(entry?.shortId ?? '').trim();
+          if (!/^\d+$/.test(entryId)) return '';
+          const entryTitle = String(entry?.title ?? 'Untitled anime');
+          const entryImage = typeof entry?.coverImage === 'string' && entry.coverImage.startsWith('https://') ? entry.coverImage : '';
+          const isCurrent = entry.current === true || entryId === id;
+          const meta = [entry?.year, entry?.format].filter(Boolean).join(' · ');
+          return `<a class="anime-card ih-watch-order-card${isCurrent ? ' is-current' : ''}" href="${siteUrl}/anime?id=${encodeURIComponent(entryId)}"${isCurrent ? ' aria-current="page"' : ''} style="flex-shrink:0;width:160px;text-decoration:none;">
+            <div class="anime-card-poster">
+              ${entryImage ? `<img src="${h(entryImage)}" alt="${h(entryTitle)}" loading="lazy" decoding="async">` : ''}
+              <span class="ih-watch-order-position">${index + 1}</span>
+              ${isCurrent ? '<span class="ih-watch-order-current">Currently viewing</span>' : ''}
+            </div>
+            <div class="anime-card-info">
+              <div class="anime-card-title">${h(entryTitle)}</div>
+              <div class="anime-card-meta">${h(meta || 'Anime')}${isCurrent ? ' · Current' : ''}</div>
+            </div>
+          </a>`;
+        }).join('')}
+      </div>
+    </div>
+    ` : ''}
     <div id="ep-range-wrap" style="display:none;margin-bottom:.9rem;"></div>
     <div class="ep-grid" id="ep-grid-loading" aria-hidden="true">${Array.from({ length: 6 }).map(() => `
       <div class="ep-card-skel">
