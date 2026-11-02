@@ -21,8 +21,8 @@ export const animeRoutes = new Hono<{ Bindings: Env }>();
 
 
 // Resolve a transparent title logo from TMDB for the anime detail page only.
-// Require a title match before accepting a result: broad "animation" fallback can
-// otherwise select a related spin-off (e.g. Gun Gale Online for Sword Art Online II).
+// Try the exact season first, then fall back to the franchise's base title when
+// TMDB has no logo for a later season. Never accept unrelated animated results.
 async function resolveTmdbAnimeLogo(title: string, apiKey: string): Promise<string> {
   if (!apiKey || !title.trim()) return '';
   const headers = { Accept: 'application/json' };
@@ -34,13 +34,7 @@ async function resolveTmdbAnimeLogo(title: string, apiKey: string): Promise<stri
     .replace(/&/g, ' and ')
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
-    .replace(/\\s+/g, ' ');
-  const wantedTitle = normalizeTitle(title);
-  const matchesTitle = (x: any) => {
-    const candidates = [x?.name, x?.original_name, x?.title, x?.original_title]
-      .map(normalizeTitle).filter(Boolean);
-    return candidates.some((candidate: string) => candidate === wantedTitle);
-  };
+    .replace(/\s+/g, ' ');
   const pickLogo = (logos: any[]) => {
     const valid = (logos || []).filter((x: any) => typeof x?.file_path === 'string' && x.file_path.startsWith('/'));
     valid.sort((a: any, b: any) => (b.vote_average ?? 0) - (a.vote_average ?? 0));
@@ -49,34 +43,55 @@ async function resolveTmdbAnimeLogo(title: string, apiKey: string): Promise<stri
       || valid[0]
       || null;
   };
-  try {
-    const query = new URLSearchParams({ api_key: apiKey, query: title.trim(), language: 'en-US' });
-    const tvRes = await fetch('https://api.themoviedb.org/3/search/tv?' + query.toString(), { headers });
-    let chosen: any = null;
-    let kind: 'tv' | 'movie' = 'tv';
-    if (tvRes.ok) {
-      const results = ((await tvRes.json()) as any)?.results || [];
-      const exact = results.filter((x: any) => matchesTitle(x) && isAnimated(x));
-      chosen = exact.find((x: any) => isJapanese(x)) || exact[0] || null;
-    }
-    // Anime films are stored under TMDB movie; only accept exact-title animation results.
-    if (!chosen) {
-      const movieQuery = new URLSearchParams({ api_key: apiKey, query: title.trim(), language: 'en-US' });
-      const movieRes = await fetch('https://api.themoviedb.org/3/search/movie?' + movieQuery.toString(), { headers });
-      if (movieRes.ok) {
-        const results = ((await movieRes.json()) as any)?.results || [];
-        const exact = results.filter((x: any) => matchesTitle(x) && isAnimated(x));
-        chosen = exact.find((x: any) => isJapanese(x)) || exact[0] || null;
-        kind = 'movie';
-      }
-    }
-    // No exact title match means no logo. A related anime's logo is worse than none.
-    if (!chosen?.id) return '';
+  const getLogo = async (kind: 'tv' | 'movie', id: number): Promise<string> => {
     const imageQuery = new URLSearchParams({ api_key: apiKey, include_image_language: 'en,ja,null' });
-    const imageRes = await fetch(`https://api.themoviedb.org/3/${kind}/${chosen.id}/images?${imageQuery.toString()}`, { headers });
+    const imageRes = await fetch('https://api.themoviedb.org/3/' + kind + '/' + id + '/images?' + imageQuery.toString(), { headers });
     if (!imageRes.ok) return '';
     const logo = pickLogo(((await imageRes.json()) as any)?.logos || []);
-    return logo?.file_path ? `https://image.tmdb.org/t/p/w500${logo.file_path}` : '';
+    return logo?.file_path ? 'https://image.tmdb.org/t/p/w500' + logo.file_path : '';
+  };
+  const findExact = async (queryTitle: string): Promise<{ kind: 'tv' | 'movie'; id: number } | null> => {
+    const params = new URLSearchParams({ api_key: apiKey, query: queryTitle, language: 'en-US' });
+    const tvRes = await fetch('https://api.themoviedb.org/3/search/tv?' + params.toString(), { headers });
+    if (tvRes.ok) {
+      const results = ((await tvRes.json()) as any)?.results || [];
+      const exact = results.filter((x: any) => {
+        const names = [x?.name, x?.original_name].map(normalizeTitle).filter(Boolean);
+        return isAnimated(x) && names.includes(normalizeTitle(queryTitle));
+      });
+      const chosen = exact.find((x: any) => isJapanese(x)) || exact[0];
+      if (chosen?.id) return { kind: 'tv', id: chosen.id };
+    }
+    // Anime films are stored under TMDB movie; only accept exact-title animation results.
+    const movieRes = await fetch('https://api.themoviedb.org/3/search/movie?' + params.toString(), { headers });
+    if (movieRes.ok) {
+      const results = ((await movieRes.json()) as any)?.results || [];
+      const exact = results.filter((x: any) => {
+        const names = [x?.title, x?.original_title].map(normalizeTitle).filter(Boolean);
+        return isAnimated(x) && names.includes(normalizeTitle(queryTitle));
+      });
+      const chosen = exact.find((x: any) => isJapanese(x)) || exact[0];
+      if (chosen?.id) return { kind: 'movie', id: chosen.id };
+    }
+    return null;
+  };
+
+  try {
+    // Strip common sequel/season suffixes to find the original series' Season 1 logo.
+    const baseTitle = title.trim()
+      .replace(/\s*[-:–—]\s*(?:season\s*)?(?:\d+|ii{1,2}|iv|v?i{0,3}|part\s+\d+|the\s+final\s+season)\s*$/i, '')
+      .replace(/\s+(?:season\s+\d+|\d+(?:st|nd|rd|th)\s+season|season\s+(?:ii|iii|iv|v|vi)|(?:ii|iii|iv|v|vi))\s*$/i, '')
+      .trim();
+    const candidates = [...new Set([title.trim(), ...(baseTitle && normalizeTitle(baseTitle) !== normalizeTitle(title) ? [baseTitle] : [])])];
+
+    // Prefer the exact season's logo; if missing, try the base/Season 1 title.
+    for (const candidate of candidates) {
+      const match = await findExact(candidate);
+      if (!match) continue;
+      const logo = await getLogo(match.kind, match.id);
+      if (logo) return logo;
+    }
+    return '';
   } catch {
     return '';
   }
