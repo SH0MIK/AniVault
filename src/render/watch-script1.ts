@@ -1040,6 +1040,18 @@ document.querySelectorAll('.embed-server-btn').forEach(btn => {
     });
 });
 
+// ── Default to Japanese/sub on every fresh watch-page visit ───────────────
+// The sub group is the safest default for anime. Explicit user tab/server
+// choices still take over normally after this initial selection.
+(function selectSubGroupByDefault() {
+    const subTab = document.querySelector('.server-tab[data-tab="sub"]');
+    const subPanel = document.getElementById('tab-panel-sub');
+    if (!subTab || !subPanel) return;
+    document.querySelectorAll('.server-tab').forEach(t => t.classList.toggle('active', t === subTab));
+    document.querySelectorAll('.server-tab-panel').forEach(p => p.classList.toggle('active', p === subPanel));
+    setSourceType('sub', 'hls');
+})();
+
 // ── Tab switching ─────────────────────────────────────────────────────────
 document.querySelectorAll('.server-tab').forEach(tab => {
     tab.addEventListener('click', () => {
@@ -1118,13 +1130,19 @@ document.querySelectorAll('.server-tab-panel').forEach(panel => {
 
     let playbackStarted = false;
 
-    // Fast-start: if there is no primary AV video, immediately activate
-    // the first available VdoHide server button rather than
-    // waiting for external scraper probes to settle or time out.
+    // Fast-start: always prefer the SUB group's first available VdoHide
+    // server, even if markup or restored classes left the DUB panel active.
     const hasPrimaryVideo = !!document.getElementById('main-player-iframe') || !!document.querySelector('#watch-player-wrap iframe');
     if (!hasPrimaryVideo && !playbackStarted && !window._manualServerSelection) {
-      const activePanel = document.querySelector('.server-tab-panel.active') || document.querySelector('.server-tab-panel');
-      const firstBtn = (activePanel && activePanel.querySelector('.vdohide-server-btn'))
+      const subTab = document.querySelector('.server-tab[data-tab="sub"]');
+      const subPanel = document.getElementById('tab-panel-sub');
+      if (subTab && subPanel) {
+        document.querySelectorAll('.server-tab').forEach(t => t.classList.toggle('active', t === subTab));
+        document.querySelectorAll('.server-tab-panel').forEach(p => p.classList.toggle('active', p === subPanel));
+        setSourceType('sub', 'hls');
+      }
+      const firstBtn = (subPanel && subPanel.querySelector('.vdohide-server-btn'))
+                    || (subPanel && subPanel.querySelector('.server-btn:not(.server-btn-dead):not(.server-btn-pending)'))
                     || document.querySelector('.vdohide-server-btn');
       if (firstBtn) {
         playbackStarted = true;
