@@ -678,11 +678,23 @@ function setSubTrack(idx) {
     try {
       const browserTracks = Array.from(vid?.textTracks || []);
       if (idx === -1) {
+        vdoHideSubtitleTrackIndex = -1;
         if (hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = -1;
-        browserTracks.forEach(track => { track.mode = 'disabled'; });
+        browserTracks.forEach(track => {
+          if (track.kind === 'subtitles' || track.kind === 'captions') track.mode = 'disabled';
+        });
       } else {
+        vdoHideSubtitleTrackIndex = idx;
         if (hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = idx;
-        browserTracks.forEach((track, i) => { track.mode = i === idx ? 'hidden' : 'disabled'; });
+        const selectedBrowserTrack = getVdoHideBrowserTrack(idx);
+        browserTracks.forEach(track => {
+          if (track.kind === 'subtitles' || track.kind === 'captions') {
+            track.mode = track === selectedBrowserTrack ? 'hidden' : 'disabled';
+          }
+        });
+        // Track loading is asynchronous; polling on timeupdate and the
+        // track's cuechange event will populate the selected cues as soon
+        // as they become available.
         syncVdoHideSubtitleCues(idx);
       }
     } catch (e) {}
@@ -1477,31 +1489,65 @@ function vdoHideTrackCues(track) {
       const text = String(cue?.text || '').replace(/\\r\\n/g, '<br>').replace(/\\n/g, '<br>');
       // Some VdoHide subtitle tracks use "_" / "-" / "—" as an empty
       // dialogue cue. Do not render those as visible subtitles.
-      if (text) cues.push({ start: Number(cue.startTime) || 0, end: Number(cue.endTime) || 0, text });
+      if (text && text.trim() !== '_' && text.trim() !== '-' && text.trim() !== '—') {
+        cues.push({ start: Number(cue.startTime) || 0, end: Number(cue.endTime) || 0, text });
+      }
     }
   } catch (e) {}
   return cues;
 }
+
+// hls.js subtitle rendition indexes and HTMLMediaElement TextTrack indexes
+// are not guaranteed to match. Resolve the browser track by its metadata first.
+function getVdoHideBrowserTrack(index) {
+  const browserTracks = Array.from(vid?.textTracks || []);
+  const hlsTrack = hls?.subtitleTracks?.[index];
+  const wantedLang = String(hlsTrack?.lang || '').toLowerCase();
+  const wantedLabel = String(hlsTrack?.name || '').trim().toLowerCase();
+  let track = browserTracks.find(t =>
+    (t.kind === 'subtitles' || t.kind === 'captions') &&
+    ((wantedLang && String(t.language || '').toLowerCase() === wantedLang) ||
+     (wantedLabel && String(t.label || '').trim().toLowerCase() === wantedLabel))
+  );
+  if (!track && browserTracks[index] &&
+      (browserTracks[index].kind === 'subtitles' || browserTracks[index].kind === 'captions')) {
+    track = browserTracks[index];
+  }
+  if (!track) track = browserTracks.find(t => t.kind === 'subtitles' || t.kind === 'captions');
+  return track || null;
+}
+
 function syncVdoHideSubtitleCues(index) {
-  if (!vdoHideSubtitleActive || index < 0) return;
-  const track = Array.from(vid?.textTracks || [])[index];
+  if (!vdoHideSubtitleActive || index < 0 || !subTracks[index]) return;
+  const track = getVdoHideBrowserTrack(index);
   if (!track || !track.cues) return;
+
+  // Force the selected browser track into hidden mode so the browser loads and
+  // maintains cues without drawing native captions over our custom renderer.
+  if (index === activeSubIdx && settings.captionsEnabled && track.mode !== 'hidden') {
+    try { track.mode = 'hidden'; } catch (e) {}
+  }
+
   const count = track.cues.length;
   if (!count) return;
-  if (track.__lastParsedCount === count && subTracks[index] && subTracks[index].cues && subTracks[index].cues.length) {
+  if (track.__lastParsedCount === count && subTracks[index].cues && subTracks[index].cues.length) {
     if (activeSubIdx === index && parsedCues !== subTracks[index].cues) {
       parsedCues = subTracks[index].cues;
       activeCuePointer = 0;
+      renderCurrentSubtitle(vid?.currentTime || 0);
     }
     return;
   }
+
   track.__lastParsedCount = count;
   const cues = vdoHideTrackCues(track);
-  if (!subTracks[index]) subTracks[index] = { label: track.label || track.language || ('Track ' + (index + 1)), lang: track.language || '', cues: [] };
   subTracks[index].cues = cues;
   if (activeSubIdx === index) {
     parsedCues = cues;
+    // A subtitle may be selected in the middle of a line. Recompute against
+    // the current playback time immediately instead of waiting for the next cue.
     activeCuePointer = 0;
+    renderCurrentSubtitle(vid?.currentTime || 0);
   }
 }
 function setupVdoHideSubtitleBridge() {
