@@ -1652,7 +1652,9 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
     const hlsConfig = {
       enableWorker: true,
       lowLatencyMode: false,
-      renderTextTracksNatively: false,
+      // The VdoHide bridge reads cues from video.textTracks; HLS.js only
+      // populates those native tracks when this option is enabled.
+      renderTextTracksNatively: isVdoHideStream,
       backBufferLength: 30,
       maxBufferLength: 30,
       maxMaxBufferLength: 60,
