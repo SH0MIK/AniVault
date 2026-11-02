@@ -107,9 +107,40 @@ adminVdoHideServerRoutes.get('/admin/vdohide.php', async (c) => {
       ORDER BY MAX(updated_at) DESC`
   );
 
-  const statsRows = await db.fetchAll<any>('SELECT audio_tracks FROM vdohide_servers WHERE is_active=1');
-  const streamStats = { titles: seriesRows.length, episodes: seriesRows.reduce((n:any, r:any) => n + Number(r.episode_count || 0), 0), englishDub: 0, hindiDub: 0, otherDub: 0, subtitles: 0 };
-  for (const row of statsRows) { try { const tracks = JSON.parse(String(row.audio_tracks || '[]')); if (Array.isArray(tracks)) for (const track of tracks) { const group = String(track?.group || '').toLowerCase(); if (group === 'dub') streamStats.englishDub++; else if (group === 'hindi') streamStats.hindiDub++; else if (group === 'multi') streamStats.otherDub++; else if (group === 'sub') streamStats.subtitles++; } } catch {} }
+  // Count each language category once per series + episode, not once per source/audio track.
+  // A single episode may belong to multiple categories when it has multiple audio options.
+  const statsRows = await db.fetchAll<any>(
+    'SELECT anime_id, episode_num, audio_tracks FROM vdohide_servers WHERE is_active=1'
+  );
+  const episodeKeys = new Set<string>();
+  const languageEpisodes = {
+    dub: new Set<string>(),
+    hindi: new Set<string>(),
+    multi: new Set<string>(),
+    sub: new Set<string>(),
+  };
+  for (const row of statsRows) {
+    const episodeKey = String(row.anime_id) + ':' + String(row.episode_num);
+    episodeKeys.add(episodeKey);
+    try {
+      const tracks = JSON.parse(String(row.audio_tracks || '[]'));
+      if (!Array.isArray(tracks)) continue;
+      for (const track of tracks) {
+        const group = String(track?.group || '').toLowerCase();
+        if (group === 'dub' || group === 'hindi' || group === 'multi' || group === 'sub') {
+          languageEpisodes[group as keyof typeof languageEpisodes].add(episodeKey);
+        }
+      }
+    } catch {}
+  }
+  const streamStats = {
+    titles: seriesRows.length,
+    episodes: episodeKeys.size,
+    englishDub: languageEpisodes.dub.size,
+    hindiDub: languageEpisodes.hindi.size,
+    otherDub: languageEpisodes.multi.size,
+    subtitles: languageEpisodes.sub.size,
+  };
 
   // Directly resolve Hoshika metadata without legacy MAL identity mapping
   const metadataRows = [...seriesRows];
