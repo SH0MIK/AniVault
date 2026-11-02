@@ -1508,12 +1508,26 @@ function setupVdoHideSubtitleBridge() {
   if (!vdoHideSubtitleActive || !hls) return;
   const tracks = Array.isArray(hls.subtitleTracks) ? hls.subtitleTracks : [];
   if (!tracks.length) return;
+
+  // Preserve the selected subtitle by language/label, not by numeric index:
+  // hls.js can rebuild/reorder text tracks when the audio rendition changes.
+  const previous = activeSubIdx >= 0 ? subTracks[activeSubIdx] : null;
   subTracks = tracks.map((t, i) => ({ label: t.name || t.lang || ('Track ' + (i + 1)), lang: t.lang || '', cues: [] }));
-  let targetIndex = activeSubIdx >= 0 ? activeSubIdx : tracks.findIndex(t => /full/i.test(t.name || t.lang || ''));
+  let targetIndex = -1;
+  if (previous) {
+    targetIndex = tracks.findIndex(t =>
+      String(t.lang || '').toLowerCase() === String(previous.lang || '').toLowerCase() &&
+      String(t.name || t.lang || '').toLowerCase() === String(previous.label || '').toLowerCase()
+    );
+    if (targetIndex < 0 && previous.lang) {
+      targetIndex = tracks.findIndex(t => String(t.lang || '').toLowerCase() === String(previous.lang).toLowerCase());
+    }
+  }
+  if (targetIndex < 0) targetIndex = tracks.findIndex(t => /full/i.test(t.name || t.lang || ''));
   if (targetIndex < 0) targetIndex = tracks.findIndex(t => t.default);
   if (targetIndex < 0) targetIndex = 0;
   vdoHideSubtitleTrackIndex = targetIndex;
-  try { if (activeSubIdx >= 0 || settings.captionsEnabled) hls.subtitleTrack = targetIndex; } catch (e) {}
+  try { if (settings.captionsEnabled) hls.subtitleTrack = targetIndex; } catch (e) {}
   const bindTextTracks = () => {
     const browserTracks = Array.from(vid?.textTracks || []);
     browserTracks.forEach((track, i) => {
@@ -1525,8 +1539,8 @@ function setupVdoHideSubtitleBridge() {
       }
       syncVdoHideSubtitleCues(i);
     });
-    if (activeSubIdx < 0 && settings.captionsEnabled) setSubTrack(targetIndex);
-    else if (activeSubIdx >= 0) syncVdoHideSubtitleCues(activeSubIdx);
+    if (settings.captionsEnabled) setSubTrack(targetIndex);
+    else setSubTrack(-1);
     buildCaptionsMenu();
   };
   bindTextTracks();
@@ -1551,6 +1565,11 @@ function setupVdoHideSubtitleBridge() {
 
 /* HLS Stream Loader */
 function loadHLS(m3u8Url, preferredAudioTrack) {
+  // A new HLS source (including an audio-language switch that resolves to a
+  // fresh VdoHide playlist) must not inherit subtitle indices/cues from the
+  // previous manifest. Those indices are source-specific and can silently
+  // point at the wrong track or leave captions blank.
+  clearVdoHideSubtitleBridge();
   if (!m3u8Url) {
     if (spinner) spinner.classList.add('hide');
     if (errMsg) errMsg.textContent = 'No stream URL provided.';
@@ -1716,6 +1735,16 @@ function loadHLS(m3u8Url, preferredAudioTrack) {
       hls.on(window.Hls.Events.SUBTITLE_TRACKS_UPDATED, () => { if (vdoHideSubtitleActive) setupVdoHideSubtitleBridge(); hideNative(); });
       hls.on(window.Hls.Events.SUBTITLE_TRACK_LOADED, () => { if (vdoHideSubtitleActive) setupVdoHideSubtitleBridge(); hideNative(); });
       hls.on(window.Hls.Events.SUBTITLE_TRACK_SWITCH, hideNative);
+      // Audio rendition changes can recreate native TextTrack objects and
+      // reset their modes. Rebind captions after the switch settles, then
+      // reselect the Japanese/full subtitle track so it remains rendered.
+      hls.on(window.Hls.Events.AUDIO_TRACK_SWITCHED, () => {
+        if (!vdoHideSubtitleActive) return;
+        const rebind = () => { setupVdoHideSubtitleBridge(); hideNative(); };
+        setTimeout(rebind, 0);
+        setTimeout(rebind, 150);
+        setTimeout(rebind, 500);
+      });
     }
 
     hls.on(window.Hls.Events.LEVEL_SWITCHED, (evt, data) => {
