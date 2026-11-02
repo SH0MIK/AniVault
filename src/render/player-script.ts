@@ -478,6 +478,12 @@ seekContainer?.addEventListener('pointerleave', () => {
 
 /* Video Time & Progress */
 vid.addEventListener('timeupdate', () => {
+  // TextTrack cues can arrive after selection (especially when toggled in the
+  // middle of dialogue). Keep the active HLS subtitle rendition synchronized
+  // on every playback tick so the first currently-active cue is rendered.
+  if (vdoHideSubtitleActive && settings.captionsEnabled && activeSubIdx >= 0) {
+    syncVdoHideSubtitleCues(activeSubIdx);
+  }
   if (!Number.isFinite(vid.duration) || vid.duration <= 0) return;
   const cur = vid.currentTime;
   const dur = vid.duration;
@@ -1576,17 +1582,24 @@ function setupVdoHideSubtitleBridge() {
   try { if (settings.captionsEnabled) hls.subtitleTrack = targetIndex; } catch (e) {}
   const bindTextTracks = () => {
     const browserTracks = Array.from(vid?.textTracks || []);
-    browserTracks.forEach((track, i) => {
+    browserTracks.forEach(track => {
       if (track.kind !== 'subtitles' && track.kind !== 'captions') return;
-      track.mode = (i === vdoHideSubtitleTrackIndex && settings.captionsEnabled) ? 'hidden' : 'disabled';
+      const selectedTrack = getVdoHideBrowserTrack(vdoHideSubtitleTrackIndex);
+      track.mode = (settings.captionsEnabled && track === selectedTrack) ? 'hidden' : 'disabled';
       if (!track.__anivaultVdoHideBound) {
         track.__anivaultVdoHideBound = true;
-        track.addEventListener('cuechange', () => syncVdoHideSubtitleCues(i));
+        track.addEventListener('cuechange', () => {
+          const selectedIndex = vdoHideSubtitleTrackIndex;
+          if (selectedIndex >= 0 && getVdoHideBrowserTrack(selectedIndex) === track) {
+            syncVdoHideSubtitleCues(selectedIndex);
+          }
+        });
       }
-      syncVdoHideSubtitleCues(i);
     });
     if (settings.captionsEnabled) setSubTrack(targetIndex);
     else setSubTrack(-1);
+    // Pull cues after the selected track has been switched to hidden mode.
+    if (settings.captionsEnabled) syncVdoHideSubtitleCues(targetIndex);
     buildCaptionsMenu();
   };
   bindTextTracks();
