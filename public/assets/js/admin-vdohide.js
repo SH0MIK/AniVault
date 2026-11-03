@@ -150,8 +150,8 @@ async function loadSources(ep){
 
       // Subtitles section
       const subWrap=document.createElement('div');subWrap.className='tv-source-subs';
-      let subs=[];
-      try{subs=JSON.parse(String(src.subtitles_json||'[]'));}catch{}
+      let subs=Array.isArray(src.subtitles)?src.subtitles:[];
+      if(!subs.length){try{subs=JSON.parse(String(src.subtitles_json||'[]'));}catch{}}
       if(Array.isArray(subs)&&subs.length){
         subs.forEach(s=>{
           const badge=document.createElement('span');
