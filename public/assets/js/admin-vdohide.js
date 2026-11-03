@@ -124,7 +124,7 @@ async function loadSources(ep){
   const box=document.querySelector('#tv-ep-details-'+ep+' .tv-detail-loading');
   if(!box)return;
   try{
-    const r=await fetch(siteUrl+'/admin/vdohide.php?json=1&anime='+encodeURIComponent(selectedAnime)+'&episode='+encodeURIComponent(ep));
+    const r=await fetch(siteUrl+'/admin/vdohide.php?json=1&anime='+encodeURIComponent(selectedAnime)+'&episode='+encodeURIComponent(ep)+'&_='+Date.now(),{cache:'no-store'});
     const d=await r.json();
     if(!d.success)throw new Error(d.error||'Load failed');
     box.innerHTML='';
