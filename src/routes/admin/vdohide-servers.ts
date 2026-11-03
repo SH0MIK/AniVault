@@ -98,7 +98,16 @@ adminVdoHideServerRoutes.get('/admin/vdohide.php', async (c) => {
     c.header('Cache-Control', 'private, no-store, no-cache, must-revalidate');
     c.header('Pragma', 'no-cache');
     c.header('Expires', '0');
-    return c.json({ success:true, sources:rows });
+    const sources = rows.map((row:any) => {
+      let subtitles: any[] = [];
+      try {
+        const raw = row.subtitles_json;
+        const parsed = Array.isArray(raw) ? raw : JSON.parse(String(raw || '[]'));
+        if (Array.isArray(parsed)) subtitles = parsed.filter((track:any) => track && typeof track === 'object');
+      } catch { /* malformed subtitle metadata should not break source details */ }
+      return { ...row, subtitles };
+    });
+    return c.json({ success:true, sources });
   }
 
   const seriesRows = await db.fetchAll<any>(
