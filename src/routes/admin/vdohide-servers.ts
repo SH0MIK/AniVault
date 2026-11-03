@@ -93,6 +93,11 @@ adminVdoHideServerRoutes.get('/admin/vdohide.php', async (c) => {
       'SELECT id, anime_id, episode_num, label, embed_url, master_url, proxy_url, qualities_json, subtitles_json, is_active, updated_at FROM vdohide_servers WHERE anime_id=? AND episode_num=? ORDER BY id',
       [anime, episode]
     );
+    // This endpoint changes immediately after subtitle uploads/deletes. Never let
+    // the browser or Cloudflare serve a stale episode/source snapshot.
+    c.header('Cache-Control', 'private, no-store, no-cache, must-revalidate');
+    c.header('Pragma', 'no-cache');
+    c.header('Expires', '0');
     return c.json({ success:true, sources:rows });
   }
 
