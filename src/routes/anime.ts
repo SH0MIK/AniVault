@@ -37,6 +37,15 @@ async function resolveTmdbAnimeLogo(title: string, apiKey: string): Promise<stri
     .replace(/\s+/g, ' ');
   const titleCandidates = (value: string): string[] => {
     const candidates = [value.trim()];
+    // TMDB uses the full subtitle for the two Death Note recap films.
+    if (/death\\s*note/i.test(value) && /relight|rewrite/i.test(value)) {
+      candidates.push(
+        'Death Note Relight: Visions of a God',
+        'Death Note Relight 1: Visions of a God',
+        'Death Note Relight 2: Ls Successors',
+        'Death Note Rewrite: Genshisuru Kami'
+      );
+    }
     let base = value.trim();
     // Remove trailing part labels, including "Season 3 Part 2" and "Part II".
     base = base.replace(/\s*(?:[-:–—]\s*)?(?:season\s+\d+\s+)?part\s+(?:\d+|[ivxlcdm]+)\s*$/i, '').trim();
@@ -270,7 +279,11 @@ animeRoutes.get('/anime', async (c) => {
   // readout for the meta row -- replaces the old "Watch on" list of every
   // streaming provider with just the two badges that actually matter.
   // TMDB is intentionally used only for the anime detail title logo, never the homepage.
-  const titleLogo = anime.logo_image || await resolveTmdbAnimeLogo(title, String((c.env as any).TMDB_API_KEY || ''));
+  const tmdbLogo = await resolveTmdbAnimeLogo(title, String((c.env as any).TMDB_API_KEY || ''));
+  // For Death Note entries, trust the exact TMDB title match over imported artwork:
+  // the stored Death Note logo can otherwise be the Relight logo (and vice versa).
+  const isDeathNoteTitle = /death\\s*note/i.test(title);
+  const titleLogo = isDeathNoteTitle ? (tmdbLogo || anime.logo_image) : (anime.logo_image || tmdbLogo);
   const hasSub = videoEpRows.length > 0;
   const hasDub = animeDubConfirmed || dubbedLangs.length > 0 || Object.values(videoEpSet).some((v) => v.dub);
 
