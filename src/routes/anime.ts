@@ -37,6 +37,18 @@ async function resolveTmdbAnimeLogo(title: string, apiKey: string): Promise<stri
     .replace(/\s+/g, ' ');
   const titleCandidates = (value: string): string[] => {
     const candidates = [value.trim()];
+    // TMDB uses several variants for Attack on Titan's Final Season and Part 2.
+    if (/attack\s+on\s+titan/i.test(value) && /final\s+season/i.test(value)) {
+      candidates.push(
+        'Attack on Titan: The Final Season',
+        'Attack on Titan The Final Season',
+        'Attack on Titan: Final Season',
+        'Attack on Titan Final Season',
+        'Attack on Titan: The Final Season Part 2',
+        'Attack on Titan The Final Season Part 2',
+        'Attack on Titan Season 4'
+      );
+    }
     // TMDB uses the full subtitle for the two Death Note recap films.
     if (/death\s*note/i.test(value) && /relight|rewrite/i.test(value)) {
       candidates.push(
