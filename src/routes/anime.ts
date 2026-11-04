@@ -46,7 +46,9 @@ async function resolveTmdbAnimeLogo(title: string, apiKey: string): Promise<stri
         'Attack on Titan Final Season',
         'Attack on Titan: The Final Season Part 2',
         'Attack on Titan The Final Season Part 2',
-        'Attack on Titan Season 4'
+        'Attack on Titan Season 4',
+        // Later seasons often have no separate TMDB logo; reuse the original series logo.
+        'Attack on Titan'
       );
     }
     // TMDB uses the full subtitle for the two Death Note recap films.
