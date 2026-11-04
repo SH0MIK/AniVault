@@ -21,8 +21,8 @@ export const animeRoutes = new Hono<{ Bindings: Env }>();
 
 
 // Resolve a transparent title logo from TMDB for the anime detail page only.
-// Match title variants (including "The Movie") and check both TV and movie results
-// so a same-title TV entry without artwork cannot block a film logo.
+// Match exact title variants first, then try safe base-title variants for seasons/parts.
+// Keep distinctive subtitles (e.g. "Relight") intact to prevent franchise cross-matches.
 async function resolveTmdbAnimeLogo(title: string, apiKey: string): Promise<string> {
   if (!apiKey || !title.trim()) return '';
   const headers = { Accept: 'application/json' };
@@ -35,18 +35,19 @@ async function resolveTmdbAnimeLogo(title: string, apiKey: string): Promise<stri
     .replace(/[^a-z0-9]+/g, ' ')
     .trim()
     .replace(/\s+/g, ' ');
-  const titleKeys = (value: any) => {
-    const normalized = normalizeTitle(value);
-    return [...new Set([
-      normalized,
-      normalized.replace(/\bthe movie\b/g, ' ').replace(/\bmovie\b/g, ' ').replace(/\s+/g, ' ').trim(),
-      normalized.replace(/\bthe movie\b/g, ' ').replace(/\bmovie\b/g, ' ').replace(/\s+/g, ' ').trim().replace(/\bthe\b/g, ' ').replace(/\s+/g, ' ').trim()
-    ])].filter(Boolean);
-  };
-  const titlesMatch = (candidate: any, requested: string) => {
-    const wanted = titleKeys(requested);
-    return [candidate?.name, candidate?.original_name, candidate?.title, candidate?.original_title]
-      .flatMap(titleKeys).some((key: string) => wanted.includes(key));
+  const titleCandidates = (value: string): string[] => {
+    const candidates = [value.trim()];
+    let base = value.trim();
+    // Remove trailing part labels, including "Season 3 Part 2" and "Part II".
+    base = base.replace(/\s*(?:[-:–—]\s*)?(?:season\s+\d+\s+)?part\s+(?:\d+|[ivxlcdm]+)\s*$/i, '').trim();
+    if (base && normalizeTitle(base) !== normalizeTitle(value)) candidates.push(base);
+    // Remove season labels and common sequel suffixes (R2, II, Season 3, etc.).
+    const noSeason = base.replace(/\s*(?:[-:–—]\s*)?(?:season\s+\d+|s\d+|r\d+|(?:ii|iii|iv|v|vi|vii|viii|ix|x)|\d+(?:st|nd|rd|th)\s+season)\s*$/i, '').trim();
+    if (noSeason && normalizeTitle(noSeason) !== normalizeTitle(value)) candidates.push(noSeason);
+    // Some titles use "Season 3 Part 2" without a colon/dash before the season.
+    const noSeasonPart = value.trim().replace(/\s+season\s+\d+\s+part\s+(?:\d+|[ivxlcdm]+)\s*$/i, '').trim();
+    if (noSeasonPart && normalizeTitle(noSeasonPart) !== normalizeTitle(value)) candidates.push(noSeasonPart);
+    return [...new Set(candidates.filter(Boolean))];
   };
   const pickLogo = (logos: any[]) => {
     const valid = (logos || []).filter((x: any) => typeof x?.file_path === 'string' && x.file_path.startsWith('/'));
@@ -63,21 +64,27 @@ async function resolveTmdbAnimeLogo(title: string, apiKey: string): Promise<stri
     const logo = pickLogo(((await imageRes.json()) as any)?.logos || []);
     return logo?.file_path ? 'https://image.tmdb.org/t/p/w500' + logo.file_path : '';
   };
-  const findMatches = async (queryTitle: string): Promise<Array<{ kind: 'tv' | 'movie'; id: number }>> => {
+  const findMatches = async (queryTitle: string): Promise<Array<{ kind: 'tv' | 'movie'; id: number; japanese: boolean }>> => {
     const params = new URLSearchParams({ api_key: apiKey, query: queryTitle, language: 'en-US' });
     const matches: Array<{ kind: 'tv' | 'movie'; id: number; japanese: boolean }> = [];
     const tvRes = await fetch('https://api.themoviedb.org/3/search/tv?' + params.toString(), { headers });
     if (tvRes.ok) {
       const results = ((await tvRes.json()) as any)?.results || [];
       for (const x of results) {
-        if (x?.id && isAnimated(x) && titlesMatch(x, queryTitle)) matches.push({ kind: 'tv', id: x.id, japanese: isJapanese(x) });
+        const names = [x?.name, x?.original_name].map(normalizeTitle).filter(Boolean);
+        if (x?.id && isAnimated(x) && names.includes(normalizeTitle(queryTitle))) {
+          matches.push({ kind: 'tv', id: x.id, japanese: isJapanese(x) });
+        }
       }
     }
     const movieRes = await fetch('https://api.themoviedb.org/3/search/movie?' + params.toString(), { headers });
     if (movieRes.ok) {
       const results = ((await movieRes.json()) as any)?.results || [];
       for (const x of results) {
-        if (x?.id && isAnimated(x) && titlesMatch(x, queryTitle)) matches.push({ kind: 'movie', id: x.id, japanese: isJapanese(x) });
+        const names = [x?.title, x?.original_title].map(normalizeTitle).filter(Boolean);
+        if (x?.id && isAnimated(x) && names.includes(normalizeTitle(queryTitle))) {
+          matches.push({ kind: 'movie', id: x.id, japanese: isJapanese(x) });
+        }
       }
     }
     matches.sort((a, b) => Number(b.japanese) - Number(a.japanese) || (a.kind === 'movie' ? -1 : 1));
@@ -85,17 +92,10 @@ async function resolveTmdbAnimeLogo(title: string, apiKey: string): Promise<stri
   };
 
   try {
-    // Strip common sequel/season suffixes to find the original series' Season 1 logo.
-    const baseTitle = title.trim()
-      .replace(/\s*[-:–—]\s*(?:season\s*)?(?:\d+|ii{1,2}|iv|v?i{0,3}|part\s+\d+|the\s+final\s+season)\s*$/i, '')
-      .replace(/\s+(?:season\s+\d+|\d+(?:st|nd|rd|th)\s+season|season\s+(?:ii|iii|iv|v|vi)|(?:ii|iii|iv|v|vi))\s*$/i, '')
-      .trim();
-    const candidates = [...new Set([title.trim(), ...(baseTitle && normalizeTitle(baseTitle) !== normalizeTitle(title) ? [baseTitle] : [])])];
-
-    // Prefer a logo for the exact movie/season; only use the base title if it has none.
-    for (const candidate of candidates) {
-      const matches = await findMatches(candidate);
-      for (const match of matches) {
+    // Exact full title (including distinctive subtitles) always gets first chance.
+    // Only after it has no logo do we try progressively broader season/part titles.
+    for (const candidate of titleCandidates(title)) {
+      for (const match of await findMatches(candidate)) {
         const logo = await getLogo(match.kind, match.id);
         if (logo) return logo;
       }
