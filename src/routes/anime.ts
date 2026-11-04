@@ -96,7 +96,8 @@ async function resolveTmdbAnimeLogo(title: string, apiKey: string): Promise<stri
         }
       }
     }
-    matches.sort((a, b) => Number(b.japanese) - Number(a.japanese) || (a.kind === 'movie' ? -1 : 1));
+    // Prefer the Japanese animated TV series over similarly titled recap movies (e.g. Death Note vs Relight).
+    matches.sort((a, b) => Number(b.japanese) - Number(a.japanese) || (a.kind === 'tv' ? -1 : 1));
     return matches;
   };
 
