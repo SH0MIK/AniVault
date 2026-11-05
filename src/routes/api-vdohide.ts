@@ -38,26 +38,6 @@ export function vdoProxyUrl(origin: string, url: string, referer?: string): stri
   return res;
 }
 
-// Prefer the site's same-origin proxy for JavaScript subtitle fetches.
-// The CDN token endpoint is still kept as a fallback for URLs that are
-// already tokenized or are not VdoHide upstream hosts.
-function vdoSubtitleFetchUrl(origin: string, rawUrl: string, referer?: string): string {
-  if (!rawUrl) return rawUrl;
-  try {
-    const parsed = new URL(rawUrl, origin);
-    if (parsed.origin === origin && parsed.pathname === '/api/vdohide_proxy.php') {
-      return parsed.href;
-    }
-    if (parsed.hostname.toLowerCase() === 'cdn.anivault.co' && parsed.pathname.startsWith('/v/')) {
-      return parsed.href;
-    }
-    if (!isAllowedVdoHost(parsed.hostname)) return rawUrl;
-    return vdoProxyUrl(origin, parsed.href, referer);
-  } catch {
-    return rawUrl;
-  }
-}
-
 function safeUrl(raw: string, base?: string): URL {
   let val = raw.trim();
   if (val.startsWith('//')) {
@@ -491,12 +471,10 @@ vdoHideApiRoutes.get('/api/vdohide_stream.php', async (c) => {
     playableM3u8 = vdoProxyUrl(origin, masterUrl, row.embed_url);
   }
 
-  // Keep the CDN token URL for compatibility, but provide a same-origin
-  // proxy URL for the player's JavaScript VTT fetch (avoids upstream/CDN CORS issues).
+  // Rewrite subtitle URLs through CDN proxy as clean /v/ tokens
   const proxiedSubs = await Promise.all(
     subtitles.map(async (s: any) => ({
       ...s,
-      proxyUrl: s.url ? vdoSubtitleFetchUrl(origin, s.url, row.embed_url) : s.url,
       url: s.url ? await cdnProxyUrl(s.url, row.embed_url) : s.url,
     }))
   );
@@ -574,7 +552,6 @@ vdoHideApiRoutes.post('/api/vdohide_refresh.php', async (c) => {
     const proxiedSubs = await Promise.all(
       subtitles.map(async (s: any) => ({
         ...s,
-        proxyUrl: s.url ? vdoSubtitleFetchUrl(new URL(c.req.url).origin, s.url, embedUrl) : s.url,
         url: s.url ? await cdnProxyUrl(s.url, embedUrl) : s.url,
       }))
     );
