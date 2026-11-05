@@ -787,10 +787,7 @@ function switchToVdoHide(id, audio, trackKey, isRetry) {
         if (badge) badge.textContent = 'HLS · VdoHide';
 
         const subs = (d.subtitles || []).map(function(s) {
-          // Prefer the same-origin VdoHide proxy for fetch-based VTT parsing;
-          // keep the CDN token URL as a backward-compatible fallback.
-          const subtitleUrl = s.proxyUrl || s.url;
-          return { kind: 'subtitles', label: s.label || s.lang, srclang: s.lang, url: subtitleUrl, file: subtitleUrl, default: !!s.default };
+          return { kind: 'subtitles', label: s.label || s.lang, srclang: s.lang, url: s.url, file: s.url, default: !!s.default };
         });
 
         if (window.SenshiPlayer && window.SenshiPlayer.loadWithSubs) {
