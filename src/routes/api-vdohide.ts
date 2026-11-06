@@ -120,7 +120,7 @@ export async function cdnProxyUrl(url: string, referer?: string): Promise<string
   if (!url) return '';
   // If already clean /v/ token URL, keep it
   if (url.startsWith('https://cdn.anivault.co/v/')) return url;
-  if (url.includes('localhost') && url.includes('/api/subtitles/')) return url;
+  if (url.includes('/api/subtitles/')) return url;
 
   // If it was an old proxy URL, unwrap the real target URL first
   let actualUrl = url;
