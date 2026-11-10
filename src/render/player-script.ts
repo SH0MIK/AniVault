@@ -243,6 +243,8 @@ let subTracks = [];
 let activeSubIdx = -1;
 let parsedCues = [];
 let vdoHideSubtitleActive = false;
+let externalSubtitleActive = false;
+let externalSubtitleBrowserTracks = [];
 let vdoHideSubtitleTrackIndex = -1;
 let isScrubbing = false;
 let idleTimer = null;
@@ -481,7 +483,7 @@ vid.addEventListener('timeupdate', () => {
   // TextTrack cues can arrive after selection (especially when toggled in the
   // middle of dialogue). Keep the active HLS subtitle rendition synchronized
   // on every playback tick so the first currently-active cue is rendered.
-  if (vdoHideSubtitleActive && settings.captionsEnabled && activeSubIdx >= 0) {
+  if ((vdoHideSubtitleActive || externalSubtitleActive) && settings.captionsEnabled && activeSubIdx >= 0) {
     syncVdoHideSubtitleCues(activeSubIdx);
   }
   if (!Number.isFinite(vid.duration) || vid.duration <= 0) return;
@@ -680,18 +682,18 @@ function setSubTrack(idx) {
   activeSubIdx = idx;
   activeCuePointer = 0;
   lastRenderedSubText = null;
-  if (vdoHideSubtitleActive) {
+  if (vdoHideSubtitleActive || externalSubtitleActive) {
     try {
       const browserTracks = Array.from(vid?.textTracks || []);
       if (idx === -1) {
         vdoHideSubtitleTrackIndex = -1;
-        if (hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = -1;
+        if (vdoHideSubtitleActive && hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = -1;
         browserTracks.forEach(track => {
           if (track.kind === 'subtitles' || track.kind === 'captions') track.mode = 'disabled';
         });
       } else {
         vdoHideSubtitleTrackIndex = idx;
-        if (hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = idx;
+        if (vdoHideSubtitleActive && hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = idx;
         const selectedBrowserTrack = getVdoHideBrowserTrack(idx);
         browserTracks.forEach(track => {
           if (track.kind === 'subtitles' || track.kind === 'captions') {
@@ -1480,6 +1482,9 @@ class TurboVidFragmentLoader {
 /* VdoHide HLS subtitle bridge */
 function clearVdoHideSubtitleBridge() {
   vdoHideSubtitleActive = false;
+  externalSubtitleActive = false;
+  externalSubtitleBrowserTracks = [];
+  vid?.querySelectorAll('track[data-anivault-external-subtitle]').forEach(el => el.remove());
   vdoHideSubtitleTrackIndex = -1;
   subTracks = [];
   activeSubIdx = -1;
@@ -1506,6 +1511,7 @@ function vdoHideTrackCues(track) {
 // hls.js subtitle rendition indexes and HTMLMediaElement TextTrack indexes
 // are not guaranteed to match. Resolve the browser track by its metadata first.
 function getVdoHideBrowserTrack(index) {
+  if (externalSubtitleActive && externalSubtitleBrowserTracks[index]) return externalSubtitleBrowserTracks[index];
   const browserTracks = Array.from(vid?.textTracks || []);
   const hlsTrack = hls?.subtitleTracks?.[index];
   const wantedLang = String(hlsTrack?.lang || '').toLowerCase();
@@ -1524,7 +1530,7 @@ function getVdoHideBrowserTrack(index) {
 }
 
 function syncVdoHideSubtitleCues(index) {
-  if (!vdoHideSubtitleActive || index < 0 || !subTracks[index]) return;
+  if ((!vdoHideSubtitleActive && !externalSubtitleActive) || index < 0 || !subTracks[index]) return;
   const track = getVdoHideBrowserTrack(index);
   if (!track || !track.cues) return;
 
@@ -1913,6 +1919,8 @@ window.SenshiPlayer = {
     const normalizedSubs = Array.isArray(subs) ? subs.filter(track => track && (track.url || track.file || track.src)) : [];
     const hasExplicitSubs = normalizedSubs.length > 0;
     vdoHideSubtitleActive = !hasExplicitSubs && (/cdn\\.anivault\\.co\\/stream\\//i.test(url));
+    externalSubtitleActive = false;
+    externalSubtitleBrowserTracks = [];
     vdoHideSubtitleTrackIndex = -1;
     if (vdoHideSubtitleActive) {
       subTracks = [];
@@ -1920,9 +1928,6 @@ window.SenshiPlayer = {
     } else if (hasExplicitSubs) {
       settings.captionsEnabled = true;
       saveSettings();
-
-      // Register track metadata immediately so language names appear in
-      // Settings while subtitle files are still downloading.
       subTracks = normalizedSubs.map((track, i) => ({
         label: track.label || track.name || track.lang || track.srclang || ('Track ' + (i + 1)),
         lang: track.lang || track.srclang || '',
@@ -1930,52 +1935,6 @@ window.SenshiPlayer = {
         cues: []
       }));
       buildCaptionsMenu();
-
-      let pending = normalizedSubs.length;
-      normalizedSubs.forEach((track, i) => {
-        const subUrl = track.url || track.file || track.src;
-        fetch(subUrl, { cache: 'no-store' })
-          .then(r => {
-            if (!r.ok) throw new Error('Subtitle HTTP ' + r.status);
-            return r.text();
-          })
-          .then(txt => {
-            const isSubtitlePlaylist = /#EXTM3U|#EXTINF:/i.test(txt) || /\\.m3u8(?:[?#]|$)/i.test(subUrl);
-            if (isSubtitlePlaylist) {
-              const base = new URL(subUrl, location.href);
-              const lines = txt.split(/\\r?\\n/).map(x => x.trim()).filter(Boolean);
-              const segment = lines.find(x => x && !x.startsWith('#'));
-              if (!segment) throw new Error('Subtitle playlist has no media segment');
-              const segmentUrl = new URL(segment, base).toString();
-              return fetch(segmentUrl, { cache: 'no-store' })
-                .then(sr => {
-                  if (!sr.ok) throw new Error('Subtitle segment HTTP ' + sr.status);
-                  return sr.text();
-                })
-                .then(vtt => parseVtt(vtt));
-            }
-            return parseVtt(txt);
-          })
-          .then(cues => {
-            if (subTracks[i]) subTracks[i].cues = cues;
-            if (!cues.length) console.warn('[AniVault player] subtitle file loaded but no cues were parsed:', subUrl);
-          })
-          .catch(err => {
-            console.warn('[AniVault player] subtitle load failed', subUrl, err);
-          })
-          .finally(() => {
-            pending--;
-            if (pending <= 0) {
-              buildCaptionsMenu();
-              if (settings.captionsEnabled && subTracks.length > 0) {
-                let defaultSubIdx = subTracks.findIndex(t => /full/i.test(t.label));
-                if (defaultSubIdx < 0) defaultSubIdx = subTracks.findIndex(t => t.default);
-                if (defaultSubIdx < 0) defaultSubIdx = subTracks.findIndex(t => t.cues && t.cues.length > 0);
-                if (defaultSubIdx >= 0) setSubTrack(defaultSubIdx);
-              }
-            }
-          });
-      });
     }
 
     if (url && (url.includes('.mp4') || (!url.includes('.m3u8') && !url.includes('/hls/')))) {
@@ -1994,6 +1953,40 @@ window.SenshiPlayer = {
       }
     } else {
       loadHLS(url, preferredAudioTrack || '');
+    }
+
+    // Scraper subtitles use the same native TextTrack cue pipeline as
+    // self-hosted HLS subtitles. The browser fetches/parses each VTT track;
+    // AniVault only reads its native cues for the custom styled renderer.
+    if (hasExplicitSubs) {
+      externalSubtitleActive = true;
+      externalSubtitleBrowserTracks = normalizedSubs.map((track, i) => {
+        const element = document.createElement('track');
+        element.kind = 'subtitles';
+        element.label = subTracks[i].label;
+        element.srclang = subTracks[i].lang || 'und';
+        element.src = track.url || track.file || track.src;
+        element.dataset.anivaultExternalSubtitle = '1';
+        element.addEventListener('load', () => syncVdoHideSubtitleCues(i));
+        vid.appendChild(element);
+        const browserTrack = element.track;
+        try { browserTrack.mode = 'hidden'; } catch (e) {}
+        browserTrack.addEventListener('cuechange', () => syncVdoHideSubtitleCues(i));
+        return browserTrack;
+      });
+      let defaultSubIdx = subTracks.findIndex(t => /full/i.test(t.label));
+      if (defaultSubIdx < 0) defaultSubIdx = subTracks.findIndex(t => t.default);
+      if (defaultSubIdx < 0) defaultSubIdx = 0;
+      setSubTrack(defaultSubIdx);
+      externalSubtitleBrowserTracks.forEach((track, i) => {
+        try { track.mode = i === defaultSubIdx ? 'hidden' : 'disabled'; } catch (e) {}
+      });
+      // Some browsers populate cues shortly after the track load event.
+      [100, 400, 1000].forEach(delay => setTimeout(() => {
+        if (externalSubtitleActive && settings.captionsEnabled && activeSubIdx >= 0) {
+          syncVdoHideSubtitleCues(activeSubIdx);
+        }
+      }, delay));
     }
   },
   getAudioTracks: function() {
