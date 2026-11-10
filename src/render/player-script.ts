@@ -1910,7 +1910,8 @@ window.SenshiPlayer = {
     parsedCues = [];
     if (subText) subText.innerHTML = '';
 
-    const hasExplicitSubs = Array.isArray(subs) && subs.length > 0 && subs.some(s => !!(s && (s.url || s.file)));
+    const normalizedSubs = Array.isArray(subs) ? subs.filter(track => track && (track.url || track.file || track.src)) : [];
+    const hasExplicitSubs = normalizedSubs.length > 0;
     vdoHideSubtitleActive = !hasExplicitSubs && (/cdn\\.anivault\\.co\\/stream\\//i.test(url));
     vdoHideSubtitleTrackIndex = -1;
     if (vdoHideSubtitleActive) {
@@ -1920,13 +1921,19 @@ window.SenshiPlayer = {
       settings.captionsEnabled = true;
       saveSettings();
 
-      let pending = subs.length;
-      subs.forEach((track, i) => {
-        const subUrl = track && (track.url || track.file);
-        if (!subUrl) {
-          pending--;
-          return;
-        }
+      // Register track metadata immediately so language names appear in
+      // Settings while subtitle files are still downloading.
+      subTracks = normalizedSubs.map((track, i) => ({
+        label: track.label || track.name || track.lang || track.srclang || ('Track ' + (i + 1)),
+        lang: track.lang || track.srclang || '',
+        default: !!track.default,
+        cues: []
+      }));
+      buildCaptionsMenu();
+
+      let pending = normalizedSubs.length;
+      normalizedSubs.forEach((track, i) => {
+        const subUrl = track.url || track.file || track.src;
         fetch(subUrl, { cache: 'no-store' })
           .then(r => {
             if (!r.ok) throw new Error('Subtitle HTTP ' + r.status);
@@ -1935,8 +1942,6 @@ window.SenshiPlayer = {
           .then(txt => {
             const isSubtitlePlaylist = /#EXTM3U|#EXTINF:/i.test(txt) || /\\.m3u8(?:[?#]|$)/i.test(subUrl);
             if (isSubtitlePlaylist) {
-              // HLS subtitle tracks are often playlists rather than a single VTT.
-              // Fetch the first subtitle media segment and parse that VTT.
               const base = new URL(subUrl, location.href);
               const lines = txt.split(/\\r?\\n/).map(x => x.trim()).filter(Boolean);
               const segment = lines.find(x => x && !x.startsWith('#'));
@@ -1952,12 +1957,8 @@ window.SenshiPlayer = {
             return parseVtt(txt);
           })
           .then(cues => {
-            subTracks[i] = {
-              label: track.label || track.name || track.lang || ('Track ' + (i + 1)),
-              lang: track.lang || '',
-              default: !!track.default,
-              cues
-            };
+            if (subTracks[i]) subTracks[i].cues = cues;
+            if (!cues.length) console.warn('[AniVault player] subtitle file loaded but no cues were parsed:', subUrl);
           })
           .catch(err => {
             console.warn('[AniVault player] subtitle load failed', subUrl, err);
@@ -1965,13 +1966,12 @@ window.SenshiPlayer = {
           .finally(() => {
             pending--;
             if (pending <= 0) {
-              subTracks = subTracks.filter(Boolean);
               buildCaptionsMenu();
               if (settings.captionsEnabled && subTracks.length > 0) {
                 let defaultSubIdx = subTracks.findIndex(t => /full/i.test(t.label));
                 if (defaultSubIdx < 0) defaultSubIdx = subTracks.findIndex(t => t.default);
-                if (defaultSubIdx < 0) defaultSubIdx = 0;
-                setSubTrack(defaultSubIdx);
+                if (defaultSubIdx < 0) defaultSubIdx = subTracks.findIndex(t => t.cues && t.cues.length > 0);
+                if (defaultSubIdx >= 0) setSubTrack(defaultSubIdx);
               }
             }
           });
