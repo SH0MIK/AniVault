@@ -1955,6 +1955,20 @@ window.SenshiPlayer = {
       loadHLS(url, preferredAudioTrack || '');
     }
 
+    // loadHLS resets source-specific subtitle state, so restore the
+    // scraper track metadata after it has attached the new media source.
+    if (hasExplicitSubs) {
+      subTracks = normalizedSubs.map((track, i) => ({
+        label: track.label || track.name || track.lang || track.srclang || ('Track ' + (i + 1)),
+        lang: track.lang || track.srclang || '',
+        default: !!track.default,
+        cues: []
+      }));
+      activeSubIdx = -1;
+      parsedCues = [];
+      buildCaptionsMenu();
+    }
+
     // Scraper subtitles use the same native TextTrack cue pipeline as
     // self-hosted HLS subtitles. The browser fetches/parses each VTT track;
     // AniVault only reads its native cues for the custom styled renderer.
