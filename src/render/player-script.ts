@@ -483,7 +483,7 @@ vid.addEventListener('timeupdate', () => {
   // TextTrack cues can arrive after selection (especially when toggled in the
   // middle of dialogue). Keep the active HLS subtitle rendition synchronized
   // on every playback tick so the first currently-active cue is rendered.
-  if ((vdoHideSubtitleActive || externalSubtitleActive) && settings.captionsEnabled && activeSubIdx >= 0) {
+  if (vdoHideSubtitleActive && settings.captionsEnabled && activeSubIdx >= 0) {
     syncVdoHideSubtitleCues(activeSubIdx);
   }
   if (!Number.isFinite(vid.duration) || vid.duration <= 0) return;
@@ -590,35 +590,38 @@ volSlider?.addEventListener('input', e => {
 
 /* Subtitles (Parser, Rendering, Styling) */
 function parseVtt(text) {
+  const source = String(text || '').replace(/^\\uFEFF/, '').replace(/\\r\\n?/g, '\\n');
+  const lines = source.split('\\n');
   const cues = [];
-  const cleanText = String(text || '')
-    .replace(/\\r\\n/g, '\\n')
-    .replace(/\\r/g, '\\n');
-  const blocks = cleanText.split(/\\n\\s*\\n/);
-  const timeRe = /(?:^|\\s)(\\d{1,2}:)?(\\d{2}):(\\d{2})[.,](\\d{3})\\s*-->\\s*(\\d{1,2}:)?(\\d{2}):(\\d{2})[.,](\\d{3})(?:\\s|$)/;
+  const timestamp = /^(?:(\\d{1,2}):)?(\\d{2}):(\\d{2})[.,](\\d{3})\\s*-->\\s*(?:(\\d{1,2}):)?(\\d{2}):(\\d{2})[.,](\\d{3})(?:\\s+.*)?$/;
 
-  for (const block of blocks) {
-    const lines = block.split('\\n').map(l => l.trim()).filter(Boolean);
-    const timeIdx = lines.findIndex(l => timeRe.test(l));
-    if (timeIdx === -1) continue;
+  const toSeconds = (h, m, sec, ms) =>
+    (h ? Number(h) * 3600 : 0) + Number(m) * 60 + Number(sec) + Number(ms) / 1000;
 
-    const m = lines[timeIdx].match(timeRe);
-    if (!m) continue;
+  for (let i = 0; i < lines.length; i++) {
+    const match = lines[i].trim().match(timestamp);
+    if (!match) continue;
 
-    const parseSeconds = (h, min, sec, ms) => {
-      const hours = h ? parseInt(h.replace(':', ''), 10) : 0;
-      return hours * 3600 + parseInt(min, 10) * 60 + parseInt(sec, 10) + parseInt(ms, 10) / 1000;
-    };
+    const startTime = toSeconds(match[1], match[2], match[3], match[4]);
+    const endTime = toSeconds(match[5], match[6], match[7], match[8]);
+    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) continue;
 
-    const start = parseSeconds(m[1], m[2], m[3], m[4]);
-    const end = parseSeconds(m[5], m[6], m[7], m[8]);
+    const body = [];
+    for (i = i + 1; i < lines.length && lines[i].trim() !== ''; i++) {
+      const line = lines[i].trim();
+      if (timestamp.test(line)) { i--; break; }
+      if (/^(NOTE|STYLE|REGION)(?:\\s|$)/i.test(line)) break;
+      body.push(line);
+    }
 
-    const cueText = lines
-      .slice(timeIdx + 1)
-      .join('<br>')
-      .replace(new RegExp('<(?!/?(i|b|u|font)\\b)[^>]+>', 'gi'), '');
+    const cueText = body.join('<br>')
+      .replace(/<(?!\\/?(?:i|b|u|font|ruby|rt|c|v|lang)(?:\\s|>|\\.))[^>]+>/gi, '')
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&lt;/gi, '<')
+      .replace(/&gt;/gi, '>')
+      .replace(/&amp;/gi, '&');
 
-    if (cueText) cues.push({ start, end, text: cueText });
+    if (cueText.trim()) cues.push({ start: startTime, end: endTime, text: cueText });
   }
 
   return cues.sort((a, b) => a.start - b.start);
@@ -682,7 +685,7 @@ function setSubTrack(idx) {
   activeSubIdx = idx;
   activeCuePointer = 0;
   lastRenderedSubText = null;
-  if (vdoHideSubtitleActive || externalSubtitleActive) {
+  if (vdoHideSubtitleActive) {
     try {
       const browserTracks = Array.from(vid?.textTracks || []);
       if (idx === -1) {
@@ -1511,7 +1514,6 @@ function vdoHideTrackCues(track) {
 // hls.js subtitle rendition indexes and HTMLMediaElement TextTrack indexes
 // are not guaranteed to match. Resolve the browser track by its metadata first.
 function getVdoHideBrowserTrack(index) {
-  if (externalSubtitleActive && externalSubtitleBrowserTracks[index]) return externalSubtitleBrowserTracks[index];
   const browserTracks = Array.from(vid?.textTracks || []);
   const hlsTrack = hls?.subtitleTracks?.[index];
   const wantedLang = String(hlsTrack?.lang || '').toLowerCase();
@@ -1530,7 +1532,7 @@ function getVdoHideBrowserTrack(index) {
 }
 
 function syncVdoHideSubtitleCues(index) {
-  if ((!vdoHideSubtitleActive && !externalSubtitleActive) || index < 0 || !subTracks[index]) return;
+  if (!vdoHideSubtitleActive || index < 0 || !subTracks[index]) return;
   const track = getVdoHideBrowserTrack(index);
   if (!track || !track.cues) return;
 
@@ -1969,38 +1971,51 @@ window.SenshiPlayer = {
       buildCaptionsMenu();
     }
 
-    // Scraper subtitles use the same native TextTrack cue pipeline as
-    // self-hosted HLS subtitles. The browser fetches/parses each VTT track;
-    // AniVault only reads its native cues for the custom styled renderer.
+    // Load scraper VTT files and feed their cues into AniVault's normal
+    // subtitle renderer. This avoids browser-native cross-origin track quirks.
     if (hasExplicitSubs) {
-      externalSubtitleActive = true;
-      externalSubtitleBrowserTracks = normalizedSubs.map((track, i) => {
-        const element = document.createElement('track');
-        element.kind = 'subtitles';
-        element.label = subTracks[i].label;
-        element.srclang = subTracks[i].lang || 'und';
-        element.src = track.url || track.file || track.src;
-        element.dataset.anivaultExternalSubtitle = '1';
-        element.addEventListener('load', () => syncVdoHideSubtitleCues(i));
-        vid.appendChild(element);
-        const browserTrack = element.track;
-        try { browserTrack.mode = 'hidden'; } catch (e) {}
-        browserTrack.addEventListener('cuechange', () => syncVdoHideSubtitleCues(i));
-        return browserTrack;
+      externalSubtitleActive = false;
+      externalSubtitleBrowserTracks = [];
+      let pending = normalizedSubs.length;
+      let selectionApplied = false;
+
+      const applySelection = () => {
+        if (selectionApplied || pending > 0) return;
+        selectionApplied = true;
+        buildCaptionsMenu();
+        let defaultSubIdx = subTracks.findIndex(t => /full/i.test(t.label));
+        if (defaultSubIdx < 0) defaultSubIdx = subTracks.findIndex(t => t.default && t.cues.length);
+        if (defaultSubIdx < 0) defaultSubIdx = subTracks.findIndex(t => t.cues.length);
+        if (defaultSubIdx >= 0) setSubTrack(defaultSubIdx);
+        else console.warn('[AniVault player] scraper subtitles loaded, but no usable cues were found');
+      };
+
+      normalizedSubs.forEach((track, i) => {
+        const subUrl = track.url || track.file || track.src;
+        fetch(subUrl, { cache: 'no-store' })
+          .then(response => {
+            if (!response.ok) throw new Error('Subtitle HTTP ' + response.status);
+            return response.text();
+          })
+          .then(contents => {
+            const cues = parseVtt(contents);
+            if (subTracks[i]) subTracks[i].cues = cues;
+            if (!cues.length) {
+              console.warn('[AniVault player] subtitle response had no parseable VTT cues', {
+                url: subUrl,
+                preview: String(contents || '').slice(0, 240)
+              });
+            }
+          })
+          .catch(error => {
+            console.warn('[AniVault player] scraper subtitle request failed', subUrl, error);
+          })
+          .finally(() => {
+            pending--;
+            applySelection();
+          });
       });
-      let defaultSubIdx = subTracks.findIndex(t => /full/i.test(t.label));
-      if (defaultSubIdx < 0) defaultSubIdx = subTracks.findIndex(t => t.default);
-      if (defaultSubIdx < 0) defaultSubIdx = 0;
-      setSubTrack(defaultSubIdx);
-      externalSubtitleBrowserTracks.forEach((track, i) => {
-        try { track.mode = i === defaultSubIdx ? 'hidden' : 'disabled'; } catch (e) {}
-      });
-      // Some browsers populate cues shortly after the track load event.
-      [100, 400, 1000].forEach(delay => setTimeout(() => {
-        if (externalSubtitleActive && settings.captionsEnabled && activeSubIdx >= 0) {
-          syncVdoHideSubtitleCues(activeSubIdx);
-        }
-      }, delay));
+      buildCaptionsMenu();
     }
   },
   getAudioTracks: function() {
