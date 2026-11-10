@@ -243,8 +243,6 @@ let subTracks = [];
 let activeSubIdx = -1;
 let parsedCues = [];
 let vdoHideSubtitleActive = false;
-let externalSubtitleActive = false;
-let externalSubtitleBrowserTracks = [];
 let vdoHideSubtitleTrackIndex = -1;
 let isScrubbing = false;
 let idleTimer = null;
@@ -590,38 +588,35 @@ volSlider?.addEventListener('input', e => {
 
 /* Subtitles (Parser, Rendering, Styling) */
 function parseVtt(text) {
-  const source = String(text || '').replace(/^\\uFEFF/, '').replace(/\\r\\n?/g, '\\n');
-  const lines = source.split('\\n');
   const cues = [];
-  const timestamp = /^(?:(\\d{1,2}):)?(\\d{2}):(\\d{2})[.,](\\d{3})\\s*-->\\s*(?:(\\d{1,2}):)?(\\d{2}):(\\d{2})[.,](\\d{3})(?:\\s+.*)?$/;
+  const cleanText = String(text || '')
+    .replace(/\\r\\n/g, '\\n')
+    .replace(/\\r/g, '\\n');
+  const blocks = cleanText.split(/\\n\\s*\\n/);
+  const timeRe = /(?:^|\\s)(\\d{1,2}:)?(\\d{2}):(\\d{2})[.,](\\d{3})\\s*-->\\s*(\\d{1,2}:)?(\\d{2}):(\\d{2})[.,](\\d{3})(?:\\s|$)/;
 
-  const toSeconds = (h, m, sec, ms) =>
-    (h ? Number(h) * 3600 : 0) + Number(m) * 60 + Number(sec) + Number(ms) / 1000;
+  for (const block of blocks) {
+    const lines = block.split('\\n').map(l => l.trim()).filter(Boolean);
+    const timeIdx = lines.findIndex(l => timeRe.test(l));
+    if (timeIdx === -1) continue;
 
-  for (let i = 0; i < lines.length; i++) {
-    const match = lines[i].trim().match(timestamp);
-    if (!match) continue;
+    const m = lines[timeIdx].match(timeRe);
+    if (!m) continue;
 
-    const startTime = toSeconds(match[1], match[2], match[3], match[4]);
-    const endTime = toSeconds(match[5], match[6], match[7], match[8]);
-    if (!Number.isFinite(startTime) || !Number.isFinite(endTime) || endTime <= startTime) continue;
+    const parseSeconds = (h, min, sec, ms) => {
+      const hours = h ? parseInt(h.replace(':', ''), 10) : 0;
+      return hours * 3600 + parseInt(min, 10) * 60 + parseInt(sec, 10) + parseInt(ms, 10) / 1000;
+    };
 
-    const body = [];
-    for (i = i + 1; i < lines.length && lines[i].trim() !== ''; i++) {
-      const line = lines[i].trim();
-      if (timestamp.test(line)) { i--; break; }
-      if (/^(NOTE|STYLE|REGION)(?:\\s|$)/i.test(line)) break;
-      body.push(line);
-    }
+    const start = parseSeconds(m[1], m[2], m[3], m[4]);
+    const end = parseSeconds(m[5], m[6], m[7], m[8]);
 
-    const cueText = body.join('<br>')
-      .replace(/<(?!\\/?(?:i|b|u|font|ruby|rt|c|v|lang)(?:\\s|>|\\.))[^>]+>/gi, '')
-      .replace(/&nbsp;/gi, ' ')
-      .replace(/&lt;/gi, '<')
-      .replace(/&gt;/gi, '>')
-      .replace(/&amp;/gi, '&');
+    const cueText = lines
+      .slice(timeIdx + 1)
+      .join('<br>')
+      .replace(new RegExp('<(?!/?(i|b|u|font)\\b)[^>]+>', 'gi'), '');
 
-    if (cueText.trim()) cues.push({ start: startTime, end: endTime, text: cueText });
+    if (cueText) cues.push({ start, end, text: cueText });
   }
 
   return cues.sort((a, b) => a.start - b.start);
@@ -690,13 +685,13 @@ function setSubTrack(idx) {
       const browserTracks = Array.from(vid?.textTracks || []);
       if (idx === -1) {
         vdoHideSubtitleTrackIndex = -1;
-        if (vdoHideSubtitleActive && hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = -1;
+        if (hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = -1;
         browserTracks.forEach(track => {
           if (track.kind === 'subtitles' || track.kind === 'captions') track.mode = 'disabled';
         });
       } else {
         vdoHideSubtitleTrackIndex = idx;
-        if (vdoHideSubtitleActive && hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = idx;
+        if (hls && typeof hls.subtitleTrack === 'number') hls.subtitleTrack = idx;
         const selectedBrowserTrack = getVdoHideBrowserTrack(idx);
         browserTracks.forEach(track => {
           if (track.kind === 'subtitles' || track.kind === 'captions') {
@@ -1485,9 +1480,6 @@ class TurboVidFragmentLoader {
 /* VdoHide HLS subtitle bridge */
 function clearVdoHideSubtitleBridge() {
   vdoHideSubtitleActive = false;
-  externalSubtitleActive = false;
-  externalSubtitleBrowserTracks = [];
-  vid?.querySelectorAll('track[data-anivault-external-subtitle]').forEach(el => el.remove());
   vdoHideSubtitleTrackIndex = -1;
   subTracks = [];
   activeSubIdx = -1;
@@ -1918,11 +1910,8 @@ window.SenshiPlayer = {
     parsedCues = [];
     if (subText) subText.innerHTML = '';
 
-    const normalizedSubs = Array.isArray(subs) ? subs.filter(track => track && (track.url || track.file || track.src)) : [];
-    const hasExplicitSubs = normalizedSubs.length > 0;
+    const hasExplicitSubs = Array.isArray(subs) && subs.length > 0 && subs.some(s => !!(s && (s.url || s.file)));
     vdoHideSubtitleActive = !hasExplicitSubs && (/cdn\\.anivault\\.co\\/stream\\//i.test(url));
-    externalSubtitleActive = false;
-    externalSubtitleBrowserTracks = [];
     vdoHideSubtitleTrackIndex = -1;
     if (vdoHideSubtitleActive) {
       subTracks = [];
@@ -1930,13 +1919,63 @@ window.SenshiPlayer = {
     } else if (hasExplicitSubs) {
       settings.captionsEnabled = true;
       saveSettings();
-      subTracks = normalizedSubs.map((track, i) => ({
-        label: track.label || track.name || track.lang || track.srclang || ('Track ' + (i + 1)),
-        lang: track.lang || track.srclang || '',
-        default: !!track.default,
-        cues: []
-      }));
-      buildCaptionsMenu();
+
+      let pending = subs.length;
+      subs.forEach((track, i) => {
+        const subUrl = track && (track.url || track.file);
+        if (!subUrl) {
+          pending--;
+          return;
+        }
+        fetch(subUrl, { cache: 'no-store' })
+          .then(r => {
+            if (!r.ok) throw new Error('Subtitle HTTP ' + r.status);
+            return r.text();
+          })
+          .then(txt => {
+            const isSubtitlePlaylist = /#EXTM3U|#EXTINF:/i.test(txt) || /\\.m3u8(?:[?#]|$)/i.test(subUrl);
+            if (isSubtitlePlaylist) {
+              // HLS subtitle tracks are often playlists rather than a single VTT.
+              // Fetch the first subtitle media segment and parse that VTT.
+              const base = new URL(subUrl, location.href);
+              const lines = txt.split(/\\r?\\n/).map(x => x.trim()).filter(Boolean);
+              const segment = lines.find(x => x && !x.startsWith('#'));
+              if (!segment) throw new Error('Subtitle playlist has no media segment');
+              const segmentUrl = new URL(segment, base).toString();
+              return fetch(segmentUrl, { cache: 'no-store' })
+                .then(sr => {
+                  if (!sr.ok) throw new Error('Subtitle segment HTTP ' + sr.status);
+                  return sr.text();
+                })
+                .then(vtt => parseVtt(vtt));
+            }
+            return parseVtt(txt);
+          })
+          .then(cues => {
+            subTracks[i] = {
+              label: track.label || track.name || track.lang || ('Track ' + (i + 1)),
+              lang: track.lang || '',
+              default: !!track.default,
+              cues
+            };
+          })
+          .catch(err => {
+            console.warn('[AniVault player] subtitle load failed', subUrl, err);
+          })
+          .finally(() => {
+            pending--;
+            if (pending <= 0) {
+              subTracks = subTracks.filter(Boolean);
+              buildCaptionsMenu();
+              if (settings.captionsEnabled && subTracks.length > 0) {
+                let defaultSubIdx = subTracks.findIndex(t => /full/i.test(t.label));
+                if (defaultSubIdx < 0) defaultSubIdx = subTracks.findIndex(t => t.default);
+                if (defaultSubIdx < 0) defaultSubIdx = 0;
+                setSubTrack(defaultSubIdx);
+              }
+            }
+          });
+      });
     }
 
     if (url && (url.includes('.mp4') || (!url.includes('.m3u8') && !url.includes('/hls/')))) {
@@ -1955,67 +1994,6 @@ window.SenshiPlayer = {
       }
     } else {
       loadHLS(url, preferredAudioTrack || '');
-    }
-
-    // loadHLS resets source-specific subtitle state, so restore the
-    // scraper track metadata after it has attached the new media source.
-    if (hasExplicitSubs) {
-      subTracks = normalizedSubs.map((track, i) => ({
-        label: track.label || track.name || track.lang || track.srclang || ('Track ' + (i + 1)),
-        lang: track.lang || track.srclang || '',
-        default: !!track.default,
-        cues: []
-      }));
-      activeSubIdx = -1;
-      parsedCues = [];
-      buildCaptionsMenu();
-    }
-
-    // Load scraper VTT files and feed their cues into AniVault's normal
-    // subtitle renderer. This avoids browser-native cross-origin track quirks.
-    if (hasExplicitSubs) {
-      externalSubtitleActive = false;
-      externalSubtitleBrowserTracks = [];
-      let pending = normalizedSubs.length;
-      let selectionApplied = false;
-
-      const applySelection = () => {
-        if (selectionApplied || pending > 0) return;
-        selectionApplied = true;
-        buildCaptionsMenu();
-        let defaultSubIdx = subTracks.findIndex(t => /full/i.test(t.label));
-        if (defaultSubIdx < 0) defaultSubIdx = subTracks.findIndex(t => t.default && t.cues.length);
-        if (defaultSubIdx < 0) defaultSubIdx = subTracks.findIndex(t => t.cues.length);
-        if (defaultSubIdx >= 0) setSubTrack(defaultSubIdx);
-        else console.warn('[AniVault player] scraper subtitles loaded, but no usable cues were found');
-      };
-
-      normalizedSubs.forEach((track, i) => {
-        const subUrl = track.url || track.file || track.src;
-        fetch(subUrl, { cache: 'no-store' })
-          .then(response => {
-            if (!response.ok) throw new Error('Subtitle HTTP ' + response.status);
-            return response.text();
-          })
-          .then(contents => {
-            const cues = parseVtt(contents);
-            if (subTracks[i]) subTracks[i].cues = cues;
-            if (!cues.length) {
-              console.warn('[AniVault player] subtitle response had no parseable VTT cues', {
-                url: subUrl,
-                preview: String(contents || '').slice(0, 240)
-              });
-            }
-          })
-          .catch(error => {
-            console.warn('[AniVault player] scraper subtitle request failed', subUrl, error);
-          })
-          .finally(() => {
-            pending--;
-            applySelection();
-          });
-      });
-      buildCaptionsMenu();
     }
   },
   getAudioTracks: function() {
