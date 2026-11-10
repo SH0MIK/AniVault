@@ -87,6 +87,35 @@ export const scraperRoutes = new Hono<{ Bindings: Env }>();
 // append "/api/watch/..." or "/watch/..." consistently regardless of which
 // form was configured. Returns null if unset so callers can fail with a
 // clean error instead of throwing.
+// The scraper service may accidentally serialize its local development origin
+// (localhost:3000) into proxy URLs. Those URLs are consumed by the visitor's
+// browser, where localhost points at the visitor's own device. Rebase only
+// loopback proxy URLs onto the configured public scraper origin.
+function publicScraperUrl(value: unknown, base: string): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  try {
+    const url = new URL(value);
+    if (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname === '0.0.0.0') {
+      const publicOrigin = new URL(base);
+      url.protocol = publicOrigin.protocol;
+      url.host = publicOrigin.host;
+      return url.toString();
+    }
+    return value;
+  } catch {
+    return value;
+  }
+}
+
+function publicScraperSubtitles(value: unknown, base: string): any[] {
+  if (!Array.isArray(value)) return [];
+  return value.map((track: any) => {
+    if (!track || typeof track !== 'object') return track;
+    const url = publicScraperUrl(track.url ?? track.file ?? track.src, base);
+    return url ? { ...track, url } : track;
+  });
+}
+
 function getScraperBase(env: Env): string | null {
   const base = env.SCRAPER_API_BASE;
   if (!base) return null;
@@ -146,10 +175,14 @@ scraperRoutes.get('/api/anikoto_stream.php', async (c) => {
   if (!ok) return c.json({ error: data?.error ?? `Anikoto fetch failed HTTP ${code}` });
 
   const servers = (data?.availableServers ?? []).map((s: string) => ({ name: s, type: audio }));
-  const m3u8 = data?.hlsProxyUrl ?? data?.m3u8 ?? null;
+  // Rebase local proxy URLs before sending them to the browser. A browser
+  // interpreting http://localhost:3000 would request the visitor's computer,
+  // not the scraper service that produced the response.
+  const m3u8 = publicScraperUrl(data?.hlsProxyUrl ?? data?.m3u8, base);
+  const subtitles = publicScraperSubtitles(data?.subtitles, base);
 
   if (data?.iframeOnly) return c.json({ servers, embedUrl: data.embedUrl ?? '', iframeOnly: true, server: data.server ?? server });
-  if (m3u8) return c.json({ servers, m3u8, server: data.server ?? server, subtitles: data.subtitles ?? [] });
+  if (m3u8) return c.json({ servers, m3u8, server: data.server ?? server, subtitles });
   return c.json({ error: 'No stream URL in response' });
 });
 
